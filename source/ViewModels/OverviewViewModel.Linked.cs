@@ -5,6 +5,7 @@ using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -21,6 +22,37 @@ namespace PlayniteAchievements.ViewModels
         private DateTime? _unlockRangeTo;
         private readonly HashSet<string> _selectedRarityFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedTrophyFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Achievement tag keys; a tag pie slice in the mini-showcase toggles them too.
+        private readonly HashSet<string> _selectedTagFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The global tags: the Achievements grid lists every game's unlocks.</summary>
+        public IReadOnlyList<string> TagFilterOptions => AchievementTagRegistry.GetShownKeys(null);
+
+        public string SelectedTagFilterText => _selectedTagFilters.Count == 0
+            ? L("LOCPlayAch_Common_Tags")
+            : string.Join(", ", _selectedTagFilters
+                .Select(key => AchievementTagRegistry.GetName(key))
+                .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase));
+
+        public bool IsTagFilterSelected(string key) => key != null && _selectedTagFilters.Contains(key);
+
+        public void SetTagFilterSelected(string key, bool isSelected)
+        {
+            if (SetFilterSelection(_selectedTagFilters, key, isSelected))
+            {
+                OnPropertyChanged(nameof(SelectedTagFilterText));
+                ScheduleAchievementFilterApply();
+            }
+        }
+
+        private void ClearTagFilters()
+        {
+            foreach (var key in _selectedTagFilters.ToList())
+            {
+                SetTagFilterSelected(key, false);
+            }
+        }
 
         private readonly Dictionary<(OverviewLinkedFilter Exclude, Guid? Game, bool CountsGames), LinkedSnapshotEntry> _linkedSnapshots =
             new Dictionary<(OverviewLinkedFilter Exclude, Guid? Game, bool CountsGames), LinkedSnapshotEntry>();
@@ -122,6 +154,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        // The badges the Rarity and Trophy filters show beside their labels and in the bar.
+        private string RarityFilterIconKey(string label) =>
+            RarityByLabel().TryGetValue(label ?? string.Empty, out var tier) ? tier.ToDynamicIconKey() : null;
+
+        private string TrophyFilterIconKey(string label) =>
+            TrophyTypeByLabel().TryGetValue(label ?? string.Empty, out var type)
+                ? RarityTrophyControlBarFilters.TrophyChoices
+                    .FirstOrDefault(choice => string.Equals(choice.Type, type, StringComparison.OrdinalIgnoreCase)).IconKey
+                : null;
+
         private Dictionary<string, RarityTier> RarityByLabel() =>
             new Dictionary<string, RarityTier>(StringComparer.OrdinalIgnoreCase)
             {
@@ -196,11 +238,13 @@ namespace PlayniteAchievements.ViewModels
         private bool HasAchievementFilters(OverviewLinkedFilter exclude) =>
             ((exclude & OverviewLinkedFilter.UnlockSpan) == 0 && UnlockSpanFilter.HasValue) ||
             ((exclude & OverviewLinkedFilter.Rarity) == 0 && _selectedRarityFilters.Count > 0) ||
-            ((exclude & OverviewLinkedFilter.Trophy) == 0 && _selectedTrophyFilters.Count > 0);
+            ((exclude & OverviewLinkedFilter.Trophy) == 0 && _selectedTrophyFilters.Count > 0) ||
+            ((exclude & OverviewLinkedFilter.Tag) == 0 && _selectedTagFilters.Count > 0);
 
         /// <summary>
         /// The Achievements grid's filters, less those in <paramref name="exclude"/>, as one test
-        /// on an achievement row. Only unlocked rows with a time pass: the filters describe unlocks.
+        /// on an achievement row. Only unlocked rows pass: the filters describe unlocks. An unlock
+        /// with no time passes unless the date range is set, which it cannot fall inside.
         /// </summary>
         private Func<AchievementDisplayItem, bool> AchievementFilter(OverviewLinkedFilter exclude)
         {
@@ -217,13 +261,17 @@ namespace PlayniteAchievements.ViewModels
                     _selectedTrophyFilters.Where(trophyByLabel.ContainsKey).Select(label => trophyByLabel[label]),
                     StringComparer.OrdinalIgnoreCase)
                 : null;
+            var tags = (exclude & OverviewLinkedFilter.Tag) == 0 && _selectedTagFilters.Count > 0
+                ? _selectedTagFilters.ToList()
+                : null;
 
             return item =>
                 item?.Unlocked == true &&
-                item.UnlockTimeUtc.HasValue &&
-                (!span.HasValue || span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value))) &&
+                (!span.HasValue ||
+                 (item.UnlockTimeUtc.HasValue && span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))) &&
                 (rarities == null || rarities.Contains(item.Rarity)) &&
-                (trophies == null || trophies.Contains((item.TrophyType ?? string.Empty).Trim()));
+                (trophies == null || trophies.Contains((item.TrophyType ?? string.Empty).Trim())) &&
+                (tags == null || tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
         }
 
         // A key for the filters a view applies, so a cached view knows when they moved.
@@ -241,7 +289,11 @@ namespace PlayniteAchievements.ViewModels
             var trophy = (exclude & OverviewLinkedFilter.Trophy) == 0
                 ? string.Join(",", _selectedTrophyFilters.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
                 : string.Empty;
-            return (span.HasValue ? span.Value.Start.Ticks + "-" + span.Value.End.Ticks : string.Empty) + "|" + rarity + "|" + trophy;
+            var tag = (exclude & OverviewLinkedFilter.Tag) == 0
+                ? string.Join(",", _selectedTagFilters.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+                : string.Empty;
+            return (span.HasValue ? span.Value.Start.Ticks + "-" + span.Value.End.Ticks : string.Empty) +
+                   "|" + rarity + "|" + trophy + "|" + tag;
         }
 
         /// <summary>The Achievements grid's rows its filters keep; every row while none is set.</summary>
@@ -297,10 +349,17 @@ namespace PlayniteAchievements.ViewModels
             var narrowTo = GetLinkedNarrowedGame(selection)?.PlayniteGameId;
             // Narrowed to one game the games filters no longer apply, but the achievement ones do.
             const OverviewLinkedFilter achievementFilters =
-                OverviewLinkedFilter.UnlockSpan | OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy;
+                OverviewLinkedFilter.UnlockSpan | OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy |
+                OverviewLinkedFilter.Tag;
             var key = (narrowTo.HasValue ? exclude & achievementFilters : exclude, narrowTo, countsGames);
-            // Whole games are not cut, so for them the filters matter only through the games kept.
-            var filterKey = countsGames ? string.Empty : AchievementFilterKey(exclude);
+            // Whole games are not cut, so for them the filters matter only through the games kept,
+            // except the unlock range, which cuts their completions to the ones finished in it.
+            var completionSpan = countsGames && !narrowTo.HasValue && (exclude & OverviewLinkedFilter.UnlockSpan) == 0
+                ? UnlockSpanFilter
+                : null;
+            var filterKey = countsGames
+                ? (completionSpan.HasValue ? completionSpan.Value.Start.Ticks + "-" + completionSpan.Value.End.Ticks : string.Empty)
+                : AchievementFilterKey(exclude);
             _linkedSnapshots.TryGetValue(key, out var entry);
             if (entry != null && entry.IsCurrent)
             {
@@ -342,7 +401,11 @@ namespace PlayniteAchievements.ViewModels
                 context: exclude + (countsGames ? " games" : string.Empty)))
             {
                 snapshot = OverviewLinkedSnapshots.Build(source, kept, keptIsAll);
-                if (filterKey.Length > 0)
+                if (completionSpan.HasValue)
+                {
+                    snapshot = OverviewLinkedSnapshots.ClipCompletionsToSpan(snapshot, completionSpan.Value);
+                }
+                else if (!countsGames && filterKey.Length > 0)
                 {
                     snapshot = OverviewLinkedSnapshots.ClipToAchievements(snapshot, AchievementFilter(exclude));
                 }
@@ -462,6 +525,8 @@ namespace PlayniteAchievements.ViewModels
                     return _selectedRarityFilters.ToList();
                 case ShowcasePieMode.Trophy:
                     return _selectedTrophyFilters.ToList();
+                case ShowcasePieMode.Tag:
+                    return _selectedTagFilters.ToList();
                 default:
                     return Array.Empty<string>();
             }
@@ -521,6 +586,23 @@ namespace PlayniteAchievements.ViewModels
                     else if (TrophyTypeByLabel().ContainsKey(sliceKey))
                     {
                         SetTrophyFilterSelected(sliceKey, !IsTrophyFilterSelected(sliceKey));
+                    }
+
+                    return;
+                case ShowcasePieMode.Tag:
+                    if (sliceKey == OverviewLinkedSliceKeys.Locked)
+                    {
+                        ClearTagFilters();
+                        return;
+                    }
+
+                    var selected = !IsTagFilterSelected(sliceKey);
+                    SetTagFilterSelected(sliceKey, selected);
+                    // The selected game's grid has its own Tags filter, which takes the tag too,
+                    // so the grid beside the pie shows the achievements the slice stands for.
+                    if (SelectedGame != null)
+                    {
+                        _selectedGameControlBar?.SetCategoryTypeFilterSelected(sliceKey, selected);
                     }
 
                     return;

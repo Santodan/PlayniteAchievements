@@ -197,7 +197,7 @@ namespace PlayniteAchievements.Services.Overview
                 var summaryArt = GameSummaryArtResolver.ResolveForGame(game.PlayniteGameId);
                 snapshot.GameSummaries.Add(new GameSummaryItem
                 {
-                    GameName = presentation.DisplayName ?? game.GameName ?? "Unknown",
+                    GameName = presentation.DisplayName ?? game.GameName ?? ResourceProvider.GetString("LOCPlayAch_Common_Unknown"),
                     SortingName = presentation.SortingName ?? presentation.DisplayName ?? game.GameName ?? "Unknown",
                     GameLogo = summaryArt ?? presentation.IconPath,
                     GameCoverPath = summaryArt ?? presentation.CoverPath,
@@ -236,7 +236,10 @@ namespace PlayniteAchievements.Services.Overview
                     TrophyGoldTotal = game.TrophyGoldTotal,
                     TrophySilverTotal = game.TrophySilverTotal,
                     TrophyBronzeTotal = game.TrophyBronzeTotal,
+                    Tallies = game.Tallies,
                     LastPlayed = presentation.LastPlayed,
+                    Added = presentation.Game?.Added,
+                    ReleaseDate = presentation.Game?.ReleaseDate?.Date,
                     LastUnlockUtc = game.LastUnlockUtc,
                     IsCompleted = game.IsCompleted,
                     CapstoneTotal = game.CapstoneTotal,
@@ -690,34 +693,35 @@ namespace PlayniteAchievements.Services.Overview
         // The snapshot's achievement rows are unlocked-only (see SummaryCacheReader: one display
         // row per locked definition costs hundreds of MB on the 32-bit host). Unlock Next needs
         // locked rows, so hydrate a bounded candidate pool the same way the pinned-locked path
-        // does - per game, capped, and skipped entirely unless a live widget asks for it.
+        // does - per game, as deep as the largest Max per game asks, and skipped entirely unless
+        // a live widget asks for it.
         //
-        // The pool is deliberately config-independent: it is a superset that dominates every
-        // per-widget combination of criterion, window, and max-per-game, because editing a widget
-        // option re-projects from the existing snapshot without rebuilding it. Narrowing happens
-        // in ShowcaseWidgetProjectionService, which is free.
+        // The pool is a superset that dominates every per-widget combination of criterion and
+        // window, because editing those options re-projects from the existing snapshot without
+        // rebuilding it. Narrowing happens in ShowcaseWidgetProjectionService, which is free.
         private void BuildUnlockNextCandidates(
             PlayniteAchievementsSettings settings,
             OverviewDataSnapshot snapshot,
             Dictionary<Guid, GamePresentation> presentationByGameId,
             CancellationToken cancel)
         {
-            if (snapshot == null ||
-                !ShowcaseWidgetOptions.RequiresUnlockNextPool(settings?.Persisted?.Showcase))
+            // Both layouts read this snapshot, so the pool covers whichever asks for more.
+            var maxPerGame = Math.Max(
+                ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.Showcase),
+                ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.OverviewMiniShowcase));
+            if (snapshot == null || maxPerGame <= 0)
             {
                 return;
             }
 
+            var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
             snapshot.UnlockNextPoolBuilt = true;
+            snapshot.UnlockNextPoolSlice = slice;
 
             var pool = new List<AchievementDisplayItem>();
             foreach (var summary in UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries))
             {
                 cancel.ThrowIfCancellationRequested();
-                if (pool.Count >= UnlockNextCandidateSelector.PoolCap)
-                {
-                    break;
-                }
 
                 var gameId = summary.PlayniteGameId.Value;
                 GameAchievementData gameData = null;
@@ -741,13 +745,8 @@ namespace PlayniteAchievements.Services.Overview
                     gameData.UseSeparateLockedIconsWhenAvailable);
                 var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
                 var presentation = ResolveGamePresentation(gameId, presentationByGameId);
-                foreach (var detail in UnlockNextCandidateSelector.SelectAchievements(gameData.Achievements))
+                foreach (var detail in UnlockNextCandidateSelector.SelectAchievements(gameData.Achievements, slice))
                 {
-                    if (pool.Count >= UnlockNextCandidateSelector.PoolCap)
-                    {
-                        break;
-                    }
-
                     var item = AchievementDisplayItem.Create(
                         gameData,
                         detail,
@@ -854,7 +853,8 @@ namespace PlayniteAchievements.Services.Overview
                     ScaledPoints = achievement.ScaledPoints,
                     Category = achievement.Category,
                     ProviderCategory = achievement.ProviderCategory,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,
@@ -1033,10 +1033,10 @@ namespace PlayniteAchievements.Services.Overview
                 return null;
             }
 
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in source)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;

@@ -115,6 +115,51 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(AutoCapstoneGenerationAction.Author, decision.Action);
         }
 
+        [TestMethod]
+        public void GameWithAMatchedPlatinum_NominatesThatAchievement()
+        {
+            var matched = Achievement("ACH_ALL");
+
+            var decision = AutoCapstoneEligibility.Decide(
+                false,
+                false,
+                new[] { Achievement("a"), matched },
+                "ach_all");
+
+            Assert.AreEqual(AutoCapstoneGenerationAction.NominatePlatinum, decision.Action);
+            Assert.AreSame(matched, decision.Platinum);
+        }
+
+        [TestMethod]
+        public void MatchedPlatinum_MissingOrAuthored_StillAuthors()
+        {
+            var custom = Achievement("custom:note");
+            custom.IsCustom = true;
+            var achievements = new[] { Achievement("a"), custom };
+
+            Assert.AreEqual(
+                AutoCapstoneGenerationAction.Author,
+                AutoCapstoneEligibility.Decide(false, false, achievements, "gone").Action);
+            Assert.AreEqual(
+                AutoCapstoneGenerationAction.Author,
+                AutoCapstoneEligibility.Decide(false, false, achievements, "custom:note").Action);
+        }
+
+        [TestMethod]
+        public void MatchedPlatinum_DoesNotDisplaceAnExistingCapstone()
+        {
+            var capstone = Achievement("win");
+            capstone.IsCapstone = true;
+
+            var decision = AutoCapstoneEligibility.Decide(
+                false,
+                false,
+                new[] { Achievement("ACH_ALL"), capstone },
+                "ACH_ALL");
+
+            Assert.AreEqual(AutoCapstoneGenerationAction.MarkHandled, decision.Action);
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             string trophyType = null,
@@ -125,7 +170,8 @@ namespace PlayniteAchievements.Tests.Services
                 ApiName = apiName,
                 DisplayName = apiName,
                 TrophyType = trophyType,
-                CategoryType = categoryType
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType)
             };
         }
     }

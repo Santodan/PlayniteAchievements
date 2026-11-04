@@ -52,10 +52,13 @@ namespace PlayniteAchievements.ViewModels.Settings
         private string _completionHeaderText;
         private string _friendCompletionHeaderText;
         private string _progressHeaderText;
+        private string _completionTitleText;
         private bool _hasHeaderFormatError;
         private string _textShadowText;
         private string _textShadowOffsetText;
         private string _frameVignetteStrengthText;
+        private string _blurStrengthText;
+        private string _blurTintOpacityText;
         private string _imageShadowText;
         private string _imageShadowOffsetText;
         private string _cardWidthText = string.Empty;
@@ -218,7 +221,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                     var options = new List<FontFamilyOption>
                     {
                         new FontFamilyOption(
-                            L("LOCDefault"),
+                            L("LOCPlayAch_Common_Default"),
                             familyName: null,
                             previewFamily: System.Windows.SystemFonts.MessageFontFamily)
                     };
@@ -351,7 +354,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<RarityBadgePlacementOption> BadgePlacementOptions =>
             _badgePlacementOptions ?? (_badgePlacementOptions = new[]
             {
-                new RarityBadgePlacementOption(RarityBadgePlacement.None, L("LOCNone")),
+                new RarityBadgePlacementOption(RarityBadgePlacement.None, L("LOCPlayAch_Common_None")),
                 new RarityBadgePlacementOption(RarityBadgePlacement.UnderIcon, L("LOCPlayAch_Settings_Style_Rarity_BadgeUnderIcon")),
                 new RarityBadgePlacementOption(RarityBadgePlacement.Inline, L("LOCPlayAch_Settings_Style_Rarity_InlineBadge")),
                 new RarityBadgePlacementOption(RarityBadgePlacement.InlineGame, L("LOCPlayAch_Settings_Style_Rarity_InlineGameBadge")),
@@ -361,7 +364,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<RarityPercentPlacementOption> PercentPlacementOptions =>
             _percentPlacementOptions ?? (_percentPlacementOptions = new[]
             {
-                new RarityPercentPlacementOption(RarityPercentPlacement.None, L("LOCNone")),
+                new RarityPercentPlacementOption(RarityPercentPlacement.None, L("LOCPlayAch_Common_None")),
                 new RarityPercentPlacementOption(RarityPercentPlacement.UnderIcon, L("LOCPlayAch_Settings_Style_Rarity_PercentUnderIcon")),
                 new RarityPercentPlacementOption(RarityPercentPlacement.WithBadge, L("LOCPlayAch_Settings_Style_Rarity_PercentWithBadge"))
             });
@@ -485,15 +488,15 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<GlowDisplayOption> GlowDisplayOptions => IsFrameSurface
             ? (_frameGlowDisplayOptions ?? (_frameGlowDisplayOptions = new[]
             {
-                new GlowDisplayOption(GlowDisplay.Icon, L("LOCGameIconTitle")),
-                new GlowDisplayOption(GlowDisplay.None, L("LOCNone"))
+                new GlowDisplayOption(GlowDisplay.Icon, L("LOCPlayAch_Common_Icon")),
+                new GlowDisplayOption(GlowDisplay.None, L("LOCPlayAch_Common_None"))
             }))
             : (_toastGlowDisplayOptions ?? (_toastGlowDisplayOptions = new[]
             {
-                new GlowDisplayOption(GlowDisplay.Icon, L("LOCGameIconTitle")),
+                new GlowDisplayOption(GlowDisplay.Icon, L("LOCPlayAch_Common_Icon")),
                 new GlowDisplayOption(GlowDisplay.Notification, L("LOCPlayAch_Settings_Style_ToastTab")),
                 new GlowDisplayOption(GlowDisplay.Both, L("LOCPlayAch_Common_Both")),
-                new GlowDisplayOption(GlowDisplay.None, L("LOCNone"))
+                new GlowDisplayOption(GlowDisplay.None, L("LOCPlayAch_Common_None"))
             }));
 
         /// <summary>
@@ -570,7 +573,7 @@ namespace PlayniteAchievements.ViewModels.Settings
 
         public IReadOnlyList<ToastMotionOption> EntranceMotionOptions =>
             _entranceMotionOptions ?? (_entranceMotionOptions =
-                MotionChoices(L("LOCDefault")));
+                MotionChoices(L("LOCPlayAch_Common_Default")));
 
         public IReadOnlyList<ToastMotionOption> ExitMotionOptions =>
             _exitMotionOptions ?? (_exitMotionOptions =
@@ -579,7 +582,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<ToastMotionOption> MotionFeelOptions =>
             _motionFeelOptions ?? (_motionFeelOptions = new[]
             {
-                new ToastMotionOption(null, L("LOCDefault")),
+                new ToastMotionOption(null, L("LOCPlayAch_Common_Default")),
                 new ToastMotionOption((int)ToastMotionFeel.Smooth, L("LOCPlayAch_Settings_Style_MotionSmooth")),
                 new ToastMotionOption((int)ToastMotionFeel.Bouncy, L("LOCPlayAch_Settings_Style_MotionBouncy"))
             });
@@ -603,7 +606,7 @@ namespace PlayniteAchievements.ViewModels.Settings
                 new ToastMotionOption((int)ToastMotion.SlideSide, L("LOCPlayAch_Settings_Style_MotionSlideSide")),
                 new ToastMotionOption((int)ToastMotion.Fade, L("LOCPlayAch_Settings_Style_MotionFade")),
                 new ToastMotionOption((int)ToastMotion.Zoom, L("LOCPlayAch_Settings_Style_MotionZoom")),
-                new ToastMotionOption((int)ToastMotion.None, L("LOCNone"))
+                new ToastMotionOption((int)ToastMotion.None, L("LOCPlayAch_Common_None"))
             };
         }
 
@@ -615,7 +618,7 @@ namespace PlayniteAchievements.ViewModels.Settings
         public IReadOnlyList<ToastMotionOption> PositionOptions =>
             _positionOptions ?? (_positionOptions = new[]
             {
-                new ToastMotionOption(null, L("LOCDefault")),
+                new ToastMotionOption(null, L("LOCPlayAch_Common_Default")),
                 new ToastMotionOption((int)ToastScreenCorner.BottomRight, L("LOCPlayAch_Settings_ToastPosition_BottomRight")),
                 new ToastMotionOption((int)ToastScreenCorner.BottomLeft, L("LOCPlayAch_Settings_ToastPosition_BottomLeft")),
                 new ToastMotionOption((int)ToastScreenCorner.BottomCenter, L("LOCPlayAch_Settings_ToastPosition_BottomCenter")),
@@ -694,8 +697,8 @@ namespace PlayniteAchievements.ViewModels.Settings
             _frameVignetteOptions ?? (_frameVignetteOptions = new[]
             {
                 new FrameVignetteOption(FrameVignetteStyle.Full, L("LOCPlayAch_Settings_Style_VignetteFull")),
-                new FrameVignetteOption(FrameVignetteStyle.Bottom, L("LOCDockBottom")),
-                new FrameVignetteOption(FrameVignetteStyle.None, L("LOCNone")),
+                new FrameVignetteOption(FrameVignetteStyle.Bottom, L("LOCPlayAch_Common_Bottom")),
+                new FrameVignetteOption(FrameVignetteStyle.None, L("LOCPlayAch_Common_None")),
                 new FrameVignetteOption(FrameVignetteStyle.Image, L("LOCPlayAch_Settings_Style_BackgroundImage"))
             });
 
@@ -755,6 +758,76 @@ namespace PlayniteAchievements.ViewModels.Settings
         {
             get => Surface?.FrameVignetteStrength ?? AchievementToastViewModel.DefaultFrameVignetteStrength;
             set => FrameVignetteStrengthText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        #endregion
+
+        #region Blurred background (toast surface only)
+
+        /// <summary>The image picker gives way while the card shows the blurred background.</summary>
+        public bool ShowBackgroundImagePicker => Surface?.BlurBackground != true;
+
+        /// <summary>
+        /// Blur strength text mirror (0-100; 0 leaves the background sharp). Blank clears the
+        /// override back to the default.
+        /// </summary>
+        public string BlurStrengthText
+        {
+            get => _blurStrengthText;
+            set
+            {
+                if (!SetValueAndReturn(ref _blurStrengthText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.BlurStrength = ParseShadowStrength(value);
+                }
+
+                OnPropertyChanged(nameof(BlurStrengthSlider));
+            }
+        }
+
+        public double BlurStrengthSlider
+        {
+            get => Surface?.BlurStrength ?? AchievementToastViewModel.DefaultBlurStrength;
+            set => BlurStrengthText = Math.Round(Math.Max(0, Math.Min(100, value)))
+                .ToString(CultureInfo.CurrentCulture);
+        }
+
+        /// <summary>
+        /// Tint opacity text mirror (0-100) for the blurred background. Blank clears the
+        /// override back to the default. Zero (an untinted blur) is meaningful, so this commits
+        /// through the same parser as the shadow and vignette strengths.
+        /// </summary>
+        public string BlurTintOpacityText
+        {
+            get => _blurTintOpacityText;
+            set
+            {
+                if (!SetValueAndReturn(ref _blurTintOpacityText, value))
+                {
+                    return;
+                }
+
+                var surface = Surface;
+                if (surface != null && _isEditable)
+                {
+                    surface.BlurTintOpacity = ParseShadowStrength(value);
+                }
+
+                OnPropertyChanged(nameof(BlurTintOpacitySlider));
+            }
+        }
+
+        public double BlurTintOpacitySlider
+        {
+            get => Surface?.BlurTintOpacity ?? AchievementToastViewModel.DefaultBlurTintOpacity;
+            set => BlurTintOpacityText = Math.Round(Math.Max(0, Math.Min(100, value)))
                 .ToString(CultureInfo.CurrentCulture);
         }
 
@@ -1180,6 +1253,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             SetValue(ref _frameVignetteStrengthText,
                 surface?.FrameVignetteStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(FrameVignetteStrengthText));
+            SetValue(ref _blurStrengthText,
+                surface?.BlurStrength?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(BlurStrengthText));
+            SetValue(ref _blurTintOpacityText,
+                surface?.BlurTintOpacity?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
+                nameof(BlurTintOpacityText));
             SetValue(ref _imageKeyframeText,
                 surface?.ImageKeyframeMs?.ToString(CultureInfo.CurrentCulture) ?? string.Empty,
                 nameof(ImageKeyframeText));
@@ -1201,6 +1280,9 @@ namespace PlayniteAchievements.ViewModels.Settings
             OnPropertyChanged(nameof(ImageShadowSlider));
             OnPropertyChanged(nameof(ImageShadowOffsetSlider));
             OnPropertyChanged(nameof(FrameVignetteStrengthSlider));
+            OnPropertyChanged(nameof(BlurStrengthSlider));
+            OnPropertyChanged(nameof(BlurTintOpacitySlider));
+            OnPropertyChanged(nameof(ShowBackgroundImagePicker));
 
             // The rarity percent's font controls read straight from the surface too.
             OnPropertyChanged(nameof(SelectedRarityFontFamilyOption));
@@ -1676,6 +1758,12 @@ namespace PlayniteAchievements.ViewModels.Settings
             set => SetValue(ref _progressHeaderText, value);
         }
 
+        public string CompletionTitleText
+        {
+            get => _completionTitleText;
+            set => SetValue(ref _completionTitleText, value);
+        }
+
         public bool HasHeaderFormatError
         {
             get => _hasHeaderFormatError;
@@ -1703,6 +1791,8 @@ namespace PlayniteAchievements.ViewModels.Settings
                 CompletionHeaderText, NotificationHeaderTextService.GetDefaultCompletionHeader());
             texts.ProgressHeader = NotificationHeaderTextService.NormalizeForStore(
                 ProgressHeaderText, NotificationHeaderTextService.GetDefaultProgressHeader());
+            texts.CompletionTitle = NotificationHeaderTextService.NormalizeForStore(
+                CompletionTitleText, NotificationHeaderTextService.GetDefaultCompletionTitle());
 
             if (string.IsNullOrWhiteSpace(FriendUnlockHeaderText) ||
                 NotificationHeaderTextService.IsValidHeaderFormat(FriendUnlockHeaderText))
@@ -1739,6 +1829,8 @@ namespace PlayniteAchievements.ViewModels.Settings
                 ?? NotificationHeaderTextService.GetDefaultCompletionHeader();
             ProgressHeaderText = texts?.ProgressHeader
                 ?? NotificationHeaderTextService.GetDefaultProgressHeader();
+            CompletionTitleText = texts?.CompletionTitle
+                ?? NotificationHeaderTextService.GetDefaultCompletionTitle();
 
             if (!keepInvalidPending || !HasHeaderFormatError)
             {
@@ -2155,9 +2247,9 @@ namespace PlayniteAchievements.ViewModels.Settings
                 case NotificationSurfaceStyle.LineTitle:
                     return L("LOCPlayAch_Column_AchievementName");
                 case NotificationSurfaceStyle.LineDescription:
-                    return L("LOCGameDescriptionTitle");
+                    return L("LOCPlayAch_Common_Description");
                 case NotificationSurfaceStyle.LineGameCategory:
-                    return L("LOCPlayAch_Settings_ToastShowGameName") + " / " + L("LOCCategoryLabel");
+                    return L("LOCPlayAch_Settings_ToastShowGameName") + " / " + L("LOCPlayAch_Common_Category");
                 case NotificationSurfaceStyle.LineProgress:
                     return L("LOCPlayAch_Progress");
                 default:
@@ -2432,6 +2524,10 @@ namespace PlayniteAchievements.ViewModels.Settings
                 OnPropertyChanged(nameof(SelectedFrameVignette));
                 OnPropertyChanged(nameof(ShowFrameVignetteStrength));
                 OnPropertyChanged(nameof(ShowFrameBackgroundPicker));
+            }
+            else if (e.PropertyName == nameof(NotificationSurfaceStyle.BlurBackground))
+            {
+                OnPropertyChanged(nameof(ShowBackgroundImagePicker));
             }
             else if (e.PropertyName == nameof(NotificationSurfaceStyle.EntranceMotion) ||
                      e.PropertyName == nameof(NotificationSurfaceStyle.ExitMotion) ||

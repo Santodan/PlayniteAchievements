@@ -76,13 +76,9 @@
                         IsEnabled="{Binding Settings.IsEnabled}"
                         Grid.IsSharedSizeScope="True">
                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_XboxLowResIcons}"
-                                     Hint="{DynamicResource LOCPlayAch_Settings_XboxLowResIcons_Help}">
-                    <CheckBox IsChecked="{Binding Settings.LowResIcons, Mode=TwoWay}"/>
-                </controls:SettingRow>
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata}"
-                                     Hint="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata_Help}"
+                                     Hint="{DynamicResource LOCPlayAch_Settings_XboxLowResIcons_Help}"
                                      Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"/>
+                    <CheckBox IsChecked="{Binding Settings.LowResIcons, Mode=TwoWay}"/>
                 </controls:SettingRow>
             </StackPanel>
         </StackPanel>

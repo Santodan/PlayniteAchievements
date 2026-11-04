@@ -17,8 +17,6 @@ namespace PlayniteAchievements.Services.Achievements
 
         public const string DescriptionKey = "LOCPlayAch_ManageAchievements_Custom_AutoCapstoneDescription";
 
-        private const string BaseCategoryType = "Base";
-
         private const string BrandingIconPackUri =
             "pack://application:,,,/PlayniteAchievements;component/Resources/BrandingIcon.png";
 
@@ -27,15 +25,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         /// <remarks>
         /// Several platinums means DLC trophy sets alongside the base game's, and only the base
-        /// game's marks the game complete. Providers type the group rather than leaving it to the
-        /// label, so the base one is read off that type instead of guessed from the category text.
-        /// When nothing is typed -- a game whose trophies were authored or came from a provider
+        /// game's marks the game complete. Providers give the group a kind rather than leaving it to
+        /// the label, so the base one is read off that kind instead of guessed from the category
+        /// text. When nothing has a kind -- a game whose trophies were authored or came from a provider
         /// that does not group them -- the earliest in <paramref name="candidatesInOrder"/> wins.
         /// </remarks>
         public static T SelectPlatinum<T>(
             IEnumerable<T> candidatesInOrder,
             Func<T, string> trophyType,
-            Func<T, string> categoryType)
+            Func<T, string> categoryKind)
             where T : class
         {
             var platinums = (candidatesInOrder ?? Enumerable.Empty<T>())
@@ -51,17 +49,50 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var baseGame = platinums.FirstOrDefault(candidate =>
-                AchievementCategoryTypeHelper.ParseValues(categoryType(candidate))
-                    .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase)));
+                CategoryKindHelper.IsBase(categoryKind(candidate)));
             return baseGame ?? platinums[0];
         }
 
         /// <summary>
-        /// The image to stand the capstone on: the game's own icon, then its cover, then the
-        /// plugin's mark, so it is never left without one.
+        /// The capstone art a metadata source supplied for a game (a PlayStation platinum's icon),
+        /// or null. Set at startup to read the metadata overlay's record.
+        /// </summary>
+        public static Func<Guid, string> MetadataArtAccessor { get; set; }
+
+        /// <summary>
+        /// The title and description that come with that art (the platinum's own), or nulls. Set at
+        /// startup alongside <see cref="MetadataArtAccessor"/>.
+        /// </summary>
+        public static Func<Guid, (string Title, string Description)> MetadataTextAccessor { get; set; }
+
+        /// <summary>
+        /// The text a whole-game auto capstone takes: the borrowed platinum's when a metadata source
+        /// supplied it, else the templates'.
+        /// </summary>
+        public static (string Title, string Description) ResolveWholeGameText(
+            Guid gameId,
+            AutoCapstoneTemplates templates,
+            string gameName)
+        {
+            var borrowed = MetadataTextAccessor?.Invoke(gameId) ?? (null, null);
+            return !string.IsNullOrWhiteSpace(borrowed.Title)
+                ? (borrowed.Title, borrowed.Description ?? string.Empty)
+                : AutoCapstoneText.Describe(templates, gameName, null);
+        }
+
+        /// <summary>
+        /// The image to stand the capstone on: art from a metadata source when the user chose one,
+        /// then the game's own icon, then its cover, then the plugin's mark, so it is never left
+        /// without one.
         /// </summary>
         public static string ResolveIconSource(Game game, ILogger logger)
         {
+            var metadataArt = game != null ? MetadataArtAccessor?.Invoke(game.Id) : null;
+            if (!string.IsNullOrWhiteSpace(metadataArt))
+            {
+                return metadataArt;
+            }
+
             var icon = ResolvePlayniteAssetFile(game?.Icon);
             if (!string.IsNullOrWhiteSpace(icon))
             {

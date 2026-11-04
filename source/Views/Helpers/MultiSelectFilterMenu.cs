@@ -20,6 +20,8 @@ namespace PlayniteAchievements.Views.Helpers
     /// </remarks>
     internal static class MultiSelectFilterMenu
     {
+        private const int VirtualizeAbove = 100;
+
         /// <summary>
         /// Fills <paramref name="button"/>'s context menu with one checkable row per option and
         /// opens it beneath the button.
@@ -39,6 +41,8 @@ namespace PlayniteAchievements.Views.Helpers
             // Only reserve the marker gutter when at least one option is actually marked; with none
             // marked the dropdown drops the gutter entirely and labels sit flush left.
             var showMarkerGutter = filter.HasMarker && options.Any(filter.IsMarked);
+            // Likewise the badge gutter: only when some option has a badge to show.
+            var showIconGutter = filter.HasIcons && options.Any(option => !string.IsNullOrWhiteSpace(filter.IconKeyOf(option)));
 
             // Every checkable item created for this opening, so a click can re-sync its siblings.
             var checkableItems = new List<MenuItem>();
@@ -51,10 +55,19 @@ namespace PlayniteAchievements.Views.Helpers
                     filter,
                     options,
                     showMarkerGutter,
+                    showIconGutter,
                     checkableItems);
             }
             else
             {
+                // A long list (the Game filter over a whole library) lays out only the rows in
+                // view; laying out every row made the drop-down slow to open.
+                if (options.Count > VirtualizeAbove &&
+                    button.TryFindResource("AchievementSelectorVirtualizingContextMenuStyle") is Style virtualizing)
+                {
+                    menu.Style = virtualizing;
+                }
+
                 var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
                 foreach (var option in options)
                 {
@@ -64,6 +77,7 @@ namespace PlayniteAchievements.Views.Helpers
                         filter.GetDisplayLabel(option),
                         itemStyle,
                         showMarkerGutter,
+                        showIconGutter,
                         checkableItems));
                 }
             }
@@ -88,6 +102,7 @@ namespace PlayniteAchievements.Views.Helpers
             GridMultiSelectFilter filter,
             IReadOnlyList<string> options,
             bool showMarkerGutter,
+            bool showIconGutter,
             List<MenuItem> checkableItems)
         {
             var rows = CategoryFilterMenuBuilder.BuildRows(options);
@@ -112,6 +127,7 @@ namespace PlayniteAchievements.Views.Helpers
                     row.LeafDisplay,
                     itemStyle,
                     showMarkerGutter,
+                    showIconGutter,
                     checkableItems,
                     row.TreeShape,
                     row.PathDisplay));
@@ -129,14 +145,13 @@ namespace PlayniteAchievements.Views.Helpers
             string label,
             Style itemStyle,
             bool showMarkerGutter,
+            bool showIconGutter,
             List<MenuItem> checkableItems,
             CategoryTreeShape treeShape = null,
             string toolTip = null)
         {
-            var header = BuildMultiSelectHeader(filter, value, label, showMarkerGutter);
             var item = new CategoryTreeMenuItem
             {
-                Header = header,
                 ToolTip = toolTip,
                 TreeShape = treeShape,
                 IsCheckable = true,
@@ -149,13 +164,7 @@ namespace PlayniteAchievements.Views.Helpers
                 item.Style = itemStyle;
             }
 
-            // The shared menu-item style forces a string HeaderTemplate (TextBlock Text={Binding}),
-            // which would ToString() a UIElement header. Clear it locally so the star-gutter panel
-            // renders directly (a directly-set property beats the style setter).
-            if (!(header is string))
-            {
-                item.HeaderTemplate = null;
-            }
+            SetHeader(item, BuildMultiSelectHeader(filter, value, label, showMarkerGutter, showIconGutter));
 
             item.Click += (_, __) =>
             {
@@ -185,8 +194,14 @@ namespace PlayniteAchievements.Views.Helpers
             GridMultiSelectFilter filter,
             string value,
             string label,
-            bool showMarkerGutter)
+            bool showMarkerGutter,
+            bool showIconGutter)
         {
+            if (showIconGutter)
+            {
+                return BuildIconHeader(filter.IconKeyOf(value), label);
+            }
+
             if (!showMarkerGutter)
             {
                 return label;
@@ -203,6 +218,46 @@ namespace PlayniteAchievements.Views.Helpers
             };
             DockPanel.SetDock(star, Dock.Left);
             panel.Children.Add(star);
+            panel.Children.Add(new TextBlock
+            {
+                Text = label,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap
+            });
+            return panel;
+        }
+
+        /// <summary>
+        /// Sets a menu item's header. The multi-select menu-item style forces a string
+        /// HeaderTemplate (TextBlock Text={Binding}), which would ToString() a UIElement header, so
+        /// a panel header clears it locally (a directly-set property beats the style setter).
+        /// </summary>
+        internal static void SetHeader(MenuItem item, object header)
+        {
+            item.Header = header;
+            if (!(header is string))
+            {
+                item.HeaderTemplate = null;
+            }
+        }
+
+        // The option's badge before its label; an option without one keeps the badge's width so
+        // the labels stay aligned.
+        internal static object BuildIconHeader(string iconKey, string label)
+        {
+            var panel = new DockPanel { LastChildFill = true };
+            var icon = new Image
+            {
+                Width = 16,
+                Height = 16,
+                Margin = new Thickness(0, 0, 6, 0),
+                Stretch = System.Windows.Media.Stretch.Uniform,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ImageResourceKey.SetKey(icon, iconKey);
+            DockPanel.SetDock(icon, Dock.Left);
+            panel.Children.Add(icon);
             panel.Children.Add(new TextBlock
             {
                 Text = label,

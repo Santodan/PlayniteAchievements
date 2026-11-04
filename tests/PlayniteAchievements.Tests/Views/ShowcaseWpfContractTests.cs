@@ -160,7 +160,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(plugin, "InvalidateStartPageData();");
             StringAssert.Contains(editor, "PlayniteUiProvider.CreateExtensionWindow");
             StringAssert.Contains(editor, "LOCPlayAch_Showcase_WidgetSettingsTitle");
-            StringAssert.Contains(profileEditor, "LOCClearLabel");
+            StringAssert.Contains(profileEditor, "LOCPlayAch_Common_Clear");
             StringAssert.Contains(localization, "LOCPlayAch_Showcase_MergeDeleteConfirm");
             StringAssert.Contains(localization, "LOCPlayAch_Showcase_Stat_CurrentStreak");
             StringAssert.Contains(uiText, "Localize(string key)");
@@ -182,21 +182,22 @@ namespace PlayniteAchievements.Tests.Views
                 "LOCPlayAch_Showcase_Template_",
                 value => value != ShowcasePageTemplate.Showcase && value != ShowcasePageTemplate.Collection);
             // Values that reuse another feature's label (ShowcaseUiText) are excluded; the
-            // ScreenshotVariant, MosaicContent and GameGridSource enums reuse labels for every value.
+            // ScreenshotVariant, MosaicContent, GameGridSource and PieMode enums reuse labels for
+            // every value.
             AssertEnumKeys<ShowcaseScoreMode>(
                 localization,
                 "LOCPlayAch_Showcase_ScoreMode_",
                 value => value != ShowcaseScoreMode.Dual);
-            AssertEnumKeys<ShowcasePieMode>(
-                localization,
-                "LOCPlayAch_Showcase_PieMode_",
-                value => value != ShowcasePieMode.CompletedGames);
             AssertEnumKeys<ShowcasePointsGrouping>(
                 localization,
                 "LOCPlayAch_Showcase_PointsGrouping_",
                 value => value != ShowcasePointsGrouping.Game);
-            AssertEnumKeys<ShowcaseMosaicSource>(localization, "LOCPlayAch_Showcase_MosaicSource_");
-            AssertEnumKeys<ShowcaseSlideshowSource>(localization, "LOCPlayAch_Showcase_SlideshowSource_");
+            // The mosaic's All shares the achievement grid's All label.
+            AssertEnumKeys<ShowcaseMosaicSource>(
+                localization,
+                "LOCPlayAch_Showcase_MosaicSource_",
+                value => value != ShowcaseMosaicSource.All);
+
             AssertEnumKeys<ShowcaseAchievementGridSource>(
                 localization,
                 "LOCPlayAch_Showcase_AchievementGridSource_",
@@ -382,7 +383,8 @@ namespace PlayniteAchievements.Tests.Views
 
             StringAssert.Contains(achievements, "friendOwned");
             StringAssert.Contains(games, "!(data is FriendGameSummaryItem)");
-            StringAssert.Contains(startPage, "includeShowcasePin: !(data is FriendGameSummaryItem)");
+            // Start page game rows take the same menu, so the same exclusion.
+            StringAssert.Contains(startPage, "GameRowContextMenuBuilder.BuildGameMenu(");
         }
 
         [TestMethod]
@@ -427,22 +429,23 @@ namespace PlayniteAchievements.Tests.Views
                 "Showcase",
                 "ShowcaseGameGridControl.xaml.cs");
 
-            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_PinToShowcase");
+            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_Title");
             StringAssert.Contains(menuBuilder, "IsCheckable = true");
             StringAssert.Contains(menuBuilder, "AutomationProperties.SetName(button, label)");
             StringAssert.Contains(menuBuilder, "e.Handled = true");
-            StringAssert.Contains(menuBuilder, "LOCPlayAch_Showcase_NewCollection");
+            StringAssert.Contains(menuBuilder, "SelectorSearch.SetCreateAction");
             StringAssert.Contains(menuBuilder, "ShowcaseConfigurationCommit.Commit()");
             StringAssert.Contains(achievementMenus, "ShowcasePinMenuBuilder.AppendAchievementMenu");
             StringAssert.Contains(gameMenus, "ShowcasePinMenuBuilder.AppendGameMenu");
             Assert.IsFalse(nativeMenus.Contains("ShowcasePinMenuBuilder"));
-            Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_PinToShowcase"));
+            Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_Title"));
 
-            StringAssert.Contains(options, "AddPinCollectionChoice");
-            StringAssert.Contains(options, "ShowcaseGameGridSource.Pinned");
-            StringAssert.Contains(options, "ShowcaseAchievementGridSource.Pinned");
-            StringAssert.Contains(options, "ShowcaseMosaicSource.Pinned");
-            StringAssert.Contains(options, "ShowcaseGameMosaicSource.Pinned");
+            StringAssert.Contains(options, "AddCollectionChoice(panel, includeAchievementCollections: true)");
+            // A widget's collection is its own setting, offered by every widget listing games or
+            // achievements; only achievement widgets offer achievement collections.
+            StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true)");
+            StringAssert.Contains(options, "AddCollectionChoice(gameMosaicBarPanel, includeAchievementCollections: false)");
+            StringAssert.Contains(options, "ShowcaseCollectionType.Achievements");
 
             // Unlock Next ranks during selection, so its criterion replaces the generic sort rows
             // instead of stacking with them.
@@ -472,6 +475,7 @@ namespace PlayniteAchievements.Tests.Views
                 new[] { "source", "Views", "Controls", "ScoreCardControl.xaml" },
                 new[] { "source", "Views", "Controls", "PieChartWithRadialIcons.xaml" },
                 new[] { "source", "Views", "Controls", "UnlockTimelineChart.xaml" },
+                new[] { "source", "Views", "Controls", "GameSearchPanel.xaml" },
                 new[] { "source", "Views", "Showcase", "ScreenshotInfoPanel.xaml" },
                 new[] { "source", "Views", "OverviewControl.xaml" },
                 new[] { "source", "Views", "StartPage", "StartPageShowcaseWidgetView.xaml" },

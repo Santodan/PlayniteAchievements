@@ -30,7 +30,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
     {
         private const string CategoryDragDataFormat = "PlayniteAchievements.ManageAchievementsCategoryRows";
 
-        private DataGridRow _pendingRightClickRow;
         private DataGridRow _pendingManagerRightClickRow;
 
         public ManageAchievementsCategoryTab(ManageAchievementsCategoryViewModel viewModel)
@@ -38,18 +37,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             InitializeComponent();
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             CategoryManagerDataGrid.SelectionChanged += (_, __) => RaiseSidebarCategoryScopeChanged();
-            viewModel.PropertyChanged += (_, args) =>
-            {
-                if (args.PropertyName == nameof(ManageAchievementsCategoryViewModel.SelectedCategoryLabelFilterText))
-                {
-                    RaiseSidebarCategoryScopeChanged();
-                }
-            };
 
-            // Live sorting repositions only the rows whose sorted-column value changed (via a
-            // Move, not a Reset), and does nothing while no column sort is active. This keeps
-            // in-place category edits flicker-free yet still honors an active sort.
-            EnableLiveSorting(viewModel.AchievementRows);
             DataGridRowReorderBehavior.SetOptions(CategoryManagerDataGrid, new DataGridRowReorderOptions
             {
                 DragDataFormat = CategoryDragDataFormat,
@@ -86,12 +74,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             });
 
             viewModel.CategoryRowsMoved += (_, labels) => RestoreCategoryManagerSelectionByLabels(labels);
-
-            // Enter in the bulk picker applies, matching the plain text box it replaced. The
-            // control raises this only when its drop-down is closed, so Enter still picks the
-            // highlighted row while the list is open.
-            CategoryInputPicker.Committed += (_, __) => ApplyBulk();
-            CategoryInputPicker.CreateRequested += (_, __) => CreateCategoryFromPicker();
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;
@@ -100,121 +82,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             if (CategorySubTabs != null)
             {
-                CategorySubTabs.SelectedIndex = 1;
-            }
-        }
-
-        private void ApplyBulkButton_Click(object sender, RoutedEventArgs e)
-        {
-            ApplyBulk();
-        }
-
-        private void ClearSelectedButton_Click(object sender, RoutedEventArgs e)
-        {
-            ClearSelected();
-        }
-
-        private void TypeSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel == null || TypeSelectionContextMenu == null || TypeSelectionButton == null)
-            {
-                return;
-            }
-
-            OpenCategoryTypeContextMenu(
-                TypeSelectionButton,
-                TypeSelectionContextMenu,
-                ViewModel.TypeSelectionOptions);
-        }
-
-        private void FilterTypeSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel == null || FilterTypeSelectionContextMenu == null || FilterTypeSelectionButton == null)
-            {
-                return;
-            }
-
-            OpenCategoryTypeContextMenu(
-                FilterTypeSelectionButton,
-                FilterTypeSelectionContextMenu,
-                ViewModel.TypeFilterOptions);
-        }
-
-        private void CategoryLabelFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel == null ||
-                CategoryLabelFilterSelectionButton == null ||
-                CategoryLabelFilterSelectionContextMenu == null)
-            {
-                return;
-            }
-
-            OpenCategoryFilterContextMenu(
-                CategoryLabelFilterSelectionButton,
-                CategoryLabelFilterSelectionContextMenu,
-                ViewModel.CategoryLabelFilterOptions,
-                option => ViewModel.IsCategoryLabelFilterSelected(option),
-                (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected));
-        }
-
-        private void ApplyBulk()
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            var selectedRows = ViewModel.GetAllSelectedRows();
-            if (selectedRows.Count == 0)
-            {
-                return;
-            }
-
-            var applied = ViewModel.ApplyBulkToSelection(selectedRows, CategoryInputPicker.ResolveSelection());
-            if (applied)
-            {
-                CategoryInputPicker.SetInitialCategory(null);
-                ViewModel.ResetBulkEditorInputs();
-                ViewModel.ClearAllSelections();
-            }
-        }
-
-        /// <summary>
-        /// Creates a category from the picker's create row and leaves it picked, ready for the
-        /// apply button. The manager list is where it is then nested, renamed, or given art.
-        /// </summary>
-        private void CreateCategoryFromPicker()
-        {
-            if (ViewModel == null || !CategoryCreationPrompt.TryPrompt(out var leafName))
-            {
-                return;
-            }
-
-            var created = ViewModel.CreateCategory(leafName);
-            if (!string.IsNullOrWhiteSpace(created))
-            {
-                CategoryInputPicker.SetInitialCategory(created);
-            }
-        }
-
-        private void ClearSelected()
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            var selectedRows = ViewModel.GetAllSelectedRows();
-            if (selectedRows.Count == 0)
-            {
-                return;
-            }
-
-            var cleared = ViewModel.ClearSelectionOverrides(selectedRows);
-            if (cleared)
-            {
-                CategoryInputPicker.SetInitialCategory(null);
-                ViewModel.ResetBulkEditorInputs();
+                CategorySubTabs.SelectedIndex = 0;
             }
         }
 
@@ -334,6 +202,61 @@ namespace PlayniteAchievements.Views.ManageAchievements
             SelectorContextMenuHelper.Open(button, menu);
         }
 
+        /// <summary>
+        /// The Kind cell's menu: kinds tick on and off and combine (DLC with Update), None says the
+        /// category has none, and Reset hands it back to the providers.
+        /// </summary>
+        private void CategoryKindButton_Click(object sender, RoutedEventArgs e)
+        {
+            var viewModel = ViewModel;
+            if (viewModel == null ||
+                !(sender is Button button) ||
+                !TryResolveCategoryImageRow(button, out var row))
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            foreach (var kind in CategoryKindHelper.AssignableKinds)
+            {
+                var captured = kind;
+                var kindItem = new MenuItem
+                {
+                    Header = CategoryKindHelper.ToKindDisplayText(captured),
+                    IsCheckable = true,
+                    IsChecked = CategoryKindHelper.Contains(row.Kind, captured)
+                };
+                kindItem.Click += (_, __) =>
+                {
+                    var updated = CategoryKindHelper.WithKind(row.Kind, captured, kindItem.IsChecked);
+                    viewModel.ApplyCategoryKind(row, updated ?? CategoryKindHelper.None);
+                };
+                menu.Items.Add(kindItem);
+            }
+
+            menu.Items.Add(new Separator());
+
+            var noneItem = new MenuItem
+            {
+                Header = L("LOCPlayAch_Common_None"),
+                IsCheckable = true,
+                IsChecked = string.Equals(row.StoredKind, CategoryKindHelper.None, StringComparison.OrdinalIgnoreCase)
+            };
+            noneItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, CategoryKindHelper.None);
+            menu.Items.Add(noneItem);
+
+            var resetItem = new MenuItem
+            {
+                Header = L("LOCPlayAch_Common_Reset"),
+                IsEnabled = row.IsKindStored
+            };
+            resetItem.Click += (_, __) => viewModel.ApplyCategoryKind(row, null);
+            menu.Items.Add(resetItem);
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            SelectorContextMenuHelper.Open(button, menu);
+        }
+
         private void SummaryCategoryRadioButton_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Space ||
@@ -370,61 +293,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             row = element?.DataContext as ManageAchievementsCategoryMetadataItem;
             return row != null;
-        }
-
-        private void CategoryDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            var source = e.OriginalSource as DependencyObject;
-            if (source == null)
-            {
-                return;
-            }
-
-            if (source is CheckBox || VisualTreeHelpers.FindVisualParent<CheckBox>(source) != null)
-            {
-                // Toggle bulk-selection ourselves and consume the event so the DataGrid never runs
-                // native cell selection / BringIntoView, which scrolls (and oscillates) when the
-                // clicked row is only partially visible at the viewport edge.
-                if (VisualTreeHelpers.FindVisualParent<DataGridRow>(source)?.DataContext
-                        is ManageAchievementsCategoryItem checkItem)
-                {
-                    checkItem.IsSelected = !checkItem.IsSelected;
-                }
-
-                e.Handled = true;
-                return;
-            }
-
-            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(source);
-            if (!(row?.DataContext is ManageAchievementsCategoryItem item))
-            {
-                return;
-            }
-
-            ViewModel?.ToggleReveal(item);
-
-            // Selection is controlled by the checkbox column only.
-            e.Handled = true;
-        }
-
-        private void CategoryDataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is DataGridRow row)
-            {
-                e.Handled = true;
-                _pendingRightClickRow = row;
-            }
-        }
-
-        private void CategoryDataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is DataGridRow row)
-            {
-                e.Handled = true;
-                var targetRow = _pendingRightClickRow ?? row;
-                _pendingRightClickRow = null;
-                OpenContextMenuForRow(targetRow);
-            }
         }
 
         private void CategoryManagerRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -779,26 +647,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 }
             }
 
-            if (CategoryDataGrid?.IsKeyboardFocusWithin != true)
-            {
-                return false;
-            }
-
-            if (FullscreenControllerNavigationService.IsFocusWithinDataGridColumnHeader(CategoryDataGrid))
-            {
-                if (FullscreenControllerNavigationService.IsAcceptInput(input))
-                {
-                    return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(CategoryDataGrid);
-                }
-
-                return false;
-            }
-
-            if (FullscreenControllerNavigationService.IsSecondaryClickInput(input))
-            {
-                return TryOpenSelectedRowContextMenu();
-            }
-
             return false;
         }
 
@@ -806,33 +654,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         {
             var elements = new List<UIElement>
             {
-                CategorySubTabs,
-                ResetCategoryButton,
-                SearchTextBox,
-                ClearSearchButton,
-                FilterTypeSelectionButton,
-                CategoryLabelFilterSelectionButton,
-                SelectAllButton,
-                DeselectAllButton,
-                CategoryDataGrid,
-                BulkEditExpander
+                AddCategoryButton,
+                ResetCategoryMetadataButton,
+                OpenCategoryImagesFolderButton,
+                CategoryManagerDataGrid
             };
-
-            if (BulkEditExpander?.IsExpanded == true)
-            {
-                elements.Add(TypeSelectionButton);
-                elements.Add(ClearSelectedButton);
-                elements.Add(CategoryInputPicker);
-                elements.Add(ApplyBulkButton);
-            }
-
-            if (CategorySubTabs?.SelectedIndex == 1)
-            {
-                elements.Add(AddCategoryButton);
-                elements.Add(ResetCategoryMetadataButton);
-                elements.Add(OpenCategoryImagesFolderButton);
-                elements.Add(CategoryManagerDataGrid);
-            }
 
             return elements
                 .Where(IsControllerElementAvailable)
@@ -855,293 +681,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             return true;
         }
 
-        private bool TryActivateSelectedRow()
-        {
-            if (FullscreenControllerNavigationService.FindAncestor<ButtonBase>(
-                    Keyboard.FocusedElement as DependencyObject) != null)
-            {
-                return false;
-            }
-
-            var item = CategoryDataGrid?.SelectedItem as ManageAchievementsCategoryItem
-                       ?? CategoryDataGrid?.CurrentItem as ManageAchievementsCategoryItem;
-            if (item == null || !item.CanReveal)
-            {
-                return false;
-            }
-
-            ViewModel?.ToggleReveal(item);
-            return true;
-        }
-
-        private bool TryOpenSelectedRowContextMenu()
-        {
-            var row = GetControllerTargetRow();
-            if (row == null)
-            {
-                return false;
-            }
-
-            return OpenContextMenuForRow(row, useControllerPlacement: true);
-        }
-
-        private DataGridRow GetControllerTargetRow()
-        {
-            var focusedRow = VisualTreeHelpers.FindVisualParent<DataGridRow>(
-                Keyboard.FocusedElement as DependencyObject);
-            if (focusedRow != null &&
-                ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(focusedRow), CategoryDataGrid))
-            {
-                return focusedRow;
-            }
-
-            var index = CategoryDataGrid?.SelectedIndex ?? -1;
-            if (index < 0 && CategoryDataGrid?.Items.Count > 0)
-            {
-                index = 0;
-                CategoryDataGrid.SelectedIndex = index;
-            }
-
-            if (CategoryDataGrid == null || index < 0)
-            {
-                return null;
-            }
-
-            CategoryDataGrid.UpdateLayout();
-            var row = CategoryDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
-            if (row == null)
-            {
-                CategoryDataGrid.ScrollIntoView(CategoryDataGrid.Items[index]);
-                CategoryDataGrid.UpdateLayout();
-                row = CategoryDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
-            }
-
-            return row;
-        }
-
-        private bool OpenContextMenuForRow(DataGridRow row, bool useControllerPlacement = false)
-        {
-            if (!(row?.DataContext is ManageAchievementsCategoryItem item))
-            {
-                return false;
-            }
-
-            var menu = BuildRowContextMenu(item);
-            if (menu == null || menu.Items.Count == 0)
-            {
-                return false;
-            }
-
-            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
-            row.ContextMenu = menu;
-            if (useControllerPlacement)
-            {
-                return FullscreenControllerNavigationService.OpenContextMenu(row, menu);
-            }
-
-            menu.PlacementTarget = row;
-            menu.IsOpen = true;
-            return true;
-        }
-
-        private ContextMenu BuildRowContextMenu(ManageAchievementsCategoryItem contextItem)
-        {
-            var menu = new ContextMenu();
-
-            var rows = ResolveActionRows(contextItem);
-            var typesMenu = new MenuItem
-            {
-                Header = L("LOCTypeLabel")
-            };
-            foreach (var categoryType in AchievementCategoryTypeHelper.AssignableCategoryTypes)
-            {
-                var capturedType = categoryType;
-                var typeItem = new MenuItem
-                {
-                    Header = ManageAchievementsCategoryViewModel.GetCategoryTypeDisplayName(capturedType),
-                    IsCheckable = true,
-                    StaysOpenOnClick = true,
-                    IsChecked = IsCategoryTypeOnAllRows(rows, capturedType)
-                };
-                typeItem.Click += (_, __) =>
-                    ViewModel?.SetCategoryTypeForSelection(rows, capturedType, typeItem.IsChecked);
-                typesMenu.Items.Add(typeItem);
-            }
-            menu.Items.Add(typesMenu);
-
-            menu.Items.Add(CreateMenuItem(
-                L("LOCPlayAch_Common_SetLabelEllipsis"),
-                () => SetLabelFromContext(contextItem)));
-
-            menu.Items.Add(CreateMenuItem(
-                L("LOCClearLabel"),
-                () => ClearRowsFromContext(contextItem)));
-
-            return menu;
-        }
-
         private MenuItem CreateMenuItem(string header, Action onClick)
         {
             var item = new MenuItem { Header = header };
             item.Click += (_, __) => onClick?.Invoke();
             return item;
-        }
-
-        private static void EnableLiveSorting(IEnumerable source)
-        {
-            if (source != null &&
-                CollectionViewSource.GetDefaultView(source) is ICollectionViewLiveShaping live &&
-                live.CanChangeLiveSorting)
-            {
-                live.IsLiveSorting = true;
-            }
-        }
-
-        private static bool IsCategoryTypeOnAllRows(
-            IReadOnlyList<ManageAchievementsCategoryItem> rows,
-            string categoryType)
-        {
-            if (rows == null || rows.Count == 0)
-            {
-                return false;
-            }
-
-            return rows.All(row => row != null &&
-                AchievementCategoryTypeHelper.ParseValues(row.CategoryType)
-                    .Any(value => string.Equals(value, categoryType, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        private void SetLabelFromContext(ManageAchievementsCategoryItem contextItem)
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            var rows = ResolveActionRows(contextItem);
-            if (rows.Count == 0)
-            {
-                return;
-            }
-
-            // Seeded only with a category every targeted row is already in. One row's label cannot
-            // speak for a selection that disagrees: the picker would open showing it - often
-            // Default, which is what an uncategorised row reads as - and an OK without touching the
-            // box would file every other row under it. A blank box says "these differ" instead.
-            var shared = rows[0]?.Category;
-            if (rows.Any(row => !string.Equals(row?.Category, shared, StringComparison.Ordinal)))
-            {
-                shared = null;
-            }
-
-            var inputDialog = new CategoryPickerDialog(
-                L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelHint"),
-                ViewModel.AssignableCategoryOptions,
-                shared);
-            var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_ManageAchievements_Category_Context_SetLabelTitle"),
-                inputDialog,
-                new WindowOptions
-                {
-                    ShowMinimizeButton = false,
-                    ShowMaximizeButton = false,
-                    ShowCloseButton = true,
-                    CanBeResizable = false,
-                    Width = 500,
-                    Height = 200
-                });
-
-            WindowPlacementPersistenceService.Attach(window, "CategoryPicker");
-            inputDialog.RequestClose += (s, e) => window.Close();
-            window.ShowDialog();
-
-            if (inputDialog.DialogResult != true)
-            {
-                return;
-            }
-
-            // An empty pick is the blank the box opens with, not a request to clear: accepting it
-            // would strip the category off every selected row. Clearing has its own menu item.
-            var picked = (inputDialog.SelectedCategory ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(picked))
-            {
-                return;
-            }
-
-            ViewModel.SetCategoryLabelForSelection(rows, picked);
-        }
-
-        private void ClearRowsFromContext(ManageAchievementsCategoryItem contextItem)
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            var rows = ResolveActionRows(contextItem);
-            if (rows.Count == 0)
-            {
-                return;
-            }
-
-            var cleared = ViewModel.ClearSelectionOverrides(rows);
-            if (cleared)
-            {
-                CategoryInputPicker.SetInitialCategory(null);
-                ViewModel.ResetBulkEditorInputs();
-            }
-        }
-
-        private List<ManageAchievementsCategoryItem> ResolveActionRows(ManageAchievementsCategoryItem contextItem)
-        {
-            if (ViewModel == null)
-            {
-                return new List<ManageAchievementsCategoryItem>();
-            }
-
-            var selectedRows = ViewModel.GetAllSelectedRows();
-            if (selectedRows.Count == 0)
-            {
-                return contextItem == null
-                    ? new List<ManageAchievementsCategoryItem>()
-                    : new List<ManageAchievementsCategoryItem> { contextItem };
-            }
-
-            if (contextItem == null || contextItem.IsSelected)
-            {
-                return selectedRows;
-            }
-
-            return new List<ManageAchievementsCategoryItem> { contextItem };
-        }
-
-        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
-        {
-            SetAllSelectableRows(selected: true);
-            e.Handled = true;
-        }
-
-        private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
-        {
-            SetAllSelectableRows(selected: false);
-            e.Handled = true;
-        }
-
-        private void ResetCategoryButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            var reset = ViewModel.ResetCategoryOverrides();
-            if (reset)
-            {
-                CategoryInputPicker.SetInitialCategory(null);
-                ViewModel.ResetBulkEditorInputs();
-            }
-
-            e.Handled = true;
         }
 
         private void ResetCategoryMetadataButton_Click(object sender, RoutedEventArgs e)
@@ -1157,7 +701,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ViewModel.HasCustomCategoryOrder || ViewModel.HasCustomCategoryNesting,
                 () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryOrder)));
             menu.Items.Add(CreateResetMenuItem(
-                L("LOCNameLabel"),
+                L("LOCPlayAch_Common_Name"),
                 ViewModel.HasCustomCategoryNames,
                 () => ResetCategoryMetadataAspect(ViewModel.ResetCategoryNames)));
             menu.Items.Add(CreateResetMenuItem(
@@ -1182,19 +726,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (reset?.Invoke() == true)
             {
                 DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
-            }
-        }
-
-        private void SetAllSelectableRows(bool selected)
-        {
-            if (ViewModel == null)
-            {
-                return;
-            }
-
-            foreach (var item in ViewModel.AchievementRows.Where(i => i != null))
-            {
-                item.IsSelected = selected;
             }
         }
 
@@ -1276,9 +807,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             var selectedLabels = new HashSet<string>(
                 (labels ?? Enumerable.Empty<string>())
-                    .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                    .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                     .Where(label => !string.IsNullOrWhiteSpace(label)),
-                StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
             CategoryManagerDataGrid.SelectedItems.Clear();
             if (selectedLabels.Count == 0 || ViewModel?.CategoryRows == null)
             {
@@ -1298,20 +829,17 @@ namespace PlayniteAchievements.Views.ManageAchievements
         public event EventHandler SidebarCategoryScopeChanged;
 
         /// <summary>
-        /// The categories this tab scopes the sidebar to: the selected category rows, or the
-        /// Category filter's ticks when no row is selected.
+        /// The categories this tab scopes the sidebar to: the selected category rows.
         /// </summary>
         public IReadOnlyCollection<string> GetSidebarCategoryScope()
         {
-            var selectedLabels = CategoryManagerDataGrid?.SelectedItems
+            return (IReadOnlyCollection<string>)CategoryManagerDataGrid?.SelectedItems
                 ?.OfType<ManageAchievementsCategoryMetadataItem>()
                 .OrderBy(item => ViewModel?.CategoryRows.IndexOf(item) ?? 0)
                 .Select(item => item.CategoryLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label))
-                .ToList();
-            return selectedLabels?.Count > 0
-                ? selectedLabels
-                : ViewModel?.SelectedCategoryLabelFilters ?? Array.Empty<string>();
+                .ToList()
+                ?? Array.Empty<string>();
         }
 
         private void RaiseSidebarCategoryScopeChanged()
@@ -1327,34 +855,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static void OpenSelectorContextMenu(Button button, ContextMenu menu)
         {
             SelectorContextMenuHelper.Open(button, menu);
-        }
-
-        private static void OpenCategoryTypeContextMenu(
-            Button button,
-            ContextMenu menu,
-            IEnumerable<CategoryTypeSelectionOption> options)
-        {
-            SelectorContextMenuHelper.OpenCategoryTypeMenu(button, menu, options);
-        }
-
-        /// <summary>
-        /// Opens the category filter dropdown: one row per category, leaf names with the full path
-        /// on hover, and the connectors that place each row in the tree.
-        /// </summary>
-        private static void OpenCategoryFilterContextMenu(
-            Button button,
-            ContextMenu menu,
-            IEnumerable<string> options,
-            Func<string, bool> isSelected,
-            Action<string, bool> setSelection)
-        {
-            if (button == null ||
-                !CategoryFilterMenuBuilder.Populate(button, menu, options, isSelected, setSelection))
-            {
-                return;
-            }
-
-            OpenSelectorContextMenu(button, menu);
         }
     }
 }

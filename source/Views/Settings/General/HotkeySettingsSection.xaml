@@ -56,7 +56,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="ViewAchievements"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -75,7 +75,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="ManageAchievements"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -94,7 +94,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="Overview"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -113,7 +113,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="OpenSettings"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -132,7 +132,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="Workshop"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -152,7 +152,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="CategoryMode"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
@@ -172,7 +172,7 @@
                                         PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
 
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                                <Button Content="{DynamicResource LOCResetLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                         Click="ResetHotkey_Click"
                                         CommandParameter="TestUnlock"
                                         MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>

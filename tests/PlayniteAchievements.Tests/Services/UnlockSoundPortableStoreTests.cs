@@ -241,6 +241,23 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Export_ThemeSoundThatIsNotTheAudioItsNameSays_Throws()
+        {
+            WithTemp(tempDir =>
+            {
+                var fake = Path.Combine(tempDir, "theme.mp3");
+                File.WriteAllText(fake, "not an mp3 file at all");
+                var packagePath = Path.Combine(tempDir, "x.pasounds");
+                var store = new UnlockSoundPortableStore(Path.Combine(tempDir, "userdata"));
+
+                AssertThrows(
+                    () => store.Export(new[] { new ResolvedUnlockSound(UnlockSoundTier.Common, UnlockSoundSource.Theme, fake) }, packagePath),
+                    "not a valid .mp3");
+                Assert.IsFalse(File.Exists(packagePath));
+            });
+        }
+
+        [TestMethod]
         public void Export_WithNothingCustom_Throws()
         {
             WithTemp(tempDir =>

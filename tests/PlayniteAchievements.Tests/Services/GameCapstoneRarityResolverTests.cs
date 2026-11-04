@@ -92,7 +92,8 @@ namespace PlayniteAchievements.Tests.Services
                 PlayniteGameId = Game,
                 GlobalPercentUnlocked = percent,
                 IsCapstone = capstone,
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 Unlocked = unlocked
             };
     }

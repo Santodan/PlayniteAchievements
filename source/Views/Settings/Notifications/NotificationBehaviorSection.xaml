@@ -33,7 +33,7 @@
                 <!-- What fires -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel Grid.IsSharedSizeScope="True">
-                        <TextBlock Text="{DynamicResource LOCNotifications}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Notifications}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                         <Border Style="{StaticResource SectionAccentRuleStyle}"/>
@@ -47,15 +47,30 @@
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableUnlockToasts}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableUnlockToasts}"/>
                             </controls:SettingRow>
+                            <!-- App-wide; collapses in game mode with the other *GlobalRow rows. -->
+                            <controls:SettingRow x:Name="SkipCompletionGlobalRow"
+                                                 Label="{DynamicResource LOCPlayAch_Settings_SkipCompletionAfterCapstone}">
+                                <CheckBox IsChecked="{Binding Persisted.SkipCompletionNotificationAfterCapstone}"/>
+                            </controls:SettingRow>
                             <controls:SettingRow x:Name="FriendUnlockToastsRow"
                                                  Label="{DynamicResource LOCPlayAch_Settings_EnableFriendUnlockToasts}"
                                                  Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableFriendUnlockToasts}"/>
                             </controls:SettingRow>
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}"
-                                                 Margin="0">
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableProgressToasts}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableProgressToasts}"/>
                             </controls:SettingRow>
+                            <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                        IsEnabled="{Binding Persisted.EnableProgressToasts}"
+                                        Grid.IsSharedSizeScope="True">
+                                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent}"
+                                                     Hint="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent_Hint}"
+                                                     Margin="0">
+                                    <TextBox Text="{Binding Persisted.ProgressToastIntervalPercent, UpdateSourceTrigger=LostFocus}"
+                                             Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                             TextAlignment="Right"/>
+                                </controls:SettingRow>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -114,7 +129,16 @@
 
                         <controls:SettingRow x:Name="VibrationGlobalRow"
                                              Label="{DynamicResource LOCPlayAch_Settings_EnableControllerVibration}">
-                            <CheckBox IsChecked="{Binding Persisted.EnableControllerVibration}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableControllerVibration}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <!-- Pulses at the current settings without firing a whole notification
+                                     wave, and logs which controllers were reached. -->
+                                <Button Click="TestVibration_Click"
+                                        Content="{DynamicResource LOCPlayAch_Button_Test}"
+                                        IsEnabled="{Binding Persisted.EnableControllerVibration}"/>
+                            </StackPanel>
                         </controls:SettingRow>
                         <StackPanel x:Name="VibrationGlobalPanel"
                                     Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
@@ -148,12 +172,6 @@
                                              TextAlignment="Right"/>
                                 </StackPanel>
                             </controls:SettingRow>
-                            <!-- Pulses at the current settings without firing a whole notification
-                                 wave, and logs which controllers were reached. -->
-                            <Button Click="TestVibration_Click"
-                                    Content="{DynamicResource LOCPlayAch_Button_Test}"
-                                    HorizontalAlignment="Right"
-                                    Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>

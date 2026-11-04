@@ -4,6 +4,7 @@
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
              helpers:CompletionBadge.PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource Self}}"
@@ -22,6 +23,7 @@
                  grid's UseCoverImages and PreserveImageResolution settings. -->
             <Style x:Key="GameImageStyle" TargetType="Image">
                 <Setter Property="Stretch" Value="Uniform"/>
+                <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                 <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameLogo, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                 <Setter Property="helpers:AsyncImage.DecodePixel" Value="160"/>
                 <Style.Triggers>
@@ -116,12 +118,7 @@
         </DataGrid.RowStyle>
         <DataGrid.Columns>
             <DataGridTemplateColumn Width="96" MinWidth="56" MaxWidth="600" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Cover}"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Cover">
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Opacity="0"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Cover" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding GameName}"/>
@@ -306,10 +303,21 @@
                                                         Shape="{Binding TreeShape}"
                                                         IsCollapsed="{Binding IsCollapsed}"
                                                         ShowCollapseToggle="{Binding ShowCategoryCollapseToggles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                                        FillsCell="{Binding ShowTreeOnly, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                                         ToggleHoverBackgroundBrush="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
                                                         LineBrush="{DynamicResource PlayAch.Brush.Text.Secondary}"
                                                         NodeBrush="{DynamicResource PlayAch.Brush.Accent}"/>
-                          <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                          <ContentControl>
+                            <!-- Show Tree Only leaves just the guide; a row without one is blank. -->
+                            <ContentControl.Style>
+                                <Style TargetType="ContentControl" BasedOn="{StaticResource OverviewCellFrameStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowTreeOnly, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ContentControl.Style>
                             <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                         HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
@@ -327,6 +335,10 @@
                                             <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="TotalAchievements"/>
+                                            <Binding Path="PlatformScorePointsTotal"/>
+                                            <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
                                     <TextBlock.Visibility>
@@ -337,6 +349,10 @@
                                             <Binding Path="ShowMetadataPlatform" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPlaytime" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataRegion" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="TotalAchievements"/>
+                                            <Binding Path="PlatformScorePointsTotal"/>
+                                            <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Visibility>
                                 </TextBlock>
@@ -347,17 +363,29 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
+            <!-- Category surfaces only: game rows have no kind. -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Type}" SortMemberPath="CategoryKindSortKey" helpers:ColumnVisibilityHelper.ColumnKey="CategoryKind">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <TextBlock Text="{Binding CategoryKindDisplay}"
+                                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                       HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
             <DataGridTemplateColumn Width="44" MinWidth="28" MaxWidth="96"
-                                    Header="{DynamicResource LOCPlatformTitle}"
+                                    Header="{DynamicResource LOCPlayAch_Common_Platform}"
                                     CanUserResize="True"
                                     CanUserSort="False"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform">
-                    <DataGridTemplateColumn.HeaderTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}"
-                                    Opacity="0"/>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.HeaderTemplate>
+                                    helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
 
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
@@ -396,12 +424,7 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="40" MinWidth="28" MaxWidth="96" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Owned}" SortMemberPath="Owned" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryOwned"
-                                    CellStyle="{StaticResource AchievementStatusCellStyle}">
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Opacity="0"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+                                    CellStyle="{StaticResource AchievementStatusCellStyle}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Viewbox Stretch="Uniform"
@@ -439,7 +462,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCLastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastPlayed">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_LastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastPlayed">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
                         <Setter Property="ToolTip">
@@ -520,6 +543,57 @@
                                            Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                            TextWrapping="Wrap"
                                            TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_DateAdded}" SortMemberPath="Added" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryAdded">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                    <Binding Path="AddedLocal"/>
+                                    <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                                            <Binding Path="AddedLocal"/>
+                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <!-- A release date is a calendar date, so it always shows exactly. -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_ReleaseDate}" SortMemberPath="ReleaseDate" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryReleaseDate">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}">
+                                    <TextBlock.Text>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                                            <Binding Path="ReleaseDate"/>
+                                            <Binding Source="{x:Static settings:DateDisplayMode.DateOnly}"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
                             </Grid>
                         </ContentControl>
                     </DataTemplate>
@@ -617,6 +691,20 @@
                                            Visibility="{Binding TotalAchievements, Converter={StaticResource IntToVis}}">
                                     <TextBlock.Inlines><Run Text="{Binding UnlockedAchievements, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource PlayAch.Brush.Text}"/><Run Text="{Binding TotalAchievements, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource PlayAch.Brush.Text}"/></TextBlock.Inlines>
                                 </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Locked}" SortMemberPath="RemainingAchievements" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryRemaining">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
+                            <Grid>
+                                <TextBlock Style="{StaticResource GameSummaryGridTextStyle}"
+                                           Text="{Binding RemainingAchievements, Mode=OneWay, StringFormat={}{0:N0}}"
+                                           Visibility="{Binding RemainingAchievements, Converter={StaticResource IntToVis}}"/>
                             </Grid>
                         </ContentControl>
                     </DataTemplate>

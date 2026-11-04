@@ -175,7 +175,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case AchievementFilterScope.Summary:
                     return ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Filters_FilterOutOfSummaries");
                 case AchievementFilterScope.None:
-                    return ResourceProvider.GetString("LOCNone");
+                    return ResourceProvider.GetString("LOCPlayAch_Common_None");
                 default:
                     return string.Empty;
             }

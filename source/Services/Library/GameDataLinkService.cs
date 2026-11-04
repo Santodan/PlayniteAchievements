@@ -169,13 +169,17 @@ namespace PlayniteAchievements.Services.Library
 
             try
             {
-                var baseline = JsonConvert.DeserializeObject<GameCustomDataFile>(File.ReadAllText(baselineFile));
+                var baseline = WorkshopBaselineStore.Parse(File.ReadAllText(baselineFile));
                 if (baseline == null)
                 {
                     return null;
                 }
 
-                if (DataDiffers(baseline, current))
+                // Both sides at the current schema, as the baseline is.
+                var normalizedCurrent = current == null
+                    ? null
+                    : GameCustomDataNormalizer.NormalizeInternal(current, current.PlayniteGameId);
+                if (DataDiffers(baseline, normalizedCurrent))
                 {
                     return true;
                 }

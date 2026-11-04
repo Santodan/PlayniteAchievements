@@ -38,6 +38,15 @@ namespace PlayniteAchievements.Services.Tests
             (GameCustomDataStore.PortablePackageManifestEntryName, typeof(GameCustomDataPortableFile))
         };
 
+        /// <summary>
+        /// Fields a released version still writes after the models dropped them. The validator keeps
+        /// accepting them, so users on that release can still share; this extension ignores them on read.
+        /// </summary>
+        private static readonly (Type Owner, string Field, string Since)[] RetiredFields =
+        {
+            (typeof(ManualAchievementLink), "AllowUnauthenticatedSchemaFetch", "4.1.1")
+        };
+
         [TestMethod]
         public void CommittedFieldList_MatchesPackageModels()
         {
@@ -68,6 +77,15 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("value", (string)portable["AchievementOrder"]["list"]);
             Assert.AreEqual(nameof(PortableGameKey), (string)portable["GameKeys"]["list"]);
             Assert.IsNull(portable[nameof(GameCustomDataFile.ExcludedFromRefreshes)]);
+        }
+
+        [TestMethod]
+        public void Generate_KeepsFieldsReleasedVersionsStillWrite()
+        {
+            var types = (JObject)JObject.Parse(Generate())["types"];
+
+            Assert.AreEqual("value", (string)types[nameof(ManualAchievementLink)]["AllowUnauthenticatedSchemaFetch"]);
+            Assert.AreEqual(nameof(MetadataLinkData), (string)types[nameof(GameCustomDataPortableFile)]["MetadataLinks"]["map"]);
         }
 
         internal static string Generate()
@@ -128,6 +146,19 @@ namespace PlayniteAchievements.Services.Tests
             foreach (var (entry, root) in Roots)
             {
                 roots[entry] = Describe(root);
+            }
+
+            foreach (var (owner, field, _) in RetiredFields)
+            {
+                if (!types.TryGetValue(owner.Name, out var fields))
+                {
+                    throw new InvalidOperationException($"Retired field {owner.Name}.{field} belongs to a type no package reaches.");
+                }
+
+                if (!fields.ContainsKey(field))
+                {
+                    fields[field] = "value";
+                }
             }
 
             var document = new JObject

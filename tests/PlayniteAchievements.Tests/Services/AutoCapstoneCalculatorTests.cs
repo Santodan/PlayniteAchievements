@@ -194,12 +194,39 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void Derive_InheritsNothingWhenTheyAreSpreadAround()
+        public void Derive_FilesInTheFirstCategoryWhenTheyAreSpreadAround()
         {
             var derived = AutoCapstoneCalculator.Derive(new[]
             {
                 Achievement("a", category: "Story"),
                 Achievement("b", category: "Combat")
+            });
+
+            Assert.AreEqual("Story", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_FirstCategoryFollowsTheGamesCategoryOrder()
+        {
+            var derived = AutoCapstoneCalculator.Derive(
+                new[]
+                {
+                    Achievement("a", categoryType: "Base", category: "Story"),
+                    Achievement("b", categoryType: "Base", category: "Combat"),
+                    Achievement("dlc", categoryType: "DLC", category: "Expansion")
+                },
+                categoryOrder: new[] { "Expansion", "Combat", "Story" });
+
+            Assert.AreEqual("Combat", derived.Category);
+        }
+
+        [TestMethod]
+        public void Derive_StaysInDefaultWhenTheDefaultBucketComesFirst()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a"),
+                Achievement("b", category: "Story")
             });
 
             Assert.IsNull(derived.Category);
@@ -358,6 +385,133 @@ namespace PlayniteAchievements.Tests.Services
             Assert.IsTrue(category.Unlocked);
         }
 
+        [TestMethod]
+        public void Derive_TakesTheBaseGameKind()
+        {
+            // A PSN game gives its base trophies the kind Base; the capstone shares it.
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base"),
+                Achievement("b", categoryType: "Base|Missable"),
+                Achievement("dlc", categoryType: "DLC")
+            });
+
+            Assert.AreEqual("Base", derived.CategoryKind);
+        }
+
+        [TestMethod]
+        public void Derive_KindLeavesOutUpdate()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base|Update"),
+                Achievement("b", categoryType: "Base|Update"),
+                Achievement("c", categoryType: "Base")
+            });
+
+            Assert.AreEqual("Base", derived.CategoryKind);
+        }
+
+        [TestMethod]
+        public void Derive_DlcCategoryTakesTheDlcKind()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a", categoryType: "Base", category: "Main"),
+                Achievement("dlc1", categoryType: "DLC", category: "Expansion"),
+                Achievement("dlc2", categoryType: "DLC", category: "Expansion")
+            }, "Expansion");
+
+            Assert.AreEqual("DLC", derived.CategoryKind);
+        }
+
+        [TestMethod]
+        public void Derive_UngroupedGameHasNoKind()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Achievement("a"),
+                Achievement("b", categoryType: "Missable")
+            });
+
+            Assert.IsNull(derived.CategoryKind);
+        }
+
+        [TestMethod]
+        public void Derive_TagsAreTheUnionOfWhatItStandsFor()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Tagged("a", "Missable|Collectable"),
+                Tagged("b", "collectible|Challenge"),
+                Tagged("c", null)
+            });
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Collectable", "Challenge" },
+                new List<string>(AchievementTagHelper.GetComponents(derived.Tags)));
+        }
+
+        [TestMethod]
+        public void Derive_TagsLeaveOutDerivedKeys()
+        {
+            var derived = AutoCapstoneCalculator.Derive(new[]
+            {
+                Tagged("a", "Hardcore|Challenge"),
+                Tagged("b", "Softcore")
+            });
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        [TestMethod]
+        public void Derive_NoTagsYieldsNull()
+        {
+            Assert.IsNull(AutoCapstoneCalculator.Derive(new[] { Achievement("a"), Achievement("b") }).Tags);
+        }
+
+        [TestMethod]
+        public void Derive_TagsComeOnlyFromTheScope()
+        {
+            var dlc = Tagged("dlc", "Multiplayer");
+            dlc.CategoryKind = CategoryKindHelper.Dlc;
+            var filtered = Tagged("filtered", "Miscellaneous");
+            filtered.IsFiltered = true;
+
+            var derived = AutoCapstoneCalculator.Derive(new[] { Tagged("a", "Challenge"), dlc, filtered });
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        [TestMethod]
+        public void Derive_CategoryCapstoneTakesOnlyItsCategorysTags()
+        {
+            var main = Tagged("a", "Challenge");
+            main.Category = "Main";
+            var extra = Tagged("b", "PostGame");
+            extra.Category = "Extra";
+
+            Assert.AreEqual("PostGame", AutoCapstoneCalculator.Derive(new[] { main, extra }, "Extra").Tags);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_IgnoresTheCapstonesOwnTags()
+        {
+            var derived = AutoCapstoneCalculator.DeriveForCapstone(
+                new[] { Tagged("a", "Challenge"), Tagged("capstone", "Missable") },
+                "capstone",
+                isWholeGame: true);
+
+            Assert.AreEqual("Challenge", derived.Tags);
+        }
+
+        private static AchievementDetail Tagged(string apiName, string tags)
+        {
+            var achievement = Achievement(apiName);
+            achievement.Tags = tags;
+            return achievement;
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
@@ -373,7 +527,8 @@ namespace PlayniteAchievements.Tests.Services
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlockTimeUtc,
                 GlobalPercentUnlocked = percent,
-                CategoryType = categoryType,
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                 Category = category
             };
         }

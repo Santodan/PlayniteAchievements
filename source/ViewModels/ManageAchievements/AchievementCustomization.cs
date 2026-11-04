@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
@@ -32,7 +33,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         TrophyType = 1 << 4,
         UnlockTime = 1 << 5,
         Category = 1 << 6,
-        CategoryType = 1 << 7,
+        Tags = 1 << 7,
         Note = 1 << 8,
         UnlockedIcon = 1 << 9,
         LockedIcon = 1 << 10,
@@ -53,14 +54,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             new[]
             {
                 Tuple.Create(AchievementCustomizationFacet.DisplayName, "LOCPlayAch_Column_AchievementName"),
-                Tuple.Create(AchievementCustomizationFacet.Description, "LOCGameDescriptionTitle"),
+                Tuple.Create(AchievementCustomizationFacet.Description, "LOCPlayAch_Common_Description"),
                 Tuple.Create(AchievementCustomizationFacet.UnlockedIcon, "LOCPlayAch_ManageAchievements_Custom_UnlockedIcon"),
                 Tuple.Create(AchievementCustomizationFacet.LockedIcon, "LOCPlayAch_ManageAchievements_Custom_LockedIcon"),
                 Tuple.Create(AchievementCustomizationFacet.Points, "LOCPlayAch_Column_Points"),
                 Tuple.Create(AchievementCustomizationFacet.TrophyType, "LOCPlayAch_Column_Trophy"),
                 Tuple.Create(AchievementCustomizationFacet.UnlockTime, "LOCPlayAch_Common_UnlockTime"),
-                Tuple.Create(AchievementCustomizationFacet.Category, "LOCCategoryLabel"),
-                Tuple.Create(AchievementCustomizationFacet.CategoryType, "LOCTypeLabel"),
+                Tuple.Create(AchievementCustomizationFacet.Category, "LOCPlayAch_Common_Category"),
+                Tuple.Create(AchievementCustomizationFacet.Tags, "LOCPlayAch_Common_Tags"),
                 Tuple.Create(AchievementCustomizationFacet.Hidden, "LOCPlayAch_Filter_Hidden"),
                 Tuple.Create(AchievementCustomizationFacet.Note, "LOCPlayAch_ManageAchievements_Notes_Note"),
                 Tuple.Create(AchievementCustomizationFacet.FilterScope, "LOCPlayAch_Menu_Filters"),
@@ -125,9 +126,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string ProviderCategory { get; set; }
 
         /// <inheritdoc cref="Category"/>
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
 
-        public string ProviderCategoryType { get; set; }
+        public string ProviderTags { get; set; }
 
         /// <summary>A note is user text throughout: no provider supplies one, so any note is one.</summary>
         public string Note { get; set; }
@@ -203,14 +204,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 facets |= AchievementCustomizationFacet.UnlockTime;
             }
 
-            if (!string.Equals(inputs.Category, inputs.ProviderCategory, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(inputs.Category, inputs.ProviderCategory, CategoryPathHelper.LabelComparison))
             {
                 facets |= AchievementCustomizationFacet.Category;
             }
 
-            if (!string.Equals(inputs.CategoryType, inputs.ProviderCategoryType, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(
+                    AchievementTagHelper.Normalize(inputs.Tags),
+                    AchievementTagHelper.Normalize(inputs.ProviderTags),
+                    StringComparison.OrdinalIgnoreCase))
             {
-                facets |= AchievementCustomizationFacet.CategoryType;
+                facets |= AchievementCustomizationFacet.Tags;
             }
 
             if (!string.IsNullOrWhiteSpace(inputs.Note))

@@ -7,7 +7,6 @@
              SnapsToDevicePixels="True">
     <controls:GameSummariesGridControl x:Name="InnerGrid"
                                        ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
-                                       ColumnSettingsKey="{Binding ColumnSettingsKey, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                        UseCoverImages="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                        ShowColumnHeaders="{Binding ShowColumnHeaders, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                        FixedRowHeight="{Binding FixedRowHeight, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"

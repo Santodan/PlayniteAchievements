@@ -278,6 +278,8 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 ProviderPlatformKey = raw?.ProviderPlatformKey,
                 LibrarySourceName = raw?.LibrarySourceName,
                 RaritySource = raw?.RaritySource,
+                PlatformFields = raw?.PlatformFields,
+                MetadataFields = raw?.MetadataFields,
                 HasAchievements = raw?.HasAchievements ?? true,
                 Achievements = (raw?.Achievements ?? new List<AchievementDetail>())
                     .Where(achievement => achievement != null)
@@ -297,7 +299,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 LockedIconPath = source.LockedIconPath,
                 Points = source.Points,
                 ScaledPoints = source.ScaledPoints,
-                CategoryType = source.CategoryType,
+                Tags = source.Tags,
                 Category = source.Category,
                 ProviderCategory = source.ProviderCategory,
                 TrophyType = source.TrophyType,
@@ -383,7 +385,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
             if (!images.Same(before.UnlockedIcon as string, after.UnlockedIcon as string)) changes |= AchievementPreviewChange.UnlockedIcon;
             if (!images.Same(before.LockedIcon as string, after.LockedIcon as string)) changes |= AchievementPreviewChange.LockedIcon;
             if (!SameText(before.Category, after.Category)) changes |= AchievementPreviewChange.Category;
-            if (!SameText(before.CategoryType, after.CategoryType)) changes |= AchievementPreviewChange.CategoryType;
+            if (!SameText(before.Tags, after.Tags)) changes |= AchievementPreviewChange.Tags;
             if (before.IsCapstone != after.IsCapstone) changes |= AchievementPreviewChange.Capstone;
             if (!SameText(before.Note, after.Note)) changes |= AchievementPreviewChange.Note;
             if (before.IsFiltered != after.IsFiltered) changes |= AchievementPreviewChange.Filter;
@@ -400,7 +402,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 UnlockedIcon = Normalize(achievement.UnlockedIconPath),
                 LockedIcon = Normalize(achievement.LockedIconPath),
                 Category = achievement.Category,
-                CategoryType = achievement.CategoryType,
+                Tags = AchievementTagHelper.Normalize(achievement.Tags),
                 IsCapstone = achievement.IsCapstone,
                 IsGoal = achievement.IsGoal,
                 IsFiltered = achievement.IsFiltered,
@@ -597,10 +599,12 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                     target.Changes |= AchievementPreviewChange.Category;
                 }
 
-                if (Normalize(record.CategoryType) != null)
+                if (record.ClearTags || Normalize(record.Tags) != null)
                 {
-                    target.State.CategoryType = record.CategoryType;
-                    target.Changes |= AchievementPreviewChange.CategoryType;
+                    target.State.Tags = AchievementTagHelper.ApplyOverride(
+                        target.State.Tags,
+                        record.ClearTags ? string.Empty : record.Tags);
+                    target.Changes |= AchievementPreviewChange.Tags;
                 }
 
                 if (Normalize(record.Note) != null)
@@ -673,7 +677,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 target.State.DisplayName = definition.DisplayName;
                 target.State.Description = definition.Description;
                 target.State.Category = Normalize(definition.Category);
-                target.State.CategoryType = Normalize(definition.CategoryType);
+                target.State.Tags = AchievementTagHelper.Normalize(definition.Tags);
                 target.State.IsCapstone = definition.IsCapstone;
                 target.Changes |= AchievementPreviewChange.Added;
                 SetUnlockedIcon(target, definition.UnlockedIconPath);
@@ -746,7 +750,7 @@ namespace PlayniteAchievements.Services.Workshop.Preview
             diff.HasNotificationStyle = manifest?.NotificationAppearanceOverride != null;
             diff.CustomAchievementCount = entries.Count(entry => entry.State.IsCustom);
 
-            var categories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var categories = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var category in entries.Select(entry => entry.State.Category)
                          .Concat(manifest?.AchievementCategoryOrder ?? new List<string>()))
             {

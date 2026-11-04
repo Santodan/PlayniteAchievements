@@ -103,8 +103,6 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual(2, result.Imported);
                 Assert.AreEqual("shogun-showdown-steam", GetManualLinks(settings)[achievementGameId].SourceGameId);
                 Assert.AreEqual("final-fantasy-vii-rebirth-ps5", GetManualLinks(settings)[trophyGameId].SourceGameId);
-                Assert.IsTrue(GetManualLinks(settings)[achievementGameId].AllowUnauthenticatedSchemaFetch == true);
-                Assert.IsTrue(GetManualLinks(settings)[trophyGameId].AllowUnauthenticatedSchemaFetch == true);
             }
             finally
             {
@@ -384,7 +382,6 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(store.TryLoad(gameId, out var stored));
                 Assert.IsNotNull(stored?.ManualLink);
                 Assert.AreEqual("already-linked", stored.ManualLink.SourceGameId);
-                Assert.IsFalse(stored.ManualLink.AllowUnauthenticatedSchemaFetch.HasValue);
             }
             finally
             {

@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services.Summaries
             stats.PlatformScorePointsTotal = AchievementGameStats.AddClamped(
                 stats.PlatformScorePointsTotal,
                 achievement.Points ?? 0);
+            stats.Tags.Add(achievement.Tags, achievement.Rarity, achievement.TrophyType, achievement.IsCapstone, achievement.Unlocked);
 
             if (!achievement.Unlocked)
             {
@@ -65,7 +66,7 @@ namespace PlayniteAchievements.Services.Summaries
                 achievement.CollectionScore,
                 achievement.PrestigeScore,
                 achievement.Points ?? 0,
-                AchievementCategoryTypeHelper.IsSoftcore(achievement.CategoryType),
+                AchievementTagHelper.IsSoftcore(achievement.Tags),
                 achievement.UnlockTimeUtc);
         }
 
@@ -91,6 +92,12 @@ namespace PlayniteAchievements.Services.Summaries
             stats.PlatformScorePointsTotal = AchievementGameStats.AddClamped(
                 stats.PlatformScorePointsTotal,
                 achievement.Points);
+            stats.Tags.Add(
+                achievement.Tags,
+                achievement.Rarity,
+                achievement.TrophyType,
+                achievement.IsCapstone,
+                treatItemAsUnlocked || achievement.Unlocked);
 
             if (!treatItemAsUnlocked && !achievement.Unlocked)
             {
@@ -104,7 +111,7 @@ namespace PlayniteAchievements.Services.Summaries
                 achievement.CollectionScore,
                 achievement.PrestigeScore,
                 achievement.Points,
-                AchievementCategoryTypeHelper.IsSoftcore(achievement.CategoryType),
+                AchievementTagHelper.IsSoftcore(achievement.Tags),
                 achievement.UnlockTimeUtc);
         }
 

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database.Rows;
 
 namespace PlayniteAchievements.Services.Database
@@ -13,7 +14,10 @@ namespace PlayniteAchievements.Services.Database
     {
         // v18: AchievementFilters became the general AchievementOverrides mirror, adding the
         // user-editable points and trophy type alongside the two filter flags.
-        public const int SchemaVersion = 18;
+        // v20: metadata state tables (MetadataApplied, MetadataCoverage, MetadataSourceSnapshots,
+        // MetadataSourcePages) hold the applied metadata links, per-source snapshots and source
+        // page slugs.
+        public const int SchemaVersion = 20;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -71,6 +75,8 @@ namespace PlayniteAchievements.Services.Database
                 IconPath TEXT NULL,
                 CoverPath TEXT NULL,
                 RaritySource TEXT NULL,
+                PlatformFields INTEGER NULL,
+                MetadataFields INTEGER NULL,
                 FirstSeenUtc TEXT NOT NULL,
                 LastUpdatedUtc TEXT NOT NULL
             );");
@@ -86,7 +92,8 @@ namespace PlayniteAchievements.Services.Database
                 Points INTEGER NULL,
                 ScaledPoints INTEGER NULL,
                 Category TEXT NOT NULL DEFAULT 'Default',
-                CategoryType TEXT NOT NULL DEFAULT 'Default',
+                Tags TEXT NULL,
+                CategoryKind TEXT NULL,
                 TrophyType TEXT NULL,
                 Hidden INTEGER NOT NULL DEFAULT 0,
                 IsCapstone INTEGER NOT NULL DEFAULT 0,
@@ -155,6 +162,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureFriendOwnershipTable(db);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureAchievementOverridesTable(db);
+            EnsureMetadataStateTables(db);
 
             var storedVersion = GetStoredSchemaVersion(db);
             var verification = VerifyRequiredColumns(db);
@@ -335,6 +343,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
             EnsureAchievementOverridesTable(db);
+            EnsureMetadataStateTables(db);
+            EnsureMetadataStateIndexes(db);
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
@@ -432,6 +442,62 @@ namespace PlayniteAchievements.Services.Database
                 ON ProviderGameDefinitionState (Status, LastCheckedUtc);");
         }
 
+        /// <summary>
+        /// Creates the metadata state tables: the applied metadata per game (MetadataApplied),
+        /// the per-source match coverage of that applied state (MetadataCoverage), the fetched
+        /// rows per game and source (MetadataSourceSnapshots), and the linked source page slugs
+        /// per game, source and site (MetadataSourcePages).
+        /// </summary>
+        private void EnsureMetadataStateTables(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataApplied (
+                PlayniteGameId TEXT PRIMARY KEY NOT NULL,
+                IconSourceKey TEXT NULL COLLATE NOCASE,
+                CapstoneArtUrl TEXT NULL,
+                CapstoneTitle TEXT NULL,
+                CapstoneDescription TEXT NULL,
+                CapstoneMatchApiName TEXT NULL,
+                CategoryCapstonesJson TEXT NULL,
+                IconApiNamesJson TEXT NULL,
+                IconFallbackApiNamesJson TEXT NULL,
+                UpdatedUtc TEXT NOT NULL
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataCoverage (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                Matched INTEGER NOT NULL,
+                Total INTEGER NOT NULL,
+                Fields INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (PlayniteGameId, SourceKey)
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataSourceSnapshots (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                LinkId TEXT NULL,
+                RowsJson TEXT NOT NULL,
+                MatchesJson TEXT NULL,
+                UpdatedUtc TEXT NOT NULL,
+                PRIMARY KEY (PlayniteGameId, SourceKey)
+            );");
+
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS MetadataSourcePages (
+                PlayniteGameId TEXT NOT NULL,
+                SourceKey TEXT NOT NULL COLLATE NOCASE,
+                LinkName TEXT NOT NULL,
+                Site TEXT NOT NULL COLLATE NOCASE,
+                PageSlug TEXT NULL,
+                PRIMARY KEY (PlayniteGameId, SourceKey, Site)
+            );");
+        }
+
+        private void EnsureMetadataStateIndexes(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_MetadataSourcePages_SourceKey
+                ON MetadataSourcePages (SourceKey);");
+        }
+
         private void BackfillRequiredAchievementCategoryValues(SQLiteDatabase db)
         {
             ExecuteSafe(
@@ -439,12 +505,6 @@ namespace PlayniteAchievements.Services.Database
                 "UPDATE AchievementDefinitions " +
                 "SET Category = 'Default' " +
                 "WHERE Category IS NULL OR TRIM(Category) = '';");
-
-            ExecuteSafe(
-                db,
-                "UPDATE AchievementDefinitions " +
-                "SET CategoryType = 'Default' " +
-                "WHERE CategoryType IS NULL OR TRIM(CategoryType) = '';");
         }
 
         private string ReconcileSchema(SQLiteDatabase db)
@@ -476,7 +536,14 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "AchievementDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "CategoryType", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
+            var hadTags = definitionColumns.Contains("Tags");
+            EnsureColumn(db, "AchievementDefinitions", "Tags", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "CategoryKind", "TEXT NULL", definitionColumns, ref backupPath);
+            if (!hadTags && definitionColumns.Contains("CategoryType"))
+            {
+                SplitLegacyCategoryTypes(db);
+            }
+
             EnsureColumn(db, "AchievementDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
@@ -701,6 +768,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "Games", "IconPath", "TEXT NULL", gamesColumns, ref backupPath);
             EnsureColumn(db, "Games", "CoverPath", "TEXT NULL", gamesColumns, ref backupPath);
             EnsureColumn(db, "Games", "RaritySource", "TEXT NULL", gamesColumns, ref backupPath);
+            EnsureColumn(db, "Games", "PlatformFields", "INTEGER NULL", gamesColumns, ref backupPath);
+            EnsureColumn(db, "Games", "MetadataFields", "INTEGER NULL", gamesColumns, ref backupPath);
 
             usersColumns = GetColumnNames(db, "Users");
             EnsureColumn(db, "Users", "AvatarUrl", "TEXT NULL", usersColumns, ref backupPath);
@@ -715,9 +784,55 @@ namespace PlayniteAchievements.Services.Database
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
             EnsureAchievementOverridesTable(db);
+            ReconcileMetadataStateTables(db, ref backupPath);
+            EnsureMetadataStateTables(db);
+            EnsureMetadataStateIndexes(db);
 
             return backupPath;
         }
+
+        /// <summary>
+        /// Drops each metadata state table that exists but lacks a required column, so
+        /// <see cref="EnsureMetadataStateTables"/> recreates it with the current shape.
+        /// </summary>
+        private void ReconcileMetadataStateTables(SQLiteDatabase db, ref string backupPath)
+        {
+            foreach (var table in MetadataStateRequiredColumns)
+            {
+                var columns = GetColumnNames(db, table.Key);
+                if (columns.Count == 0 || table.Value.All(columns.Contains))
+                {
+                    continue;
+                }
+
+                ExecuteSchemaChangeWithBackup(
+                    db,
+                    $"DROP TABLE IF EXISTS {table.Key};",
+                    ref backupPath,
+                    $"Recreated {table.Key} for missing columns.");
+            }
+        }
+
+        private static readonly KeyValuePair<string, string[]>[] MetadataStateRequiredColumns =
+        {
+            new KeyValuePair<string, string[]>("MetadataApplied", new[]
+            {
+                "PlayniteGameId", "IconSourceKey", "CapstoneArtUrl", "CapstoneTitle",
+                "CapstoneDescription", "CapstoneMatchApiName", "CategoryCapstonesJson", "IconApiNamesJson", "IconFallbackApiNamesJson", "UpdatedUtc"
+            }),
+            new KeyValuePair<string, string[]>("MetadataCoverage", new[]
+            {
+                "PlayniteGameId", "SourceKey", "Matched", "Total", "Fields"
+            }),
+            new KeyValuePair<string, string[]>("MetadataSourceSnapshots", new[]
+            {
+                "PlayniteGameId", "SourceKey", "LinkId", "RowsJson", "MatchesJson", "UpdatedUtc"
+            }),
+            new KeyValuePair<string, string[]>("MetadataSourcePages", new[]
+            {
+                "PlayniteGameId", "SourceKey", "LinkName", "Site", "PageSlug"
+            })
+        };
 
         private void ReconcileProviderGameDefinitionStateTable(SQLiteDatabase db, ref string backupPath)
         {
@@ -861,6 +976,60 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSchemaChangeWithBackup(db, createIndexSql, ref backupPath, successLog);
         }
 
+        /// <summary>
+        /// Fills the Tags and CategoryKind columns from the single CategoryType column they
+        /// replaced, which is left in place and no longer read. The values come from a small fixed
+        /// vocabulary, so one update per distinct value covers the table.
+        /// </summary>
+        private void SplitLegacyCategoryTypes(SQLiteDatabase db)
+        {
+            List<string> values;
+            try
+            {
+                values = db.Load<LegacyCategoryTypeRow>(
+                        "SELECT DISTINCT CategoryType AS Value FROM AchievementDefinitions;")
+                    .Select(row => row?.Value)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[Schema] Could not read category types to split into kinds and tags.");
+                return;
+            }
+
+            foreach (var value in values)
+            {
+                // Derived unlock modes (Softcore/Hardcore) stay with the tags they rode with.
+                var tags = AchievementTagHelper.Normalize(value);
+                var kind = LegacyCategoryTypes.SplitKind(value);
+                if (tags == null && kind == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    db.ExecuteNonQuery(
+                        "UPDATE AchievementDefinitions SET Tags = ?, CategoryKind = ? WHERE CategoryType = ?;",
+                        tags == null ? (object)DBNull.Value : tags,
+                        kind == null ? (object)DBNull.Value : kind,
+                        value);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"[Schema] Could not split category type '{value}'.");
+                }
+            }
+
+            _logger?.Info($"[Schema] Split {values.Count} category type values into kinds and tags.");
+        }
+
+        private sealed class LegacyCategoryTypeRow
+        {
+            public string Value { get; set; }
+        }
+
         private void EnsureColumn(
             SQLiteDatabase db,
             string tableName,
@@ -974,7 +1143,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(definitionColumns, "Points", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "ScaledPoints", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Category", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "CategoryType", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Tags", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "CategoryKind", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Rarity", "AchievementDefinitions", missing);
@@ -987,6 +1157,8 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(gamesColumns, "IconPath", "Games", missing);
             EnsureRequiredColumn(gamesColumns, "CoverPath", "Games", missing);
             EnsureRequiredColumn(gamesColumns, "RaritySource", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "PlatformFields", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "MetadataFields", "Games", missing);
 
             var usersColumns = GetColumnNames(db, "Users");
             EnsureRequiredColumn(usersColumns, "ProviderKey", "Users", missing);
@@ -1028,6 +1200,15 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "LastCheckedUtc", "ProviderGameDefinitionState", missing);
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "CreatedUtc", "ProviderGameDefinitionState", missing);
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "UpdatedUtc", "ProviderGameDefinitionState", missing);
+
+            foreach (var table in MetadataStateRequiredColumns)
+            {
+                var metadataStateColumns = GetColumnNames(db, table.Key);
+                foreach (var column in table.Value)
+                {
+                    EnsureRequiredColumn(metadataStateColumns, column, table.Key, missing);
+                }
+            }
 
             // Note: Index verification is intentionally NOT done here because indexes are
             // created in CreateProviderKeyIndexes which runs AFTER this verification passes.

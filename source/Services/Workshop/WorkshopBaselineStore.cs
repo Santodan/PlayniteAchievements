@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,6 +36,17 @@ namespace PlayniteAchievements.Services.Workshop
         /// <summary>The icon-hashes file that sits next to a baseline file.</summary>
         public static string IconHashesPath(string baselineFile) => baselineFile + ".icons.json";
 
+        /// <summary>
+        /// A baseline from its JSON, upgraded to the current schema so it compares like for like
+        /// with the game's data, which is always current. A baseline written by an older version
+        /// would otherwise differ on every field the upgrade moves. Null for empty JSON.
+        /// </summary>
+        public static GameCustomDataFile Parse(string json)
+        {
+            var parsed = JsonConvert.DeserializeObject<GameCustomDataFile>(json);
+            return parsed == null ? null : GameCustomDataNormalizer.NormalizeInternal(parsed, parsed.PlayniteGameId);
+        }
+
         /// <summary>The baseline in <paramref name="baselineFile"/>, or null when there is none or it cannot be read.</summary>
         public GameCustomDataFile Load(string baselineFile)
         {
@@ -45,7 +57,7 @@ namespace PlayniteAchievements.Services.Workshop
 
             try
             {
-                return JsonConvert.DeserializeObject<GameCustomDataFile>(File.ReadAllText(baselineFile));
+                return Parse(File.ReadAllText(baselineFile));
             }
             catch (Exception ex)
             {

@@ -89,11 +89,11 @@ namespace PlayniteAchievements.Services.Achievements
                 case AutoCapstoneTextField.GameName:
                     return DefaultGameNameTemplate;
                 case AutoCapstoneTextField.GameDescription:
-                    return ResourceProvider.GetString(AutoCapstoneTemplate.DescriptionKey) ?? string.Empty;
+                    return SantodanAutoCapstoneTextRecovery.DefaultText(AutoCapstoneTemplate.DescriptionKey, "Obtain every base game achievement.");
                 case AutoCapstoneTextField.CategoryName:
                     return DefaultCategoryNameTemplate;
                 default:
-                    return ToCategoryTemplate(ResourceProvider.GetString(CategoryDescriptionKey)) ?? string.Empty;
+                    return ToCategoryTemplate(SantodanAutoCapstoneTextRecovery.DefaultText(CategoryDescriptionKey, "Obtain every achievement in {0}.")) ?? string.Empty;
             }
         }
 
@@ -166,7 +166,7 @@ namespace PlayniteAchievements.Services.Achievements
             string ResolveField(AutoCapstoneTextField field)
             {
                 var stored = GetStored(settings, field);
-                return IsValidTemplate(stored) ? stored.Trim() : GetDefault(field);
+                return !SantodanAutoCapstoneTextRecovery.IsBrokenDefault(stored) && IsValidTemplate(stored) ? stored.Trim() : GetDefault(field);
             }
 
             return new AutoCapstoneTemplates(
@@ -237,10 +237,14 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             // The display label, not the raw path, so a nested category reads as the list shows it.
-            var label = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(category);
-            return (
-                RenderOrDefault(templates, AutoCapstoneTextField.CategoryName, gameName, label),
-                RenderOrDefault(templates, AutoCapstoneTextField.CategoryDescription, gameName, label));
+            var label = AchievementCategoryHelper.ToCategoryLabelDisplayText(category);
+
+            // A base category named after the game (Steam names its base set that way) would
+            // render "Game: Game", so it takes the game's title.
+            var title = string.Equals(label?.Trim(), gameName?.Trim(), StringComparison.CurrentCultureIgnoreCase)
+                ? RenderOrDefault(templates, AutoCapstoneTextField.GameName, gameName, null)
+                : RenderOrDefault(templates, AutoCapstoneTextField.CategoryName, gameName, label);
+            return (title, RenderOrDefault(templates, AutoCapstoneTextField.CategoryDescription, gameName, label));
         }
 
         public static string RenderOrDefault(

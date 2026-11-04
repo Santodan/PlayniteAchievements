@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -56,6 +57,13 @@ namespace PlayniteAchievements.Services.Showcase
         /// <summary>Game summaries grid settings keyed by exported widget instance id.</summary>
         public Dictionary<string, GameSummaryGridOptions> GameGridSurfaces { get; set; } =
             new Dictionary<string, GameSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Recent achievements widgets' category list settings (category mode), keyed by
+        /// exported widget instance id.
+        /// </summary>
+        public Dictionary<string, CategorySummaryGridOptions> CategoryGridSurfaces { get; set; } =
+            new Dictionary<string, CategorySummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -75,10 +83,6 @@ namespace PlayniteAchievements.Services.Showcase
 
         // Version 2 bundles profile background images and refers to them by archive entry.
         public const int CurrentVersion = 2;
-
-        // Per-user search and filter state written by ShowcaseControlBarStateStore
-        // ("ControlBar.Games", "ControlBar.Achievements").
-        private const string ControlBarOptionPrefix = "ControlBar.";
 
         // Ordered longest-first so ".pashowcase.zip" is matched whole.
         private static readonly string[] RecognizedFileSuffixes =
@@ -227,10 +231,9 @@ namespace PlayniteAchievements.Services.Showcase
                         }
 
                         var imageEntry = archive.CreateEntry(pair.Key, CompressionLevel.Optimal);
-                        using (var source = File.OpenRead(pair.Value))
                         using (var destination = imageEntry.Open())
                         {
-                            source.CopyTo(destination);
+                            PackageImageFormat.CopyPortable(pair.Value, destination);
                         }
                     }
                 }
@@ -385,18 +388,25 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// Removes what identifies the user from a widget: its pin collection, its control-bar
-        /// search and filter state, and every part of a profile card but the background.
+        /// Removes what identifies the user from a widget: its pin collection, its control bars'
+        /// Game selections, and every part of a profile card but the background.
         /// </summary>
         internal static void StripUserOptions(ShowcaseWidgetInstanceSettings widget)
         {
             ShowcaseWidgetOptions.SetPinCollectionId(widget, null);
             foreach (var key in widget.Options.Keys
-                .Where(key => key != null &&
-                              key.StartsWith(ControlBarOptionPrefix, StringComparison.OrdinalIgnoreCase))
+                .Where(ShowcaseWidgetOptions.IsControlBarState)
                 .ToList())
             {
-                widget.Options.Remove(key);
+                var portable = ShowcaseWidgetOptions.PortableControlBarState(widget.Options[key]);
+                if (portable == null)
+                {
+                    widget.Options.Remove(key);
+                }
+                else
+                {
+                    widget.Options[key] = portable;
+                }
             }
 
             // Of the profile card only the background travels; the rest identifies the user.
@@ -430,7 +440,9 @@ namespace PlayniteAchievements.Services.Showcase
 
             // Stored images are named by content, so equal names are the same file; a raw path
             // that happens to share a name with a different file gets a numbered entry.
-            var fileName = Path.GetFileName(path);
+            // Images go out as PNG when their format is not one every reader accepts.
+            var fileName = Path.GetFileNameWithoutExtension(path) +
+                           PackageImageFormat.EntryExtension(path, Path.GetExtension(path));
             var entryName = ImagesFolderName + "/" + fileName;
             for (var suffix = 2;
                  portable.BundledImages.TryGetValue(entryName, out var existing) &&
@@ -536,11 +548,15 @@ namespace PlayniteAchievements.Services.Showcase
             }
         }
 
-        /// <summary>True for a widget option that belongs to the user rather than the page (search and filter state, the pin collection).</summary>
+        /// <summary>
+        /// True for a widget option kept out of the widget's options as a whole: the pin
+        /// collection, which belongs to the user, and control bar state, which a library page
+        /// merges one bar at a time.
+        /// </summary>
         internal static bool IsUserOption(string key)
         {
             return !string.IsNullOrWhiteSpace(key)
-                   && (key.StartsWith(ControlBarOptionPrefix, StringComparison.OrdinalIgnoreCase)
+                   && (ShowcaseWidgetOptions.IsControlBarState(key)
                        || string.Equals(key, ShowcaseWidgetOptions.PinCollectionId, StringComparison.OrdinalIgnoreCase));
         }
 
@@ -555,11 +571,20 @@ namespace PlayniteAchievements.Services.Showcase
                 return;
             }
 
-            if (ShowcaseGridSurfaces.IsAchievementSurface(key) &&
-                gridOptions.Achievement.TryGetValue(key, out var achievement) &&
-                achievement != null)
+            if (ShowcaseGridSurfaces.IsAchievementSurface(key))
             {
-                portable.AchievementGridSurfaces[widget.InstanceId] = achievement.Clone();
+                if (gridOptions.Achievement.TryGetValue(key, out var achievement) && achievement != null)
+                {
+                    portable.AchievementGridSurfaces[widget.InstanceId] = achievement.Clone();
+                }
+
+                var categoryKey = ShowcaseGridSurfaces.ResolveCategorySurface(key);
+                if (categoryKey != null &&
+                    gridOptions.CategorySummaries.TryGetValue(categoryKey, out var categories) &&
+                    categories != null)
+                {
+                    portable.CategoryGridSurfaces[widget.InstanceId] = categories.Clone();
+                }
             }
             else if (ShowcaseGridSurfaces.IsGameSurface(key) &&
                      gridOptions.GameSummaries.TryGetValue(key, out var games) &&
@@ -582,11 +607,21 @@ namespace PlayniteAchievements.Services.Showcase
                 return;
             }
 
-            if (ShowcaseGridSurfaces.IsAchievementSurface(key) &&
-                portable.AchievementGridSurfaces != null &&
-                portable.AchievementGridSurfaces.TryGetValue(sourceId, out var achievement))
+            if (ShowcaseGridSurfaces.IsAchievementSurface(key))
             {
-                gridOptions.SetAchievement(key, achievement);
+                if (portable.AchievementGridSurfaces != null &&
+                    portable.AchievementGridSurfaces.TryGetValue(sourceId, out var achievement))
+                {
+                    gridOptions.SetAchievement(key, achievement);
+                }
+
+                var categoryKey = ShowcaseGridSurfaces.ResolveCategorySurface(key);
+                if (categoryKey != null &&
+                    portable.CategoryGridSurfaces != null &&
+                    portable.CategoryGridSurfaces.TryGetValue(sourceId, out var categories))
+                {
+                    gridOptions.SetCategorySummaries(categoryKey, categories);
+                }
             }
             else if (ShowcaseGridSurfaces.IsGameSurface(key) &&
                      portable.GameGridSurfaces != null &&

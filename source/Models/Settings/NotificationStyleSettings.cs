@@ -217,6 +217,9 @@ namespace PlayniteAchievements.Models.Settings
         private ToastScreenCorner? _position;
         private FrameVignetteStyle _frameVignette = FrameVignetteStyle.Full;
         private double? _frameVignetteStrength;
+        private bool _blurBackground;
+        private double? _blurStrength;
+        private double? _blurTintOpacity;
         private int? _imageKeyframeMs;
         private List<string> _lineOrder;
         private string _fontFamily;
@@ -526,6 +529,38 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _frameVignetteStrength;
             set => SetValue(ref _frameVignetteStrength, value);
+        }
+
+        /// <summary>
+        /// When true, the toast card shows a live blur of the game behind it, under a tint of the
+        /// theme surface color, in place of the surface brush or background image. Toast surface
+        /// only; the frame ignores this.
+        /// </summary>
+        public bool BlurBackground
+        {
+            get => _blurBackground;
+            set => SetValue(ref _blurBackground, value);
+        }
+
+        /// <summary>
+        /// How far the blurred background spreads (0-100; 0 leaves it sharp), or null for the
+        /// default (50). Applies only while <see cref="BlurBackground"/> is on.
+        /// </summary>
+        public double? BlurStrength
+        {
+            get => _blurStrength;
+            set => SetValue(ref _blurStrength, value);
+        }
+
+        /// <summary>
+        /// Opacity (0-100) of the tint drawn over the blurred background, or null for the default
+        /// (50). 0 leaves the blur untinted; 100 hides it behind the solid surface color. Applies
+        /// only while <see cref="BlurBackground"/> is on.
+        /// </summary>
+        public double? BlurTintOpacity
+        {
+            get => _blurTintOpacity;
+            set => SetValue(ref _blurTintOpacity, value);
         }
 
         /// <summary>
@@ -957,6 +992,9 @@ namespace PlayniteAchievements.Models.Settings
                 Position = Position,
                 FrameVignette = FrameVignette,
                 FrameVignetteStrength = FrameVignetteStrength,
+                BlurBackground = BlurBackground,
+                BlurStrength = BlurStrength,
+                BlurTintOpacity = BlurTintOpacity,
                 ImageKeyframeMs = ImageKeyframeMs,
                 LineOrder = LineOrder != null ? new List<string>(LineOrder) : null,
                 FontFamily = FontFamily,
@@ -1067,7 +1105,8 @@ namespace PlayniteAchievements.Models.Settings
     /// User-edited notification header strings. Null or blank values follow the current
     /// localized default; unedited stored values are re-normalized to null at startup by
     /// NotificationHeaderTextService so they keep following language changes. The friend
-    /// variants are format strings where {0} is the friend's display name.
+    /// variants are format strings where {0} is the friend's display name; the completion title
+    /// may use {0} for the game's name.
     /// </summary>
     public sealed class NotificationHeaderTextSettings : ObservableObject
     {
@@ -1076,6 +1115,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _completionHeader;
         private string _friendCompletionHeaderFormat;
         private string _progressHeader;
+        private string _completionTitle;
 
         public string UnlockHeader
         {
@@ -1110,6 +1150,16 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _progressHeader, value);
         }
 
+        /// <summary>
+        /// Title line of the standalone game-completion notification ("Game Complete!" by
+        /// default). An optional {0} stands for the game's name.
+        /// </summary>
+        public string CompletionTitle
+        {
+            get => _completionTitle;
+            set => SetValue(ref _completionTitle, value);
+        }
+
         public NotificationHeaderTextSettings Clone()
         {
             return new NotificationHeaderTextSettings
@@ -1118,7 +1168,8 @@ namespace PlayniteAchievements.Models.Settings
                 FriendUnlockHeaderFormat = FriendUnlockHeaderFormat,
                 CompletionHeader = CompletionHeader,
                 FriendCompletionHeaderFormat = FriendCompletionHeaderFormat,
-                ProgressHeader = ProgressHeader
+                ProgressHeader = ProgressHeader,
+                CompletionTitle = CompletionTitle
             };
         }
     }

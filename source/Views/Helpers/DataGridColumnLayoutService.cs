@@ -33,6 +33,40 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         private const int ViewportRescaleThrottleMilliseconds = 60;
 
+        // Header menu buttons (lock, eye, alignment) and the gap after each but the last.
+        private const double AlignmentButtonWidth = 34;
+        private const double AlignmentButtonGap = 4;
+
+        /// <summary>
+        /// Set on a <see cref="DataGridColumn"/> when the user hides its header text from the
+        /// header menu. The header template hides (not collapses) the text while true, so the
+        /// header keeps its size, sort arrow and click-to-sort. Set in markup, it is the column's
+        /// default until the user picks a state for the surface.
+        /// </summary>
+        public static readonly DependencyProperty IsHeaderTextHiddenProperty =
+            DependencyProperty.RegisterAttached(
+                "IsHeaderTextHidden",
+                typeof(bool),
+                typeof(DataGridColumnLayoutService),
+                new PropertyMetadata(false));
+
+        private static readonly DependencyProperty DeclaredHeaderTextHiddenProperty =
+            DependencyProperty.RegisterAttached(
+                "DeclaredHeaderTextHidden",
+                typeof(bool),
+                typeof(DataGridColumnLayoutService),
+                new PropertyMetadata(false));
+
+        public static bool GetIsHeaderTextHidden(DependencyObject obj)
+        {
+            return (bool)obj.GetValue(IsHeaderTextHiddenProperty);
+        }
+
+        public static void SetIsHeaderTextHidden(DependencyObject obj, bool value)
+        {
+            obj.SetValue(IsHeaderTextHiddenProperty, value);
+        }
+
         private readonly DataGrid _grid;
         private readonly ILogger _logger;
         private readonly Func<Dictionary<string, double>> _getWidths;
@@ -61,6 +95,8 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Func<Dictionary<string, bool>> _getLocks;
         private readonly Action<Dictionary<string, bool>> _setLocks;
         private readonly HashSet<DataGridColumn> _lockedColumns = new HashSet<DataGridColumn>();
+        private readonly Func<Dictionary<string, bool>> _getHiddenHeaders;
+        private readonly Action<Dictionary<string, bool>> _setHiddenHeaders;
         private ColumnResizeWidthAdorner _resizeWidthAdorner;
         private AdornerLayer _resizeWidthAdornerLayer;
         private DispatcherTimer _saveTimer;
@@ -141,6 +177,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// <param name="isRuntimeDefaultWidth">Optional predicate for legacy seed widths that should not count as user customization.</param>
         /// <param name="getLocks">Function to get the persisted per-column lock map; null hides the lock control.</param>
         /// <param name="setLocks">Action to set the persisted per-column lock map.</param>
+        /// <param name="getHiddenHeaders">Function to get the persisted per-column hidden header text map; null hides the eye control.</param>
+        /// <param name="setHiddenHeaders">Action to set the persisted per-column hidden header text map.</param>
         public DataGridColumnLayoutService(
             DataGrid grid,
             ILogger logger,
@@ -164,7 +202,9 @@ namespace PlayniteAchievements.Views.Helpers
             Action applyCellAlignments = null,
             Func<string, double, bool> isRuntimeDefaultWidth = null,
             Func<Dictionary<string, bool>> getLocks = null,
-            Action<Dictionary<string, bool>> setLocks = null)
+            Action<Dictionary<string, bool>> setLocks = null,
+            Func<Dictionary<string, bool>> getHiddenHeaders = null,
+            Action<Dictionary<string, bool>> setHiddenHeaders = null)
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _logger = logger;
@@ -189,6 +229,8 @@ namespace PlayniteAchievements.Views.Helpers
             _isRuntimeDefaultWidth = isRuntimeDefaultWidth;
             _getLocks = getLocks;
             _setLocks = setLocks;
+            _getHiddenHeaders = getHiddenHeaders;
+            _setHiddenHeaders = setHiddenHeaders;
         }
 
         /// <summary>
@@ -216,6 +258,7 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedVisibility();
             ApplyPersistedWidths();
             ApplyPersistedLocks();
+            ApplyPersistedHiddenHeaders();
         }
 
         /// <summary>
@@ -244,6 +287,7 @@ namespace PlayniteAchievements.Views.Helpers
                 context: $"columns={_grid.Columns.Count}");
             ApplyPersistedOrder();
             ApplyPersistedVisibility();
+            ApplyPersistedHiddenHeaders();
             WritePersistedPixelWidths(BuildEffectivePreferredWidths(includePending: false));
         }
 
@@ -312,6 +356,7 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedOrder();
             ApplyPersistedWidths();
             ApplyPersistedLocks();
+            ApplyPersistedHiddenHeaders();
         }
 
         /// <summary>
@@ -2082,6 +2127,70 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        public bool IsColumnHeaderTextHidden(DataGridColumn column)
+        {
+            return column != null && DataGridColumnLayoutService.GetIsHeaderTextHidden(column);
+        }
+
+        /// <summary>
+        /// Hides or shows a column's header text from the header menu and persists the choice.
+        /// </summary>
+        public void SetColumnHeaderTextHidden(DataGridColumn column, bool hidden)
+        {
+            var key = GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key) || _getHiddenHeaders == null || _setHiddenHeaders == null)
+            {
+                return;
+            }
+
+            DataGridColumnLayoutService.SetIsHeaderTextHidden(column, hidden);
+
+            // Stored either way: a grid can default a column's header text to hidden, so showing
+            // it must be an explicit entry rather than an absent key.
+            var map = _getHiddenHeaders.Invoke() ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            map[key] = hidden;
+
+            _setHiddenHeaders.Invoke(map);
+            _saveSettings?.Invoke();
+        }
+
+        private void ApplyPersistedHiddenHeaders()
+        {
+            if (_grid == null || _getHiddenHeaders == null)
+            {
+                return;
+            }
+
+            var map = _getHiddenHeaders.Invoke();
+            foreach (var column in _grid.Columns)
+            {
+                var declaredHidden = GetDeclaredHeaderTextHidden(column);
+                var key = GetColumnKey(column);
+                var hidden = !string.IsNullOrWhiteSpace(key) &&
+                             map != null &&
+                             map.TryGetValue(key, out var isHidden)
+                    ? isHidden
+                    : declaredHidden;
+                SetIsHeaderTextHidden(column, hidden);
+            }
+        }
+
+        /// <summary>
+        /// The column's markup default for <see cref="IsHeaderTextHiddenProperty"/>, recorded on
+        /// the column the first time a service sees it, before any persisted choice is written.
+        /// Kept on the column so a service recreated for another surface reads the markup value,
+        /// not the previous surface's choice.
+        /// </summary>
+        private static bool GetDeclaredHeaderTextHidden(DataGridColumn column)
+        {
+            if (column.ReadLocalValue(DeclaredHeaderTextHiddenProperty) == DependencyProperty.UnsetValue)
+            {
+                column.SetValue(DeclaredHeaderTextHiddenProperty, GetIsHeaderTextHidden(column));
+            }
+
+            return (bool)column.GetValue(DeclaredHeaderTextHiddenProperty);
+        }
+
         private void ReleaseRuntimeLocks()
         {
             foreach (var column in _lockedColumns.ToList())
@@ -2128,6 +2237,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var menu = new ContextMenu();
+            // The column switches are read whole, not searched for.
+            SelectorSearch.SetIsDisabled(menu, true);
             var hasColumnSection = AddColumnSection(menu, contextColumn);
             var separatorIndex = menu.Items.Count;
             var hasVisibilitySection = AddVisibilitySection(menu);
@@ -2272,19 +2383,20 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             var isLocked = IsColumnLocked(contextColumn);
+            var hasLockButton = _getLocks != null && _setLocks != null;
             var editor = new TextBox
             {
-                Width = 72,
+                Width = ResolveWidthEditorWidth(contextColumn, hasLockButton),
                 Height = 28,
                 MinWidth = 72,
-                Margin = new Thickness(0, 0, 4, 0),
+                Margin = new Thickness(0, 0, AlignmentButtonGap, 0),
                 Padding = new Thickness(4, 0, 4, 0),
                 TextAlignment = TextAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 AcceptsReturn = false,
-                ToolTip = ResourceProvider.GetString("LOCWidth")
+                ToolTip = ResourceProvider.GetString("LOCPlayAch_Common_Width")
             };
-            AutomationProperties.SetName(editor, ResourceProvider.GetString("LOCWidth"));
+            AutomationProperties.SetName(editor, ResourceProvider.GetString("LOCPlayAch_Common_Width"));
             editor.Text = FormatWidthLabel(contextColumn);
 
             var editHandled = new object();
@@ -2336,7 +2448,7 @@ namespace PlayniteAchievements.Views.Helpers
             };
             row.Children.Add(editor);
 
-            if (_getLocks != null && _setLocks != null)
+            if (hasLockButton)
             {
                 var description = ResourceProvider.GetString(isLocked ? "LOCPlayAch_Common_Locked" : "LOCPlayAch_Common_Unlocked");
                 var lockButton = CreateAlignmentButton(
@@ -2358,6 +2470,35 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return row;
+        }
+
+        /// <summary>
+        /// Stretches the pixel box so the width row spans the same width as the button row
+        /// beneath it; with no button row (or a short one) it keeps its 72 px minimum.
+        /// </summary>
+        private double ResolveWidthEditorWidth(DataGridColumn column, bool hasLockButton)
+        {
+            const double minimumWidth = 72;
+            var buttonCount = CanShowAlignmentSection(column) ? CountAlignmentRowButtons(column) : 0;
+            if (buttonCount == 0)
+            {
+                return minimumWidth;
+            }
+
+            var buttonRowWidth = buttonCount * AlignmentButtonWidth + (buttonCount - 1) * AlignmentButtonGap;
+            var lockWidth = hasLockButton ? AlignmentButtonWidth + AlignmentButtonGap : 0;
+            return Math.Max(minimumWidth, buttonRowWidth - lockWidth);
+        }
+
+        private int CountAlignmentRowButtons(DataGridColumn column)
+        {
+            return new[]
+            {
+                CanShowHeaderTextVisibility(column),
+                CanShowHeaderHorizontalAlignment(column),
+                CanShowCellHorizontalAlignment(column),
+                CanShowCellVerticalAlignment(column)
+            }.Count(shown => shown);
         }
 
         private void CommitWidthEdit(DataGridColumn column, string text)
@@ -2470,6 +2611,19 @@ namespace PlayniteAchievements.Views.Helpers
             return icon;
         }
 
+        /// <summary>IcoFont eye (EF24) while the header text shows, eye-blocked (EF22) while hidden.</summary>
+        private FrameworkElement CreateHeaderTextVisibilityIcon(bool isHidden)
+        {
+            // The shared icon-button face: the glyph drawn as vector outlines by GlyphIcon.
+            return new ContentPresenter
+            {
+                Content = isHidden ? "\uEF22" : "\uEF24",
+                ContentTemplate = _grid?.TryFindResource("PlayAch.ButtonContent.Glyph") as DataTemplate ??
+                                  Application.Current?.TryFindResource("PlayAch.ButtonContent.Glyph") as DataTemplate,
+                Opacity = isHidden ? 1 : 0.62
+            };
+        }
+
         private MenuItem CreateAlignmentButtonRowItem(DataGridColumn contextColumn)
         {
             MenuItem item = null;
@@ -2527,12 +2681,26 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
+            if (CanShowHeaderTextVisibility(contextColumn))
+            {
+                var isHidden = IsColumnHeaderTextHidden(contextColumn);
+                row.Children.Add(CreateAlignmentButton(
+                    CreateHeaderTextVisibilityIcon(isHidden),
+                    ResourceProvider.GetString(isHidden ? "LOCPlayAch_Filter_Hidden" : "LOCPlayAch_Dynamic_Visible"),
+                    !isHidden,
+                    () =>
+                    {
+                        SetColumnHeaderTextHidden(contextColumn, !IsColumnHeaderTextHidden(contextColumn));
+                        refreshRow?.Invoke();
+                    }));
+            }
+
             if (CanShowHeaderHorizontalAlignment(contextColumn))
             {
                 var hasOverride = TryGetColumnHeaderHorizontalAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultHeaderHorizontalAlignment();
                 var description = CreateHorizontalAlignmentDescription(
-                    "Header horizontal alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_HeaderHorizontal"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -2552,7 +2720,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var hasOverride = TryGetColumnCellAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultCellAlignment();
                 var description = CreateHorizontalAlignmentDescription(
-                    "Cell horizontal alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_CellHorizontal"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -2572,7 +2740,7 @@ namespace PlayniteAchievements.Views.Helpers
                 var hasOverride = TryGetColumnCellVerticalAlignmentOverride(key, out var overrideAlignment);
                 var effectiveAlignment = hasOverride ? overrideAlignment : GetDefaultCellVerticalAlignment();
                 var description = CreateVerticalAlignmentDescription(
-                    "Cell vertical alignment",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_CellVertical"),
                     effectiveAlignment,
                     hasOverride);
 
@@ -2614,11 +2782,11 @@ namespace PlayniteAchievements.Views.Helpers
 
             var button = new Button
             {
-                Width = 34,
+                Width = AlignmentButtonWidth,
                 Height = 28,
-                MinWidth = 34,
+                MinWidth = AlignmentButtonWidth,
                 MinHeight = 28,
-                Margin = new Thickness(0, 0, 4, 0),
+                Margin = new Thickness(0, 0, AlignmentButtonGap, 0),
                 Padding = new Thickness(4),
                 BorderThickness = isDefault ? new Thickness(1) : new Thickness(1.6),
                 Cursor = Cursors.Hand,
@@ -2762,7 +2930,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             refreshLastColumnGuard();
 
-            menu.Items.Add(CreateSectionHeader(ResourceProvider.GetString("LOCColumns")));
+            menu.Items.Add(CreateSectionHeader(ResourceProvider.GetString("LOCPlayAch_Common_Columns")));
             foreach (var item in visibilityItems)
             {
                 menu.Items.Add(item);
@@ -2775,7 +2943,16 @@ namespace PlayniteAchievements.Views.Helpers
         {
             return CanShowCellHorizontalAlignment(column) ||
                    CanShowCellVerticalAlignment(column) ||
-                   CanShowHeaderHorizontalAlignment(column);
+                   CanShowHeaderHorizontalAlignment(column) ||
+                   CanShowHeaderTextVisibility(column);
+        }
+
+        private bool CanShowHeaderTextVisibility(DataGridColumn column)
+        {
+            return column != null &&
+                   _getHiddenHeaders != null &&
+                   _setHiddenHeaders != null &&
+                   !string.IsNullOrWhiteSpace(GetColumnKey(column));
         }
 
         private bool CanShowCellHorizontalAlignment(DataGridColumn column)
@@ -2980,10 +3157,7 @@ namespace PlayniteAchievements.Views.Helpers
             GridAlignment effectiveAlignment,
             bool hasOverride)
         {
-            var alignmentText = AlignmentToText(effectiveAlignment);
-            return hasOverride
-                ? $"{target}: {alignmentText}. Click to change."
-                : $"{target}: Default ({alignmentText}). Click to change.";
+            return CreateAlignmentDescription(target, AlignmentToText(effectiveAlignment), hasOverride);
         }
 
         private static string CreateVerticalAlignmentDescription(
@@ -2991,10 +3165,14 @@ namespace PlayniteAchievements.Views.Helpers
             GridVerticalAlignment effectiveAlignment,
             bool hasOverride)
         {
-            var alignmentText = AlignmentToText(effectiveAlignment);
+            return CreateAlignmentDescription(target, AlignmentToText(effectiveAlignment), hasOverride);
+        }
+
+        private static string CreateAlignmentDescription(string target, string alignmentText, bool hasOverride)
+        {
             return hasOverride
-                ? $"{target}: {alignmentText}. Click to change."
-                : $"{target}: Default ({alignmentText}). Click to change.";
+                ? target + ": " + alignmentText
+                : target + ": " + ResourceProvider.GetString("LOCPlayAch_Common_Default") + " (" + alignmentText + ")";
         }
 
         private static string AlignmentToText(GridAlignment alignment)
@@ -3002,12 +3180,12 @@ namespace PlayniteAchievements.Views.Helpers
             switch (alignment)
             {
                 case GridAlignment.Center:
-                    return "Center";
+                    return ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_Center");
                 case GridAlignment.Right:
-                    return "Right";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Right");
                 case GridAlignment.Left:
                 default:
-                    return "Left";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Left");
             }
         }
 
@@ -3016,12 +3194,12 @@ namespace PlayniteAchievements.Views.Helpers
             switch (alignment)
             {
                 case GridVerticalAlignment.Top:
-                    return "Top";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Top");
                 case GridVerticalAlignment.Bottom:
-                    return "Bottom";
+                    return ResourceProvider.GetString("LOCPlayAch_Common_Bottom");
                 case GridVerticalAlignment.Center:
                 default:
-                    return "Center";
+                    return ResourceProvider.GetString("LOCPlayAch_Settings_GridAlignment_Center");
             }
         }
 
@@ -3206,7 +3384,7 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             // Header alignment intentionally shows only the header row's top line.
-            AddAlignmentLine(grid, alignment, 2, 15);
+            AddAlignmentLine(grid, alignment, 2, 16);
             return grid;
         }
 
@@ -3222,9 +3400,9 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             AddAlignmentLine(grid, alignment, 0, 14);
-            AddAlignmentLine(grid, alignment, 4, 9);
+            AddAlignmentLine(grid, alignment, 4, 10);
             AddAlignmentLine(grid, alignment, 8, 12);
-            AddAlignmentLine(grid, alignment, 12, 7);
+            AddAlignmentLine(grid, alignment, 12, 8);
 
             return grid;
         }

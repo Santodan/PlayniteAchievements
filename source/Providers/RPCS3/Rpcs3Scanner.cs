@@ -118,80 +118,27 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var refreshContexts = new Dictionary<string, Rpcs3RefreshContext>(StringComparer.OrdinalIgnoreCase);
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-
-            RebuildPayload payload;
-            try
-            {
-                payload = await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    game =>
-                    {
-                        onGameStarting?.Invoke(game);
-                    },
-                    async (game, token) =>
-                    {
-                        var data = await FetchGameDataAsync(game, refreshContexts, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult
-                        {
-                            Data = data
-                        };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                    {
-                        _logger?.Error(ex, $"[RPCS3] Failed to scan '{game?.Name}'");
-                    },
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+            var payload = await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                game =>
+                {
+                    onGameStarting?.Invoke(game);
+                },
+                (game, token) => Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult
+                {
+                    Data = FetchGameData(game, refreshContexts, token)
+                }),
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                {
+                    _logger?.Error(ex, $"[RPCS3] Failed to scan '{game?.Name}'");
+                },
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false);
 
             return payload ?? new RebuildPayload { Summary = new RebuildSummary() };
-        }
-
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_providerSettings?.UseExophaseForRarity != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        /// <param name="setTitle">
-        /// The trophy set's own title, searched before the Playnite name; null when unreadable.
-        /// </param>
-        private static async Task EnrichRarityAsync(
-            Game game,
-            GameAchievementData data,
-            string setTitle,
-            ExophaseMetadataEnricher rarityEnricher,
-            CancellationToken cancel)
-        {
-            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
-            {
-                return;
-            }
-
-            await rarityEnricher
-                .EnrichAsync(
-                    game,
-                    data.Achievements,
-                    "ps3",
-                    "PSN",
-                    cancel,
-                    regionHint: ResolveExophaseRegionHint(game),
-                    searchName: setTitle)
-                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -206,40 +153,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                    string.Equals(label, source?.NpCommId, StringComparison.OrdinalIgnoreCase)
                 ? null
                 : label;
-        }
-
-        private async Task EnrichSourceRarityAsync(
-            Game game,
-            GameTrophySource source,
-            SourceAchievements sourceAchievements,
-            ExophaseMetadataEnricher rarityEnricher,
-            CancellationToken cancel)
-        {
-            if (rarityEnricher == null ||
-                sourceAchievements?.Achievements == null ||
-                sourceAchievements.Achievements.Count == 0)
-            {
-                return;
-            }
-
-            var searchName = ResolveSearchableSetTitle(source, sourceAchievements);
-            if (searchName == null)
-            {
-                _logger?.Info($"[RPCS3] '{game?.Name}': no set title for '{source?.NpCommId}'; skipping Exophase rarity for this set.");
-                return;
-            }
-
-            await rarityEnricher
-                .EnrichAsync(
-                    game,
-                    sourceAchievements.Achievements,
-                    "ps3",
-                    "PSN",
-                    cancel,
-                    regionHint: ResolveExophaseRegionHint(game),
-                    searchName: searchName,
-                    fallBackToGameName: false)
-                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -294,10 +207,9 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        private async Task<GameAchievementData> FetchGameDataAsync(
+        private GameAchievementData FetchGameData(
             Game game,
             Dictionary<string, Rpcs3RefreshContext> refreshContexts,
-            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             if (game == null)
@@ -325,16 +237,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var isCollection = sources.Count > 1;
 
-            // Exophase lists each trophy set as its own game and has no pages for multipack
-            // collections, so collections enrich per set using the set's own title. A per-game
-            // slug override names a single page and keeps the merged single-call path.
-            var enrichPerSource = isCollection &&
-                rarityEnricher != null &&
-                !GameCustomDataLookup.TryGetExophaseEnrichmentSlugOverride(game.Id, out _);
-
             var achievements = new List<AchievementDetail>();
             var categoryArt = new List<(string Label, string ArtPath)>();
-            string singleSetTitle = null;
+            // Each set's own title: Exophase lists every trophy set as its own game and has no page
+            // for a multipack collection, so a collection's metadata is found set by set.
+            var setTitles = new List<string>();
             foreach (var source in sources)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -345,14 +252,14 @@ namespace PlayniteAchievements.Providers.RPCS3
                     return null;
                 }
 
-                if (!isCollection)
+                var setTitle = ResolveSearchableSetTitle(source, sourceAchievements);
+                if (setTitle != null)
                 {
-                    singleSetTitle = ResolveSearchableSetTitle(source, sourceAchievements);
+                    setTitles.Add(setTitle);
                 }
-
-                if (enrichPerSource)
+                else if (isCollection)
                 {
-                    await EnrichSourceRarityAsync(game, source, sourceAchievements, rarityEnricher, cancel).ConfigureAwait(false);
+                    _logger?.Info($"[RPCS3] '{game.Name}': no set title for '{source.NpCommId}'; its metadata page cannot be searched.");
                 }
 
                 achievements.AddRange(sourceAchievements.Achievements);
@@ -396,11 +303,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 LastUpdatedUtc = DateTime.UtcNow
             };
 
-            if (!enrichPerSource)
+            data.MetadataHints = new MetadataHints
             {
-                await EnrichRarityAsync(game, data, singleSetTitle, rarityEnricher, cancel).ConfigureAwait(false);
-            }
-
+                SearchName = isCollection ? null : setTitles.FirstOrDefault(),
+                SetTitles = isCollection ? setTitles : new List<string>(),
+                RegionHint = ResolveExophaseRegionHint(game)
+            };
             return data;
         }
 
@@ -427,10 +335,10 @@ namespace PlayniteAchievements.Providers.RPCS3
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in entries)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
                 if (string.Equals(
                     label,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    AchievementCategoryHelper.DefaultCategoryLabel,
                     StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -723,7 +631,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var trophy in trophies)
             {
-                if (!string.Equals(MapGroupIdToCategoryType(trophy?.GroupId), "DLC", StringComparison.OrdinalIgnoreCase) ||
+                if (!string.Equals(MapGroupIdToCategoryKind(trophy?.GroupId), "DLC", StringComparison.OrdinalIgnoreCase) ||
                     !int.TryParse(trophy.GroupId.Trim(), out var groupNumber) ||
                     groupNumber <= 0)
                 {
@@ -789,7 +697,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     Rarity = GetRarityFromTrophyType(normalizedTrophyType),
                     TrophyType = normalizedTrophyType,
                     IsCapstone = normalizedTrophyType == "platinum",
-                    CategoryType = MapGroupIdToCategoryType(trophy.GroupId),
+                    CategoryKind = MapGroupIdToCategoryKind(trophy.GroupId),
                     Category = BuildAchievementCategory(trophy, collectionTitle, isCollection)
                 });
             }
@@ -806,9 +714,9 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             var title = CategoryPathHelper.SanitizeSegment(sourceTitle);
             var groupName = CategoryPathHelper.SanitizeSegment(trophy?.GroupName);
-            var categoryType = MapGroupIdToCategoryType(trophy?.GroupId);
+            var categoryKind = MapGroupIdToCategoryKind(trophy?.GroupId);
 
-            if (string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase) &&
+            if (string.Equals(categoryKind, "DLC", StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(groupName))
             {
                 // Nest the group under the containing game so a collection's DLC groups sort with
@@ -2900,7 +2808,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        private static string MapGroupIdToCategoryType(string groupId)
+        private static string MapGroupIdToCategoryKind(string groupId)
         {
             var normalized = (groupId ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalized) ||

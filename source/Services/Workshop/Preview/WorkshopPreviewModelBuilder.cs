@@ -176,8 +176,8 @@ namespace PlayniteAchievements.Services.Workshop.Preview
 
                 // An unset count falls back as ShowcaseLayoutService.Normalize resolves it.
                 var legacySize = page.GridSize ?? ShowcaseLayoutService.DefaultTrackCount;
-                var rows = page.RowCount > 0 ? page.RowCount : legacySize;
-                var columns = page.ColumnCount > 0 ? page.ColumnCount : legacySize;
+                var rows = ShowcaseLayoutService.NormalizeTrackCount(page.RowCount > 0 ? page.RowCount : legacySize);
+                var columns = ShowcaseLayoutService.NormalizeTrackCount(page.ColumnCount > 0 ? page.ColumnCount : legacySize);
                 var images = (portable.BundledImages ?? new Dictionary<string, string>())
                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                     .Select(pair => pair.Value)

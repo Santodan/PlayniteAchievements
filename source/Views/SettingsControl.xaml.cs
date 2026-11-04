@@ -25,6 +25,8 @@ namespace PlayniteAchievements.Views
     {
         private readonly PlayniteAchievementsPlugin _plugin;
         private bool _windowPlacementAttached;
+        private Window _hostWindow;
+        private bool _disposed;
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly ILogger _logger;
         private readonly ProviderRegistry _providerRegistry;
@@ -36,6 +38,7 @@ namespace PlayniteAchievements.Views
         private GeneralSettingsTab _generalSettingsTab;
         private Settings.Notifications.NotificationsSettingsTab _notificationsSettingsTab;
         private Settings.Workshop.WorkshopSettingsTab _workshopSettingsTab;
+        private Settings.Metadata.MetadataSettingsTab _metadataSettingsTab;
 
         /// <summary>
         /// The place the next SettingsControl should open on. Set by the plugin before it asks
@@ -138,6 +141,14 @@ namespace PlayniteAchievements.Views
                     _logger);
             }
 
+            if (MetadataSettingsContent != null)
+            {
+                MetadataSettingsContent.Content = _metadataSettingsTab = new Settings.Metadata.MetadataSettingsTab(
+                    _settingsViewModel.Settings,
+                    _plugin,
+                    _providerRegistry);
+            }
+
             _themeMigrationController = new ThemeMigrationController(
                 _settingsViewModel.Settings,
                 _plugin,
@@ -232,8 +243,37 @@ namespace PlayniteAchievements.Views
                 }
 
                 AttachSettingsWindowPlacement();
+                DisposeWithHostWindow();
                 _live = new WeakReference<SettingsControl>(this);
             };
+        }
+
+        // Playnite builds a new view for every settings open and does not dispose the old one, so
+        // the view releases its subscriptions to the plugin's settings when its window closes.
+        // Not on Unloaded: the shared add-ons window unloads the view when another add-on is
+        // picked and loads it again on return.
+        private void DisposeWithHostWindow()
+        {
+            if (_hostWindow != null)
+            {
+                return;
+            }
+
+            _hostWindow = Window.GetWindow(this);
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed += HostWindow_Closed;
+            }
+        }
+
+        private void HostWindow_Closed(object sender, EventArgs e)
+        {
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed -= HostWindow_Closed;
+            }
+
+            Dispose();
         }
 
         /// <summary>
@@ -264,6 +304,13 @@ namespace PlayniteAchievements.Views
                     if (!string.IsNullOrEmpty(request.PageKey))
                     {
                         _workshopSettingsTab?.NavigateToPage(request.PageKey);
+                    }
+
+                    break;
+                case SettingsNavigationRequest.MetadataTab:
+                    if (!string.IsNullOrEmpty(request.PageKey))
+                    {
+                        _metadataSettingsTab?.NavigateToPage(request.PageKey);
                     }
 
                     break;
@@ -607,6 +654,9 @@ namespace PlayniteAchievements.Views
                 case "Workshop":
                     tab = WorkshopTab;
                     break;
+                case "Metadata":
+                    tab = MetadataTab;
+                    break;
                 case "ThemeMigration":
                     // Theme migration is listed on both Display and Themes. Display is the
                     // canonical target because it comes first in the tab strip.
@@ -636,6 +686,18 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (_hostWindow != null)
+            {
+                _hostWindow.Closed -= HostWindow_Closed;
+                _hostWindow = null;
+            }
+
             _autoAuthDebounceCts?.Cancel();
             _autoAuthDebounceCts?.Dispose();
             _autoAuthDebounceCts = null;

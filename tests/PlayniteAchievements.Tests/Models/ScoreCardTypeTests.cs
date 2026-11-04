@@ -74,7 +74,7 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void Choices_ListPlatformFamiliesPublishedFamiliesAndTheCurrentCard()
+        public void Choices_ListPublishedFamiliesAndTheCurrentCard()
         {
             var totals = new PlatformScoreTotals();
             totals.Add("PSN", 90, 300);
@@ -84,11 +84,7 @@ namespace PlayniteAchievements.Tests.Models
                 var keys = ScoreCardChoices.Build(ScoreCardType.Points("GOG")).Select(card => card.Key).ToList();
 
                 CollectionAssert.AreEqual(
-                    new[]
-                    {
-                        "Collection", "Prestige", "Points:Xbox", "Points:Epic", "Points:RetroAchievements",
-                        "Points:PSN", "Points:GOG"
-                    },
+                    new[] { "Collection", "Prestige", "Points:PSN", "Points:GOG" },
                     keys);
             }
             finally

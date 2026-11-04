@@ -1,4 +1,6 @@
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
@@ -48,7 +50,28 @@ namespace PlayniteAchievements.Services.GameCustomData
         public List<string> AchievementCategoryOrder { get; set; } = new List<string>();
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; } =
-            new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
+
+        /// <inheritdoc cref="Models.Settings.GameCustomDataFile.AchievementCategoryKinds"/>
+        public Dictionary<string, string> AchievementCategoryKinds { get; set; } =
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
+
+        /// <inheritdoc cref="Models.Settings.GameCustomDataFile.AchievementTags"/>
+        public List<AchievementTagDefinition> AchievementTags { get; set; } = new List<AchievementTagDefinition>();
+
+        /// <summary>
+        /// The kind stored for <paramref name="categoryPath"/>: a kind, <see cref="CategoryKindHelper.None"/>
+        /// for a category set to have none, or null when the provider decides.
+        /// </summary>
+        public string GetStoredCategoryKind(string categoryPath)
+        {
+            var key = CategoryPathHelper.NormalizePath(categoryPath);
+            return key != null && AchievementCategoryKinds != null &&
+                   AchievementCategoryKinds.TryGetValue(key, out var kind) &&
+                   !string.IsNullOrWhiteSpace(kind)
+                ? kind
+                : null;
+        }
 
         public GameSummaryCategoryData GameSummaryCategory { get; set; }
 
@@ -99,7 +122,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             var map = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
             AddLegacyValues(map, AchievementCategoryOverrides, (entry, value) => entry.Category = value);
-            AddLegacyValues(map, AchievementCategoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+            AddLegacyValues(map, AchievementCategoryTypeOverrides, LegacyCategoryTypes.ApplyTo);
             AddLegacyValues(map, AchievementNotes, (entry, value) => entry.Note = value);
             _synthesizedOverrides = map;
             return map;
@@ -215,6 +238,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 AchievementCategoryOrder = CloneCategoryOrder(customData.AchievementCategoryOrder),
                 AchievementCategoryImageOverrides =
                     CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = Models.Settings.GameCustomDataFile.CloneCategoryKindMap(customData.AchievementCategoryKinds) ??
+                    new Dictionary<string, string>(CategoryPathHelper.LabelComparer),
+                AchievementTags = Models.Settings.GameCustomDataFile.CloneTagList(customData.AchievementTags) ??
+                    new List<AchievementTagDefinition>(),
                 GameSummaryCategory =
                     GameCustomDataNormalizer.NormalizeGameSummaryCategory(customData.GameSummaryCategory),
                 FilteredAchievementApiNames = CloneApiNameSet(customData.FilteredAchievementApiNames),
@@ -263,7 +290,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                         : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 AchievementCategoryOrder = new List<string>(),
                 AchievementCategoryImageOverrides =
-                    new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase),
+                    new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
                 GameSummaryCategory = null,
                 FilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 SummaryFilteredAchievementApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase),
@@ -357,6 +384,51 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
             }
 
+            return GameCustomDataNormalizer.HasVisibleCustomization(
+                BuildLegacyRecord(gameId, fallbackSettings, store));
+        }
+
+        /// <summary>
+        /// The <see cref="CustomizationArea"/>s a game's stored customization falls into, read
+        /// the same way as <see cref="HasVisibleCustomization"/>: from the store without copying
+        /// the record, else from the legacy settings.
+        /// </summary>
+        public static CustomizationArea GetCustomizationAreas(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return CustomizationArea.None;
+            }
+
+            var resolvedStore = ResolveStore(store);
+            if (resolvedStore != null)
+            {
+                var stored = resolvedStore.QueryGame(
+                    gameId,
+                    customData => customData == null
+                        ? (CustomizationArea?)null
+                        : CustomizationAreaClassifier.Classify(customData));
+                if (stored.HasValue)
+                {
+                    return stored.Value;
+                }
+            }
+
+            return CustomizationAreaClassifier.Classify(BuildLegacyRecord(gameId, fallbackSettings, store));
+        }
+
+        /// <summary>
+        /// A normalized record assembled from the pre-store settings, for games the store has no
+        /// record for.
+        /// </summary>
+        private static GameCustomDataFile BuildLegacyRecord(
+            Guid gameId,
+            PersistedSettings fallbackSettings,
+            GameCustomDataStore store)
+        {
             var legacyData = new GameCustomDataFile
             {
                 PlayniteGameId = gameId,
@@ -419,8 +491,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 legacyData.ExophaseSlugOverride = exophaseSlugOverride;
             }
 
-            return GameCustomDataNormalizer.HasVisibleCustomization(
-                GameCustomDataNormalizer.NormalizeInternal(legacyData, gameId));
+            return GameCustomDataNormalizer.NormalizeInternal(legacyData, gameId);
         }
 
         public static HashSet<Guid> GetExcludedRefreshGameIds(
@@ -563,12 +634,55 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementCategoryOverrides;
         }
 
-        public static Dictionary<string, string> GetAchievementCategoryTypeOverrides(
+        /// <summary>
+        /// The tag override of each customized achievement, keyed by ApiName: its tags, or "" when
+        /// the user removed every tag.
+        /// </summary>
+        public static Dictionary<string, string> GetAchievementTagOverrides(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementCategoryTypeOverrides;
+            return BuildTagOverrideMap(ResolveGameCustomData(gameId, fallbackSettings, store));
+        }
+
+        /// <inheritdoc cref="GetAchievementTagOverrides"/>
+        public static Dictionary<string, string> BuildTagOverrideMap(ResolvedGameCustomData resolved)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var overrides = resolved?.ResolveAchievementOverrides();
+            if (overrides == null)
+            {
+                return map;
+            }
+
+            foreach (var pair in overrides)
+            {
+                var apiName = (pair.Key ?? string.Empty).Trim();
+                if (apiName.Length == 0 || pair.Value == null)
+                {
+                    continue;
+                }
+
+                if (pair.Value.ClearTags)
+                {
+                    map[apiName] = string.Empty;
+                }
+                else if (pair.Value.Tags != null)
+                {
+                    map[apiName] = pair.Value.Tags;
+                }
+            }
+
+            return map;
+        }
+
+        public static Dictionary<string, string> GetAchievementCategoryKinds(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementCategoryKinds;
         }
 
         public static List<string> GetAchievementCategoryOrder(
@@ -1028,38 +1142,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             return false;
         }
 
-        /// <summary>
-        /// Slug forced for Exophase rarity/metadata enrichment when another provider services the
-        /// game. Independent of the provider override path read by
-        /// <see cref="TryGetExophaseSlugOverride"/>, which selects the servicing provider.
-        /// </summary>
-        public static bool TryGetExophaseEnrichmentSlugOverride(
-            Guid gameId,
-            out string slugOverride,
-            GameCustomDataStore store = null)
-        {
-            slugOverride = null;
-            if (gameId == Guid.Empty)
-            {
-                return false;
-            }
-
-            if (!TryLoad(gameId, out var customData, store))
-            {
-                return false;
-            }
-
-            slugOverride = NormalizeValue(customData?.ExophaseEnrichmentSlugOverride);
-            if (slugOverride != null &&
-                slugOverride.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                // The UI stores bare slugs; tolerate hand-edited files holding a full URL.
-                slugOverride = NormalizeValue(ExophaseApiClient.ExtractSlugFromUrl(slugOverride));
-            }
-
-            return !string.IsNullOrWhiteSpace(slugOverride);
-        }
-
         public static bool TryGetShadPS4MatchIdOverride(
             Guid gameId,
             out string matchIdOverride,
@@ -1146,7 +1228,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return result;
@@ -1154,7 +1236,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var value in source)
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value);
+                var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
                 if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
                 {
                     result.Add(normalized);
@@ -1167,7 +1249,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
-            var map = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return map;
@@ -1175,7 +1257,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var pair in source)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 var art = NormalizeValue(pair.Value?.Art);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {

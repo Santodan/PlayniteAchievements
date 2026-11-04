@@ -112,22 +112,6 @@
                 </controls:SettingRow>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}"
-                    IsEnabled="{Binding Settings.IsEnabled}"
-                    Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories}"
-                                     Hint="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Help}"
-                                     Margin="0">
-                    <ComboBox SelectedValue="{Binding Settings.SteamHuntersCategoryMode, Mode=TwoWay}"
-                              SelectedValuePath="Tag"
-                              MinWidth="160"
-                              HorizontalAlignment="Left">
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Override_Off}" Tag="{x:Static steam:SteamHuntersCategoryMode.Off}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Merge}" Tag="{x:Static steam:SteamHuntersCategoryMode.Merge}"/>
-                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_SteamHuntersCategories_Override}" Tag="{x:Static steam:SteamHuntersCategoryMode.Override}"/>
-                    </ComboBox>
-                </controls:SettingRow>
-            </Border>
 
         </StackPanel>
     </ScrollViewer>

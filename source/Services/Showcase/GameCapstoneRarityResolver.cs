@@ -20,8 +20,6 @@ namespace PlayniteAchievements.Services.Showcase
     /// </remarks>
     public static class GameCapstoneRarityResolver
     {
-        private const string BaseCategoryType = "Base";
-
         /// <summary>The per-game percents one pass over the unlocked achievements yields.</summary>
         public sealed class Candidates
         {
@@ -57,7 +55,7 @@ namespace PlayniteAchievements.Services.Showcase
                 }
 
                 candidates.RarestCapstone = Min(candidates.RarestCapstone, percent);
-                if (IsBase(item.CategoryType))
+                if (CategoryKindHelper.IsBase(item.CategoryKind))
                 {
                     candidates.BaseCapstone = Min(candidates.BaseCapstone, percent);
                 }
@@ -81,10 +79,6 @@ namespace PlayniteAchievements.Services.Showcase
                 ? candidates.BaseCapstone ?? candidates.RarestCapstone
                 : candidates.RarestAchievement;
         }
-
-        private static bool IsBase(string categoryType) =>
-            AchievementCategoryTypeHelper.ParseValues(categoryType)
-                .Any(value => string.Equals(value, BaseCategoryType, StringComparison.OrdinalIgnoreCase));
 
         private static double Min(double? current, double value) =>
             current.HasValue ? Math.Min(current.Value, value) : value;

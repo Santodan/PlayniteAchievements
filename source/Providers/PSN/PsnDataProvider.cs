@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.PSN
 {
-    internal sealed class PsnDataProvider : DataProviderBase<PsnSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride
+    internal sealed class PsnDataProvider : DataProviderBase<PsnSettings>, IDataProvider, IProfileLinkProvider, IProviderOverride, IEnglishTitleSource
     {
         // Accepts a single NP Communication ID, or several joined with '+' or ',' so a
         // compilation's trophy sets can be supplied manually when lookup cannot resolve them.
@@ -107,6 +107,12 @@ namespace PlayniteAchievements.Providers.PSN
             CancellationToken cancel)
         {
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
+        }
+
+        /// <summary>The stored trophy sets' names and details read again with an en-US Accept-Language.</summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            return await _scanner.GetEnglishTrophyTitlesAsync(game, data, ct).ConfigureAwait(false);
         }
 
         /// <inheritdoc />

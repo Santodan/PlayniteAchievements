@@ -36,72 +36,22 @@ namespace PlayniteAchievements.Views.ManageAchievements
             InitializeComponent();
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             DataContext = _viewModel;
-
-            // Auto-trigger search when control loads if search text is pre-filled.
-            Loaded += OnLoaded;
         }
 
-        private async void OnLoaded(object sender, RoutedEventArgs e)
+        /// <summary>A double-click or Enter on a search result goes on to linking it.</summary>
+        private void SearchPanel_Accepted(object sender, EventArgs e)
         {
-            Loaded -= OnLoaded;
-
-            if (!_viewModel.IsEditingStage &&
-                !string.IsNullOrWhiteSpace(_viewModel.SearchText))
-            {
-                try
-                {
-                    await _viewModel.ExecuteSearchAsync();
-                }
-                catch
-                {
-                    // Error is handled by ViewModel.
-                }
-            }
-        }
-
-        private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter && _viewModel?.SearchCommand.CanExecute(null) == true)
-            {
-                _viewModel.SearchCommand.Execute(null);
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                if (_viewModel?.CancelCommand.CanExecute(null) == true)
-                {
-                    _viewModel.CancelCommand.Execute(null);
-                }
-                e.Handled = true;
-            }
-        }
-
-        private void SearchDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (_viewModel?.SelectedResult != null && _viewModel.NextCommand.CanExecute(null))
+            if (_viewModel?.NextCommand.CanExecute(null) == true)
             {
                 _viewModel.NextCommand.Execute(null);
             }
         }
 
-        private void SearchDataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void SearchPanel_Cancelled(object sender, EventArgs e)
         {
-            if (!(sender is DataGrid dataGrid))
+            if (_viewModel?.CancelCommand.CanExecute(null) == true)
             {
-                return;
-            }
-
-            var source = e.OriginalSource as DependencyObject;
-            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(source);
-            if (row?.Item == null)
-            {
-                return;
-            }
-
-            if (!row.IsSelected)
-            {
-                dataGrid.SelectedItem = row.Item;
-                row.Focus();
+                _viewModel.CancelCommand.Execute(null);
             }
         }
 
@@ -133,14 +83,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
-        private void ClearSearchTextButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel != null)
-            {
-                _viewModel.SearchText = string.Empty;
-            }
-        }
-
         private void ClearEditFilterButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel != null)
@@ -162,29 +104,14 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
-            if (SearchResultsDataGrid?.IsKeyboardFocusWithin == true)
+            if (SearchPanel?.IsKeyboardFocusWithin == true)
             {
-                return HandleSearchResultsControllerInput(input);
+                return SearchPanel.HandleControllerInput(input);
             }
 
             if (ManualAchievementsDataGrid?.IsKeyboardFocusWithin == true)
             {
                 return HandleManualAchievementsControllerInput(input);
-            }
-
-            return false;
-        }
-
-        private bool HandleSearchResultsControllerInput(ControllerInput input)
-        {
-            if (FullscreenControllerNavigationService.IsFocusWithinDataGridColumnHeader(SearchResultsDataGrid))
-            {
-                if (FullscreenControllerNavigationService.IsAcceptInput(input))
-                {
-                    return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(SearchResultsDataGrid);
-                }
-
-                return false;
             }
 
             return false;
@@ -216,10 +143,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_viewModel.IsSearchStage)
             {
                 elements.Add(SourceComboBox);
-                elements.Add(SearchTextBox);
-                elements.Add(ClearSearchTextButton);
-                elements.Add(SearchButton);
-                elements.Add(SearchResultsDataGrid);
+                elements.AddRange(SearchPanel.GetControllerElements());
                 elements.Add(NextButton);
                 elements.Add(SearchCancelButton);
             }

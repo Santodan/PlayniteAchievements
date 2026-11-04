@@ -99,17 +99,17 @@ namespace PlayniteAchievements.Ffxiv.Tests
         [TestMethod]
         public void ResolveCategoryType_MarksSeasonalEventsMissable()
         {
-            Assert.AreEqual("Missable", FfxivParsing.ResolveCategoryType("Seasonal Events"));
-            Assert.AreEqual("Missable", FfxivParsing.ResolveCategoryType("seasonal events"));
+            Assert.AreEqual("Missable", FfxivParsing.ResolveTag("Seasonal Events"));
+            Assert.AreEqual("Missable", FfxivParsing.ResolveTag("seasonal events"));
         }
 
         [TestMethod]
         public void ResolveCategoryType_ReturnsNull_ForRegularCategories()
         {
-            Assert.IsNull(FfxivParsing.ResolveCategoryType("General"));
-            Assert.IsNull(FfxivParsing.ResolveCategoryType("Raids"));
-            Assert.IsNull(FfxivParsing.ResolveCategoryType(null));
-            Assert.IsNull(FfxivParsing.ResolveCategoryType(""));
+            Assert.IsNull(FfxivParsing.ResolveTag("General"));
+            Assert.IsNull(FfxivParsing.ResolveTag("Raids"));
+            Assert.IsNull(FfxivParsing.ResolveTag(null));
+            Assert.IsNull(FfxivParsing.ResolveTag(""));
         }
     }
 }

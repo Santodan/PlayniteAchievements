@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
 using System;
@@ -50,7 +51,7 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public void BuildDefaultCategoryRelativePath_IsDeterministicAndCaseStable()
+        public void BuildDefaultCategoryRelativePath_IsDeterministicAndCaseDistinct()
         {
             var first = AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath(
                 "game-123", "Expansion");
@@ -60,9 +61,17 @@ namespace PlayniteAchievements.Services.Images.Tests
                 "game-123", "EXPANSION");
 
             Assert.AreEqual(first, second);
-            // The hash suffix is case-insensitive so write/read label casing differences
-            // still land on the same file (paths differ only by the sanitized stem casing).
-            StringAssert.EndsWith(upper, first.Substring(first.LastIndexOf('_')));
+            // Labels differing only in case are distinct categories, so the hash suffix tells
+            // them apart even on a file system that ignores case in the stem.
+            Assert.IsFalse(upper.EndsWith(first.Substring(first.LastIndexOf('_')), StringComparison.OrdinalIgnoreCase));
+
+            // All-lowercase labels keep the path the lowercase hash always gave them.
+            Assert.AreEqual(
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath("game-123", "expansion"),
+                AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath("game-123", "expansion"));
+            Assert.AreNotEqual(
+                AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath("game-123", "Expansion"),
+                first);
         }
 
         [TestMethod]
@@ -74,6 +83,24 @@ namespace PlayniteAchievements.Services.Images.Tests
             StringAssert.Contains(path, Path.Combine("game-123", "category_defaults") + Path.DirectorySeparatorChar);
             StringAssert.Contains(path, "category_Blood_On_Crystal_");
             Assert.IsFalse(path.Contains(Path.Combine("game-123", "custom")));
+        }
+
+        [TestMethod]
+        public void BuildMetadataListFolderRelativePath_DecodesPercentEscapesAndStaysShort()
+        {
+            const string encoded = "steinsgate-%e7%b7%9a%e5%bd%a2%e6%8b%98%e6%9d%9f%e3%81%ae%e3%83%95%e3%82%a7%e3%83%8e%e3%82%b0%e3%83%a9%e3%83%a0-ps3";
+
+            var folder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", encoded));
+            var decodedFolder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", Uri.UnescapeDataString(encoded)));
+            var longFolder = Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", new string('a', 200) + "-ps4"));
+
+            StringAssert.StartsWith(folder, Uri.UnescapeDataString(encoded) + "_");
+            Assert.IsTrue(folder.Length <= 48, folder);
+            Assert.IsTrue(longFolder.Length <= 48, longFolder);
+            Assert.AreNotEqual(decodedFolder, folder, "The hash is of the raw id, so encoded and decoded ids keep their own folders.");
+            Assert.AreEqual(
+                Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "bad-%zz-escape")),
+                Path.GetFileName(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "bad-%zz-escape")));
         }
 
         [TestMethod]
@@ -280,6 +307,58 @@ namespace PlayniteAchievements.Services.Images.Tests
                     gameId.ToString("D"),
                     stem,
                     AchievementIconVariant.Locked)));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void DiskImageService_ClearsSessionImagesFromTheRoot_AndKeepsGameFolders()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var sessionImage = Path.Combine(tempDir, "icon_cache", "0D8CAF34E5331898.jpg");
+                var gameIcon = Path.Combine(tempDir, "icon_cache", Guid.NewGuid().ToString("D"), "original", "icon.png");
+                WritePlaceholderFile(sessionImage);
+                WritePlaceholderFile(gameIcon);
+
+                new DiskImageService(logger: null, cacheRoot: tempDir).Dispose();
+
+                Assert.IsFalse(File.Exists(sessionImage));
+                Assert.IsTrue(File.Exists(gameIcon));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task GetOrDownloadIconToPathAsync_TakesTheShownSessionImage_InsteadOfDownloading()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    // An address that cannot be fetched, so only the shown file can satisfy the save.
+                    var uri = "https://cdn.invalid/category/art.png";
+                    var sessionPath = DiskImageService.ResolveTargetPathForSource(
+                        diskImageService.GetIconCachePathFromUri(uri, 0), uri, 0);
+                    WritePlaceholderFile(sessionPath);
+                    var target = Path.Combine(tempDir, "icon_cache", Guid.NewGuid().ToString("D"), "custom", "category_art.png");
+
+                    var saved = await diskImageService.GetOrDownloadIconToPathAsync(uri, target, decodeSize: 0, CancellationToken.None);
+
+                    Assert.AreEqual(DiskImageService.ResolveTargetPathForSource(target, uri, 0), saved);
+                    CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, File.ReadAllBytes(saved));
+                    Assert.IsFalse(File.Exists(sessionPath), "no loose copy is left in the cache root");
+                }
             }
             finally
             {
@@ -1132,6 +1211,280 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_SavesRowsInTheListFolder_AndDeletesUnusedFiles()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var gameId = Guid.NewGuid();
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "NPWR00001_00"));
+
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+                var copied = new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource, LockedIconPath = localSource };
+                // Already saved by an earlier refresh, so nothing is downloaded.
+                var kept = new AchievementDetail { ApiName = "p2", UnlockedIconPath = "https://cdn.example.com/p2.png" };
+                var keptFile = Path.Combine(folder, "p2.png");
+                WritePlaceholderFile(keptFile);
+                var droppedFile = Path.Combine(folder, "dropped.png");
+                WritePlaceholderFile(droppedFile);
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    gameId, "PlayStation", OneList("NPWR00001_00", copied, kept), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                var copiedFile = Path.Combine(folder, "p1.png");
+                Assert.AreEqual((copiedFile, copiedFile), icons[copied], "a locked icon that is the unlocked one follows the unlocked file");
+                Assert.IsTrue(File.Exists(copiedFile));
+                Assert.AreEqual(keptFile, icons[kept].Unlocked);
+                Assert.IsTrue(File.Exists(keptFile));
+                Assert.IsFalse(File.Exists(droppedFile), "a file no row uses is deleted");
+                Assert.AreEqual(localSource, copied.UnlockedIconPath, "the rows are left as they were");
+                Assert.AreEqual("https://cdn.example.com/p2.png", kept.UnlockedIconPath);
+                Assert.IsTrue(AchievementIconCachePathBuilder.IsMetadataSourceIconPath(copiedFile, Guid.NewGuid().ToString("D")),
+                    "a list folder's icon is borrowed for every game linked to the list");
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_SecondGameOnTheList_UsesTheSavedFiles()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+
+                var first = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource }),
+                    forceRefreshExistingTargets: false, CancellationToken.None);
+                // An address that cannot be fetched, so only the first game's file can satisfy it.
+                var secondRow = new AchievementDetail { ApiName = "p1", UnlockedIconPath = "https://cdn.invalid/p1.png" };
+                var second = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", secondRow), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                Assert.AreEqual(first.Values.Single().Unlocked, second[secondRow].Unlocked);
+                Assert.IsTrue(File.Exists(second[secondRow].Unlocked), "the second game reads the file the first saved");
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_RowsSharingAnImage_ShareOneFile()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var localSource = Path.Combine(tempDir, "sources", "dragon.png");
+                WritePlaceholderFile(localSource);
+                var first = new AchievementDetail { ApiName = "p1", UnlockedIconPath = localSource };
+                var second = new AchievementDetail { ApiName = "p2", UnlockedIconPath = localSource };
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    Guid.NewGuid(), "PlayStation", OneList("NPWR00001_00", first, second), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                Assert.AreNotEqual(icons[first].Unlocked, icons[second].Unlocked, "each row keeps its own name");
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[first].Unlocked, out var firstFile, out var links));
+                Assert.IsTrue(IconFileLinks.TryGetIdentity(icons[second].Unlocked, out var secondFile, out _));
+                Assert.AreEqual(firstFile, secondFile);
+                Assert.AreEqual(2, links);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateMetadataSourceIconCacheAsync_MovesTheGamesOwnFolderIntoTheList()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                var gameId = Guid.NewGuid();
+                var legacyFolder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+                WritePlaceholderFile(Path.Combine(legacyFolder, "p1.png"));
+                var row = new AchievementDetail { ApiName = "p1", UnlockedIconPath = "https://cdn.example.com/p1.png" };
+
+                var icons = await iconService.PopulateMetadataSourceIconCacheAsync(
+                    gameId, "PlayStation", OneList("NPWR00001_00", row), forceRefreshExistingTargets: false, CancellationToken.None);
+
+                var moved = Path.Combine(
+                    diskImageService.ResolveCacheRelativePath(
+                        AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", "NPWR00001_00")),
+                    "p1.png");
+                Assert.AreEqual(moved, icons[row].Unlocked, "the saved file is used, not downloaded again");
+                Assert.IsTrue(File.Exists(moved));
+                Assert.IsFalse(Directory.Exists(legacyFolder));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void DeleteUnusedMetadataListFolders_KeepsOnlyListsAGameUses()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = NewIconService(diskImageService);
+                string FileIn(string listId) => Path.Combine(
+                    diskImageService.ResolveCacheRelativePath(AchievementIconCachePathBuilder.BuildMetadataListFolderRelativePath("PlayStation", listId)),
+                    "p1.png");
+                var used = FileIn("used");
+                var unused = FileIn("unused");
+                WritePlaceholderFile(used);
+                WritePlaceholderFile(unused);
+
+                iconService.DeleteUnusedMetadataListFolders(new[] { used });
+
+                Assert.IsTrue(File.Exists(used));
+                Assert.IsFalse(Directory.Exists(Path.GetDirectoryName(unused)));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static AchievementIconService NewIconService(DiskImageService diskImageService) =>
+            new AchievementIconService(
+                diskImageService,
+                new ManagedCustomIconService(diskImageService, logger: null),
+                () => new PersistedSettings(),
+                logger: null);
+
+        private static IReadOnlyList<MetadataSourceList> OneList(string id, params AchievementDetail[] rows) =>
+            new[] { new MetadataSourceList(id, id, rows) };
+
+        [TestMethod]
+        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndDeletesTheirOwnCopies()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    new ManagedCustomIconService(diskImageService, logger: null),
+                    () => new PersistedSettings { UseSeparateLockedIconsWhenAvailable = false },
+                    logger: null);
+                var gameId = Guid.NewGuid();
+                var gameIdText = gameId.ToString("D");
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameIdText, "PlayStation"));
+
+                var borrowedFile = Path.Combine(folder, "exophase_1.png");
+                WritePlaceholderFile(borrowedFile);
+                // A copy written by an earlier refresh, before borrowed icons were used in place.
+                var staleCopy = diskImageService.GetAchievementIconCachePath(gameIdText, "borrowed", AchievementIconVariant.Unlocked);
+                WritePlaceholderFile(staleCopy);
+                var ownSource = Path.Combine(tempDir, "sources", "own.png");
+                WritePlaceholderFile(ownSource);
+
+                var borrowed = new AchievementDetail { ApiName = "borrowed", UnlockedIconPath = borrowedFile };
+                var own = new AchievementDetail { ApiName = "own", UnlockedIconPath = ownSource };
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Achievements = { borrowed, own }
+                };
+
+                await iconService.PopulateAchievementIconCacheAsync(data, CancellationToken.None);
+
+                Assert.AreEqual(borrowedFile, borrowed.UnlockedIconPath, "a borrowed icon is used from its source folder");
+                Assert.IsTrue(File.Exists(borrowedFile));
+                Assert.IsFalse(File.Exists(staleCopy), "the own-folder copy of a borrowed icon is deleted");
+                var ownTarget = diskImageService.GetAchievementIconCachePath(gameIdText, "own", AchievementIconVariant.Unlocked);
+                Assert.AreEqual(ownTarget, own.UnlockedIconPath, "an icon of the game's own is still cached in its own folder");
+                Assert.IsTrue(File.Exists(ownTarget));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task PopulateAchievementIconCacheAsync_ClearedOverrideRestoresBorrowedIcon()
+        {
+            var tempDir = CreateTempDirectory();
+            var previousAccessor = AchievementIconService.BorrowedIconPathAccessor;
+
+            try
+            {
+                var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
+                var iconService = new AchievementIconService(
+                    diskImageService,
+                    new ManagedCustomIconService(diskImageService, logger: null),
+                    () => new PersistedSettings { UseSeparateLockedIconsWhenAvailable = false },
+                    logger: null);
+                var gameId = Guid.NewGuid();
+                var folder = diskImageService.ResolveCacheRelativePath(
+                    AchievementIconCachePathBuilder.BuildMetadataSourceFolderRelativePath(gameId.ToString("D"), "PlayStation"));
+                var borrowedFile = Path.Combine(folder, "exophase_1.png");
+                WritePlaceholderFile(borrowedFile);
+                var overrideSource = Path.Combine(tempDir, "sources", "override.png");
+                WriteSolidColorPng(overrideSource, Colors.Blue);
+                AchievementIconService.BorrowedIconPathAccessor = (id, apiName) =>
+                    id == gameId && apiName == "borrowed" ? borrowedFile : null;
+
+                var achievement = new AchievementDetail { ApiName = "borrowed", UnlockedIconPath = borrowedFile };
+                var data = new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Achievements = { achievement }
+                };
+
+                await iconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["borrowed"] = overrideSource },
+                    null,
+                    CancellationToken.None);
+                Assert.AreNotEqual(borrowedFile, achievement.UnlockedIconPath);
+
+                await iconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    null,
+                    null,
+                    CancellationToken.None,
+                    forceOverrideApiNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "borrowed" });
+
+                Assert.AreEqual(borrowedFile, achievement.UnlockedIconPath, "clearing the override restores the borrowed icon");
+            }
+            finally
+            {
+                AchievementIconService.BorrowedIconPathAccessor = previousAccessor;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task PopulateFriendGameImageCacheAsync_CachesDistinctIconAndCoverPaths()
         {
             var tempDir = CreateTempDirectory();
@@ -1673,13 +2026,54 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task EnsureIconSquareAsync_CropsAndCapsWideArt_AndLeavesConformingIconsAlone()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var wide = Path.Combine(tempDir, "wide.png");
+                var small = Path.Combine(tempDir, "small.png");
+                WritePng(wide, 1920, 1080);
+                WritePng(small, 256, 256);
+                var smallBytes = File.ReadAllBytes(small);
+
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    await diskImageService.EnsureIconSquareAsync(wide, 512, CancellationToken.None);
+                    await diskImageService.EnsureIconSquareAsync(small, 512, CancellationToken.None);
+                }
+
+                var frame = BitmapFrame.Create(new Uri(wide), BitmapCreateOptions.IgnoreImageCache, BitmapCacheOption.OnLoad);
+                Assert.AreEqual(512, frame.PixelWidth);
+                Assert.AreEqual(512, frame.PixelHeight);
+                CollectionAssert.AreEqual(smallBytes, File.ReadAllBytes(small));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static void WritePng(string path, int width, int height)
+        {
+            var stride = width * 4;
+            var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, new byte[stride * height], stride);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read))
+            {
+                encoder.Save(stream);
+            }
+        }
+
+        [TestMethod]
         public void BuildCategoryFileStem_IsAPureFunctionOfTheLabel()
         {
             Assert.AreEqual(
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"));
 
-            // Trimmed, and case-insensitive in the hash so a casing change keeps the same file.
+            // Trimmed before hashing, so surrounding whitespace keeps the same file.
             Assert.AreEqual(
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("DLC"),
                 AchievementIconCachePathBuilder.BuildCategoryFileStem("  DLC  "));
@@ -1722,10 +2116,12 @@ namespace PlayniteAchievements.Services.Images.Tests
         public void BuildCategoryFileStems_SkipsBlankLabelsAndDeduplicates()
         {
             var stems = AchievementIconCachePathBuilder.BuildCategoryFileStems(
-                new[] { "DLC", "  ", null, "dlc" });
+                new[] { "DLC", "  ", null, "dlc", "DLC" });
 
-            Assert.AreEqual(1, stems.Count);
+            Assert.AreEqual(2, stems.Count);
             Assert.IsTrue(stems.ContainsKey("DLC"));
+            Assert.IsTrue(stems.ContainsKey("dlc"));
+            Assert.AreNotEqual(stems["DLC"].ToLowerInvariant(), stems["dlc"].ToLowerInvariant());
         }
     }
 }

@@ -92,7 +92,7 @@
                                   Background="Transparent"
                                   BorderThickness="0">
                             <Expander.Header>
-                                <TextBlock Text="{DynamicResource LOCCustomLabel}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Custom}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            FontWeight="SemiBold"/>
                             </Expander.Header>

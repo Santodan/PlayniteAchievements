@@ -51,7 +51,7 @@ namespace PlayniteAchievements.ViewModels
                 item?.GameName,
                 item?.DisplayName,
                 item?.Description,
-                item?.CategoryType,
+                item?.TagsDisplay,
                 item?.CategoryLabel,
                 item?.ProviderKey));
 
@@ -460,11 +460,11 @@ namespace PlayniteAchievements.ViewModels
             SelectedRefreshMode,
             RefreshModeType.FriendsCustom.GetKey(),
             StringComparison.Ordinal)
-            ? ResourceProvider.GetString("LOCConfigure")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Button_Refresh");
 
         public string RefreshOrCancelButtonText => IsRefreshing
-            ? ResourceProvider.GetString("LOCCancelLabel")
+            ? ResourceProvider.GetString("LOCPlayAch_Common_Cancel")
             : RefreshActionButtonText;
 
         public string RefreshOrCancelButtonGlyph => IsRefreshing
@@ -548,11 +548,11 @@ namespace PlayniteAchievements.ViewModels
                 : GetSelectedFilterText(
                     _selectedFriendProviderFilters,
                     FriendProviderFilterOptions,
-                    ResourceProvider.GetString("LOCPlatformTitle"));
+                    ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         public string SelectedGamePlatformFilterText => OverviewGameSummaryFilters.BuildProviderFilterText(
             GamePlatformFilterGroups,
-            ResourceProvider.GetString("LOCPlatformTitle"));
+            ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         public string SelectedOwnershipFilterText => GetSelectedFilterText(
             _selectedOwnershipFilters,
@@ -638,6 +638,10 @@ namespace PlayniteAchievements.ViewModels
                     value => FriendSearchText = value,
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
+                }
             };
             controlBar.Items.Add(new GridToggleFilter(
                 this,
@@ -645,7 +649,12 @@ namespace PlayniteAchievements.ViewModels
                 ResourceProvider.GetString("LOCPlayAch_RefreshModeShort_Favorites"),
                 () => FavoritesOnly,
                 value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite));
+                GridToggleFilterIcon.Favorite)
+            {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
+                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
+                ClearedValue = false
+            });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
                 nameof(SelectedFriendProviderFilterText),
@@ -655,6 +664,8 @@ namespace PlayniteAchievements.ViewModels
                 SetFriendProviderFilterSelected,
                 PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
             {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 118
             });
             return controlBar;
@@ -671,6 +682,10 @@ namespace PlayniteAchievements.ViewModels
                     value => GameSearchText = value,
                     GridControlBarText.Get("LOCPlayAch_Filter_Games", "Search Games"),
                     ClearGameSearch)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Games"
+                }
             };
             controlBar.Items.Add(new GridProviderPlatformFilter(
                 this,
@@ -679,6 +694,8 @@ namespace PlayniteAchievements.ViewModels
                 () => GamePlatformFilterGroups,
                 CollapseUnselectedGamePlatformFilters)
             {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
@@ -689,6 +706,8 @@ namespace PlayniteAchievements.ViewModels
                 IsOwnershipFilterSelected,
                 SetOwnershipFilterSelected)
             {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Ownership,
+                LabelKey = "LOCPlayAch_Filter_OwnershipSelectorPlaceholder",
                 Width = 118
             });
             return controlBar;

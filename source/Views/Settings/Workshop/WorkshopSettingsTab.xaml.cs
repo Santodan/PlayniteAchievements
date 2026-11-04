@@ -72,9 +72,33 @@ namespace PlayniteAchievements.Views.Settings.Workshop
             };
 
             // Pages are created on selection, so a settings window opened on another page starts
-            // there rather than building Browse first.
+            // there rather than building Browse first. A requested page is selected at once; the
+            // default page waits until the tab is shown, so opening settings on another tab builds
+            // no Workshop page.
             MasterDetail.ItemsSource = _navigationItems;
-            MasterDetail.SelectedItem = FindPage(initialPageKey) ?? _navigationItems[0];
+            var initial = FindPage(initialPageKey);
+            if (initial != null)
+            {
+                MasterDetail.SelectedItem = initial;
+            }
+            else
+            {
+                IsVisibleChanged += SelectDefaultPageWhenShown;
+            }
+        }
+
+        private void SelectDefaultPageWhenShown(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+        {
+            if (!IsVisible)
+            {
+                return;
+            }
+
+            IsVisibleChanged -= SelectDefaultPageWhenShown;
+            if (MasterDetail.SelectedItem == null && _navigationItems?.Count > 0)
+            {
+                MasterDetail.SelectedItem = _navigationItems[0];
+            }
         }
 
         /// <summary>Selects the page with the given key (e.g. <see cref="LibraryPageKey"/>).</summary>
@@ -94,6 +118,7 @@ namespace PlayniteAchievements.Views.Settings.Workshop
 
         public void Dispose()
         {
+            IsVisibleChanged -= SelectDefaultPageWhenShown;
             _browse?.Cleanup();
             _library?.Cleanup();
         }

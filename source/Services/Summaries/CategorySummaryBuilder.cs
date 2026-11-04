@@ -133,7 +133,7 @@ namespace PlayniteAchievements.Services.Summaries
         private static Dictionary<string, List<AchievementDisplayItem>> GroupByLabel(
             IReadOnlyList<AchievementDisplayItem> source)
         {
-            var groups = new Dictionary<string, List<AchievementDisplayItem>>(StringComparer.OrdinalIgnoreCase);
+            var groups = new Dictionary<string, List<AchievementDisplayItem>>(CategoryPathHelper.LabelComparer);
             foreach (var item in source)
             {
                 if (item == null)
@@ -200,7 +200,7 @@ namespace PlayniteAchievements.Services.Summaries
                 var depth = CategoryPathHelper.GetDepth(node);
                 var display = useLeafNames && depth > 1
                     ? CategoryPathHelper.GetLeafName(node)
-                    : AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node);
+                    : AchievementCategoryHelper.ToCategoryLabelDisplayText(node);
 
                 var item = new CategorySummaryItem
                 {
@@ -216,7 +216,7 @@ namespace PlayniteAchievements.Services.Summaries
                     // Sorting orders by the name shown, so a nested row needs its path on hover:
                     // once a column sort breaks the tree order, two leaves that happen to share a
                     // name have nothing else to tell them apart.
-                    NameToolTip = depth > 1 ? AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(node) : null
+                    NameToolTip = depth > 1 ? AchievementCategoryHelper.ToCategoryLabelDisplayText(node) : null
                 };
 
                 // Category art fills both image slots so the grid's icon/cover toggle only
@@ -240,7 +240,7 @@ namespace PlayniteAchievements.Services.Summaries
                     item.SubtreeIsCompleted = ComputeIsCompleted(members);
                 }
 
-                item.CategoryType = ResolveCategoryType(directMembers, members);
+                item.CategoryKind = ResolveCategoryKind(directMembers, members);
 
                 // A capstone claims its own achievement's category, so a capstone sitting in this
                 // bucket is one this category owns rather than one it inherits.
@@ -444,23 +444,19 @@ namespace PlayniteAchievements.Services.Summaries
         }
 
         /// <summary>
-        /// The row's group-based category type token (Base/DLC/Update/Subset), falling back to
-        /// <see cref="AchievementCategoryTypeHelper.DefaultCategoryType"/> when there is no group
-        /// membership.
+        /// The row's kind (Base, DLC, "DLC|Update", ...), or null when it has none. Members carry the
+        /// effective kind, so a category whose kind the user set reads that kind.
         ///
-        /// A node's own achievements describe it best, so they win when it has any; otherwise the
-        /// subtree decides. Either way the pick is the most common signature, which is what stops
-        /// one stray Base member making a DLC parent report Base.
+        /// A node's own achievements decide when it has any, otherwise its subtree; either way the
+        /// category has a kind only when every one of them agrees.
         /// </summary>
-        private static string ResolveCategoryType(
+        private static string ResolveCategoryKind(
             IReadOnlyList<AchievementDisplayItem> directMembers,
             IReadOnlyList<AchievementDisplayItem> allMembers)
         {
             var source = directMembers != null && directMembers.Count > 0 ? directMembers : allMembers;
-            var group = AchievementCategoryTypeHelper.ResolveDominantGroupType(
-                source.Where(item => item != null).Select(item => item.CategoryType));
-
-            return group.Count > 0 ? group[0] : AchievementCategoryTypeHelper.DefaultCategoryType;
+            return CategoryKindHelper.ResolveUnanimous(
+                source.Where(item => item != null).Select(item => item.CategoryKind));
         }
 
         private static Guid? ResolveSharedGameId(IReadOnlyList<AchievementDisplayItem> bucket)

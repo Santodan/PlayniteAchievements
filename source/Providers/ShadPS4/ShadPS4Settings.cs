@@ -10,7 +10,6 @@ namespace PlayniteAchievements.Providers.ShadPS4
     public class ShadPS4Settings : ProviderSettingsBase
     {
         private List<string> _gameDataPaths = ProviderPathList.FromLegacy(ShadPS4PathResolver.GetDefaultSettingsPath());
-        private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "ShadPS4";
@@ -32,15 +31,6 @@ namespace PlayniteAchievements.Providers.ShadPS4
         private string LegacyGameDataPath
         {
             set => GameDataPaths = ProviderPathList.FromLegacy(value);
-        }
-
-        /// <summary>
-        /// When true, enriches ShadPS4 trophy rarity from Exophase after native scanning.
-        /// </summary>
-        public bool UseExophaseForRarity
-        {
-            get => _useExophaseForRarity;
-            set => SetValue(ref _useExophaseForRarity, value);
         }
     }
 }

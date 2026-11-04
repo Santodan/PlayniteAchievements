@@ -3,6 +3,7 @@
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                     xmlns:items="clr-namespace:PlayniteAchievements.ViewModels.Items"
                     xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
                     xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
@@ -11,6 +12,7 @@
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/DatePickerStyles.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
+    <converters:ScrollBarThumbViewportConverter x:Key="PlayAch.ScrollBarThumbViewportConverter"/>
     <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
     <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
     <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility"/>
@@ -386,6 +388,19 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+
+    <!-- An icon button's face: its string Content, an icon font glyph, drawn as vector geometry
+         with GlyphIcon in the glyph color, as the grid control bar draws its toggles; the same
+         glyph rendered as text comes out soft at this size. -->
+    <DataTemplate x:Key="PlayAch.ButtonContent.Glyph">
+        <controls:GlyphIcon Glyph="{Binding}"
+                            Size="15"
+                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                            Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            SnapsToDevicePixels="True"/>
+    </DataTemplate>
 
     <!-- Import and Export button faces: the editor toolbar's download and upload glyphs before
          the localized word, so every Import and Export in the plugin reads the same. Content
@@ -858,19 +873,6 @@
          combo box draws the tree the same way and there is one place to change it. Expects a
          CategoryPickerOption. -->
     <DataTemplate x:Key="PlayAch.CategoryTreeComboBoxItemTemplate">
-        <!-- The create row sits above the categories and is ruled off from them: it names nothing in
-             the tree, so it carries no connectors either. -->
-        <Border>
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
         <DockPanel LastChildFill="True">
             <controls:CategoryTreeGuide DockPanel.Dock="Left"
                                         VerticalAlignment="Stretch"
@@ -887,9 +889,6 @@
                                          Value="{x:Null}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsCreateNew}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:CategoryTreeGuide.Style>
@@ -902,7 +901,6 @@
                        TextWrapping="NoWrap"
                        Margin="5"/>
         </DockPanel>
-        </Border>
     </DataTemplate>
 
     <Style x:Key="PlayAch.ComboBox.BaseStyle" TargetType="ComboBox">
@@ -976,12 +974,68 @@
                                     <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                             BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                             BorderThickness="{StaticResource PlayAch.Thickness.Border}">
-                                        <ScrollViewer CanContentScroll="True"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      VerticalScrollBarVisibility="Auto">
-                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"
-                                                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-                                        </ScrollViewer>
+                                        <!-- Search over the options, shown by SelectorSearch for lists
+                                             longer than five, and the create result it offers when the
+                                             search matches nothing. -->
+                                        <DockPanel>
+                                            <Grid x:Name="PART_SearchHost"
+                                                  DockPanel.Dock="Top"
+                                                  Margin="4"
+                                                  Visibility="Collapsed">
+                                                <TextBox x:Name="PART_SearchBox"
+                                                         helpers:SelectorSearch.IsComboBoxSearchBox="True"
+                                                         VerticalContentAlignment="Center"/>
+                                                <TextBlock x:Name="PART_SearchPlaceholder"
+                                                           Text="{DynamicResource LOCPlayAch_Common_Search}"
+                                                           VerticalAlignment="Center"
+                                                           IsHitTestVisible="False"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           Opacity="{StaticResource PlayAch.Opacity.Placeholder}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Text, ElementName=PART_SearchBox}" Value="">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                            <!-- A row like the options below it, as the create
+                                                 result is in a menu. -->
+                                            <Button x:Name="PART_SearchCreate"
+                                                    DockPanel.Dock="Top"
+                                                    Focusable="False"
+                                                    Visibility="Collapsed">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Grid SnapsToDevicePixels="True" Background="Transparent">
+                                                            <Rectangle x:Name="HoverRectangle"
+                                                                       Fill="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                                                                       IsHitTestVisible="False"
+                                                                       Visibility="Collapsed"/>
+                                                            <ContentPresenter Margin="10,5"
+                                                                              HorizontalAlignment="Left"
+                                                                              VerticalAlignment="Center"
+                                                                              TextElement.Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                                        </Grid>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="HoverRectangle" Property="Visibility" Value="Visible"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <ScrollViewer CanContentScroll="True"
+                                                          HorizontalScrollBarVisibility="Auto"
+                                                          VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"
+                                                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                            </ScrollViewer>
+                                        </DockPanel>
                                     </Border>
                                 </Grid>
                             </Popup>
@@ -1002,6 +1056,61 @@
                             <Setter Property="IsTabStop" Value="False"/>
                             <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A ToggleButton drawn as a closed PlayAch.ComboBox.BaseStyle (same box, chevron and states),
+         for a dropdown whose list is a custom popup, such as one with a search box. -->
+    <Style x:Key="PlayAch.ToggleButton.ComboBoxLookStyle" TargetType="ToggleButton">
+        <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
+        <Setter Property="Padding" Value="5,0,0,0"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <DockPanel Margin="0,0,2,0">
+                            <Viewbox DockPanel.Dock="Right" Width="20">
+                                <TextBlock Text="6"
+                                           FontFamily="Marlett"
+                                           Foreground="{DynamicResource PlayAch.Brush.Glyph}"
+                                           VerticalAlignment="Center"/>
+                            </Viewbox>
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </DockPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
@@ -1065,13 +1174,24 @@
                                Orientation="Vertical"
                                IsDirectionReversed="True"
                                Width="17">
+                            <!-- Keeps the thumb at least 32px long in either orientation; see the converter. -->
+                            <Track.ViewportSize>
+                                <MultiBinding Converter="{StaticResource PlayAch.ScrollBarThumbViewportConverter}"
+                                              ConverterParameter="32">
+                                    <Binding Path="ViewportSize" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="Minimum" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}"/>
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="Orientation" RelativeSource="{RelativeSource Self}"/>
+                                </MultiBinding>
+                            </Track.ViewportSize>
                             <Track.Resources>
                                 <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarButtonHeightKey}">42</sys:Double>
                             </Track.Resources>
                             <Track.Thumb>
                                 <Thumb x:Name="Thumb"
                                        Width="8"
-                                       MinHeight="10"
                                        Style="{StaticResource PlayAch.ScrollBar.ThumbStyle}"/>
                             </Track.Thumb>
                             <Track.DecreaseRepeatButton>
@@ -1096,8 +1216,6 @@
                             <Setter TargetName="PART_Track" Property="Height" Value="17"/>
                             <Setter TargetName="Thumb" Property="Width" Value="Auto"/>
                             <Setter TargetName="Thumb" Property="Height" Value="8"/>
-                            <Setter TargetName="Thumb" Property="MinWidth" Value="10"/>
-                            <Setter TargetName="Thumb" Property="MinHeight" Value="0"/>
                             <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand"/>
                             <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand"/>
                         </Trigger>
@@ -1157,6 +1275,51 @@
     <Style x:Key="PlayAch.ScrollViewer.BaseStyle" TargetType="ScrollViewer">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+    </Style>
+
+    <!-- The scroll bars float over the content instead of taking their own column and row, as in
+         PlayAch.OverlayScrollBarDataGridTemplate. Pair with DataGridHoverScrollBarBehavior on the
+         scrolling control so the bars hide until hover, focus or scrolling. -->
+    <Style x:Key="PlayAch.ScrollViewer.OverlayStyle"
+           TargetType="ScrollViewer"
+           BasedOn="{StaticResource PlayAch.ScrollViewer.BaseStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollViewer">
+                    <Grid Background="{TemplateBinding Background}"
+                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ScrollContentPresenter x:Name="PART_ScrollContentPresenter"
+                                                CanContentScroll="{TemplateBinding CanContentScroll}"
+                                                Content="{TemplateBinding Content}"
+                                                ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                Margin="{TemplateBinding Padding}"/>
+
+                        <ScrollBar x:Name="PART_VerticalScrollBar"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Stretch"
+                                   Panel.ZIndex="10"
+                                   Orientation="Vertical"
+                                   Cursor="Arrow"
+                                   Maximum="{TemplateBinding ScrollableHeight}"
+                                   ViewportSize="{TemplateBinding ViewportHeight}"
+                                   Value="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=VerticalOffset, Mode=OneWay}"
+                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+
+                        <ScrollBar x:Name="PART_HorizontalScrollBar"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Bottom"
+                                   Panel.ZIndex="10"
+                                   Orientation="Horizontal"
+                                   Cursor="Arrow"
+                                   Maximum="{TemplateBinding ScrollableWidth}"
+                                   ViewportSize="{TemplateBinding ViewportWidth}"
+                                   Value="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=HorizontalOffset, Mode=OneWay}"
+                                   Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="PlayAch.TabControl.BaseStyle" TargetType="TabControl">
@@ -1452,6 +1615,18 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
+    <!-- The "Default" option of a combo whose Tag holds the value Default stands for: the open
+         list reads "Default", the closed box shows that inherited value, muted. -->
+    <DataTemplate x:Key="PlayAch.ComboBox.InheritedOptionTemplate">
+        <TextBlock x:Name="OptionText" Text="{Binding}"/>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ComboBoxItem}}" Value="{x:Null}">
+                <Setter TargetName="OptionText" Property="Text" Value="{Binding Tag, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                <Setter TargetName="OptionText" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
     <Style x:Key="PlayAch.SecondaryMetadataTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}">
         <Setter Property="Margin" Value="0,4,0,0"/>
         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
@@ -1479,6 +1654,51 @@
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+    </Style>
+
+    <!-- On/off toggle as the grid control bar's filters draw it: it rests on the same button
+         background and border as the other buttons so it reads as a button when off; the border
+         turns to the accent color (with a subtle selection fill) to signal on, and the glyph keeps
+         its normal brush. Keys on IsChecked, the ToggleButton analog of the tab style's IsSelected
+         trigger (PlayAch.TabItem.BaseStyle). -->
+    <Style x:Key="PlayAch.ToggleButton.FilterStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}"/>
+                            <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Chrome" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="PlayAch.SectionHeaderTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">

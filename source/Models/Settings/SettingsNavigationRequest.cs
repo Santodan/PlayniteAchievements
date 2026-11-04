@@ -8,12 +8,16 @@ namespace PlayniteAchievements.Models.Settings
     public sealed class SettingsNavigationRequest
     {
         public const string DisplayTab = "Display";
+        public const string MetadataTab = "Metadata";
         public const string NotificationsTab = "Notifications";
         public const string WorkshopTab = "Workshop";
 
         public const string ColorsPage = "Colors";
         public const string BehaviorPage = "Behavior";
         public const string AppearancePage = "Appearance";
+
+        /// <summary>The Metadata tab's global tag list.</summary>
+        public const string TagsPage = "Tags";
 
         public SettingsNavigationRequest(string tabKey, string pageKey = null)
         {

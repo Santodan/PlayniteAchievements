@@ -11,6 +11,7 @@ using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,7 +24,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
     /// entitlements once, then reads each game's achievements with the Ubisoft Connect client's own
     /// GraphQL query.
     /// </summary>
-    internal sealed class UbisoftDataProvider : DataProviderBase<UbisoftSettings>, IDataProvider, IProviderOverride, IDisposable
+    internal sealed class UbisoftDataProvider : DataProviderBase<UbisoftSettings>, IDataProvider, IProviderOverride, IEnglishTitleSource, IDisposable
     {
         private const string FallbackLocale = "en-US";
 
@@ -45,6 +46,9 @@ namespace PlayniteAchievements.Providers.Ubisoft
         private readonly string _pluginUserDataPath;
         private readonly UbisoftApiClient _apiClient;
         private readonly UbisoftSessionManager _sessionManager;
+
+        // The last refresh's product id to space id map, reused by English title lookups.
+        private volatile Dictionary<long, string> _lastGameSpaces;
 
         public UbisoftDataProvider(
             ILogger logger,
@@ -105,6 +109,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
                 }
 
                 gameSpaces = await _apiClient.GetGameSpacesAsync(session, cancel).ConfigureAwait(false);
+                _lastGameSpaces = gameSpaces;
             }
             catch (UbisoftAuthException ex)
             {
@@ -127,74 +132,112 @@ namespace PlayniteAchievements.Providers.Ubisoft
             var rateLimiter = new RateLimiter(
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
-            var metadataEnricher = await CreateMetadataEnricherAsync(cancel).ConfigureAwait(false);
-
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, ct) =>
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                async (game, ct) =>
+                {
+                    if (!IsCapable(game))
                     {
-                        if (!IsCapable(game))
-                        {
-                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
-                        }
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                    }
 
-                        var productId = ResolveProductId(game);
-                        if (!productId.HasValue)
-                        {
-                            _logger.Warn($"[Ubisoft] Could not resolve a Ubisoft product id for '{game.Name}'.");
-                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
-                        }
+                    var productId = ResolveProductId(game);
+                    if (!productId.HasValue)
+                    {
+                        _logger.Warn($"[Ubisoft] Could not resolve a Ubisoft product id for '{game.Name}'.");
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                    }
 
-                        if (!gameSpaces.TryGetValue(productId.Value, out var spaceId))
-                        {
-                            _logger.Debug($"[Ubisoft] Product {productId.Value} ('{game.Name}') is not an owned game on this account.");
-                            return new ProviderRefreshExecutor.ProviderGameResult
-                            {
-                                Data = CreateGameResult(game, productId.Value, new List<AchievementDetail>())
-                            };
-                        }
-
-                        var graphGame = await rateLimiter.ExecuteWithRetryAsync(
-                            async () => await _apiClient.GetAchievementsAsync(
-                                await _sessionManager.GetSessionAsync(ct).ConfigureAwait(false) ?? session,
-                                spaceId,
-                                productId.Value,
-                                locale,
-                                ct).ConfigureAwait(false),
-                            IsTransientError,
-                            ct).ConfigureAwait(false);
-
-                        var achievements = UbisoftParsing.MapAchievements(graphGame?.Viewer?.Meta?.Achievements);
-                        // Search Exophase by Ubisoft's own title: the Playnite name can differ, and
-                        // an overridden game's name can be anything.
-                        await EnrichMetadataAsync(
-                            game,
-                            achievements,
-                            graphGame?.Name,
-                            metadataEnricher,
-                            ct).ConfigureAwait(false);
-
+                    if (!gameSpaces.TryGetValue(productId.Value, out var spaceId))
+                    {
+                        _logger.Debug($"[Ubisoft] Product {productId.Value} ('{game.Name}') is not an owned game on this account.");
                         return new ProviderRefreshExecutor.ProviderGameResult
                         {
-                            Data = CreateGameResult(game, productId.Value, achievements)
+                            Data = CreateGameResult(game, productId.Value, new List<AchievementDetail>())
                         };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: ex => ex is UbisoftAuthException,
-                    onGameError: (game, ex, consecutiveErrors) =>
+                    }
+
+                    var graphGame = await rateLimiter.ExecuteWithRetryAsync(
+                        async () => await _apiClient.GetAchievementsAsync(
+                            await _sessionManager.GetSessionAsync(ct).ConfigureAwait(false) ?? session,
+                            spaceId,
+                            productId.Value,
+                            locale,
+                            ct).ConfigureAwait(false),
+                        IsTransientError,
+                        ct).ConfigureAwait(false);
+
+                    var achievements = UbisoftParsing.MapAchievements(graphGame?.Viewer?.Meta?.Achievements);
+                    var data = CreateGameResult(game, productId.Value, achievements);
+                    // Metadata sources search Ubisoft's own title first: the Playnite name can
+                    // differ, and an overridden game's name can be anything.
+                    data.MetadataHints = new MetadataHints { SearchName = graphGame?.Name };
+
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
-                        _logger.Warn(ex, $"[Ubisoft] Failed to refresh '{game?.Name}' after {consecutiveErrors} consecutive errors.");
-                    },
-                    rateLimiter,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
+                        Data = data
+                    };
+                },
+                onGameCompleted,
+                isAuthRequiredException: ex => ex is UbisoftAuthException,
+                onGameError: (game, ex, consecutiveErrors) =>
+                {
+                    _logger.Warn(ex, $"[Ubisoft] Failed to refresh '{game?.Name}' after {consecutiveErrors} consecutive errors.");
+                },
+                rateLimiter,
+                cancel).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// The game's achievements read again with the en-US locale. The space id comes from the
+        /// last refresh's entitlements, fetched once here when no refresh has run this session.
+        /// </summary>
+        async Task<IList<AchievementDetail>> IEnglishTitleSource.GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct)
+        {
+            if (game == null)
             {
-                metadataEnricher?.Dispose();
+                return null;
             }
+
+            var productId = ResolveProductId(game);
+            if (!productId.HasValue)
+            {
+                return null;
+            }
+
+            var session = await _sessionManager.GetSessionAsync(ct).ConfigureAwait(false);
+            if (session == null)
+            {
+                return null;
+            }
+
+            var gameSpaces = _lastGameSpaces;
+            if (gameSpaces == null)
+            {
+                gameSpaces = await _apiClient.GetGameSpacesAsync(session, ct).ConfigureAwait(false);
+                _lastGameSpaces = gameSpaces;
+            }
+
+            if (gameSpaces == null || !gameSpaces.TryGetValue(productId.Value, out var spaceId))
+            {
+                return null;
+            }
+
+            var graphGame = await _apiClient.GetAchievementsAsync(session, spaceId, productId.Value, FallbackLocale, ct).ConfigureAwait(false);
+            if (graphGame == null)
+            {
+                return null;
+            }
+
+            return UbisoftParsing.MapAchievements(graphGame.Viewer?.Meta?.Achievements)
+                .Select(achievement => new AchievementDetail
+                {
+                    ApiName = achievement.ApiName,
+                    DisplayName = achievement.DisplayName,
+                    Description = achievement.Description
+                })
+                .ToList();
         }
 
         /// <summary>
@@ -215,39 +258,7 @@ namespace PlayniteAchievements.Providers.Ubisoft
             return game.PluginId == UbisoftLibraryPluginId ? UbisoftParsing.ParseProductId(game.GameId) : null;
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateMetadataEnricherAsync(CancellationToken cancel)
-        {
-            if (!ProviderSettings.UseExophaseForRarity)
-            {
-                return null;
-            }
 
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        private static async Task EnrichMetadataAsync(
-            Game game,
-            List<AchievementDetail> achievements,
-            string searchName,
-            ExophaseMetadataEnricher metadataEnricher,
-            CancellationToken cancel)
-        {
-            if (metadataEnricher == null || achievements.Count == 0)
-            {
-                return;
-            }
-
-            await metadataEnricher.EnrichAsync(
-                game,
-                achievements,
-                "ubisoft",
-                "Ubisoft",
-                cancel,
-                ExophaseMetadataFields.Rarity,
-                searchName: searchName).ConfigureAwait(false);
-        }
 
         private static bool IsTransientError(Exception ex)
         {

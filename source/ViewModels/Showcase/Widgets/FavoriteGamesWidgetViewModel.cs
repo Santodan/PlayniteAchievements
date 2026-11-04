@@ -29,8 +29,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override IEnumerable<GameSummaryItem> SelectItems(
             ShowcaseWidgetProjection projection)
         {
-            PinReorderEnabled = ShowcaseWidgetOptions.GetGameGridSource(projection?.Instance) ==
-                ShowcaseGameGridSource.Pinned;
+            // Set only when the grid lists a game collection in pin order.
+            PinReorderEnabled = projection?.ResolvedPinCollectionId != null;
             return projection?.Games;
         }
     }

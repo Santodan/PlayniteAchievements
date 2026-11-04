@@ -88,6 +88,13 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void NormalizeGameNameForSlug_DropsApostrophes()
+        {
+            Assert.AreEqual("marvels-spider-man-remastered", ExophaseGameNameMatcher.NormalizeGameNameForSlug("Marvel’s Spider-Man Remastered"));
+            Assert.AreEqual("deaths-door", ExophaseGameNameMatcher.NormalizeGameNameForSlug("Death's Door"));
+        }
+
+        [TestMethod]
         public void NormalizeGameNameForSlug_StripsEditionAndHyphenates()
         {
             Assert.AreEqual("titanfall-2", ExophaseGameNameMatcher.NormalizeGameNameForSlug("Titanfall 2 Deluxe Edition"));

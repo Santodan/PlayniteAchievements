@@ -46,6 +46,9 @@ namespace PlayniteAchievements.Services.Summaries
 
         public DateTime? LastUnlockUtc { get; set; }
 
+        /// <summary>Achievements per tag, counted from each achievement's effective tags.</summary>
+        public AchievementTallyBuilder Tags { get; } = new AchievementTallyBuilder();
+
         /// <summary>Unlock counts per local calendar day (keys from Overview.UnlockDayCounts.DayOf).</summary>
         public Dictionary<DateTime, int> UnlockCountsByDate { get; } =
             new Dictionary<DateTime, int>();
@@ -105,6 +108,8 @@ namespace PlayniteAchievements.Services.Summaries
             {
                 IncrementBy(target.UnlockCountsByDate, kvp.Key, kvp.Value);
             }
+
+            target.Tags.AddAll(Tags.Build());
         }
 
         public void ApplyTo(GameSummaryItem item)
@@ -139,6 +144,7 @@ namespace PlayniteAchievements.Services.Summaries
             item.TrophyGoldTotal = TrophyGoldTotal;
             item.TrophySilverTotal = TrophySilverTotal;
             item.TrophyBronzeTotal = TrophyBronzeTotal;
+            item.Tallies = Tags.Build();
             item.LastUnlockUtc = LastUnlockUtc;
         }
 

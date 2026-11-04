@@ -16,6 +16,8 @@ using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.Showcase.Widgets;
+using PlayniteAchievements.Views.Controls;
 using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
@@ -67,8 +69,15 @@ namespace PlayniteAchievements.Views.Showcase
         private ShowcaseScreenshotVariant? _loadedVariant;
         private bool? _loadedShuffle;
         private ShowcaseImageFitMode? _loadedFit;
-        private ShowcaseSlideshowSource? _loadedSource;
+        private ShowcaseCollectionType? _loadedCollectionType;
         private string _loadedCollectionId;
+
+        // The widget instance's shared adapter, so the filters survive the control being rebuilt.
+        private readonly ShowcaseControlBarSlot<SlideshowControlBarAdapter> _controlBarSlot;
+        private readonly GridControlBarControl _barControl;
+
+        // The captures the collection scope and style allow, before the bar's filters.
+        private IReadOnlyList<CaptureItem> _loadedItems = Array.Empty<CaptureItem>();
         private ShowcaseInfoPanelPosition? _loadedInfoPanel;
         private DockPanel _mediaPair;
         private Border _mediaFrame;
@@ -130,6 +139,9 @@ namespace PlayniteAchievements.Views.Showcase
 
             _transport = BuildTransport();
             _captionBar = BuildCaptionBar();
+            _controlBarSlot = new ShowcaseControlBarSlot<SlideshowControlBarAdapter>(OnBarFilterChanged);
+            _barControl = new GridControlBarControl { Margin = new Thickness(0, 0, 0, 8) };
+            ApplyShownBar();
             _timer = new DispatcherTimer();
             _timer.Tick += Timer_Tick;
             Content = Build();
@@ -168,13 +180,17 @@ namespace PlayniteAchievements.Views.Showcase
                 UpdateInfoPanelContent();
             }
 
-            // A scoped slideshow reloads on every re-apply so pin-collection membership changes
-            // are picked up; the reload's same-set fast path keeps an unchanged scope invisible.
-            var source = ShowcaseWidgetOptions.GetSlideshowSource(_settings);
-            if (ShowcaseWidgetOptions.GetScreenshotVariant(_settings) != _loadedVariant ||
+            // Which bar items show is a widget option; the bar itself is not part of the playlist.
+            ApplyShownBar();
+
+            // A slideshow limited to a collection reloads on every re-apply so pin-collection
+            // membership changes are picked up; the reload's same-set fast path keeps an unchanged
+            // scope invisible.
+            var collectionType = ShowcaseWidgetOptions.GetCollectionType(_settings);
+            if (_controlBarSlot.Adapter.Variant != _loadedVariant ||
                 ShowcaseWidgetOptions.GetShuffle(_settings) != _loadedShuffle ||
-                source != _loadedSource ||
-                source != ShowcaseSlideshowSource.All ||
+                collectionType != _loadedCollectionType ||
+                collectionType != ShowcaseCollectionType.None ||
                 !string.Equals(
                     ShowcaseWidgetOptions.GetPinCollectionId(_settings),
                     _loadedCollectionId,
@@ -207,7 +223,77 @@ namespace PlayniteAchievements.Views.Showcase
             _rowsSource = rows;
             _rowsVersion = rowsVersion;
             _indexVersion++;
+            // The bar's platform and game choices list the library's games.
+            if (rowsVersion is Services.Overview.OverviewDataSnapshot snapshot)
+            {
+                _controlBarSlot.Adapter.UpdateGames(snapshot.GameSummaries);
+            }
+
             EnsureInfoPanelIndex();
+        }
+
+        private void ApplyShownBar()
+        {
+            _controlBarSlot.Bind(_settings.InstanceId);
+            _controlBarSlot.UpdateShownBar(_settings);
+            _barControl.ControlBar = _controlBarSlot.ShownBar;
+            _barControl.ShowControlBar = _controlBarSlot.ShownBar != null;
+        }
+
+        // A style change reloads the playlist; any other filter only re-filters what is loaded.
+        private void OnBarFilterChanged()
+        {
+            if (_controlBarSlot.Adapter.Variant != _loadedVariant)
+            {
+                _ = ReloadAsync();
+                return;
+            }
+
+            Refilter();
+        }
+
+        /// <summary>
+        /// The loaded captures the bar's filters keep: those whose achievement passes them. A
+        /// capture is matched to its achievement through the capture index, so while a filter is
+        /// set and the index is still building nothing passes yet, and the build re-filters.
+        /// </summary>
+        private IReadOnlyList<CaptureItem> ApplyBarFilters(IReadOnlyList<CaptureItem> items)
+        {
+            var adapter = _controlBarSlot.Adapter;
+            if (!adapter.HasActiveFilters)
+            {
+                return items;
+            }
+
+            var index = _rowsByKey;
+            if (index == null)
+            {
+                EnsureInfoPanelIndex();
+                return Array.Empty<CaptureItem>();
+            }
+
+            var kept = new HashSet<AchievementDisplayItem>(adapter.Apply(index.Values.Distinct()));
+            return items
+                .Where(item =>
+                    index.TryGetValue(
+                        CaptureAchievementIndex.KeyForCapture(item.FilePath, item.AchievementStem),
+                        out var row) &&
+                    kept.Contains(row))
+                .ToList();
+        }
+
+        private void Refilter()
+        {
+            var items = ApplyBarFilters(_loadedItems);
+            if (SameItemSet(items))
+            {
+                return;
+            }
+
+            var currentPath = Current?.FilePath;
+            _items = CreatePlaybackOrder(items);
+            _index = ResolveIndex(currentPath);
+            ShowCurrent();
         }
 
         /// <summary>
@@ -245,9 +331,12 @@ namespace PlayniteAchievements.Views.Showcase
 
         private UIElement Build()
         {
+            // The control bar on top, then the media, then the caption.
             var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.Children.Add(_barControl);
 
             var mediaRow = new Grid();
             mediaRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -309,9 +398,10 @@ namespace PlayniteAchievements.Views.Showcase
             mediaRow.Children.Add(_mediaPair);
             Grid.SetColumn(_next, 2);
             mediaRow.Children.Add(_next);
+            Grid.SetRow(mediaRow, 1);
             root.Children.Add(mediaRow);
 
-            Grid.SetRow(_captionBar, 1);
+            Grid.SetRow(_captionBar, 2);
             root.Children.Add(_captionBar);
             ApplyInfoPanelLayout();
             return root;
@@ -446,21 +536,20 @@ namespace PlayniteAchievements.Views.Showcase
         /// capture qualifies.
         /// </summary>
         private (IReadOnlyCollection<string> Folders, Dictionary<string, HashSet<string>> Stems)
-            ResolveScope(ShowcaseSlideshowSource source)
+            ResolveScope(ShowcaseCollectionScope collection)
         {
-            if (source == ShowcaseSlideshowSource.All)
+            // The bar's game choices are limited to the collection's games, as on other widgets.
+            _controlBarSlot.Adapter.GameFilter.SetScope(collection?.GameIds);
+            if (collection == null)
             {
                 return (null, null);
             }
 
-            var showcase = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase;
-            var collectionId = ShowcaseWidgetOptions.GetPinCollectionId(_settings);
             var games = PlayniteAchievementsPlugin.Instance?.PlayniteApi?.Database?.Games;
-            if (source == ShowcaseSlideshowSource.GameCollection)
+            if (collection.Type == ShowcaseCollectionType.Games)
             {
-                var collection = ShowcasePinService.ResolveGameCollection(showcase, collectionId);
                 var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var gameId in collection?.GameIds ?? new List<Guid>())
+                foreach (var gameId in collection.GameIds)
                 {
                     var folder = UnlockScreenshotService.SanitizeCaptureGameName(
                         games?.Get(gameId)?.Name);
@@ -473,11 +562,8 @@ namespace PlayniteAchievements.Views.Showcase
                 return (folders, null);
             }
 
-            var achievementCollection = ShowcasePinService.ResolveAchievementCollection(
-                showcase,
-                collectionId);
             var stems = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pin in achievementCollection?.Pins ?? new List<PinnedAchievementReference>())
+            foreach (var pin in collection.Pins)
             {
                 if (pin == null)
                 {
@@ -509,10 +595,12 @@ namespace PlayniteAchievements.Views.Showcase
         {
             var captureLibrary = _captureLibrary;
             var reloadVersion = ++_reloadVersion;
-            var selectedVariant = ShowcaseWidgetOptions.GetScreenshotVariant(_settings);
-            var selectedSource = ShowcaseWidgetOptions.GetSlideshowSource(_settings);
+            var selectedVariant = _controlBarSlot.Adapter.Variant;
+            var selectedCollectionType = ShowcaseWidgetOptions.GetCollectionType(_settings);
             var selectedCollectionId = ShowcaseWidgetOptions.GetPinCollectionId(_settings);
-            var scope = ResolveScope(selectedSource);
+            var scope = ResolveScope(ShowcaseCollectionScope.Resolve(
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.Showcase,
+                _settings));
             CaptureVariant? captureVariant = null;
             switch (selectedVariant)
             {
@@ -567,11 +655,13 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            _loadedItems = items;
+            items = ApplyBarFilters(items);
             var shuffle = ShowcaseWidgetOptions.GetShuffle(_settings);
             if (_items.Count > 0 &&
                 selectedVariant == _loadedVariant &&
                 shuffle == _loadedShuffle &&
-                selectedSource == _loadedSource &&
+                selectedCollectionType == _loadedCollectionType &&
                 string.Equals(selectedCollectionId, _loadedCollectionId, StringComparison.OrdinalIgnoreCase) &&
                 SameItemSet(items))
             {
@@ -583,7 +673,7 @@ namespace PlayniteAchievements.Views.Showcase
             var currentPath = Current?.FilePath;
             _loadedVariant = selectedVariant;
             _loadedShuffle = shuffle;
-            _loadedSource = selectedSource;
+            _loadedCollectionType = selectedCollectionType;
             _loadedCollectionId = selectedCollectionId;
             _items = CreatePlaybackOrder(items);
             _index = ResolveIndex(currentPath);
@@ -815,11 +905,12 @@ namespace PlayniteAchievements.Views.Showcase
 
         /// <summary>
         /// Builds the capture-to-achievement index off the UI thread, and only while the info panel
-        /// is actually showing, so an Off panel costs nothing.
+        /// is showing or a bar filter needs it, so an Off panel with no filter costs nothing.
         /// </summary>
         private void EnsureInfoPanelIndex()
         {
-            if (ShowcaseWidgetOptions.GetInfoPanelPosition(_settings) == ShowcaseInfoPanelPosition.Off ||
+            if ((ShowcaseWidgetOptions.GetInfoPanelPosition(_settings) == ShowcaseInfoPanelPosition.Off &&
+                 !_controlBarSlot.Adapter.HasActiveFilters) ||
                 (_rowsByKey != null && _indexedVersion == _indexVersion) ||
                 // One build at a time: a burst of delta updates would otherwise index the whole
                 // library once per update in parallel. The finishing build starts the latest one.
@@ -861,6 +952,10 @@ namespace PlayniteAchievements.Views.Showcase
                         _rowsByKey = task.Result;
                         _indexedVersion = version;
                         UpdateInfoPanelContent();
+                        if (_controlBarSlot.Adapter.HasActiveFilters)
+                        {
+                            Refilter();
+                        }
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.None,

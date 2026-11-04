@@ -164,7 +164,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                               Text="{DynamicResource LOCCategoryLabel}"/>
+                               Text="{DynamicResource LOCPlayAch_Common_Category}"/>
                     <TextBlock Grid.Column="1"
                                Style="{StaticResource PlayAch.Screenshot.InfoValue}"
                                Text="{Binding CategoryLabelPathDisplay, Mode=OneWay}"/>
@@ -173,16 +173,16 @@
 
             <StackPanel x:Name="DetailsSecondary" Grid.Row="2" VerticalAlignment="Top">
                 <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"
-                      Visibility="{Binding CategoryTypeDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
+                      Visibility="{Binding TagsDisplay, Mode=OneWay, Converter={StaticResource StringToVisibility}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" SharedSizeGroup="InfoLabel"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Style="{StaticResource PlayAch.Screenshot.InfoLabel}"
-                               Text="{DynamicResource LOCTypeLabel}"/>
+                               Text="{DynamicResource LOCPlayAch_Common_Tags}"/>
                     <TextBlock Grid.Column="1"
                                Style="{StaticResource PlayAch.Screenshot.InfoValue}"
-                               Text="{Binding CategoryTypeDisplay, Mode=OneWay}"/>
+                               Text="{Binding TagsDisplay, Mode=OneWay}"/>
                 </Grid>
 
                 <Grid Style="{StaticResource PlayAch.Screenshot.InfoRow}"

@@ -72,46 +72,41 @@ namespace PlayniteAchievements.Providers.EA
             var rateLimiter = new RateLimiter(
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
-            var metadataEnricher = await CreateMetadataEnricherAsync(cancel).ConfigureAwait(false);
-
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                async (game, token) =>
+                {
+                    var gameId = game?.GameId?.Trim();
+                    if (string.IsNullOrWhiteSpace(gameId))
                     {
-                        var gameId = game?.GameId?.Trim();
-                        if (string.IsNullOrWhiteSpace(gameId))
-                        {
-                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
-                        }
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                    }
 
-                        var (data, eaProductName) = await rateLimiter.ExecuteWithRetryAsync(
-                            () => FetchGameDataAsync(game, gameId, token),
-                            EAApiClient.IsTransientError,
-                            token).ConfigureAwait(false);
+                    var (data, eaProductName) = await rateLimiter.ExecuteWithRetryAsync(
+                        () => FetchGameDataAsync(game, gameId, token),
+                        EAApiClient.IsTransientError,
+                        token).ConfigureAwait(false);
 
-                        await EnrichMetadataAsync(game, data, eaProductName, metadataEnricher, token).ConfigureAwait(false);
-
-                        return new ProviderRefreshExecutor.ProviderGameResult
-                        {
-                            Data = data
-                        };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: ex => ex is EaAuthRequiredException,
-                    onGameError: (game, ex, consecutiveErrors) =>
+                    if (data != null)
                     {
-                        _logger?.Debug(ex, $"[EAAch] Failed to scan {game?.Name} after {consecutiveErrors} consecutive errors.");
-                    },
-                    rateLimiter,
-                    cancel).ConfigureAwait(false);
-            }
-            finally
-            {
-                metadataEnricher?.Dispose();
-            }
+                        // EA's product name for the owned game is searched before the Playnite name.
+                        data.MetadataHints = new MetadataHints { SearchName = eaProductName };
+                    }
+
+                    return new ProviderRefreshExecutor.ProviderGameResult
+                    {
+                        Data = data
+                    };
+                },
+                onGameCompleted,
+                isAuthRequiredException: ex => ex is EaAuthRequiredException,
+                onGameError: (game, ex, consecutiveErrors) =>
+                {
+                    _logger?.Debug(ex, $"[EAAch] Failed to scan {game?.Name} after {consecutiveErrors} consecutive errors.");
+                },
+                rateLimiter,
+                cancel).ConfigureAwait(false);
         }
 
         public void BeginRefreshAuthContext(RefreshAuthContext context)
@@ -204,41 +199,5 @@ namespace PlayniteAchievements.Providers.EA
             return (EAProviderSupport.MapToGameData(game, items), matched?.ProductName);
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateMetadataEnricherAsync(CancellationToken cancel)
-        {
-            if (_providerSettings?.UseExophaseForRarity != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        /// <param name="eaProductName">
-        /// The matched owned game's EA product name, searched before the Playnite name.
-        /// </param>
-        private static async Task EnrichMetadataAsync(
-            Game game,
-            GameAchievementData data,
-            string eaProductName,
-            ExophaseMetadataEnricher metadataEnricher,
-            CancellationToken cancel)
-        {
-            if (metadataEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
-            {
-                return;
-            }
-
-            await metadataEnricher.EnrichAsync(
-                game,
-                data.Achievements,
-                "origin",
-                "EA",
-                cancel,
-                ExophaseMetadataFields.Rarity | ExophaseMetadataFields.IconPaths,
-                searchName: eaProductName).ConfigureAwait(false);
-        }
     }
 }

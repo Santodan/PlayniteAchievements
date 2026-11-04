@@ -56,7 +56,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // its own cover's width at that height (see GameTileViewModel).
             var coverHeight = useCovers ? Math.Round(coverWidth * 1.4) : coverWidth;
             var layout = new GameMosaicTileLayout(
-                ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) == ShowcaseGameMosaicSource.Pinned,
+                Projection?.ResolvedPinCollectionId != null,
                 Projection?.ResolvedPinCollectionId,
                 coverWidth,
                 coverHeight,
@@ -84,10 +84,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override void RefreshTiles()
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance);
+            ControlBar = _controlBarSlot.ShownBar;
 
             // The filter stays in effect while the bar is hidden. The dropdown lists the whole
             // library's platforms and rebuilds only when the library's games change.
@@ -96,10 +95,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(game => game != null)
                 .ToList();
             adapter.UpdateOptions(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
 
-            var capped = adapter.Apply(list)
-                .Take(ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance));
-            var tiles = OrderGames(capped).Select(GetTile).ToList();
+            // Sorted before the Count cap, so a sort picks which tiles show, as the grids do. Finish
+            // Next ranks which games make the cut, so its sort only orders the ones it picked.
+            var count = ShowcaseWidgetOptions.GetGameMosaicCount(Projection?.Instance);
+            var filtered = adapter.Apply(list);
+            var shown = ShowcaseWidgetOptions.GetGameMosaicSource(Projection?.Instance) == ShowcaseGameMosaicSource.FinishNext
+                ? OrderGames(filtered.Take(count))
+                : OrderGames(filtered).Take(count);
+            var tiles = shown.Select(GetTile).ToList();
             CollectionHelper.Replace(Tiles, tiles);
             ProbeCoverAspects(tiles);
         }

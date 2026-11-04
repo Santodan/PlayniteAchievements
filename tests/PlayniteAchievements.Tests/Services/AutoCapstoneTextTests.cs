@@ -16,6 +16,38 @@ namespace PlayniteAchievements.Tests.Services
         private const string GermanCategoryDescription = "Schalte jeden Erfolg in {0} frei.";
 
         [TestMethod]
+        public void Resolve_RepairsSavedMissingDefaultMarkersWithoutChangingCustomText()
+        {
+            var settings = new PersistedSettings
+            {
+                AutoCapstoneGameDescriptionTemplate = "<!" + AutoCapstoneTemplate.DescriptionKey + "!>",
+                AutoCapstoneCategoryDescriptionTemplate = "<!" + AutoCapstoneText.CategoryDescriptionKey + "!>",
+                AutoCapstoneGameNameTemplate = "My {0} mastery"
+            };
+            var templates = AutoCapstoneText.Resolve(settings);
+            Assert.AreEqual("Obtain every base game achievement.", templates.GameDescription);
+            Assert.AreEqual("Obtain every achievement in {1}.", templates.CategoryDescription);
+            Assert.AreEqual("My {0} mastery", templates.GameName);
+        }
+
+        [TestMethod]
+        public void Rewrite_RepairsPersistedCapstoneMarkersAndKeepsCustomDescriptions()
+        {
+            var current = AutoCapstoneText.Defaults();
+            foreach (var wholeGame in new[] { true, false })
+            {
+                var key = wholeGame ? AutoCapstoneTemplate.DescriptionKey : AutoCapstoneText.CategoryDescriptionKey;
+                var definition = AutoCapstone("Custom title", "<!" + key + "!>", wholeGame);
+                Assert.IsTrue(AutoCapstoneTextRewriter.Rewrite(definition, wholeGame ? null : "DLC", Names("Halo"), current, Known(current)));
+                Assert.AreEqual(wholeGame ? "Obtain every base game achievement." : "Obtain every achievement in DLC.", definition.Description);
+                Assert.AreEqual("Custom title", definition.DisplayName);
+            }
+            var custom = AutoCapstone("My title", "My own description mentioning LOCPlayAch", true);
+            Assert.IsFalse(AutoCapstoneTextRewriter.Rewrite(custom, null, Names("Halo"), current, Known(current)));
+            Assert.AreEqual("My own description mentioning LOCPlayAch", custom.Description);
+        }
+
+        [TestMethod]
         public void Defaults_MatchTheTextCapstonesWereAuthoredWithBefore()
         {
             var (title, description) = AutoCapstoneText.Describe(AutoCapstoneText.Defaults(), "Halo", null);
@@ -25,6 +57,14 @@ namespace PlayniteAchievements.Tests.Services
             var (categoryTitle, categoryDescription) = AutoCapstoneText.Describe(AutoCapstoneText.Defaults(), "Halo", "ODST");
             Assert.AreEqual("Halo: ODST", categoryTitle);
             Assert.AreEqual("Obtain every achievement in ODST.", categoryDescription);
+        }
+
+        [TestMethod]
+        public void CategoryNamedAfterTheGame_TakesTheGameTitle()
+        {
+            var (title, description) = AutoCapstoneText.Describe(AutoCapstoneText.Defaults(), "Cyberpunk 2077", "Cyberpunk 2077");
+            Assert.AreEqual("Cyberpunk 2077", title);
+            Assert.AreEqual("Obtain every achievement in Cyberpunk 2077.", description);
         }
 
         [TestMethod]

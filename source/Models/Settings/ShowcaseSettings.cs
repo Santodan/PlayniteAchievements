@@ -65,6 +65,41 @@ namespace PlayniteAchievements.Models.Settings
         CompletedGames = 0,
         Provider = 1,
         Rarity = 2,
+        Trophy = 3,
+
+        /// <summary>Unlocked achievements per achievement tag; an achievement counts under each of its tags.</summary>
+        Tag = 4
+    }
+
+    /// <summary>What a Provider pie's slices count.</summary>
+    public enum ShowcasePieCount
+    {
+        /// <summary>Unlocked achievements per platform, then the locked ones.</summary>
+        Achievements = 0,
+
+        /// <summary>Completed games per platform, then the games not completed.</summary>
+        CompletedGames = 1
+    }
+
+    /// <summary>What a Timeline's bars count.</summary>
+    public enum ShowcaseTimelineCount
+    {
+        Unlocks = 0,
+
+        /// <summary>Games completed, each on the day it was completed.</summary>
+        Completions = 1
+    }
+
+    /// <summary>What each Timeline bar is split into, as stacked segments.</summary>
+    public enum ShowcaseTimelineSplit
+    {
+        None = 0,
+        Platform = 1,
+
+        /// <summary>One segment per rarity tier of the unlocked achievements.</summary>
+        Rarity = 2,
+
+        /// <summary>One segment per trophy type of the unlocked achievements.</summary>
         Trophy = 3
     }
 
@@ -73,6 +108,19 @@ namespace PlayniteAchievements.Models.Settings
     /// completions medal outright rather than adding to them, so a PlayStation-shaped library
     /// reads as trophies and nothing else; Both shows the rarity row followed by the grades.
     /// </summary>
+    /// <summary>What a points card shows in its icon slot while its control bar narrows it to one game.</summary>
+    public enum ShowcaseScoreCardArt
+    {
+        /// <summary>The platform's icon, as with several games.</summary>
+        ProviderIcon = 0,
+
+        /// <summary>The game's cover image.</summary>
+        GameCover = 1,
+
+        /// <summary>The game's icon.</summary>
+        GameIcon = 2
+    }
+
     /// <summary>How the profile card arranges its avatar, text, medals and stat strip.</summary>
     public enum ShowcaseProfileLayout
     {
@@ -90,7 +138,8 @@ namespace PlayniteAchievements.Models.Settings
     {
         Rarity = 0,
         Trophy = 1,
-        Both = 2
+        Both = 2,
+        None = 3
     }
 
     public enum ShowcasePointsGrouping
@@ -99,12 +148,17 @@ namespace PlayniteAchievements.Models.Settings
         Game = 1
     }
 
+    // 2 was Pinned, now the Recent source with an achievement collection; a stored "Pinned" no
+    // longer parses (ShowcaseWidgetOptions.GetCollectionType reads it as that collection).
+    // 1 was Rarest and 3 Capstones, now All sorted by rarity and All with the bar's Capstone
+    // filter (ShowcaseWidgetOptions.MigrateAchievementMosaicSource).
     public enum ShowcaseMosaicSource
     {
-        Recent = 0,
-        Rarest = 1,
-        Pinned = 2,
-        Capstones = 3,
+        /// <summary>
+        /// Every unlocked achievement, newest first; with an achievement collection, that
+        /// collection's pins in pin order.
+        /// </summary>
+        All = 0,
 
         /// <summary>
         /// Locked achievements worth hunting next. Unlike every other source these rows are not in
@@ -156,12 +210,7 @@ namespace PlayniteAchievements.Models.Settings
         Framed = 3
     }
 
-    public enum ShowcaseSlideshowSource
-    {
-        All = 0,
-        GameCollection = 1,
-        AchievementCollection = 2
-    }
+
 
     /// <summary>What the collapsed Mosaic widget renders: achievement icons or game covers.</summary>
     public enum ShowcaseMosaicContent
@@ -170,12 +219,26 @@ namespace PlayniteAchievements.Models.Settings
         Games = 1
     }
 
+    /// <summary>
+    /// Which pin collection a showcase widget is limited to: none, an achievement collection
+    /// (achievement widgets), or a game collection.
+    /// </summary>
+    public enum ShowcaseCollectionType
+    {
+        None = 0,
+        Achievements = 1,
+        Games = 2
+    }
+
     /// <summary>Row source for the collapsed Achievements Grid widget.</summary>
+    // 1 was Pinned, now the All source with an achievement collection.
     public enum ShowcaseAchievementGridSource
     {
-        /// <summary>Every unlocked achievement. Locked rows never mix in (not even pinned goals).</summary>
+        /// <summary>
+        /// Every unlocked achievement; with an achievement collection, that collection's pins in
+        /// pin order, locked ones included.
+        /// </summary>
         All = 0,
-        Pinned = 1,
 
         /// <summary>
         /// Locked achievements worth hunting next, from the same bounded candidate pool and options
@@ -185,10 +248,10 @@ namespace PlayniteAchievements.Models.Settings
     }
 
     /// <summary>Row source for the collapsed Game Summaries Grid widget.</summary>
+    // 1 was Pinned, now the Library source with a game collection.
     public enum ShowcaseGameGridSource
     {
         Library = 0,
-        Pinned = 1,
         PlayniteFavorites = 2,
 
         /// <summary>The unfinished games closest to done, as the Finish Next game mosaic ranks them.</summary>
@@ -242,16 +305,17 @@ namespace PlayniteAchievements.Models.Settings
         Bottom = 3
     }
 
+    // 0 was Completed, now the All source with the bar's Progress filter on Complete
+    // (ShowcaseWidgetOptions.MigrateCompletedGameMosaic). 2 was Pinned, now the All source with a
+    // game collection.
     public enum ShowcaseGameMosaicSource
     {
-        Completed = 0,
         All = 1,
-        Pinned = 2,
         PlayniteFavorites = 3,
 
         /// <summary>
         /// The unfinished games closest to being finished: the games counterpart of
-        /// <see cref="ShowcaseMosaicSource.UnlockNext"/>, and the inverse of Completed.
+        /// <see cref="ShowcaseMosaicSource.UnlockNext"/>.
         /// </summary>
         FinishNext = 4
     }
@@ -468,6 +532,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public string WidgetInstanceId { get; set; }
 
+        /// <summary>
+        /// An empty 1x1 block. Pages do not store these: every cell no stored block covers is one,
+        /// made on request (ShowcaseLayoutService.ResolveCell), and Normalize drops any left in
+        /// a page's list.
+        /// </summary>
+        [JsonIgnore]
+        public bool IsImplicit =>
+            RowSpan == 1 && ColumnSpan == 1 && string.IsNullOrWhiteSpace(WidgetInstanceId);
+
         public ShowcaseBlockSettings Clone()
         {
             return new ShowcaseBlockSettings
@@ -488,6 +561,11 @@ namespace PlayniteAchievements.Models.Settings
 
         public string Name { get; set; } = "Showcase";
 
+        /// <summary>
+        /// The blocks the page stores: those holding a widget or spanning more than one cell.
+        /// Every other cell is an implicit empty block, so a page's size in memory and on disk
+        /// follows its widgets and merged blocks, not its row and column counts.
+        /// </summary>
         public List<ShowcaseBlockSettings> Blocks { get; set; } =
             new List<ShowcaseBlockSettings>();
 

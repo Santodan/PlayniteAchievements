@@ -146,8 +146,8 @@ namespace PlayniteAchievements.Providers.Riot
             foreach (var entry in entries)
             {
                 cancel.ThrowIfCancellationRequested();
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Label);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Label);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -207,7 +207,8 @@ namespace PlayniteAchievements.Providers.Riot
                     Unlocked = achievement.Unlocked,
                     UnlockTimeUtc = achievement.UnlockTimeUtc,
                     Category = achievement.Category,
-                    CategoryType = achievement.CategoryType,
+                    Tags = achievement.Tags,
+                    CategoryKind = achievement.CategoryKind,
                     GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
                     Rarity = achievement.Rarity,
                     ProgressNum = achievement.ProgressNum,

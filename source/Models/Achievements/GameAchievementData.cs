@@ -82,6 +82,26 @@ namespace PlayniteAchievements.Models.Achievements
         public bool IsAchievementSchemaAuthoritative { get; set; }
 
         /// <summary>
+        /// The data areas the game's own platform supplied at the last refresh. Null until the
+        /// first refresh that records it.
+        /// </summary>
+        public Tagging.CustomizationArea? PlatformFields { get; set; }
+
+        /// <summary>
+        /// The data areas a metadata source supplied at the last refresh. Null until the first
+        /// refresh that records it.
+        /// </summary>
+        public Tagging.CustomizationArea? MetadataFields { get; set; }
+
+        /// <summary>
+        /// Refresh-only: the provider rebuilt the payload without the network (Steam's local stats
+        /// after a failed web refresh), so no metadata source is asked and the game keeps the
+        /// metadata its last full refresh saved. Never cached.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool KeepStoredMetadata { get; set; }
+
+        /// <summary>
         /// Computed completion status: every achievement unlocked, or every capstone unlocked.
         /// </summary>
         public bool IsCompleted =>
@@ -116,6 +136,10 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public Game Game { get; set; }
+
+        /// <summary>The scan's hints for metadata sources; set during a refresh and not persisted.</summary>
+        [IgnoreDataMember]
+        public MetadataHints MetadataHints { get; set; }
 
         /// <summary>
         /// Sorting name from Playnite's game database, derived from Game reference.

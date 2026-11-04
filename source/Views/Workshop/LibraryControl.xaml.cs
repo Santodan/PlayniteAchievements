@@ -83,7 +83,7 @@ namespace PlayniteAchievements.Views.Workshop
 
             var merge = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Common_Merge"), isDefault: true);
             var replace = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Button_Replace"));
-            var cancel = new MessageBoxOption(ResourceProvider.GetString("LOCCancelLabel"), isCancel: true);
+            var cancel = new MessageBoxOption(ResourceProvider.GetString("LOCPlayAch_Common_Cancel"), isCancel: true);
             var picked = dialogs.ShowMessage(
                 message,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -105,7 +105,7 @@ namespace PlayniteAchievements.Views.Workshop
                 PackagePresetStore.SanitizeName,
                 PackagePresetStore.MaxNameLength,
                 out var name,
-                ResourceProvider.GetString("LOCRenameTitle"))
+                ResourceProvider.GetString("LOCPlayAch_Common_Rename"))
                 ? name
                 : null;
         }

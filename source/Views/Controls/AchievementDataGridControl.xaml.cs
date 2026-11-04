@@ -39,6 +39,9 @@ namespace PlayniteAchievements.Views.Controls
         private bool _isAttached;
         private bool _wheelDiagnosticsAttached;
         private PersistedSettingsSubscription _persistedSubscription;
+        private AchievementGridOptions _appearanceRecord;
+        private GridOptionsCatalog _appearanceCatalog;
+        private bool _appearanceSubscribed;
         private List<AchievementDisplayItem> _preSortItems;
         private const double DefaultStatusColumnWidth = 40;
         private const double DefaultIconColumnWidth = 72;
@@ -164,6 +167,7 @@ namespace PlayniteAchievements.Views.Controls
             bool friendAvatar = false,
             bool friend = false,
             bool unlockDate = true,
+            bool categoryKind = false,
             bool categoryType = false,
             bool categoryLabel = false,
             bool categoryIcon = false,
@@ -187,6 +191,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["Avatar"] = friendAvatar,
                 ["Friend"] = friend,
                 ["UnlockDate"] = unlockDate,
+                ["CategoryKind"] = categoryKind,
                 ["CategoryType"] = categoryType,
                 ["CategoryLabel"] = categoryLabel,
                 ["CategoryIcon"] = categoryIcon,
@@ -549,22 +554,48 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Identifies the ColorNamesByRarity dependency property.
-        /// When true, achievement name text in this grid is colored by rarity tier (capstone
-        /// achievements use the completed color) instead of the default text color.
+        /// Identifies the AppearanceOptions dependency property: the grid options record the name
+        /// color, tag display and status color come from. When null, the grid reads the record of
+        /// its own surface (<see cref="ColumnSettingsKey"/>) from the settings catalog, so every
+        /// window follows its Display Settings without plumbing. Hosts whose record lives outside
+        /// the settings catalog (showcase widgets, the Workshop preview) set it.
         /// </summary>
-        public static readonly DependencyProperty ColorNamesByRarityProperty =
-            DependencyProperty.Register(nameof(ColorNamesByRarity), typeof(bool),
-                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+        public static readonly DependencyProperty AppearanceOptionsProperty =
+            DependencyProperty.Register(nameof(AppearanceOptions), typeof(AchievementGridOptions),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null, OnAppearanceOptionsChanged));
 
-        /// <summary>
-        /// Gets or sets whether achievement name text in this grid is colored by rarity.
-        /// </summary>
-        public bool ColorNamesByRarity
+        public AchievementGridOptions AppearanceOptions
         {
-            get => (bool)GetValue(ColorNamesByRarityProperty);
-            set => SetValue(ColorNamesByRarityProperty, value);
+            get => (AchievementGridOptions)GetValue(AppearanceOptionsProperty);
+            set => SetValue(AppearanceOptionsProperty, value);
         }
+
+        private static readonly DependencyPropertyKey NameColorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(NameColor), typeof(AchievementNameColorSource),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementNameColorSource.None));
+
+        /// <summary>Identifies the NameColor dependency property: where achievement names take their color from.</summary>
+        public static readonly DependencyProperty NameColorProperty = NameColorPropertyKey.DependencyProperty;
+
+        public AchievementNameColorSource NameColor => (AchievementNameColorSource)GetValue(NameColorProperty);
+
+        private static readonly DependencyPropertyKey TagDisplayPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(TagDisplay), typeof(AchievementTagDisplay),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementTagDisplay.Icons));
+
+        /// <summary>Identifies the TagDisplay dependency property: how the Tags column draws each tag.</summary>
+        public static readonly DependencyProperty TagDisplayProperty = TagDisplayPropertyKey.DependencyProperty;
+
+        public AchievementTagDisplay TagDisplay => (AchievementTagDisplay)GetValue(TagDisplayProperty);
+
+        private static readonly DependencyPropertyKey StatusColorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(StatusColor), typeof(AchievementStatusColorMode),
+                typeof(AchievementDataGridControl), new PropertyMetadata(AchievementStatusColorMode.MissableUnobtainable));
+
+        /// <summary>Identifies the StatusColor dependency property: how the Status column glyph is colored.</summary>
+        public static readonly DependencyProperty StatusColorProperty = StatusColorPropertyKey.DependencyProperty;
+
+        public AchievementStatusColorMode StatusColor => (AchievementStatusColorMode)GetValue(StatusColorProperty);
 
         /// <summary>
         /// Identifies the ColorRarityColumnsByRarity dependency property.
@@ -801,13 +832,14 @@ namespace PlayniteAchievements.Views.Controls
         private string _categorySortPath;
         private ListSortDirection? _categorySortDirection;
         private bool _startInCategoryModeApplied;
+        private Guid? _startInCategoryModeGameId;
         private DataGridRow _pendingCategoryRightClickRow;
 
         // Collapsed subtrees, keyed by CategoryPath. View-local for the control's lifetime and
         // never cleared on drill, mode, or data changes: a key whose path is gone is inert, and
         // keeping the rest means a drill round-trip or data delta preserves the user's collapses.
         private readonly HashSet<string> _collapsedCategoryPaths =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
 
         // Whether the full (unfiltered) tree has any nesting; gates the Expand/Collapse All buttons.
         private bool _categoryTreeHasNesting;
@@ -861,7 +893,8 @@ namespace PlayniteAchievements.Views.Controls
 
         public static readonly DependencyProperty CategoryColumnSettingsKeyProperty =
             DependencyProperty.Register(nameof(CategoryColumnSettingsKey), typeof(string),
-                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+                typeof(AchievementDataGridControl),
+                new PropertyMetadata(null, (d, _) => ((AchievementDataGridControl)d).UpdateResolvedCategoryColumnSettingsKey()));
 
         // Per-surface column-settings key for the embedded category grids (list + drill header),
         // kept distinct from the achievement grid's ColumnSettingsKey so category columns persist
@@ -962,6 +995,35 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CategorySummarySourceProperty, value);
         }
 
+        public static readonly DependencyProperty CategoryModeWithoutControlBarProperty =
+            DependencyProperty.Register(nameof(CategoryModeWithoutControlBar), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false, OnEnableCategoryModeChanged));
+
+        /// <summary>
+        /// When set, a grid shown without a control bar still enters category mode when Start in
+        /// Category Mode asks for it, and stays in it, since there is no toggle to leave by.
+        /// </summary>
+        public bool CategoryModeWithoutControlBar
+        {
+            get => (bool)GetValue(CategoryModeWithoutControlBarProperty);
+            set => SetValue(CategoryModeWithoutControlBarProperty, value);
+        }
+
+        public static readonly DependencyProperty DrillIntoCategorySummarySourceProperty =
+            DependencyProperty.Register(nameof(DrillIntoCategorySummarySource), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// When set, a drilled category lists its rows from <see cref="CategorySummarySource"/>
+        /// instead of ItemsSource, for a host whose rows are only a slice of the game (the showcase
+        /// grid's unlocks) while its summary source is the whole game.
+        /// </summary>
+        public bool DrillIntoCategorySummarySource
+        {
+            get => (bool)GetValue(DrillIntoCategorySummarySourceProperty);
+            set => SetValue(DrillIntoCategorySummarySourceProperty, value);
+        }
+
         private static void OnCategorySummarySourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is AchievementDataGridControl control)
@@ -1042,18 +1104,42 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(DrillHeaderVisibleProperty, value);
         }
 
-        public string ResolvedCategoryColumnSettingsKey
-        {
-            get
-            {
-                if (!string.IsNullOrWhiteSpace(CategoryColumnSettingsKey))
-                {
-                    return CategoryColumnSettingsKey;
-                }
+        // A dependency property rather than a computed getter: the category grids bind it when the
+        // template is built, before a host has set either key, and must follow the later values.
+        private static readonly DependencyPropertyKey ResolvedCategoryColumnSettingsKeyPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(ResolvedCategoryColumnSettingsKey),
+                typeof(string),
+                typeof(AchievementDataGridControl),
+                new PropertyMetadata("DefaultCategorySummaries"));
 
-                var baseKey = string.IsNullOrWhiteSpace(ColumnSettingsKey) ? "Default" : ColumnSettingsKey;
-                return baseKey + "CategorySummaries";
+        public static readonly DependencyProperty ResolvedCategoryColumnSettingsKeyProperty =
+            ResolvedCategoryColumnSettingsKeyPropertyKey.DependencyProperty;
+
+        public string ResolvedCategoryColumnSettingsKey =>
+            (string)GetValue(ResolvedCategoryColumnSettingsKeyProperty);
+
+        private void UpdateResolvedCategoryColumnSettingsKey()
+        {
+            SetValue(ResolvedCategoryColumnSettingsKeyPropertyKey, ResolveCategoryColumnSettingsKey());
+        }
+
+        private string ResolveCategoryColumnSettingsKey()
+        {
+            if (!string.IsNullOrWhiteSpace(CategoryColumnSettingsKey))
+            {
+                return CategoryColumnSettingsKey;
             }
+
+            // An achievement grid widget's category list keeps a per-instance surface.
+            var widgetCategories = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
+            if (widgetCategories != null)
+            {
+                return widgetCategories;
+            }
+
+            var baseKey = string.IsNullOrWhiteSpace(ColumnSettingsKey) ? "Default" : ColumnSettingsKey;
+            return baseKey + "CategorySummaries";
         }
 
         // Category grouping is a per-game concept, so the toggle is only offered when the current
@@ -1104,7 +1190,7 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
-            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var roots = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var item in items)
             {
                 if (item == null)
@@ -1184,6 +1270,23 @@ namespace PlayniteAchievements.Views.Controls
                 _controlBarWithToggle = null;
             }
 
+            if (EnableCategoryMode &&
+                ControlBar == null &&
+                CategoryModeWithoutControlBar &&
+                IsCategorySourceSingleGame())
+            {
+                // No bar to hold a toggle: Start in Category Mode alone decides, and the mode
+                // stays as it starts.
+                if (_controlBarWithToggle != null)
+                {
+                    RestoreControlBar(_controlBarWithToggle);
+                    _controlBarWithToggle = null;
+                }
+
+                ApplyStartInCategoryModeIfNeeded();
+                return;
+            }
+
             if (!EnableCategoryMode || ControlBar == null || !IsCategorySourceSingleGame())
             {
                 // Disabled, detached, or a multi-game source: leave category mode and strip the
@@ -1218,7 +1321,11 @@ namespace PlayniteAchievements.Views.Controls
                     {
                         _categorySearchText = string.Empty;
                         ApplyCategoryNameFilter();
-                    });
+                    })
+                {
+                    // Shown and hidden with the search box it stands in for.
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search
+                };
             }
 
             if (_modeToggle == null)
@@ -1231,19 +1338,23 @@ namespace PlayniteAchievements.Views.Controls
                     SetCategoryMode,
                     CategoryModeText("LOCPlayAch_CategorySummaries_ToggleToolTip", "Group by category"),
                     CanEnterCategoryMode,
-                    HasMultipleCategories);
+                    HasMultipleCategories)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.CategoryMode,
+                    LabelKey = "LOCPlayAch_ManageAchievements_Tab_Category"
+                };
             }
 
             if (_expandAllButton == null)
             {
                 _expandAllButton = new GridActionButton(
-                    CategoryModeText("LOCExpandAll", "Expand All"),
+                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"),
                     ExpandAllCategories,
-                    CategoryModeText("LOCExpandAll", "Expand All"));
+                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"));
                 _collapseAllButton = new GridActionButton(
-                    CategoryModeText("LOCCollapseAll", "Collapse All"),
+                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"),
                     CollapseAllCategories,
-                    CategoryModeText("LOCCollapseAll", "Collapse All"));
+                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"));
             }
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
@@ -1275,8 +1386,10 @@ namespace PlayniteAchievements.Views.Controls
         {
             if (_startInCategoryModeApplied ||
                 !EnableCategoryMode ||
-                ControlBar == null ||
-                !IsCategorySourceSingleGame())
+                (ControlBar == null && !CategoryModeWithoutControlBar) ||
+                !IsCategorySourceSingleGame() ||
+                // Wait for a host's whole-game list, which arrives after its rows.
+                (DrillIntoCategorySummarySource && CategorySummarySource?.Any() != true))
             {
                 return;
             }
@@ -1286,6 +1399,26 @@ namespace PlayniteAchievements.Views.Controls
             {
                 SetCategoryMode(true);
             }
+        }
+
+        /// <summary>
+        /// True while a host's whole-game list (which arrives after its rows) is still loading
+        /// and the grid will show categories once it lands: it is already in category mode (a
+        /// game switch), or Start in Category Mode is about to apply.
+        /// </summary>
+        private bool IsAwaitingStartInCategoryMode()
+        {
+            if (!EnableCategoryMode ||
+                !DrillIntoCategorySummarySource ||
+                (ControlBar == null && !CategoryModeWithoutControlBar) ||
+                CategorySummarySource?.Any() == true ||
+                ItemsSource?.Any() != true ||
+                !IsCategorySourceSingleGame())
+            {
+                return false;
+            }
+
+            return _isCategoryMode || (!_startInCategoryModeApplied && GetStartInCategoryMode());
         }
 
         private bool GetStartInCategoryMode()
@@ -1371,9 +1504,12 @@ namespace PlayniteAchievements.Views.Controls
         // empty space. Runs after the per-item visibility pass, which is what it keys off.
         private void SyncSegmentedUnit()
         {
+            // Joined only while both show: a Display Settings choice can hide either one.
             var connected =
                 _modeToggle?.EffectiveIsVisible == true &&
-                _connectedCategoryFilter?.EffectiveIsVisible == true;
+                _connectedCategoryFilter?.EffectiveIsVisible == true &&
+                !ControlBarHost.IsItemHidden(_modeToggle) &&
+                !ControlBarHost.IsItemHidden(_connectedCategoryFilter);
 
             if (_connectedCategoryFilter != null)
             {
@@ -1421,6 +1557,8 @@ namespace PlayniteAchievements.Views.Controls
             {
                 bar.Search = _originalSearch;
             }
+
+            ControlBarHost.BaseSearch = null;
         }
 
         // Shows/hides the injected items and swaps the search box to match the active nested grid:
@@ -1467,6 +1605,7 @@ namespace PlayniteAchievements.Views.Controls
                 if (!ReferenceEquals(bar.Search, _categorySearch))
                 {
                     _originalSearch = bar.Search;
+                    ControlBarHost.BaseSearch = _originalSearch;
                     bar.Search = _categorySearch;
                 }
             }
@@ -1930,7 +2069,9 @@ namespace PlayniteAchievements.Views.Controls
             var hasCategoryRows = grouping && CategorySummaries != null && CategorySummaries.Any();
 
             CategoryListVisible = hasCategoryRows && !drill;
-            AchievementGridVisible = !hasCategoryRows || drill;
+            // While a host's whole-game list is still on its way and Start in Category Mode will
+            // apply once it lands, the flat rows stay hidden rather than flash up first.
+            AchievementGridVisible = (!hasCategoryRows || drill) && !IsAwaitingStartInCategoryMode();
             DrillHeaderVisible = drill && !HideCategorySummaryRow;
             // Display form: hosts bind this straight into a header TextBlock, and the storage
             // separator is internal - never shown to a user.
@@ -1983,7 +2124,10 @@ namespace PlayniteAchievements.Views.Controls
                 // opens it; an expanded row's numbers were its own and the drill opens those.
                 var drilled = DrilledPath;
                 var selfOnly = _drillScope == DrillScope.Own;
-                var filtered = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                var drillSource = DrillIntoCategorySummarySource && CategorySummarySource != null
+                    ? CategorySummarySource
+                    : ItemsSource;
+                var filtered = (drillSource ?? Enumerable.Empty<AchievementDisplayItem>())
                     .Where(i => i != null && (selfOnly
                         ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
                         : CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled)))
@@ -2049,7 +2193,21 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnCategorySummarySourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (_isCategoryMode)
+            // A host that loads its summary source after its rows (the showcase grid) needs the
+            // mode toggle re-offered once the categories arrive, not only while grouped.
+            if (DrillIntoCategorySummarySource)
+            {
+                // Such a host's summary source is one game's whole list, swapped as its rows move
+                // to another game; Start in Category Mode applies afresh to each game.
+                var gameId = CategorySummarySource?.FirstOrDefault()?.PlayniteGameId;
+                if (gameId.HasValue && gameId != _startInCategoryModeGameId)
+                {
+                    _startInCategoryModeGameId = gameId;
+                    _startInCategoryModeApplied = false;
+                }
+            }
+
+            if (_isCategoryMode || DrillIntoCategorySummarySource)
             {
                 RequestItemsSourceContentRefresh();
             }
@@ -2568,6 +2726,16 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            // The category grids' key binds to this control directly: an ancestor binding in
+            // XAML only resolves once they join the visual tree, after they have prepared their
+            // columns under their own default key, writing into the Overview game list's record.
+            foreach (var categoryGrid in new[] { CategoryListGrid, CategoryDrillHeaderGrid })
+            {
+                categoryGrid.SetBinding(
+                    GameSummariesGridControl.ColumnSettingsKeyProperty,
+                    new System.Windows.Data.Binding(nameof(ResolvedCategoryColumnSettingsKey)) { Source = this });
+            }
+
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
@@ -2598,10 +2766,23 @@ namespace PlayniteAchievements.Views.Controls
                 // feed to a selected friend+game pair), so re-arm the one-shot start-in-category
                 // application for the incoming surface.
                 control._startInCategoryModeApplied = false;
+                control.UpdateResolvedCategoryColumnSettingsKey();
                 control.UpdateUnlockDateMode();
+                control.RefreshAppearance();
                 control.ReattachColumnPersistence();
                 control.SyncModeToggle();
+                control.UpdateControlBarOptions();
             }
+        }
+
+        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e) => SyncSegmentedUnit();
+
+        // The bar leaves out the items this grid's Display Settings hide.
+        private void UpdateControlBarOptions()
+        {
+            ControlBarHost.GridOptions = Helpers.GridSurfaceOptions.Resolve(
+                Settings.Controls.GridOptionKind.Achievement,
+                ColumnSettingsKey);
         }
 
         private void ReattachColumnPersistence()
@@ -2816,6 +2997,7 @@ namespace PlayniteAchievements.Views.Controls
             if (d is AchievementDataGridControl control)
             {
                 control.UpdateRealizedRowHeights();
+                control.UpdateTagAreaHeight();
             }
         }
 
@@ -2893,10 +3075,17 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateControlBarOptions();
+            ControlBarHost.ShownItemsChanged -= ControlBarHost_ShownItemsChanged;
+            ControlBarHost.ShownItemsChanged += ControlBarHost_ShownItemsChanged;
+            AchievementTagRegistry.Changed -= OnTagsChanged;
+            AchievementTagRegistry.Changed += OnTagsChanged;
             UpdateColumnVisibility();
             UpdateColumnHeadersVisibility();
             UpdateRealizedRowHeights();
             UpdateUnlockDateMode();
+            RefreshAppearance();
+            SubscribeAppearance();
             SyncModeToggle();
             ApplyCategoryViewState();
             AttachWheelDiagnostics();
@@ -2931,6 +3120,17 @@ namespace PlayniteAchievements.Views.Controls
                 UpdateUnlockDateMode();
             }
 
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.GridOptions))
+            {
+                RefreshAppearance();
+            }
+
+            if (e.PropertyName == nameof(PersistedSettings.CategoryColumnDisplay))
+            {
+                RefreshCategoryLabelDisplays();
+            }
+
             // Category rows repaint without reopening the window. Grids not currently in category
             // mode pick new modes up from the rebuild that entering category mode already does.
             if (_isCategoryMode)
@@ -2950,6 +3150,14 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private void RefreshCategoryLabelDisplays()
+        {
+            foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            {
+                item?.RefreshCategoryLabelDisplay();
+            }
+        }
+
         private void UpdateUnlockDateMode()
         {
             var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
@@ -2961,6 +3169,115 @@ namespace PlayniteAchievements.Views.Controls
             UnlockDateMode = persisted.UnlockDateDisplayMode;
         }
 
+        private static void OnAppearanceOptionsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((AchievementDataGridControl)d).RefreshAppearance();
+        }
+
+        /// <summary>
+        /// Resolves the record the name color, tag display and status color come from, and copies
+        /// those values onto this grid. The record is <see cref="AppearanceOptions"/> when a host
+        /// set one, otherwise this surface's record in the settings catalog; an unrecognised
+        /// surface gets the defaults.
+        /// </summary>
+        private void RefreshAppearance()
+        {
+            var catalog = AppearanceOptions == null
+                ? PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions
+                : null;
+            var record = AppearanceOptions ?? ResolveSurfaceAppearance(catalog);
+
+            if (!ReferenceEquals(record, _appearanceRecord) || !ReferenceEquals(catalog, _appearanceCatalog))
+            {
+                var resubscribe = _appearanceSubscribed;
+                UnsubscribeAppearance();
+                _appearanceRecord = record;
+                _appearanceCatalog = catalog;
+                if (resubscribe)
+                {
+                    SubscribeAppearance();
+                }
+            }
+
+            SetValue(NameColorPropertyKey, record?.NameColor ?? AchievementNameColorSource.None);
+            SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.Icons);
+            SetValue(StatusColorPropertyKey, record?.StatusColor ?? AchievementStatusColorMode.MissableUnobtainable);
+        }
+
+        // Reads without creating: GetAchievement would add a record for every unknown key.
+        private AchievementGridOptions ResolveSurfaceAppearance(GridOptionsCatalog catalog)
+        {
+            if (catalog == null || !GridOptionsCatalog.TryResolveAchievementId(ColumnSettingsKey, out var id))
+            {
+                return null;
+            }
+
+            return catalog.Achievement.TryGetValue(id, out var record) ? record : null;
+        }
+
+        // Only while loaded, so a settings record that outlives this grid never holds it.
+        private void SubscribeAppearance()
+        {
+            if (_appearanceSubscribed)
+            {
+                return;
+            }
+
+            if (_appearanceRecord != null)
+            {
+                _appearanceRecord.PropertyChanged += OnAppearanceRecordChanged;
+            }
+
+            if (_appearanceCatalog != null)
+            {
+                _appearanceCatalog.PropertyChanged += OnAppearanceCatalogChanged;
+            }
+
+            _appearanceSubscribed = true;
+        }
+
+        private void UnsubscribeAppearance()
+        {
+            if (!_appearanceSubscribed)
+            {
+                return;
+            }
+
+            if (_appearanceRecord != null)
+            {
+                _appearanceRecord.PropertyChanged -= OnAppearanceRecordChanged;
+            }
+
+            if (_appearanceCatalog != null)
+            {
+                _appearanceCatalog.PropertyChanged -= OnAppearanceCatalogChanged;
+            }
+
+            _appearanceSubscribed = false;
+        }
+
+        private void OnAppearanceRecordChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(AchievementGridOptions.NameColor) ||
+                e.PropertyName == nameof(AchievementGridOptions.TagDisplay) ||
+                e.PropertyName == nameof(AchievementGridOptions.StatusColor))
+            {
+                RefreshAppearance();
+            }
+        }
+
+        // The catalog's achievement dictionary is replaced wholesale on settings load, which swaps
+        // every record.
+        private void OnAppearanceCatalogChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(GridOptionsCatalog.Achievement))
+            {
+                RefreshAppearance();
+            }
+        }
+
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             UpdateRealizedRowHeights();
@@ -2968,6 +3285,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            AchievementTagRegistry.Changed -= OnTagsChanged;
+            UnsubscribeAppearance();
+
             // Restore the control bar so a bar reused across navigations does not keep our injected
             // items or hidden dropdowns; everything is re-applied on the next load.
             if (_controlBarWithToggle != null)
@@ -2975,6 +3295,22 @@ namespace PlayniteAchievements.Views.Controls
                 RestoreControlBar(_controlBarWithToggle);
                 _controlBarWithToggle = null;
             }
+        }
+
+        // A renamed or deleted tag re-reads its name on the rows that show it. Raised off the UI
+        // thread by store writes, so it is marshalled here.
+        private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                {
+                    if (item != null && (e?.GameId == null || item.PlayniteGameId == e.GameId))
+                    {
+                        item.RefreshTagPresentation();
+                    }
+                }
+            }));
         }
 
         private void AchievementsDataGrid_LoadingRow(object sender, DataGridRowEventArgs e)
@@ -3084,7 +3420,10 @@ namespace PlayniteAchievements.Views.Controls
         // MinWidth, then rebuilt once Attach collapses the hidden ones. Idempotent and cheap.
         private void PrepareColumnsForFirstMeasure()
         {
-            if (_isAttached || AchievementsDataGrid == null)
+            // Not before the template: until then a host may still be handing this grid its
+            // default key, and reading a record fills its missing column defaults, which would
+            // write into the Default surface's record.
+            if (_isAttached || !_templateApplied || AchievementsDataGrid == null)
             {
                 return;
             }
@@ -3103,8 +3442,11 @@ namespace PlayniteAchievements.Views.Controls
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
+            _templateApplied = true;
             PrepareColumnsForFirstMeasure();
         }
+
+        private bool _templateApplied;
 
         private void EnsureColumnPersistence(PlayniteAchievementsSettings settings)
         {
@@ -3183,6 +3525,14 @@ namespace PlayniteAchievements.Views.Controls
                     if (AllowLayoutPersistence)
                     {
                         SetLocksByKey(settings, map);
+                    }
+                },
+                getHiddenHeaders: () => GetColumnLayoutOptions(settings)?.HiddenHeaders,
+                setHiddenHeaders: map =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        SetHiddenHeadersByKey(settings, map);
                     }
                 });
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
@@ -3467,6 +3817,15 @@ namespace PlayniteAchievements.Views.Controls
             if (options != null)
             {
                 options.HeaderAlignments = map;
+            }
+        }
+
+        private void SetHiddenHeadersByKey(PlayniteAchievementsSettings settings, Dictionary<string, bool> map)
+        {
+            var options = GetColumnLayoutOptions(settings);
+            if (options != null)
+            {
+                options.HiddenHeaders = map;
             }
         }
 

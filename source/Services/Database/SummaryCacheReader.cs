@@ -77,7 +77,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -298,6 +299,13 @@ namespace PlayniteAchievements.Services.Database
                     scope?.SetContext("games=" + possibleScoreTotalsByCacheKey.Count);
                 }
 
+                Dictionary<string, AchievementTally[]> tagTotalsByCacheKey;
+                using (var scope = PerfScope.Start(logger, "Cache.Summary.Tallies" + tagSuffix, thresholdMs: 25))
+                {
+                    tagTotalsByCacheKey = LoadCachedTallies(db, scopeGameId);
+                    scope?.SetContext("games=" + tagTotalsByCacheKey.Count);
+                }
+
                 var requestedRecentLimit = recentAchievementDetailLimit > 0 ? recentAchievementDetailLimit : 0;
 
                 // The unbounded read below already loads every dated unlock the timeline query
@@ -342,8 +350,11 @@ namespace PlayniteAchievements.Services.Database
                     scoreTotalsByCacheKey.TryGetValue(cacheKey ?? string.Empty, out var scoreTotals);
                     possibleScoreTotalsByCacheKey.TryGetValue(cacheKey ?? string.Empty, out var possibleScoreTotals);
                     var playniteGameId = ResolveCachedPlayniteGameId(row.CacheKey, row.PlayniteGameId);
+                    tagTotalsByCacheKey.TryGetValue(cacheKey ?? string.Empty, out var tagTotals);
                     result.Games.Add(new CachedGameSummaryData
                     {
+                        // The provider's tags; the user's tag edits are applied during hydration.
+                        Tallies = tagTotals,
                         CacheKey = cacheKey,
                         PlayniteGameId = playniteGameId,
                         ProviderKey = row.ProviderKey,
@@ -569,6 +580,279 @@ namespace PlayniteAchievements.Services.Database
                 ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;", ScopeArgs(scopeGameId)).ToList();
         }
 
+        private sealed class CachedTallyGroupRow
+        {
+            public string CacheKey { get; set; }
+            public string Tags { get; set; }
+            public string Rarity { get; set; }
+            public string Trophy { get; set; }
+            public long IsCapstone { get; set; }
+            public long Unlocked { get; set; }
+            public long Total { get; set; }
+        }
+
+        // A stored rarity column as the tallies hold it; null for a value no tier counts, as the
+        // game rows' tier sums leave it out.
+        private static RarityTier? ParseTallyRarity(string value)
+        {
+            switch ((value ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "common":
+                    return RarityTier.Common;
+                case "uncommon":
+                    return RarityTier.Uncommon;
+                case "rare":
+                    return RarityTier.Rare;
+                case "ultrarare":
+                    return RarityTier.UltraRare;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Each game's achievements grouped by provider tags, rarity, trophy grade (with the user's
+        /// trophy edit) and provider capstone flag: a game repeats a handful of combinations across
+        /// its achievements, so the split into tag keys runs per group, not per achievement.
+        /// Untagged achievements count under the empty tag set. Filtered achievements are left
+        /// out, like every other summary count.
+        /// </summary>
+        private static Dictionary<string, AchievementTally[]> LoadCachedTallies(
+            SQLiteDatabase db,
+            Guid? scopeGameId = null)
+        {
+            var rows = db.Load<CachedTallyGroupRow>(
+                @"WITH LatestProgress AS (
+                    SELECT
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        TRIM(ugp.CacheKey) AS CacheKey,
+                        g.PlayniteGameId AS PlayniteGameId,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    INNER JOIN Games g ON g.Id = ugp.GameId
+                    WHERE u.IsCurrentUser = 1
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    lp.CacheKey AS CacheKey,
+                    ad.Tags AS Tags,
+                    LOWER(COALESCE(ad.Rarity, '')) AS Rarity,
+                    LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) AS Trophy,
+                    CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
+                    SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS Unlocked,
+                    COUNT(ad.Id) AS Total
+                FROM LatestProgress lp
+                INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                LEFT JOIN UserAchievements ua
+                    ON ua.AchievementDefinitionId = ad.Id
+                   AND ua.UserGameProgressId = lp.UserGameProgressId
+                LEFT JOIN AchievementOverrides aov
+                    ON aov.PlayniteGameId = lp.PlayniteGameId
+                   AND aov.ApiName = ad.ApiName
+                WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
+                  AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                                  WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                    AND ao.ApiName = ad.ApiName
+                                    AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))
+                GROUP BY
+                    lp.CacheKey,
+                    ad.Tags,
+                    LOWER(COALESCE(ad.Rarity, '')),
+                    LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')),
+                    CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END;", ScopeArgs(scopeGameId)).ToList();
+
+            var builders = new Dictionary<string, AchievementTallyBuilder>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                var cacheKey = row?.CacheKey?.Trim();
+                if (string.IsNullOrWhiteSpace(cacheKey))
+                {
+                    continue;
+                }
+
+                if (!builders.TryGetValue(cacheKey, out var builder))
+                {
+                    builder = new AchievementTallyBuilder();
+                    builders[cacheKey] = builder;
+                }
+
+                builder.Add(
+                    row.Tags,
+                    ParseTallyRarity(row.Rarity),
+                    row.Trophy,
+                    row.IsCapstone != 0,
+                    (int)Math.Max(0, row.Unlocked),
+                    (int)Math.Max(0, row.Total));
+            }
+
+            var totals = new Dictionary<string, AchievementTally[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in builders)
+            {
+                var built = pair.Value.Build();
+                if (built != null)
+                {
+                    totals[pair.Key] = built;
+                }
+            }
+
+            return totals;
+        }
+
+        /// <summary>One game's provider tallies, as the whole-library read gives them; null when it counts none.</summary>
+        public AchievementTally[] LoadTalliesForGame(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return null;
+            }
+
+            return _store.WithReadDb(db => LoadCachedTallies(db, playniteGameId).Values.FirstOrDefault());
+        }
+
+        private sealed class AchievementTallyStateRow
+        {
+            public string CacheKey { get; set; }
+            public string PlayniteGameId { get; set; }
+            public string ApiName { get; set; }
+            public string Tags { get; set; }
+            public string Rarity { get; set; }
+            public string Trophy { get; set; }
+            public long IsCapstone { get; set; }
+            public long Unlocked { get; set; }
+        }
+
+        /// <summary>
+        /// The asked-for achievements as the tallies counted them (provider tags, tier, trophy
+        /// grade, provider capstone flag, unlock state), per game and ApiName: what a user's tag or
+        /// capstone edit moves. For each game in <paramref name="providerCapstoneGames"/> its
+        /// provider-flagged capstones come too, since an edited capstone set can drop them. Filtered
+        /// achievements and ones the cache does not hold are left out, since no summary counts them.
+        /// </summary>
+        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTallyStates(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames = null)
+        {
+            var result = new Dictionary<Guid, Dictionary<string, AchievementTallyState>>();
+            wanted ??= new Dictionary<Guid, HashSet<string>>();
+            var apiNames = wanted.Values
+                .Where(set => set != null)
+                .SelectMany(set => set)
+                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var withCapstones = providerCapstoneGames != null && providerCapstoneGames.Count > 0;
+            if (apiNames.Count == 0 && !withCapstones)
+            {
+                return result;
+            }
+
+            void Collect(IEnumerable<AchievementTallyStateRow> rows, bool providerCapstones)
+            {
+                foreach (var row in rows)
+                {
+                    var playniteGameId = ResolveCachedPlayniteGameId(row?.CacheKey, row?.PlayniteGameId);
+                    var apiName = row?.ApiName?.Trim();
+                    if (!playniteGameId.HasValue || string.IsNullOrWhiteSpace(apiName))
+                    {
+                        continue;
+                    }
+
+                    var keep = providerCapstones
+                        ? providerCapstoneGames.Contains(playniteGameId.Value)
+                        : wanted.TryGetValue(playniteGameId.Value, out var asked) && asked?.Contains(apiName) == true;
+                    if (!keep)
+                    {
+                        continue;
+                    }
+
+                    if (!result.TryGetValue(playniteGameId.Value, out var states))
+                    {
+                        states = new Dictionary<string, AchievementTallyState>(StringComparer.OrdinalIgnoreCase);
+                        result[playniteGameId.Value] = states;
+                    }
+
+                    states[apiName] = new AchievementTallyState(
+                        row.Tags,
+                        ParseTallyRarity(row.Rarity),
+                        row.Trophy,
+                        row.IsCapstone != 0,
+                        row.Unlocked != 0);
+                }
+            }
+
+            return _store.WithReadDb(db =>
+            {
+                if (withCapstones)
+                {
+                    // Every provider capstone in the library is a handful of rows, so one read
+                    // without a game list is cheaper than chunking the games.
+                    Collect(db.Load<AchievementTallyStateRow>(AchievementTallyStateSql("ad.IsCapstone = 1")), providerCapstones: true);
+                }
+
+                for (var offset = 0; offset < apiNames.Count; offset += UnlockedApiNameChunkSize)
+                {
+                    var chunk = apiNames.Skip(offset).Take(UnlockedApiNameChunkSize).ToList();
+                    var placeholders = string.Join(", ", chunk.Select(_ => "?"));
+                    Collect(
+                        db.Load<AchievementTallyStateRow>(
+                            AchievementTallyStateSql("ad.ApiName IN (" + placeholders + ")"),
+                            chunk.Cast<object>().ToArray()),
+                        providerCapstones: false);
+                }
+
+                return result;
+            });
+        }
+
+        private static string AchievementTallyStateSql(string condition) =>
+                        @"WITH LatestProgress AS (
+                            SELECT
+                                ugp.Id AS UserGameProgressId,
+                                ugp.GameId AS GameId,
+                                TRIM(ugp.CacheKey) AS CacheKey,
+                                g.PlayniteGameId AS PlayniteGameId,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY ugp.CacheKey
+                                    ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                                ) AS RowNum
+                            FROM UserGameProgress ugp
+                            INNER JOIN Users u ON u.Id = ugp.UserId
+                            INNER JOIN Games g ON g.Id = ugp.GameId
+                            WHERE u.IsCurrentUser = 1
+                              AND ugp.CacheKey IS NOT NULL
+                              AND TRIM(ugp.CacheKey) <> ''
+                        )
+                        SELECT
+                            lp.CacheKey AS CacheKey,
+                            lp.PlayniteGameId AS PlayniteGameId,
+                            ad.ApiName AS ApiName,
+                            ad.Tags AS Tags,
+                            LOWER(COALESCE(ad.Rarity, '')) AS Rarity,
+                            LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) AS Trophy,
+                            CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
+                            CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END AS Unlocked
+                        FROM LatestProgress lp
+                        INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                        LEFT JOIN UserAchievements ua
+                            ON ua.AchievementDefinitionId = ad.Id
+                           AND ua.UserGameProgressId = lp.UserGameProgressId
+                        LEFT JOIN AchievementOverrides aov
+                            ON aov.PlayniteGameId = lp.PlayniteGameId
+                           AND aov.ApiName = ad.ApiName
+                        WHERE lp.RowNum = 1
+                          AND " + condition + @"
+                          AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
+                                          WHERE ao.PlayniteGameId = lp.PlayniteGameId
+                                            AND ao.ApiName = ad.ApiName
+                                            AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1));";
+
         private static Dictionary<string, (int CollectionScore, int PrestigeScore, int Points, int PlatformScorePoints)> LoadCachedScoreTotals(
             SQLiteDatabase db,
             bool unlockedOnly,
@@ -606,9 +890,9 @@ namespace PlayniteAchievements.Services.Database
                     -- Points is user-editable, so the score total must read the override first.
                     -- Rarity above deliberately is not: it stays provider-owned.
                     COALESCE(aov.Points, ad.Points) AS Points,
-                    -- RetroAchievements marks softcore unlocks with the derived Softcore type, which
+                    -- RetroAchievements marks softcore unlocks with the derived Softcore tag, which
                     -- only the provider writes (overrides never carry it). Platform scores skip them.
-                    CASE WHEN ('|' || COALESCE(ad.CategoryType, '') || '|') LIKE '%|Softcore|%'
+                    CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'
                          THEN 1 ELSE 0 END AS IsSoftcore
                 FROM LatestProgress lp
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
@@ -730,7 +1014,8 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
-                    ad.CategoryType AS CategoryType,
+                    ad.Tags AS Tags,
+                    ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
                     ad.Hidden AS Hidden,
                     ad.IsCapstone AS IsCapstone,
@@ -824,8 +1109,9 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = _store.MakeAbsolutePath(row.LockedIconPath),
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
-                    Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                    CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    Tags = AchievementTagHelper.Normalize(row.Tags),
+                    CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
                     Hidden = row.Hidden != 0,
                     IsCapstone = row.IsCapstone != 0,

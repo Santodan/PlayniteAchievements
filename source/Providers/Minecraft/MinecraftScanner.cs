@@ -219,7 +219,7 @@ namespace PlayniteAchievements.Providers.Minecraft
                     UnlockTimeUtc = done ? state.CompletedUtc : null,
                     GlobalPercentUnlocked = null,
                     Rarity = GetRarity(advancement),
-                    CategoryType = GetCategoryType(advancement),
+                    CategoryKind = GetCategoryKind(advancement),
                     Category = category
                 };
 
@@ -365,8 +365,8 @@ namespace PlayniteAchievements.Providers.Minecraft
             }
         }
 
-        /// <summary>Base for the minecraft namespace; no type for mods and datapacks.</summary>
-        internal static string GetCategoryType(MinecraftAdvancement advancement)
+        /// <summary>Base for the minecraft namespace; no kind for mods and datapacks.</summary>
+        internal static string GetCategoryKind(MinecraftAdvancement advancement)
         {
             return string.Equals(advancement.Namespace, MinecraftNamespace, StringComparison.Ordinal)
                 ? "Base"
@@ -398,8 +398,8 @@ namespace PlayniteAchievements.Providers.Minecraft
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in tabArt)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }

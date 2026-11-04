@@ -3,7 +3,8 @@
                     xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
                     xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
                     xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
-                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls">
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+                    xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings">
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
@@ -149,6 +150,64 @@
          ACHIEVEMENT TEMPLATES
          ======================= -->
 
+    <!-- The fill of the status column's locks (padlock and capstone hexagon), following the
+         grid's StatusColor. Outside an achievement grid (the Manage Achievements editor) the mode
+         falls back to Missable and Unobtainable. Later triggers win: a tag's own color overrides
+         the missable red. -->
+    <Style x:Key="AchievementLockedStatusFillStyle" TargetType="Path">
+        <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
+                    <Condition Binding="{Binding IsMissable, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.MissableLock}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
+                    <Condition Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.MissableLock}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                    <Condition Binding="{Binding IsMissable, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.MissableLock}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                    <Condition Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.MissableLock}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.MissableUnobtainable}"/>
+                    <Condition Binding="{Binding HasMissableStatusBrush, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{Binding MissableStatusBrush}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                               Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                    <Condition Binding="{Binding HasTagBrush, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Fill" Value="{Binding TagBrush}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
     <DataTemplate x:Key="AchievementStatusTemplate">
         <!-- The filter conditions below fall back to False on purpose: only the merged editor's
@@ -180,7 +239,6 @@
                         <Binding Path="IsUnobtainable" FallbackValue="False"/>                    </MultiBinding>
                 </Grid.ToolTip>
                 <Path Data="{StaticResource GeoCheck}"
-                      Stroke="{DynamicResource PlayAch.Brush.Glyph}"
                       StrokeThickness="2.3"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
@@ -190,7 +248,18 @@
                     <Path.Style>
                         <Style TargetType="Path">
                             <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Stroke" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
                             <Style.Triggers>
+                                <!-- All Tags colors the check with the first colored tag other
+                                     than Missable and Unobtainable, which only color a lock. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                                                   Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                                        <Condition Binding="{Binding HasUnlockedStatusTagBrush, FallbackValue=False}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Stroke" Value="{Binding UnlockedStatusTagBrush}"/>
+                                </MultiDataTrigger>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
@@ -263,21 +332,11 @@
                           SnapsToDevicePixels="True"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center">
-                        <!-- Fill set in the style, not as an attribute, so the missable trigger
-                             can override it. The lock only shows while locked, so the trigger
-                             needs no Unlocked condition. -->
+                        <!-- Fill set in the style, not as an attribute, so the status color
+                             triggers can override it. The lock only shows while locked, so the
+                             triggers need no Unlocked condition. -->
                         <Path.Style>
-                            <Style TargetType="Path">
-                                <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
-                                        <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True">
-                                        <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
+                            <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}"/>
                         </Path.Style>
                         <Path.Data>
                             <CombinedGeometry GeometryCombineMode="Exclude">
@@ -304,16 +363,9 @@
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
                     <Path.Style>
-                        <Style TargetType="Path">
+                        <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}">
                             <Setter Property="Visibility" Value="Collapsed"/>
-                            <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Glyph}"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMissable, FallbackValue=False}" Value="True">
-                                    <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="True">
-                                    <Setter Property="Fill" Value="{DynamicResource PlayAch.Brush.Status.MissableLock}"/>
-                                </DataTrigger>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding IsFiltered, FallbackValue=False}" Value="False"/>
@@ -573,6 +625,7 @@
             <Image Stretch="Uniform">
                 <Image.Style>
                     <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                         <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameIconPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                         <Setter Property="helpers:AsyncImage.DecodePixel" Value="96"/>
                         <Style.Triggers>
@@ -603,6 +656,7 @@
             <Image Stretch="Uniform">
                 <Image.Style>
                     <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
                         <Setter Property="helpers:AsyncImage.Uri" Value="{Binding CategoryIconDisplayPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
                         <Setter Property="helpers:AsyncImage.DecodePixel" Value="-1"/>
                         <Style.Triggers>
@@ -696,7 +750,8 @@
                        RenderOptions.BitmapScalingMode="HighQuality"
                        IsHitTestVisible="False"
                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
+                       helpers:AsyncImage.DecodePixel="128"
+                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -751,7 +806,8 @@
                        RenderOptions.BitmapScalingMode="HighQuality"
                        IsHitTestVisible="False"
                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
+                       helpers:AsyncImage.DecodePixel="128"
+                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                     <Image.Style>
                         <Style TargetType="Image">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -797,7 +853,8 @@
                    Margin="2"
                    RenderOptions.BitmapScalingMode="HighQuality"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                   helpers:AsyncImage.DecodePixel="128">
+                   helpers:AsyncImage.DecodePixel="128"
+                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Style.Triggers>
@@ -843,6 +900,68 @@
         </Grid>
     </DataTemplate>
 
+    <!-- The achievement name text of the Achievement and Title columns. Its color follows the
+         grid's NameColor source; a row the source gives no color keeps the text color. Trophy
+         switches on TrophyTypeResolved, so a masked trophy stays uncolored. -->
+    <Style x:Key="AchievementNameTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="0.7"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                <Setter Property="Opacity" Value="1"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                <Setter Property="FontStyle" Value="Italic"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                         Value="{x:Static settings:AchievementNameColorSource.Rarity}">
+                <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
+            </DataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                    <Condition Binding="{Binding TrophyTypeResolved}" Value="platinum"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                    <Condition Binding="{Binding TrophyTypeResolved}" Value="gold"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Gold}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                    <Condition Binding="{Binding TrophyTypeResolved}" Value="silver"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Silver}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Trophy}"/>
+                    <Condition Binding="{Binding TrophyTypeResolved}" Value="bronze"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Bronze}"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Tag}"/>
+                    <Condition Binding="{Binding HasTagBrush, FallbackValue=False}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{Binding TagBrush}"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Achievement Info Template with Hidden Styling -->
     <DataTemplate x:Key="AchievementInfoTemplate">
         <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
@@ -850,26 +969,8 @@
                     Background="Transparent">
             <TextBlock FontWeight="SemiBold"
                        TextWrapping="Wrap"
+                       Style="{StaticResource AchievementNameTextStyle}"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
-                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                        <Setter Property="Opacity" Value="0.7"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
-                                <Setter Property="Opacity" Value="1"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
-                                <Setter Property="FontStyle" Value="Italic"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ColorNamesByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
                 <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                      FontStyle="Italic"

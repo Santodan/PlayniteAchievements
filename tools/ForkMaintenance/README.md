@@ -1,5 +1,25 @@
 # Fork maintenance bundle
 
+## Upstream v4.2.1 integration - 2026-11-04
+
+Updated to upstream tag `v4.2.1` (`4b2f60f29`), preserving the fork identity and
+setting `source/extension.yaml` to `4.2.1.1`. InstallerManifest.yaml remains unchanged.
+The original bundle failed preflight; shared conflicts were resolved through a
+normal uncommitted merge, then the refreshed bundle completed the Update resume.
+
+The integration retains fork account selection, Local polling and diagnostics,
+RetroAchievements subset selection, unlock deduplication, custom tabs and saved
+overview filters alongside the upstream metadata, tags and notification changes.
+SteamHunters cache hooks follow its new metadata namespace and retain category
+kinds and tags without replacing fresh progress. Custom-data schema 10 applies
+the upstream category/tag migration to existing fork schema 9 files.
+
+Validation: the required Release rebuild and package ZIP check passed. The full
+suite passed 5,668 tests with eight skipped. The refreshed bundle applied cleanly
+to a separate v4.2.1 checkout (205 overlays and two localization recipes). English
+localization checks passed. Live Playnite verification remains pending. Changes
+are uncommitted, with v4.2.1 retained as the pending upstream merge parent.
+
 ## Optional polling performance controls and diagnostics - 2026-11-04
 
 Santodan-Fork > General owns Debug mode. Santodan-Fork > Performance owns

@@ -39,6 +39,7 @@ namespace PlayniteAchievements.Views.Dialogs
         private readonly GridOptionKind _kind;
         private readonly string _surfaceKey;
         private readonly string _categorySurfaceKey;
+        private readonly System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> _barEntries;
 
         private GridOptionsEditor _primaryEditor;
         private GridOptionsEditor _categoryEditor;
@@ -48,11 +49,16 @@ namespace PlayniteAchievements.Views.Dialogs
         private PersistedSettingsSubscription _persistedSubscription;
         private bool _saved;
 
-        private GridDisplaySettingsDialog(GridOptionKind kind, string surfaceKey, string categorySurfaceKey)
+        private GridDisplaySettingsDialog(
+            GridOptionKind kind,
+            string surfaceKey,
+            string categorySurfaceKey,
+            System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> barEntries)
         {
             _kind = kind;
             _surfaceKey = surfaceKey;
             _categorySurfaceKey = categorySurfaceKey;
+            _barEntries = barEntries;
 
             // The editor merges its own dictionaries, but this control's own header, checkbox and
             // buttons need the settings window's keyed and implicit styles too.
@@ -80,14 +86,19 @@ namespace PlayniteAchievements.Views.Dialogs
         /// adds the grid's nested category sub-grid section, and applies only to achievement
         /// surfaces.
         /// </summary>
-        public static void Show(GridOptionKind kind, string surfaceKey, string categorySurfaceKey)
+        /// <param name="barEntries">The grid's control bar items, listed under Show Control Bar.</param>
+        public static void Show(
+            GridOptionKind kind,
+            string surfaceKey,
+            string categorySurfaceKey,
+            System.Collections.Generic.IReadOnlyList<PlayniteAchievements.ViewModels.Items.IGridControlBarEntry> barEntries = null)
         {
             if (string.IsNullOrEmpty(surfaceKey))
             {
                 return;
             }
 
-            var editor = new GridDisplaySettingsDialog(kind, surfaceKey, categorySurfaceKey);
+            var editor = new GridDisplaySettingsDialog(kind, surfaceKey, categorySurfaceKey, barEntries);
             var title = string.Format(
                 FormattingCulture.Current,
                 Localize("LOCPlayAch_Showcase_WidgetSettingsTitle"),
@@ -147,12 +158,16 @@ namespace PlayniteAchievements.Views.Dialogs
 
         private UIElement BuildContent()
         {
+            // The editors' dropdown rows share one control height across both editors, as in the
+            // showcase widget settings.
             var panel = new StackPanel();
+            Grid.SetIsSharedSizeScope(panel, true);
 
             _primaryEditor = new GridOptionsEditor
             {
                 SurfaceKind = _kind,
-                SurfaceKey = _surfaceKey
+                SurfaceKey = _surfaceKey,
+                ControlBarEntries = _barEntries
             };
             panel.Children.Add(_primaryEditor);
 
@@ -160,27 +175,7 @@ namespace PlayniteAchievements.Views.Dialogs
             // carries the hide-after-selection flag.
             if (_kind == GridOptionKind.Achievement && !string.IsNullOrEmpty(_categorySurfaceKey))
             {
-                var header = new TextBlock
-                {
-                    Text = Localize("LOCPlayAch_Settings_CategoryGrid")
-                };
-                header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
-                header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
-                panel.Children.Add(header);
-
-                _hideCategoryRowCheckBox = new CheckBox
-                {
-                    Content = Localize("LOCPlayAch_Settings_HideCategorySummaryRow")
-                };
-                _hideCategoryRowCheckBox.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
-                panel.Children.Add(_hideCategoryRowCheckBox);
-
-                _categoryEditor = new GridOptionsEditor
-                {
-                    SurfaceKind = GridOptionKind.CategorySummaries,
-                    SurfaceKey = _categorySurfaceKey
-                };
-                panel.Children.Add(_categoryEditor);
+                AppendCategorySection(panel, _categorySurfaceKey, out _hideCategoryRowCheckBox, out _categoryEditor);
             }
 
             BindRecords();
@@ -206,6 +201,68 @@ namespace PlayniteAchievements.Views.Dialogs
             return root;
         }
 
+        /// <summary>
+        /// Appends an achievement grid's category grid section: its heading, the hide-after-
+        /// selection row (bound by the caller to the achievement grid's own record) and the
+        /// category grid's editor (whose record the caller sets). Shared with the showcase grid
+        /// widget's settings, so the two show the same rows.
+        /// </summary>
+        internal static void AppendCategorySection(
+            Panel panel,
+            string categorySurfaceKey,
+            out CheckBox hideCategoryRowCheckBox,
+            out GridOptionsEditor categoryEditor)
+        {
+            var header = new TextBlock
+            {
+                Text = Localize("LOCPlayAch_Settings_CategoryGrid")
+            };
+            header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
+            header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
+            panel.Children.Add(header);
+
+            hideCategoryRowCheckBox = new CheckBox
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            panel.Children.Add(BuildOptionRow(
+                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
+                hideCategoryRowCheckBox));
+
+            categoryEditor = new GridOptionsEditor
+            {
+                SurfaceKind = GridOptionKind.CategorySummaries,
+                SurfaceKey = categorySurfaceKey
+            };
+            panel.Children.Add(categoryEditor);
+        }
+
+        // Laid out like the editor's option rows: a semibold label in the left two fifths, the
+        // control in the right three.
+        private static UIElement BuildOptionRow(string label, UIElement control)
+        {
+            var row = new Grid();
+            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                Margin = new Thickness(0, 0, 8, 0),
+                FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            row.Children.Add(labelBlock);
+
+            Grid.SetColumn(control, 1);
+            row.Children.Add(control);
+            return row;
+        }
+
         private UIElement BuildButtons()
         {
             var row = new StackPanel
@@ -217,7 +274,7 @@ namespace PlayniteAchievements.Views.Dialogs
 
             var cancel = new Button
             {
-                Content = Localize("LOCCancelLabel"),
+                Content = Localize("LOCPlayAch_Common_Cancel"),
                 MinWidth = 90,
                 IsCancel = true
             };
@@ -226,7 +283,7 @@ namespace PlayniteAchievements.Views.Dialogs
 
             var save = new Button
             {
-                Content = Localize("LOCSaveLabel"),
+                Content = Localize("LOCPlayAch_Common_Save"),
                 MinWidth = 90,
                 IsDefault = true
             };

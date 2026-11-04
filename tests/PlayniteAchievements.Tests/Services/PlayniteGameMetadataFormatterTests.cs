@@ -208,5 +208,47 @@ namespace PlayniteAchievements.Services.Tests
                     "PlayStation 3", string.Empty, string.Empty,
                     showPlatform: true, showPlaytime: true, showRegion: true));
         }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_WithCounts_AppendsTotalThenPoints()
+        {
+            Assert.AreEqual(
+                "PlayStation 3 • 125h28m • 🏆 1,234 • 12,500 pts",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    "PlayStation 3", "125h28m", string.Empty, 1234, 12500,
+                    showPlatform: true, showPlaytime: true, showRegion: true,
+                    showTotal: true, showPoints: true));
+        }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_WithCounts_OmitsZeroAndDisabledCounts()
+        {
+            Assert.AreEqual(
+                "🏆 50",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 50, 0,
+                    showPlatform: true, showPlaytime: true, showRegion: true,
+                    showTotal: true, showPoints: true));
+
+            Assert.AreEqual(
+                "300 pts",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 50, 300,
+                    showPlatform: false, showPlaytime: false, showRegion: false,
+                    showTotal: false, showPoints: true));
+        }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_WithCounts_GroupsDigitsByFormattingCulture()
+        {
+            FormattingCulture.Initialize(() => "german");
+
+            Assert.AreEqual(
+                "🏆 1.234 • 12.500 pts",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 1234, 12500,
+                    showPlatform: false, showPlaytime: false, showRegion: false,
+                    showTotal: true, showPoints: true));
+        }
     }
 }

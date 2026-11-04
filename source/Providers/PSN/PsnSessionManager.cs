@@ -481,14 +481,43 @@ namespace PlayniteAchievements.Providers.PSN
 
             if (await ProbeSessionAsync(cookieContainer, ct).ConfigureAwait(false))
             {
-                return IsSessionStateCurrent(sessionStateVersion)
-                    ? AuthProbeResult.AlreadyAuthenticated()
+                if (!IsSessionStateCurrent(sessionStateVersion))
+                {
+                    return AuthProbeResult.NotAuthenticated();
+                }
+
+                // The store cookies can outlive Sony's account sign-in, which every trophy request's
+                // token comes from, so a session that cannot mint a token is not signed in.
+                if (HasValidMobileToken() || await TryMintMobileTokenAsync(cookieContainer, sessionStateVersion, ct).ConfigureAwait(false))
+                {
+                    return AuthProbeResult.AlreadyAuthenticated();
+                }
+
+                _logger?.Info("[PSNAuth] Store session is valid but the account sign-in has expired.");
+                return allowBootstrap
+                    ? await BootstrapAndProbeAsync(npsso, ct, sessionStateVersion).ConfigureAwait(false)
                     : AuthProbeResult.NotAuthenticated();
             }
 
             return allowBootstrap
                 ? await BootstrapAndProbeAsync(npsso, ct, sessionStateVersion).ConfigureAwait(false)
                 : AuthProbeResult.NotAuthenticated();
+        }
+
+        private async Task<bool> TryMintMobileTokenAsync(
+            CookieContainer cookieContainer,
+            int sessionStateVersion,
+            CancellationToken ct)
+        {
+            var mobileToken = await RequestMobileTokensAsync(cookieContainer, ct).ConfigureAwait(false);
+            if (mobileToken == null || string.IsNullOrWhiteSpace(mobileToken.access_token) ||
+                !IsSessionStateCurrent(sessionStateVersion))
+            {
+                return false;
+            }
+
+            SetMobileToken(mobileToken);
+            return true;
         }
 
         private async Task<AuthProbeResult> BootstrapAndProbeAsync(
@@ -746,6 +775,7 @@ namespace PlayniteAchievements.Providers.PSN
                                     isTimeout: false);
                             }
 
+                            _logger?.Debug($"[PSNAuth] Mobile code request returned {(int)response.StatusCode} instead of a redirect.");
                             return null;
                         }
 
@@ -753,6 +783,8 @@ namespace PlayniteAchievements.Providers.PSN
                         mobileCode = location == null ? null : GetQueryParam(location.Query, "code");
                         if (string.IsNullOrWhiteSpace(mobileCode))
                         {
+                            // Sony redirects with an error instead of a code when its sign-in has lapsed.
+                            _logger?.Debug($"[PSNAuth] Mobile code redirect carried no code (error={GetQueryParam(location?.Query, "error") ?? "none"}).");
                             return null;
                         }
                     }

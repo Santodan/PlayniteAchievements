@@ -13,6 +13,71 @@ namespace PlayniteAchievements.Views.Converters
     /// </summary>
     public class ProviderIconConverter : IMultiValueConverter
     {
+        /// <summary>
+        /// Prefix of an icon key naming an achievement tag's icon: the prefix, then the icon font
+        /// codepoint ("TagIcon:EDD7"). Drawn from the plugin's icon font in the given color.
+        /// </summary>
+        public const string TagIconPrefix = "TagIcon:";
+
+        /// <summary>The icon key for a tag icon codepoint; empty for none.</summary>
+        public static string TagIconKey(string icon) =>
+            Services.Achievements.AchievementTagHelper.NormalizeIcon(icon) is string normalized
+                ? TagIconPrefix + normalized
+                : string.Empty;
+
+        // A tag icon is a glyph of the icon font, drawn as geometry so it scales and takes the
+        // slice color like a provider icon does.
+        private static DrawingImage BuildGlyphIcon(string codepoint, string colorHex)
+        {
+            var cacheKey = TagIconPrefix + codepoint + "|" + colorHex;
+            if (IconImageCache.TryGetValue(cacheKey, out var cachedImage))
+            {
+                return cachedImage;
+            }
+
+            try
+            {
+                var glyph = Services.Achievements.AchievementTagHelper.IconGlyph(codepoint);
+                if (glyph == null ||
+                    !(Application.Current?.TryFindResource("PlayAch.FontFamily.Icon") is FontFamily fontFamily) ||
+                    !(ColorConverter.ConvertFromString(colorHex) is Color color))
+                {
+                    return null;
+                }
+
+                // Outline geometry is resolution independent, so any pixels-per-dip will do.
+                var text = new FormattedText(
+                    glyph,
+                    CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface(fontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+                    16,
+                    Brushes.Black,
+                    1.0);
+                var geometry = text.BuildGeometry(new Point(0, 0));
+                if (geometry == null || geometry.IsEmpty())
+                {
+                    return null;
+                }
+
+                var drawingImage = new DrawingImage
+                {
+                    Drawing = new GeometryDrawing
+                    {
+                        Geometry = geometry,
+                        Brush = new SolidColorBrush(color)
+                    }
+                };
+                drawingImage.Freeze();
+                IconImageCache[cacheKey] = drawingImage;
+                return drawingImage;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         // Cache of colored provider icon images keyed by geometry resource key plus color hex
         // (the rendered image depends on both). Geo* geometry resources are defined statically
         // and are not rewritten at runtime. Only successful resolutions are cached so
@@ -82,6 +147,11 @@ namespace PlayniteAchievements.Views.Converters
             if (string.IsNullOrEmpty(iconKey) || string.IsNullOrEmpty(colorHex))
             {
                 return null;
+            }
+
+            if (iconKey.StartsWith(TagIconPrefix, StringComparison.Ordinal))
+            {
+                return BuildGlyphIcon(iconKey.Substring(TagIconPrefix.Length), colorHex);
             }
 
             try

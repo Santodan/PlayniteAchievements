@@ -69,14 +69,14 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var gameName = gameNames[0];
-            var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(category);
 
             // A category capstone is read as one first. One authored before its scope was stored
             // reads as a category capstone too, so when nothing matches that way it is tried as
             // the whole game's, which is filed with the main game's category.
             if (!definition.IsWholeGameAutoCapstone && normalizedCategory != null)
             {
-                var label = AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(normalizedCategory);
+                var label = AchievementCategoryHelper.ToCategoryLabelDisplayText(normalizedCategory);
                 var (titleMatch, descriptionMatch) = Match(
                     definition, AutoCapstoneTextField.CategoryName, AutoCapstoneTextField.CategoryDescription,
                     gameNames, label, known);
@@ -123,6 +123,10 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             stored = stored.Trim();
+            if (SantodanAutoCapstoneTextRecovery.IsBrokenDefault(stored))
+            {
+                return true;
+            }
             foreach (var template in templates)
             {
                 foreach (var gameName in gameNames)

@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Services.Tests
             var result = Normalize(new GameCustomDataFile { SchemaVersion = 7 });
 
             Assert.AreEqual(GameCustomDataNormalizer.CurrentSchemaVersion, result.SchemaVersion);
-            Assert.AreEqual(9, GameCustomDataNormalizer.CurrentSchemaVersion);
+            Assert.AreEqual(10, GameCustomDataNormalizer.CurrentSchemaVersion);
         }
 
         [TestMethod]
@@ -71,9 +71,106 @@ namespace PlayniteAchievements.Services.Tests
                 AchievementCategoryTypeOverrides = new Dictionary<string, string> { ["ach_one"] = "DLC" }
             });
 
-            Assert.AreEqual(
-                AchievementCategoryTypeHelper.Normalize("DLC"),
-                result.AchievementOverrides["ach_one"].CategoryType);
+            // A legacy type override replaced every provider type: no value besides the kind means
+            // no tags. Kinds live on categories, and this achievement has no curated category, so
+            // its kind has nowhere to go.
+            Assert.IsNull(result.AchievementOverrides["ach_one"].LegacyCategoryType);
+            Assert.IsTrue(result.AchievementOverrides["ach_one"].ClearTags);
+            Assert.IsNull(result.AchievementCategoryKinds);
+        }
+
+        [TestMethod]
+        public void Normalize_LegacyKinds_AgreeingInACategory_BecomeItsKind()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "DLC|Missable" },
+                    ["ach_two"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "dlc" },
+                    // Names no kind, so it does not vote.
+                    ["ach_three"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "Missable" }
+                }
+            });
+
+            Assert.AreEqual(CategoryKindHelper.Dlc, result.AchievementCategoryKinds["Expansion"]);
+        }
+
+        [TestMethod]
+        public void Normalize_LegacyKinds_FromSchema7Maps_BecomeCategoryKind()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 7,
+                AchievementCategoryOverrides = new Dictionary<string, string> { ["ach_one"] = "Side Content" },
+                AchievementCategoryTypeOverrides = new Dictionary<string, string> { ["ach_one"] = "Subset" }
+            });
+
+            Assert.AreEqual(CategoryKindHelper.Subset, result.AchievementCategoryKinds["Side Content"]);
+        }
+
+        [TestMethod]
+        public void Normalize_LegacyKinds_Conflicting_LeaveCategoryToProvider()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { Category = "Mixed", LegacyCategoryType = "DLC" },
+                    ["ach_two"] = new AchievementOverride { Category = "Mixed", LegacyCategoryType = "Update" }
+                }
+            });
+
+            Assert.IsNull(result.AchievementCategoryKinds);
+        }
+
+        [TestMethod]
+        public void Normalize_LegacyKinds_ExistingCategoryKindWins()
+        {
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = 8,
+                AchievementCategoryKinds = new Dictionary<string, string> { ["Expansion"] = CategoryKindHelper.Update },
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "DLC" }
+                }
+            });
+
+            Assert.AreEqual(CategoryKindHelper.Update, result.AchievementCategoryKinds["Expansion"]);
+        }
+
+        [TestMethod]
+        public void Normalize_CurrentSchema_LegacyRecordField_IsNotPromoted()
+        {
+            // Only data predating the fork category/tag migration carries a meaningful legacy type.
+            var result = Normalize(new GameCustomDataFile
+            {
+                SchemaVersion = GameCustomDataNormalizer.CurrentSchemaVersion,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "DLC" }
+                }
+            });
+
+            Assert.IsNull(result.AchievementCategoryKinds);
+        }
+
+        [TestMethod]
+        public void PortableNormalize_LegacyKinds_BecomeCategoryKind()
+        {
+            var result = GameCustomDataNormalizer.NormalizePortable(new GameCustomDataPortableFile
+            {
+                SchemaVersion = 8,
+                AchievementOverrides = new Dictionary<string, AchievementOverride>
+                {
+                    ["ach_one"] = new AchievementOverride { Category = "Expansion", LegacyCategoryType = "DLC" }
+                }
+            }, GameId);
+
+            Assert.AreEqual(CategoryKindHelper.Dlc, result.AchievementCategoryKinds["Expansion"]);
         }
 
         [TestMethod]
@@ -110,7 +207,8 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("note", entry.Note);
             Assert.AreEqual("unlocked.png", entry.UnlockedIconPath);
             Assert.AreEqual("locked.png", entry.LockedIconPath);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(entry.CategoryType));
+            Assert.IsNull(entry.LegacyCategoryType);
+            Assert.IsTrue(entry.ClearTags);
         }
 
         [TestMethod]
@@ -356,7 +454,9 @@ namespace PlayniteAchievements.Services.Tests
             {
                 var second = twice.AchievementOverrides[pair.Key];
                 Assert.AreEqual(pair.Value.Category, second.Category);
-                Assert.AreEqual(pair.Value.CategoryType, second.CategoryType);
+                Assert.AreEqual(pair.Value.LegacyCategoryType, second.LegacyCategoryType);
+                Assert.AreEqual(pair.Value.Tags, second.Tags);
+                Assert.AreEqual(pair.Value.ClearTags, second.ClearTags);
                 Assert.AreEqual(pair.Value.Note, second.Note);
                 Assert.AreEqual(pair.Value.DisplayName, second.DisplayName);
                 Assert.AreEqual(pair.Value.Description, second.Description);

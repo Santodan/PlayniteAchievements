@@ -222,7 +222,7 @@ namespace PlayniteAchievements.Services.Achievements
                         string.Equals(
                             ResolveCategory(byApiName, categoryOverrides, assignment.ApiName),
                             category,
-                            StringComparison.OrdinalIgnoreCase))
+                            CategoryPathHelper.LabelComparison))
                     {
                         continue;
                     }
@@ -260,11 +260,11 @@ namespace PlayniteAchievements.Services.Achievements
                 categoryOverrides.TryGetValue(trimmed, out var userOverride) &&
                 !string.IsNullOrWhiteSpace(userOverride?.Category))
             {
-                return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(userOverride.Category);
+                return AchievementCategoryHelper.NormalizeCategoryOrDefault(userOverride.Category);
             }
 
             byApiName.TryGetValue(trimmed, out var match);
-            return AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+            return AchievementCategoryHelper.NormalizeCategoryOrDefault(
                 match?.ProviderCategory ?? match?.Category);
         }
 
@@ -543,7 +543,45 @@ namespace PlayniteAchievements.Services.Achievements
             return rescoped;
         }
 
-        public void SetAchievementCategoryTypeOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryTypeOverrides)
+        /// <summary>
+        /// Adds a tag named <paramref name="name"/> to the game's own list and returns its key; the
+        /// key of the available tag already named that, when there is one.
+        /// </summary>
+        public string CreateGameTag(Guid gameId, string name)
+        {
+            var trimmed = name?.Trim();
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(trimmed))
+            {
+                return null;
+            }
+
+            var existing = AchievementTagRegistry.GetAvailable(gameId)
+                .FirstOrDefault(definition => string.Equals(
+                    AchievementTagRegistry.GetName(definition), trimmed, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                return existing.Key;
+            }
+
+            var key = AchievementTagHelper.NewUserKey();
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var tags = customData.AchievementTags?.Select(definition => definition.Clone()).ToList()
+                        ?? new List<AchievementTagDefinition>();
+                    tags.Add(new AchievementTagDefinition { Key = key, Name = trimmed });
+                    customData.AchievementTags = tags;
+                },
+                affectsSummaryData: false);
+            return key;
+        }
+
+        /// <summary>
+        /// Replaces every achievement's tag override: an ApiName absent from
+        /// <paramref name="tagOverrides"/> takes the provider's tags, "" removes every tag.
+        /// </summary>
+        public void SetAchievementTagOverrides(Guid gameId, IReadOnlyDictionary<string, string> tagOverrides)
         {
             if (gameId == Guid.Empty)
             {
@@ -554,7 +592,7 @@ namespace PlayniteAchievements.Services.Achievements
                 gameId,
                 customData =>
                 {
-                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+                    ReplaceTagOverrides(customData, tagOverrides);
                 },
                 affectsSummaryData: false);
         }
@@ -562,7 +600,7 @@ namespace PlayniteAchievements.Services.Achievements
         public bool SetAchievementCategoryOverrides(
             Guid gameId,
             IReadOnlyDictionary<string, string> categoryOverrides,
-            IReadOnlyDictionary<string, string> categoryTypeOverrides)
+            IReadOnlyDictionary<string, string> tagOverrides)
         {
             if (gameId == Guid.Empty)
             {
@@ -575,7 +613,7 @@ namespace PlayniteAchievements.Services.Achievements
                 customData =>
                 {
                     rescoped = ReplaceCategoryRescopingAutoCapstones(customData, categoryOverrides);
-                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+                    ReplaceTagOverrides(customData, tagOverrides);
                 },
                 affectsSummaryData: false);
             return rescoped;
@@ -624,7 +662,7 @@ namespace PlayniteAchievements.Services.Achievements
         public bool SetAchievementCategoryAssignmentAndMetadata(
             Guid gameId,
             IReadOnlyDictionary<string, string> categoryOverrides,
-            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IReadOnlyDictionary<string, string> categoryKinds,
             IReadOnlyList<string> categoryOrder,
             IReadOnlyDictionary<string, CategoryImageOverrideData> categoryImageOverrides,
             GameSummaryCategoryData gameSummaryCategory,
@@ -648,7 +686,12 @@ namespace PlayniteAchievements.Services.Achievements
                     ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
                 }
 
-                ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+                // Null leaves the stored kinds alone; a rename passes the whole rewritten map.
+                if (categoryKinds != null)
+                {
+                    customData.AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(categoryKinds);
+                }
+
                 customData.AchievementCategoryOrder = CopyCategoryOrder(categoryOrder);
                 customData.AchievementCategoryImageOverrides = CopyCategoryImageOverrides(categoryImageOverrides);
                 customData.GameSummaryCategory = GameCustomDataNormalizer.NormalizeGameSummaryCategory(gameSummaryCategory);
@@ -860,6 +903,79 @@ namespace PlayniteAchievements.Services.Achievements
         /// cleared on rows absent from <paramref name="values"/>, matching the replace semantics the
         /// legacy map writes had.
         /// </summary>
+        /// <summary>
+        /// Replaces every record's tag override from <paramref name="values"/>: "" (or only derived
+        /// keys) removes every tag, an ApiName absent from the map takes the provider's tags.
+        /// </summary>
+        private static void ReplaceTagOverrides(
+            GameCustomDataFile customData,
+            IReadOnlyDictionary<string, string> values)
+        {
+            var overrides = CloneOverrides(customData);
+            foreach (var entry in overrides.Values)
+            {
+                entry.Tags = null;
+                entry.ClearTags = false;
+            }
+
+            if (values != null)
+            {
+                foreach (var pair in values)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName) || pair.Value == null)
+                    {
+                        continue;
+                    }
+
+                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+                    {
+                        entry = new AchievementOverride();
+                        overrides[apiName] = entry;
+                    }
+
+                    var tags = AchievementTagHelper.StripDerived(pair.Value);
+                    entry.Tags = tags;
+                    entry.ClearTags = tags == null;
+                }
+            }
+
+            StoreOverrides(customData, overrides);
+        }
+
+        /// <summary>
+        /// Sets the kind stored for <paramref name="categoryPath"/>: a kind,
+        /// <see cref="CategoryKindHelper.None"/> for none, or null to let the providers decide.
+        /// </summary>
+        public void SetCategoryKind(Guid gameId, string categoryPath, string kind)
+        {
+            var key = CategoryPathHelper.NormalizePath(categoryPath);
+            if (gameId == Guid.Empty || key == null)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    var kinds = GameCustomDataFile.CloneCategoryKindMap(customData.AchievementCategoryKinds) ??
+                        new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
+                    var stored = CategoryKindHelper.NormalizeStored(kind);
+                    if (stored == null)
+                    {
+                        kinds.Remove(key);
+                    }
+                    else
+                    {
+                        kinds[key] = stored;
+                    }
+
+                    customData.AchievementCategoryKinds = kinds.Count > 0 ? kinds : null;
+                },
+                affectsSummaryData: false);
+        }
+
         private static void ReplaceOverrideField(
             GameCustomDataFile customData,
             IReadOnlyDictionary<string, string> values,
@@ -1141,7 +1257,7 @@ namespace PlayniteAchievements.Services.Achievements
             Guid gameId,
             IEnumerable<string> achievementApiNames,
             IReadOnlyDictionary<string, string> categoryOverrides,
-            IReadOnlyDictionary<string, string> categoryTypeOverrides,
+            IReadOnlyDictionary<string, string> tagOverrides,
             IEnumerable<string> filteredAchievementApiNames,
             IEnumerable<string> summaryFilteredAchievementApiNames,
             IReadOnlyList<string> goalApiNames,
@@ -1183,7 +1299,7 @@ namespace PlayniteAchievements.Services.Achievements
                     }
 
                     ReplaceOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
-                    ReplaceOverrideField(customData, categoryTypeOverrides, (entry, value) => entry.CategoryType = value);
+                    ReplaceTagOverrides(customData, tagOverrides);
 
                     customData.FilteredAchievementApiNames = CopyApiNames(filteredAchievementApiNames);
                     customData.SummaryFilteredAchievementApiNames = CopyApiNames(summaryFilteredAchievementApiNames);
@@ -1291,10 +1407,17 @@ namespace PlayniteAchievements.Services.Achievements
         /// Replaces the achievements authored by the user and keeps every ApiName-keyed
         /// customization attached when an edited custom ID changes.
         /// </summary>
+        /// <param name="categoryFilings">
+        /// Categories to file authored achievements in, by ApiName, in the same store update. Filed
+        /// as authoring files them, so what an auto capstone stands for is left alone.
+        /// </param>
+        /// <param name="placeFirst">ApiNames to lead the achievement order, as authoring places them.</param>
         public void SetCustomAchievements(
             Guid gameId,
             IReadOnlyList<CustomAchievementDefinition> definitions,
-            IReadOnlyDictionary<string, string> renamedApiNames = null)
+            IReadOnlyDictionary<string, string> renamedApiNames = null,
+            IReadOnlyDictionary<string, string> categoryFilings = null,
+            IReadOnlyList<string> placeFirst = null)
         {
             if (gameId == Guid.Empty)
             {
@@ -1311,7 +1434,46 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.CustomAchievements = definitions != null
                     ? definitions.Select(definition => definition?.Clone()).Where(definition => definition != null).ToList()
                     : null;
+
+                foreach (var filing in categoryFilings ?? new Dictionary<string, string>())
+                {
+                    FileInCategory(customData, filing.Key, filing.Value);
+                }
+
+                if (placeFirst != null && placeFirst.Count > 0)
+                {
+                    PlaceFirst(customData, placeFirst);
+                }
             });
+        }
+
+        /// <summary>
+        /// Puts <paramref name="apiNames"/> at the head of the order. Everything else keeps its order
+        /// behind them: entries the order does not name follow those it does, in their own order.
+        /// </summary>
+        private static void PlaceFirst(GameCustomDataFile customData, IEnumerable<string> apiNames)
+        {
+            customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
+                apiNames.Concat(customData.AchievementOrder ?? new List<string>()));
+        }
+
+        private static void FileInCategory(GameCustomDataFile customData, string apiName, string category)
+        {
+            var normalizedCategory = AchievementCategoryHelper.NormalizeCategory(category);
+            if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(normalizedCategory))
+            {
+                return;
+            }
+
+            var overrides = CloneOverrides(customData);
+            if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
+            {
+                entry = new AchievementOverride();
+                overrides[apiName] = entry;
+            }
+
+            entry.Category = normalizedCategory;
+            StoreOverrides(customData, overrides);
         }
 
         /// <summary>
@@ -1374,25 +1536,11 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.CustomAchievements = definitions;
 
                 // Placed first, so the capstone leads the list, and its category's group when it
-                // stands for one. Everything else keeps its order behind it: entries the order
-                // does not name follow those it does, in their own order.
+                // stands for one.
                 var apiName = CustomAchievementProjectionService.BuildApiName(definition.Id);
-                customData.AchievementOrder = AchievementOrderHelper.NormalizeApiNames(
-                    new[] { apiName }.Concat(customData.AchievementOrder ?? new List<string>()));
+                PlaceFirst(customData, new[] { apiName });
 
-                var normalizedCategory = AchievementCategoryTypeHelper.NormalizeCategory(category);
-                if (!string.IsNullOrWhiteSpace(normalizedCategory))
-                {
-                    var overrides = CloneOverrides(customData);
-                    if (!overrides.TryGetValue(apiName, out var entry) || entry == null)
-                    {
-                        entry = new AchievementOverride();
-                        overrides[apiName] = entry;
-                    }
-
-                    entry.Category = normalizedCategory;
-                    StoreOverrides(customData, overrides);
-                }
+                FileInCategory(customData, apiName, category);
 
                 customData.AutoCapstoneGenerated = true;
             });
@@ -1469,19 +1617,6 @@ namespace PlayniteAchievements.Services.Achievements
                 customData.CustomProviderId = string.IsNullOrWhiteSpace(customProviderId)
                     ? null
                     : customProviderId.Trim();
-            });
-        }
-
-        public void SetExophaseEnrichmentSlugOverride(Guid gameId, string slug)
-        {
-            if (gameId == Guid.Empty)
-            {
-                return;
-            }
-
-            _gameCustomDataStore.Update(gameId, customData =>
-            {
-                customData.ExophaseEnrichmentSlugOverride = string.IsNullOrWhiteSpace(slug) ? null : slug.Trim();
             });
         }
 
@@ -1836,10 +1971,10 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var result = new List<string>();
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var value in values)
             {
-                var normalized = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(value);
+                var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
                 if (string.IsNullOrWhiteSpace(normalized) || !seen.Add(normalized))
                 {
                     continue;
@@ -1952,10 +2087,10 @@ namespace PlayniteAchievements.Services.Achievements
                 return null;
             }
 
-            var copy = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var copy = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in values)
             {
-                var key = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var key = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 var art = NormalizeText(pair.Value?.Art);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(art))
                 {

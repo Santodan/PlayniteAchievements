@@ -1,3 +1,4 @@
+using PlayniteAchievements.Providers.Metadata;
 using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
 using Playnite.SDK;
 using Playnite.SDK.Models;

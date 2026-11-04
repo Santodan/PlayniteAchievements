@@ -75,20 +75,22 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Base",
-                setCategoryType: "Base");
+                setCategoryKind: "Base");
 
             Assert.AreEqual(2, achievements.Count);
 
-            // Base-set achievements carry the "Base" type combined with the unlock mode.
+            // Base-set achievements are of kind Base and carry the unlock mode as a tag.
             var soft = achievements.Single(item => item.ApiName == "101");
             Assert.AreEqual("Base", soft.Category);
-            Assert.AreEqual("Base|Softcore", soft.CategoryType);
+            Assert.AreEqual("Base", soft.CategoryKind);
+            Assert.AreEqual("Softcore", soft.Tags);
             Assert.AreEqual(new DateTime(2025, 6, 11, 13, 5, 22, DateTimeKind.Utc), soft.UnlockTimeUtc);
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345.png", soft.UnlockedIconPath);
             Assert.AreEqual("https://i.retroachievements.org/Badge/12345_lock.png", soft.LockedIconPath);
 
             var hard = achievements.Single(item => item.ApiName == "102");
-            Assert.AreEqual("Base|WinCondition|Hardcore", hard.CategoryType);
+            Assert.AreEqual("Base", hard.CategoryKind);
+            Assert.AreEqual("WinCondition|Hardcore", hard.Tags);
             Assert.AreEqual(new DateTime(2025, 6, 12, 2, 0, 0, DateTimeKind.Utc), hard.UnlockTimeUtc);
             // A win condition means the game was beaten, not finished; mastering a set is plain
             // 100% and needs no capstone, so RetroAchievements supplies none.
@@ -136,18 +138,20 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Bonus",
-                setCategoryType: "Subset");
+                setCategoryKind: "Subset");
 
-            // The free-form label is unchanged; only the canonical type gains "Subset",
-            // combined with the unlock mode in canonical order (Subset before Softcore/Hardcore).
+            // The free-form label is unchanged; the kind is Subset and the unlock mode is a tag.
             Assert.AreEqual("Bonus", achievements.Single(item => item.ApiName == "201").Category);
-            Assert.AreEqual("Subset|Softcore", achievements.Single(item => item.ApiName == "201").CategoryType);
-            Assert.AreEqual("Subset|Hardcore", achievements.Single(item => item.ApiName == "202").CategoryType);
-            Assert.AreEqual("Subset", achievements.Single(item => item.ApiName == "203").CategoryType);
+            Assert.AreEqual("Subset", achievements.Single(item => item.ApiName == "201").CategoryKind);
+            Assert.AreEqual("Softcore", achievements.Single(item => item.ApiName == "201").Tags);
+            Assert.AreEqual("Subset", achievements.Single(item => item.ApiName == "202").CategoryKind);
+            Assert.AreEqual("Hardcore", achievements.Single(item => item.ApiName == "202").Tags);
+            Assert.AreEqual("Subset", achievements.Single(item => item.ApiName == "203").CategoryKind);
+            Assert.IsNull(achievements.Single(item => item.ApiName == "203").Tags);
         }
 
         [TestMethod]
-        public void ParseAchievements_MapsAchievementTypeBetweenSetAndUnlockMode()
+        public void ParseAchievements_MapsAchievementTypeToTagsBesideUnlockMode()
         {
             var gameInfo = new RaGameInfoUserProgress
             {
@@ -180,29 +184,39 @@ namespace PlayniteAchievements.Tests.Providers
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Base",
-                setCategoryType: "Base");
+                setCategoryKind: "Base");
 
-            Assert.AreEqual("Base|Progression", baseSet.Single(item => item.ApiName == "301").CategoryType);
-            Assert.AreEqual("Base|WinCondition|Hardcore", baseSet.Single(item => item.ApiName == "302").CategoryType);
-            Assert.AreEqual("Base|Missable", baseSet.Single(item => item.ApiName == "303").CategoryType);
-            Assert.AreEqual("Base|Missable|Softcore", baseSet.Single(item => item.ApiName == "304").CategoryType);
-            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "305").CategoryType);
-            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "306").CategoryType);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "301").CategoryKind);
+            Assert.AreEqual("Progression", baseSet.Single(item => item.ApiName == "301").Tags);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "302").CategoryKind);
+            Assert.AreEqual("WinCondition|Hardcore", baseSet.Single(item => item.ApiName == "302").Tags);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "303").CategoryKind);
+            Assert.AreEqual("Missable", baseSet.Single(item => item.ApiName == "303").Tags);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "304").CategoryKind);
+            Assert.AreEqual("Missable|Softcore", baseSet.Single(item => item.ApiName == "304").Tags);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "305").CategoryKind);
+            Assert.IsNull(baseSet.Single(item => item.ApiName == "305").Tags);
+            Assert.AreEqual("Base", baseSet.Single(item => item.ApiName == "306").CategoryKind);
+            Assert.IsNull(baseSet.Single(item => item.ApiName == "306").Tags);
 
             var subset = RetroAchievementsAchievementMapper.ParseAchievements(
                 gameInfo,
                 rarityStats: "casual",
                 categoryLabel: "Bonus",
-                setCategoryType: "Subset");
+                setCategoryKind: "Subset");
 
-            Assert.AreEqual("Subset|Missable", subset.Single(item => item.ApiName == "303").CategoryType);
-            Assert.AreEqual("Subset|WinCondition|Hardcore", subset.Single(item => item.ApiName == "302").CategoryType);
+            Assert.AreEqual("Subset", subset.Single(item => item.ApiName == "303").CategoryKind);
+            Assert.AreEqual("Missable", subset.Single(item => item.ApiName == "303").Tags);
+            Assert.AreEqual("Subset", subset.Single(item => item.ApiName == "302").CategoryKind);
+            Assert.AreEqual("WinCondition|Hardcore", subset.Single(item => item.ApiName == "302").Tags);
 
-            // Without a set type the achievement type still combines with the unlock mode, and an
-            // untyped locked achievement stays untyped.
+            // Without a set kind the achievement type still combines with the unlock mode, and an
+            // untyped locked achievement has no tags.
             var noSet = RetroAchievementsAchievementMapper.ParseAchievements(gameInfo, rarityStats: "casual");
-            Assert.AreEqual("WinCondition|Hardcore", noSet.Single(item => item.ApiName == "302").CategoryType);
-            Assert.IsNull(noSet.Single(item => item.ApiName == "305").CategoryType);
+            Assert.IsNull(noSet.Single(item => item.ApiName == "302").CategoryKind);
+            Assert.AreEqual("WinCondition|Hardcore", noSet.Single(item => item.ApiName == "302").Tags);
+            Assert.IsNull(noSet.Single(item => item.ApiName == "305").CategoryKind);
+            Assert.IsNull(noSet.Single(item => item.ApiName == "305").Tags);
         }
 
         [TestMethod]

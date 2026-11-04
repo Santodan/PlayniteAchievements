@@ -9,6 +9,7 @@ using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.GameSearch;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -21,7 +22,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IInGameProgressSource, IDisposable
+    internal sealed class RetroAchievementsDataProvider : DataProviderBase<RetroAchievementsSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IProviderOverrideSearch, IInGameProgressSource, IDisposable
     {
         public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
             "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_RetroAchievements",
@@ -519,8 +520,26 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
         }
 
-        // private bool TryResolveConsoleId(Game game, out int consoleId)
-        //     => RaConsoleIdResolver.TryResolve(game, out consoleId);
+        /// <summary>
+        /// The game's console's RetroAchievements list, searched by title. Null without an API key
+        /// or for a platform with no RetroAchievements console, where the game id is typed instead.
+        /// </summary>
+        public IGameSearchSource CreateOverrideSearch(Game game)
+        {
+            if (!IsAuthenticated || !RaConsoleIdResolver.TryResolve(game, out var consoleId))
+            {
+                return null;
+            }
+
+            EnsureInitialized();
+            var scanner = _scanner;
+            var api = _apiClient;
+            return new RetroAchievementsGameSearch(
+                consoleId,
+                (id, ct) => scanner.GetOrFetchGameListAsync(id, ct),
+                (id, ct) => api.GetGameExtendedAsync(id, ct),
+                ProviderName);
+        }
 
         public void Dispose()
         {

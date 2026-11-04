@@ -318,6 +318,9 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
+    <EmbeddedResource Include="Resources\IcoFontNames.txt">
+      <LogicalName>PlayniteAchievements.Resources.IcoFontNames.txt</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Providers\Hoyoverse\Data\starrailstation.json">
       <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
     </EmbeddedResource>

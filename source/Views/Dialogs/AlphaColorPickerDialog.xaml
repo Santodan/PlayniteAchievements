@@ -403,12 +403,12 @@
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Margin="{StaticResource PlayAch.Thickness.Top.Md}">
-                <Button Content="{DynamicResource LOCOKLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_OK}"
                         MinWidth="80"
                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
                         IsDefault="True"
                         Click="OkButton_Click"/>
-                <Button Content="{DynamicResource LOCCancelLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}"
                         MinWidth="80"
                         IsCancel="True"
                         Click="CancelButton_Click"/>

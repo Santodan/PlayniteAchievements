@@ -32,9 +32,28 @@ namespace PlayniteAchievements.Providers.Exophase
         internal const string ExophaseStableApiNamePrefix = "exophase:";
         private const int AchievementDomReadyPollDelayMs = 250;
         private const int AchievementDomReadyPollAttempts = 8;
+
+        // A public page's list can still be rendering when navigation ends (long lists stopped near
+        // 50 rows): its row count is read until it holds for two reads.
+        private const int AwardRowsPollDelayMs = 400;
+        private const int AwardRowsPollAttempts = 10;
+
+        // Rows of the award list, as ParseAchievementsHtml finds them; -1 when the page has no list.
+        private const string AwardRowCountScript =
+            "(function(){try{var lists=document.querySelectorAll('ul[class*=achievement],ul[class*=trophy],ul[class*=challenge]');" +
+            "if(!lists.length){return -1;}var n=0;for(var i=0;i<lists.length;i++){n+=lists[i].querySelectorAll(':scope > li').length;}" +
+            "return n;}catch(e){return -1;}})()";
         // Above this many images, the in-browser CDN warm is skipped; DiskImageService's
         // lazy-thumbnail retry path warms each thumbnail on download instead.
         private const int MaxImageWarmCount = 400;
+
+        // Shared by every client so the provider, rarity and metadata searches back off together.
+        // Retries only, up to four, waiting roughly 4, 6, 10 and 18 seconds after a throttled answer.
+        private static readonly RateLimiter SearchRateLimiter = new RateLimiter(2000, 4);
+
+        // The page text of a throttled answer is the status alone, possibly wrapped in characters
+        // the browser view adds around plain text.
+        private static readonly Regex ThrottledBody = new Regex(@"^\W*429\W*$", RegexOptions.CultureInvariant);
 
         // Renderer-side mirror of ContainsAchievementMarkup + HasUnlockDataPopulated so readiness
         // can be polled without serializing the full page source across the CEF boundary each pass.
@@ -97,7 +116,12 @@ namespace PlayniteAchievements.Providers.Exophase
                 return ExophaseCookieSnapshotStore.HasCriticalCookies(cookies);
             }
 
-            _logger?.Warn("[Exophase] No snapshot cookies available for this refresh - fetches may not show unlocked achievements.");
+            // A client built without a snapshot store reads public pages only.
+            if (_cookieSnapshotStore != null)
+            {
+                _logger?.Warn("[Exophase] No snapshot cookies available for this refresh - fetches may not show unlocked achievements.");
+            }
+
             return false;
         }
 
@@ -186,6 +210,31 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// The game slug typed into a search box: one an exophase.com game address names, or a bare
+        /// slug that ends in a platform ("hades-steam"), so a plain game name is never read as one.
+        /// Null otherwise.
+        /// </summary>
+        public static string TryParseGameSlug(string text)
+        {
+            var trimmed = (text ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                return null;
+            }
+
+            if (trimmed.IndexOf('/') >= 0 || trimmed.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var slug = ExtractSlugFromUrl(trimmed);
+                return string.IsNullOrWhiteSpace(slug) ? null : slug.ToLowerInvariant();
+            }
+
+            return System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$") &&
+                   ExophaseFriendPlatformMatcher.ExtractPlatformSlugFromGameSlug(trimmed) != null
+                ? trimmed.ToLowerInvariant()
+                : null;
         }
 
         /// <summary>
@@ -278,32 +327,54 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <param name="ct">Cancellation token.</param>
         public async Task<List<ExophaseGame>> SearchGamesAsync(string query, string platformSlug, CancellationToken ct)
         {
+            return (await TrySearchGamesAsync(query, platformSlug, ct).ConfigureAwait(false)).Games;
+        }
+
+        /// <summary>
+        /// The search's games, and whether Exophase answered at all: false for a failed request,
+        /// a challenge page or a search still throttled, which say nothing about the game.
+        /// </summary>
+        internal async Task<(List<ExophaseGame> Games, bool Answered)> TrySearchGamesAsync(string query, string platformSlug, CancellationToken ct)
+        {
             if (string.IsNullOrWhiteSpace(query))
             {
-                return new List<ExophaseGame>();
+                return (new List<ExophaseGame>(), true);
             }
 
             try
             {
                 var url = BuildSearchUrl(query, platformSlug);
 
-                // Use WebView to bypass Cloudflare protection
-                var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
+                // Use WebView to bypass Cloudflare protection. A throttled search answers with the
+                // bare body "429"; it is retried with backoff rather than read as no results.
+                var json = await SearchRateLimiter.ExecuteWithRetryAsync(
+                    async () =>
+                    {
+                        var body = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
+                        if (body != null && ThrottledBody.IsMatch(body))
+                        {
+                            throw new ExophaseThrottledException();
+                        }
+
+                        return body;
+                    },
+                    ex => ex is ExophaseThrottledException,
+                    ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(json))
                 {
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), false);
                 }
 
                 if (Regex.IsMatch(json, "\"games\"\\s*:\\s*false\\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
                 {
                     _logger?.Debug("[Exophase] Search returned games:false; treating as no matches");
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), true);
                 }
 
                 var result = Serialization.FromJson<ExophaseSearchResult>(json);
                 if (result?.Games?.List == null || result.Games.List.Count == 0)
                 {
-                    return new List<ExophaseGame>();
+                    return (new List<ExophaseGame>(), true);
                 }
 
                 // Filter to only games with achievements (endpoint_awards URL)
@@ -311,17 +382,26 @@ namespace PlayniteAchievements.Providers.Exophase
                     .Where(g => g != null && !string.IsNullOrWhiteSpace(g.EndpointAwards))
                     .ToList();
 
-                return filtered;
+                return (filtered, true);
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
+            catch (ExophaseThrottledException)
+            {
+                _logger?.Warn($"[Exophase] Search for '{query}' still throttled after retries.");
+                return (new List<ExophaseGame>(), false);
+            }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Exophase search failed");
-                return new List<ExophaseGame>();
+                return (new List<ExophaseGame>(), false);
             }
+        }
+
+        private sealed class ExophaseThrottledException : Exception
+        {
         }
 
         /// <summary>
@@ -458,7 +538,8 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 if (result == null)
                 {
-                    _logger?.Warn($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
+                    // Guessed page names miss routinely; callers decide what a missing page means.
+                    _logger?.Debug($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
                 }
 
                 return new AchievementFetchResult { Achievements = result, Html = html };
@@ -482,10 +563,154 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
+        /// An award page read once into what the metadata lookups use, without the page source:
+        /// its awards, its award lists by section, its own game image, the same game's pages on
+        /// other platforms, and whether Exophase answered with its human check instead. An address
+        /// Exophase answers with 404 gives <see cref="ExophaseAwardPage.Missing"/>. Returns null on
+        /// hard failure, like <see cref="FetchAchievementsWithHtmlAsync"/>.
+        /// </summary>
+        internal async Task<ExophaseAwardPage> FetchAwardPageAsync(string achievementUrl, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(achievementUrl))
+            {
+                return null;
+            }
+
+            try
+            {
+                var status = new System.Runtime.CompilerServices.StrongBox<int?>();
+                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct, httpStatus: status).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(html))
+                {
+                    _logger?.Warn($"[Exophase] No HTML fetched for achievement URL: {achievementUrl}");
+                    return null;
+                }
+
+                if (status.Value == 404)
+                {
+                    _logger?.Debug($"[Exophase] No award page at {achievementUrl} (HTTP 404).");
+                    return ExophaseAwardPage.Missing;
+                }
+
+                // Any other error answer (a rate limit, a server error) says nothing about the
+                // page, so it is a failed load, not a page without awards.
+                if (status.Value is int code && (code < 200 || code >= 300))
+                {
+                    _logger?.Debug($"[Exophase] Award page {achievementUrl} answered HTTP {code}; not read.");
+                    return null;
+                }
+
+                var isChallenge = html.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                  html.IndexOf("cf-chl", StringComparison.OrdinalIgnoreCase) >= 0;
+                var doc = new HtmlDocument();
+                doc.LoadHtml(html);
+
+                var achievements = ParseAchievementsDocument(doc);
+                if (achievements == null)
+                {
+                    _logger?.Debug($"[Exophase] ParseAchievementsHtml returned null for {achievementUrl}");
+                }
+
+                var sections = ExophaseGamePageParser.ParseAwardSectionsFrom(doc, out var gameArt);
+                return new ExophaseAwardPage(
+                    achievements,
+                    sections,
+                    gameArt,
+                    ExophaseGamePageParser.ParseRelatedPagesFrom(doc),
+                    isChallenge,
+                    ExophaseGamePageParser.ParsePagePlatformFrom(doc));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"[Exophase] Failed to fetch achievements from {achievementUrl}");
+                return null;
+            }
+        }
+
+        private const string HttpStatusScript =
+            "(function () { var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]; " +
+            "return nav && nav.responseStatus ? String(nav.responseStatus) : ''; })()";
+
+        /// <summary>The loaded page's HTTP status; null when the browser does not report it.</summary>
+        private static async Task<int?> GetHttpStatusAsync(IWebView view)
+        {
+            var eval = await view.EvaluateScriptAsync(HttpStatusScript).ConfigureAwait(false);
+            return eval?.Success == true && int.TryParse(Convert.ToString(eval.Result), out var status) && status > 0
+                ? status
+                : (int?)null;
+        }
+
+        // Developer probe: what the browser shows for an award page address, as JSON.
+        private const string AwardPageProbeScript = @"(function () {
+  var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+  var meta = function (sel, attr) { var el = document.querySelector(sel); return el ? el.getAttribute(attr) : null; };
+  var text = function (sel) { var el = document.querySelector(sel); return el ? (el.innerText || '').trim().substring(0, 200) : null; };
+  return JSON.stringify({
+    href: location.href,
+    title: document.title,
+    status: nav.responseStatus === undefined ? null : nav.responseStatus,
+    navType: nav.type || null,
+    awardRows: document.querySelectorAll('ul.achievement > li, ul.trophy > li, ul.challenge > li, ul[class*=achievement] > li, ul[class*=trophy] > li, ul[class*=challenge] > li').length,
+    h1: text('h1'),
+    canonical: meta('link[rel=canonical]', 'href'),
+    ogUrl: meta('meta[property=""og:url""]', 'content'),
+    ogTitle: meta('meta[property=""og:title""]', 'content'),
+    robots: meta('meta[name=robots]', 'content'),
+    languageLinks: Array.prototype.map.call(document.querySelectorAll('a[href*=""/trophies/""], a[href*=""/achievements/""]'), function (a) { return a.getAttribute('href'); })
+      .filter(function (h) { return /\/(trophies|achievements)\/[a-z]{2}(-[A-Z]{2})?\/?$/.test(h); }).slice(0, 30),
+    htmlLength: document.documentElement.outerHTML.length,
+    bodyText: (document.body ? document.body.innerText : '').replace(/\s+/g, ' ').trim().substring(0, 600)
+  });
+})()";
+
+        /// <summary>
+        /// Developer probe: loads <paramref name="url"/> the way award pages load and returns what
+        /// the page shows (address after redirects, title, HTTP status, award rows, headings) as
+        /// JSON, with the page source in <paramref name="html"/>.
+        /// </summary>
+        internal async Task<(string Json, string Html, long Ms)> ProbeAwardPageAsync(string url, CancellationToken ct)
+        {
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            return await _offscreenViews.WithNavigableViewAsync(async view =>
+            {
+                string json;
+                string html = null;
+                try
+                {
+                    await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    await WaitForAwardRowsAsync(view, url, ct).ConfigureAwait(false);
+                    var eval = await view.EvaluateScriptAsync(AwardPageProbeScript).ConfigureAwait(false);
+                    json = eval?.Success == true ? Convert.ToString(eval.Result) : "{\"error\":\"script failed: " + eval?.Message + "\"}";
+                    html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    json = "{\"error\":\"" + ex.GetType().Name + ": " + ex.Message.Replace("\"", "'") + "\"}";
+                }
+
+                return (json, html, timer.ElapsedMilliseconds);
+            }, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
         /// Restores cookies from snapshot before fetching to ensure authenticated session.
         /// </summary>
-        private async Task<string> FetchHtmlViaWebViewAsync(string url, CancellationToken ct, bool waitForImages = false)
+        /// <param name="httpStatus">When given, receives the page's HTTP status, or null when the
+        /// browser does not report it.</param>
+        private async Task<string> FetchHtmlViaWebViewAsync(
+            string url,
+            CancellationToken ct,
+            bool waitForImages = false,
+            System.Runtime.CompilerServices.StrongBox<int?> httpStatus = null)
         {
             // Load cookies before creating the WebView. Reuses the per-refresh cache when a cookie
             // session is active; otherwise loads the snapshot for this call.
@@ -500,32 +725,47 @@ namespace PlayniteAchievements.Providers.Exophase
                     {
                         await RestoreCookiesAsync(view, snapshotCookies, ct).ConfigureAwait(false);
                     }
-                    else
+                    else if (_cookieSnapshotStore != null)
                     {
                         _logger?.Warn("[Exophase] No snapshot cookies to restore - fetching may not show unlocked achievements");
                     }
 
                     await view.NavigateAndWaitAsync(url, timeoutMs: 20000).ConfigureAwait(false);
+                    if (httpStatus != null)
+                    {
+                        httpStatus.Value = await GetHttpStatusAsync(view).ConfigureAwait(false);
+                    }
 
-                    // Wait for JavaScript to populate unlock status (loaded async after initial render)
-                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                    // A client without a cookie store reads public pages, which never carry unlock
+                    // data, so it takes the page as loaded instead of waiting for unlocks to appear.
+                    var waitForUnlocks = _cookieSnapshotStore != null;
+                    if (waitForUnlocks)
+                    {
+                        // Wait for JavaScript to populate unlock status (loaded async after initial render)
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
 
-                    // Poll a cheap renderer-side readiness signal, then serialize the (multi-MB for
-                    // large games) page source across the CEF boundary once instead of per attempt.
-                    await PollAsync(
-                        async _ =>
-                        {
-                            var eval = await view.EvaluateScriptAsync(AchievementDomReadyScript).ConfigureAwait(false);
-                            return eval?.Success == true &&
-                                   string.Equals(Convert.ToString(eval.Result), bool.TrueString, StringComparison.OrdinalIgnoreCase);
-                        },
-                        ready => ready,
-                        AchievementDomReadyPollAttempts,
-                        AchievementDomReadyPollDelayMs,
-                        ct).ConfigureAwait(false);
+                        // Poll a cheap renderer-side readiness signal, then serialize the (multi-MB for
+                        // large games) page source across the CEF boundary once instead of per attempt.
+                        await PollAsync(
+                            async _ =>
+                            {
+                                var eval = await view.EvaluateScriptAsync(AchievementDomReadyScript).ConfigureAwait(false);
+                                return eval?.Success == true &&
+                                       string.Equals(Convert.ToString(eval.Result), bool.TrueString, StringComparison.OrdinalIgnoreCase);
+                            },
+                            ready => ready,
+                            AchievementDomReadyPollAttempts,
+                            AchievementDomReadyPollDelayMs,
+                            ct).ConfigureAwait(false);
+                    }
+                    else if (httpStatus?.Value != 404)
+                    {
+                        // A missing page has no rows to wait for.
+                        await WaitForAwardRowsAsync(view, url, ct).ConfigureAwait(false);
+                    }
 
                     var html = await view.GetPageSourceAsync().ConfigureAwait(false);
-                    if (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html))
+                    if (waitForUnlocks && (!ContainsAchievementMarkup(html) || !HasUnlockDataPopulated(html)))
                     {
                         // The readiness script can race the final DOM mutation; retry the fetch once.
                         await Task.Delay(AchievementDomReadyPollDelayMs, ct).ConfigureAwait(false);
@@ -577,6 +817,53 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 _logger?.Error(ex, "[Exophase] Failed to fetch HTML via WebView");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Waits for a public page's award list to finish rendering: none when the page has no
+        /// list (a guessed page that does not exist), otherwise until the row count holds for two
+        /// reads, within a cap.
+        /// </summary>
+        private async Task WaitForAwardRowsAsync(IWebView view, string url, CancellationToken ct)
+        {
+            var first = await CountAwardRowsAsync(view).ConfigureAwait(false);
+            if (first < 0)
+            {
+                return;
+            }
+
+            var previous = first;
+            var steady = 0;
+            for (var attempt = 0; attempt < AwardRowsPollAttempts && steady < 2; attempt++)
+            {
+                await Task.Delay(AwardRowsPollDelayMs, ct).ConfigureAwait(false);
+                var count = await CountAwardRowsAsync(view).ConfigureAwait(false);
+                steady = count == previous ? steady + 1 : 0;
+                previous = count;
+            }
+
+            if (previous != first)
+            {
+                _logger?.Debug($"[Exophase] {url}: award rows grew from {first} to {previous} while rendering.");
+            }
+        }
+
+        private static async Task<int> CountAwardRowsAsync(IWebView view)
+        {
+            var eval = await view.EvaluateScriptAsync(AwardRowCountScript).ConfigureAwait(false);
+            if (eval?.Success != true || eval.Result == null)
+            {
+                return -1;
+            }
+
+            try
+            {
+                return Convert.ToInt32(eval.Result);
+            }
+            catch
+            {
+                return -1;
             }
         }
 
@@ -953,11 +1240,16 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+            return ParseAchievementsDocument(doc);
+        }
+
+        /// <summary>Achievement details from an already loaded page.</summary>
+        private List<AchievementDetail> ParseAchievementsDocument(HtmlDocument doc)
+        {
             try
             {
-                var doc = new HtmlDocument();
-                doc.LoadHtml(html);
-
                 // XPath: //ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]/li
                 var achievementNodes = doc.DocumentNode.SelectNodes(
                     "//ul[contains(@class,'achievement') or contains(@class,'trophy') or contains(@class,'challenge')]/li");
@@ -970,9 +1262,6 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 var achievements = new List<AchievementDetail>(achievementNodes.Count);
 
-                var unlockedCount = 0;
-                var lockedCount = 0;
-
                 foreach (var node in achievementNodes)
                 {
                     try
@@ -981,10 +1270,6 @@ namespace PlayniteAchievements.Providers.Exophase
                         if (achievement != null)
                         {
                             achievements.Add(achievement);
-                            if (achievement.Unlocked)
-                                unlockedCount++;
-                            else
-                                lockedCount++;
                         }
                     }
                     catch (Exception ex)
@@ -992,8 +1277,6 @@ namespace PlayniteAchievements.Providers.Exophase
                         _logger?.Debug(ex, "[Exophase] Failed to parse achievement node.");
                     }
                 }
-
-                _logger?.Info($"[Exophase] Parsed {achievements.Count} achievements ({unlockedCount} unlocked, {lockedCount} locked)");
 
                 var legacyKeyCount = achievements.Count(a =>
                     a.ApiName?.StartsWith(ExophaseStableApiNamePrefix, StringComparison.Ordinal) != true);
@@ -1154,7 +1437,7 @@ namespace PlayniteAchievements.Providers.Exophase
             };
         }
 
-        private static bool TryParseStableAwardId(HtmlNode node, out long stableAwardId)
+        internal static bool TryParseStableAwardId(HtmlNode node, out long stableAwardId)
         {
             stableAwardId = 0;
             var candidate = node.GetAttributeValue("data-master", "");
@@ -1206,12 +1489,26 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             var iconUrl = NormalizeIconUrlCandidate(imgNode.GetAttributeValue("data-normal", string.Empty));
-            if (!string.IsNullOrWhiteSpace(iconUrl))
+            if (string.IsNullOrWhiteSpace(iconUrl))
             {
-                return iconUrl;
+                iconUrl = NormalizeIconUrlCandidate(imgNode.GetAttributeValue("src", string.Empty));
             }
 
-            return NormalizeIconUrlCandidate(imgNode.GetAttributeValue("src", string.Empty));
+            return ToOriginalAwardIconUrl(iconUrl);
+        }
+
+        private static readonly Regex AwardIconSizePath = new Regex(
+            @"(m\.exophase\.com/[a-z0-9-]+/awards/)[a-z](/)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// The original upload of an Exophase award icon. Pages link the 64px copy under
+        /// <c>/awards/s/</c>; <c>/awards/o/</c> is the file Exophase received (512px for PS5
+        /// trophies), while the larger fixed sizes can be upscaled from a smaller original.
+        /// </summary>
+        internal static string ToOriginalAwardIconUrl(string url)
+        {
+            return string.IsNullOrWhiteSpace(url) ? url : AwardIconSizePath.Replace(url, "$1o$2", 1);
         }
 
         internal static string ResolveImageUrl(HtmlNode node)

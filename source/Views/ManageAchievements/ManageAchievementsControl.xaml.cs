@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.Editor,
             ManageAchievementsTab.Category,
+            ManageAchievementsTab.Tags,
             ManageAchievementsTab.Notifications,
             ManageAchievementsTab.CustomSchema,
             ManageAchievementsTab.LocalOverrides
@@ -73,6 +74,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private bool _selectManageCategoriesSubTab;
         // The Notifications tab's surface to show once its section exists: true for the frame.
         private NotificationSurface? _pendingNotificationsSurface;
+        private ManageAchievementsTagsTab _tagsControl;
         private bool _ensureTabContentQueued;
         private bool _categoryEditsPendingPropagation;
 
@@ -124,6 +126,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
+            OpenEditorRegistry.BackgroundWritten += OpenEditorRegistry_BackgroundWritten;
             Loaded += ManageAchievementsControl_Loaded;
 
             // A window per game visited, each holding that game's rows and resolved art. If
@@ -222,8 +225,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _refreshService.CacheDeltaUpdated -= RefreshService_CacheDeltaUpdated;
             }
 
+            OpenEditorRegistry.BackgroundWritten -= OpenEditorRegistry_BackgroundWritten;
+
             CleanupEditor();
             CleanupCategory();
+            CleanupTags();
             CleanupNotifications();
             CleanupCustomSchema();
             CleanupLocalOverrides();
@@ -356,6 +362,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     _categoryRefreshPending = false;
                 }
             }
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.Tags)
+            {
+                EnsureTagsControl();
+            }
             else if (_viewModel.SelectedTab == ManageAchievementsTab.Notifications)
             {
                 var hadNotificationsControl = _notificationsControl != null;
@@ -385,6 +395,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 EnsureLocalOverridesControl();
             }
+
+            // The editor holds back background capstone writes only while it shows; on another
+            // tab they land at once, and the editor reloads from them when it shows again.
+            _editorViewModel?.SetVisible(_viewModel.SelectedTab == ManageAchievementsTab.Editor);
 
             // Tabs stay lazy: only the selected one is built. Building the editor with the
             // window was tried and rejected - it put its construction and layout into every
@@ -546,6 +560,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     OverviewTabButton,
                     EditorTabButton,
                     CategoryTabButton,
+                    TagsTabButton,
                     NotificationsTabButton,
                     CustomSchemaTabButton,
                     LocalOverridesTabButton
@@ -587,6 +602,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     return _editorControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.Category:
                     return _categoryControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.Tags:
+                    root = _tagsControl ?? (DependencyObject)TagsHost;
+                    break;
                 case ManageAchievementsTab.Notifications:
                     root = _notificationsControl ?? (DependencyObject)NotificationsHost;
                     break;
@@ -692,7 +710,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Goals, "LOCPlayAch_ManageAchievements_Editor_Goal"),
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Categorized, "LOCPlayAch_ManageAchievements_Overview_Categorized"),
             Tuple.Create(Models.Settings.ManageSidebarStatGroups.Filtered, "LOCPlayAch_Menu_Filters"),
-            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Notes, "LOCNotesLabel")
+            Tuple.Create(Models.Settings.ManageSidebarStatGroups.Notes, "LOCPlayAch_Common_Notes")
         };
 
         private void SidebarStatsHost_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -1020,6 +1038,27 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _categoryControl.SelectManageCategoriesSubTab();
         }
 
+        private void EnsureTagsControl()
+        {
+            var store = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (_tagsControl != null || store == null)
+            {
+                return;
+            }
+
+            _tagsControl = new ManageAchievementsTagsTab(_viewModel.GameId, store, _settings, SaveSettings);
+            TagsHost.Content = _tagsControl;
+        }
+
+        private void CleanupTags()
+        {
+            _tagsControl = null;
+            if (TagsHost != null)
+            {
+                TagsHost.Content = null;
+            }
+        }
+
         private void EnsureNotificationsControl(bool forceRecreate)
         {
             if (_notificationsControl != null && !forceRecreate)
@@ -1201,6 +1240,18 @@ namespace PlayniteAchievements.Views.ManageAchievements
             DispatchHandleStateChanged();
         }
 
+        // A platinum labelled or a capstone authored after a refresh lands after that refresh's
+        // reload, so it shows only through this one.
+        private void OpenEditorRegistry_BackgroundWritten(Guid gameId)
+        {
+            if (_viewModel == null || gameId != _viewModel.GameId)
+            {
+                return;
+            }
+
+            DispatchHandleStateChanged();
+        }
+
         private void RefreshService_CacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
         {
             if (e?.IsFullReset != true)
@@ -1359,6 +1410,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 _categoryViewModel.FlushDeferredLibraryRefresh();
                 _categoryViewModel.CategoryMetadataPersisted -= CategoryViewModel_CategoryMetadataPersisted;
                 _categoryViewModel.DeferredLibraryRefreshRequired -= CategoryViewModel_DeferredLibraryRefreshRequired;
+                _categoryViewModel.Detach();
             }
 
             if (_categoryControl != null)

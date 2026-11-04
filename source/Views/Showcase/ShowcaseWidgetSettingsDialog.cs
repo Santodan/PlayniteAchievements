@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Views.Helpers;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
@@ -22,13 +23,20 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly ShowcaseWidgetInstanceSettings _workingWidget;
         private readonly ShowcaseProfileSettings _workingProfile;
         private readonly bool _linked;
-        private readonly bool _includeScoreHistory;
+        private readonly bool _overviewHeaderCard;
+        private readonly bool _backgroundDefault;
         private TextBox _titleBox;
         private ShowcaseProfileSettingsEditor _profileEditor;
+        private ShowcaseWidgetOptionsControl _options;
 
-        private ShowcaseWidgetSettingsDialog(ShowcaseWidgetInstanceSettings widget, bool linked, bool includeScoreHistory)
+        private ShowcaseWidgetSettingsDialog(
+            ShowcaseWidgetInstanceSettings widget,
+            bool linked,
+            bool overviewHeaderCard,
+            bool backgroundDefault)
         {
-            _includeScoreHistory = includeScoreHistory;
+            _overviewHeaderCard = overviewHeaderCard;
+            _backgroundDefault = backgroundDefault;
             _sourceWidget = widget ?? throw new ArgumentNullException(nameof(widget));
             _linked = linked;
             _workingWidget = widget.Clone();
@@ -51,15 +59,20 @@ namespace PlayniteAchievements.Views.Showcase
         /// True for a widget linked to the overview: its title comes from the overview's
         /// selections, so no title field is offered.
         /// </param>
-        /// <param name="includeScoreHistory">False for a score card with no history chart, such as the Overview header's.</param>
-        public static bool Show(ShowcaseWidgetInstanceSettings widget, bool linked = false, bool includeScoreHistory = true)
+        /// <param name="overviewHeaderCard">True for an Overview header score card, which has no history chart or control bar.</param>
+        /// <param name="backgroundDefault">The host's default for the widget background: shown on the Showcase, hidden on the start page.</param>
+        public static bool Show(
+            ShowcaseWidgetInstanceSettings widget,
+            bool linked = false,
+            bool overviewHeaderCard = false,
+            bool backgroundDefault = true)
         {
             if (widget == null)
             {
                 return false;
             }
 
-            var editor = new ShowcaseWidgetSettingsDialog(widget, linked, includeScoreHistory);
+            var editor = new ShowcaseWidgetSettingsDialog(widget, linked, overviewHeaderCard, backgroundDefault);
             var title = string.Format(
                 FormattingCulture.Current,
                 Localize("LOCPlayAch_Showcase_WidgetSettingsTitle"),
@@ -87,6 +100,12 @@ namespace PlayniteAchievements.Views.Showcase
             WindowPlacementPersistenceService.Attach(window, WindowPlacementKey);
 
             window.ShowDialog();
+            if (!editor.Saved)
+            {
+                // Cancel and the close button both land here.
+                editor._options?.RevertLivePreview();
+            }
+
             return editor.Saved;
         }
 
@@ -121,20 +140,27 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 // Edits the clone; Save copies it back and Cancel discards it.
                 _profileEditor = new ShowcaseProfileSettingsEditor(_workingProfile);
-                panel.Children.Add(_profileEditor);
             }
 
-            // An unlinked widget always has its title alignment and background rows; a linked one
-            // (titled by the overview, or an Overview header card) has only its kind's options.
+            // An unlinked widget always has its title alignment and background rows, right under
+            // the title box; a linked one (titled by the overview, or an Overview header card) has
+            // only its kind's options. The profile editor follows the shared rows.
             if (!_linked || ShowcaseWidgetOptionsControl.HasOptions(_workingWidget.Kind))
             {
-                panel.Children.Add(new ShowcaseWidgetOptionsControl(
+                _options = new ShowcaseWidgetOptionsControl(
                     _workingWidget,
                     publishChanges: false,
                     margin: new Thickness(0),
                     loadStyles: false,
-                    includeScoreHistory: _includeScoreHistory,
-                    backgroundDefault: _linked ? (bool?)null : true));
+                    overviewHeaderCard: _overviewHeaderCard,
+                    backgroundDefault: _linked ? (bool?)null : _backgroundDefault,
+                    contentAfterSharedRows: _profileEditor,
+                    liveWidget: _sourceWidget);
+                panel.Children.Add(_options);
+            }
+            else if (_profileEditor != null)
+            {
+                panel.Children.Add(_profileEditor);
             }
 
             var buttons = new StackPanel
@@ -145,14 +171,14 @@ namespace PlayniteAchievements.Views.Showcase
             buttons.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
             var cancel = new Button
             {
-                Content = Localize("LOCCancelLabel"),
+                Content = Localize("LOCPlayAch_Common_Cancel"),
                 MinWidth = 82
             };
             cancel.SetResourceReference(MarginProperty, "PlayAch.Thickness.Right.Sm");
             cancel.Click += (_, __) => Window.GetWindow(this)?.Close();
             var save = new Button
             {
-                Content = Localize("LOCSaveLabel"),
+                Content = Localize("LOCPlayAch_Common_Save"),
                 MinWidth = 82,
                 IsDefault = true
             };
@@ -170,9 +196,8 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 _sourceWidget.CustomTitle = _titleBox.Text?.Trim();
             }
-            _sourceWidget.Options = new Dictionary<string, string>(
-                _workingWidget.Options ?? new Dictionary<string, string>(),
-                StringComparer.OrdinalIgnoreCase);
+            // The control bar rows edit the live filters, so their saved state stays the source's.
+            _sourceWidget.Options = ShowcaseWidgetOptions.MergeEditedOptions(_sourceWidget, _workingWidget);
             if (_sourceWidget.Kind == ShowcaseWidgetKind.Profile && _profileEditor != null)
             {
                 // Per widget, so the card on a duplicated page is edited on its own.

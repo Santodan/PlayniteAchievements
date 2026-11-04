@@ -143,7 +143,7 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <summary>
-        /// Sets Category and CategoryType from Steam achievement sets, and marks archived
+        /// Sets Category and CategoryKind from Steam achievement sets, and marks archived
         /// achievements Unobtainable. Returns the api names that belong to a named set (any set
         /// other than the unnamed base set), which other category sources leave alone when merging.
         /// Games without real sets keep a null Category, the provider convention for "no
@@ -178,9 +178,9 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     schema.Groups.TryGetValue(definition.GroupId, out var group);
                     achievement.Category = ResolveSetLabel(group, gameName);
-                    achievement.CategoryType = group?.DlcAppId > 0
-                        ? SteamCategoryLabels.DlcCategoryType
-                        : SteamCategoryLabels.BaseCategoryType;
+                    achievement.CategoryKind = group?.DlcAppId > 0
+                        ? SteamCategoryLabels.DlcKind
+                        : SteamCategoryLabels.BaseKind;
                     if (IsNamedSet(group))
                     {
                         named.Add(apiName);
@@ -189,7 +189,7 @@ namespace PlayniteAchievements.Providers.Steam
 
                 if (definition.Archived || (useSets && IsArchivedGroup(schema, definition.GroupId)))
                 {
-                    achievement.CategoryType = WithUnobtainable(achievement.CategoryType);
+                    achievement.Tags = WithUnobtainable(achievement.Tags);
                 }
             }
 
@@ -223,49 +223,8 @@ namespace PlayniteAchievements.Providers.Steam
                 var apiName = achievement?.ApiName?.Trim();
                 if (apiName != null && archived.Contains(apiName))
                 {
-                    achievement.CategoryType = WithUnobtainable(achievement.CategoryType);
+                    achievement.Tags = WithUnobtainable(achievement.Tags);
                 }
-            }
-        }
-
-        /// <summary>
-        /// Copies Category and CategoryType from <paramref name="stored"/> onto achievements
-        /// another category source was expected to set but could not, so a refresh without that
-        /// source keeps what was stored instead of writing blanks over it. Achievements in
-        /// <paramref name="preserveApiNames"/> and those without a stored row keep their values.
-        /// </summary>
-        public static void CarryForwardCategories(
-            IList<AchievementDetail> achievements,
-            IEnumerable<AchievementDetail> stored,
-            ISet<string> preserveApiNames)
-        {
-            if (achievements == null || achievements.Count == 0 || stored == null)
-            {
-                return;
-            }
-
-            var storedByApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in stored)
-            {
-                var apiName = row?.ApiName?.Trim();
-                if (!string.IsNullOrWhiteSpace(apiName) && !storedByApiName.ContainsKey(apiName))
-                {
-                    storedByApiName[apiName] = row;
-                }
-            }
-
-            foreach (var achievement in achievements)
-            {
-                var apiName = achievement?.ApiName?.Trim();
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    preserveApiNames?.Contains(apiName) == true ||
-                    !storedByApiName.TryGetValue(apiName, out var row))
-                {
-                    continue;
-                }
-
-                achievement.Category = row.Category;
-                achievement.CategoryType = row.CategoryType;
             }
         }
 
@@ -285,12 +244,12 @@ namespace PlayniteAchievements.Providers.Steam
                 return plan;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
             var baseLabel = string.IsNullOrWhiteSpace(gameName) ? null : gameName.Trim();
             if (baseLabel != null && seen.Add(baseLabel))
             {
                 plan.Add(new KeyValuePair<string, int>(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(baseLabel),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(baseLabel),
                     appId));
             }
 
@@ -310,7 +269,7 @@ namespace PlayniteAchievements.Providers.Steam
                 }
 
                 plan.Add(new KeyValuePair<string, int>(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(label),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(label),
                     group.DlcAppId > 0 ? group.DlcAppId : appId));
             }
 
@@ -342,12 +301,12 @@ namespace PlayniteAchievements.Providers.Steam
                    group.Archived;
         }
 
-        private static string WithUnobtainable(string categoryType)
+        private static string WithUnobtainable(string tags)
         {
-            return AchievementCategoryTypeHelper.Combine(new[]
+            return AchievementTagHelper.Combine(new[]
             {
-                categoryType,
-                AchievementCategoryTypeHelper.UnobtainableCategoryType
+                tags,
+                AchievementTagHelper.Unobtainable
             });
         }
 

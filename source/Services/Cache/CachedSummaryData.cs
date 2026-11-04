@@ -101,6 +101,9 @@ namespace PlayniteAchievements.Services.Cache
 
         public int TrophyBronzeTotal { get; set; }
 
+        /// <summary>Achievements per tag, with the user's tag edits applied; null when none are tagged.</summary>
+        public AchievementTally[] Tallies { get; set; }
+
         public bool IsCompleted { get; set; }
 
         /// <summary>How many capstones the game has, and how many are earned.</summary>
@@ -180,7 +183,9 @@ namespace PlayniteAchievements.Services.Cache
         /// </summary>
         public string ProviderCategory { get; set; }
 
-        public string CategoryType { get; set; }
+        public string Tags { get; set; }
+
+        public string CategoryKind { get; set; }
 
         public string TrophyType { get; set; }
 

@@ -95,6 +95,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableUnlockToasts = true;
         private bool _enableFriendUnlockToasts = true;
         private bool _enableProgressToasts = true;
+        private bool _skipCompletionNotificationAfterCapstone = true;
+        private int _progressToastIntervalPercent;
         private NotificationStyleSettings _notificationStyle;
         private bool _toastUseThemeStyling = true;
         private bool _frameUseThemeStyling = true;
@@ -214,7 +216,6 @@ namespace PlayniteAchievements.Models.Settings
         private int _friendsOverviewRecentUnlockLimit = 200;
         private bool _showTopMenuBarButton = true;
         private bool _showCompletedProgressColoring = true;
-        private bool _tintMissableLocks = true;
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
@@ -227,6 +228,8 @@ namespace PlayniteAchievements.Models.Settings
         private DateDisplayMode _unlockDateDisplayMode = DateDisplayMode.DateAndTime;
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
+        private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
+        private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
@@ -259,6 +262,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, ResourceOverrideSetting> _resourceOverrides =
             new Dictionary<string, ResourceOverrideSetting>(StringComparer.OrdinalIgnoreCase);
         private List<CustomRefreshPreset> _customRefreshPresets = new List<CustomRefreshPreset>();
+        private List<AchievementTagDefinition> _achievementTags;
         private double _overviewLeftColumnRatio = DefaultOverviewLeftColumnRatio;
         private double _friendsOverviewFriendColumnRatio = DefaultFriendsOverviewFriendColumnRatio;
         private double _friendsOverviewGameColumnRatio = DefaultFriendsOverviewGameColumnRatio;
@@ -1040,6 +1044,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// The global achievement tag list edited in Settings &gt; Metadata. Null until the user first
+        /// edits it, which means the built-in list; see <see cref="ResolveAchievementTags"/>. Kept null
+        /// by default because deserialization appends to a non-null list rather than replacing it.
+        /// </summary>
+        public List<AchievementTagDefinition> AchievementTags
+        {
+            get => _achievementTags;
+            set => SetValue(ref _achievementTags, AchievementTagHelper.NormalizeDefinitions(value, ensureSystemTags: true));
+        }
+
+        /// <summary>The effective global tag list: <see cref="AchievementTags"/>, or the built-ins.</summary>
+        public List<AchievementTagDefinition> ResolveAchievementTags() =>
+            AchievementTags ?? AchievementTagHelper.CreateDefaultDefinitions();
+
+        /// <summary>
         /// Saved presets for Custom Refresh dialog.
         /// </summary>
         public List<CustomRefreshPreset> CustomRefreshPresets
@@ -1253,6 +1272,27 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableProgressToasts;
             set => SetValue(ref _enableProgressToasts, value);
+        }
+
+        /// <summary>
+        /// Drop the standalone 100% notification when the unlock that reached 100% is a capstone
+        /// outside DLC and subset categories, whose own notification already marks the completion.
+        /// Applies to the user's and friends' unlocks alike.
+        /// </summary>
+        public bool SkipCompletionNotificationAfterCapstone
+        {
+            get => _skipCompletionNotificationAfterCapstone;
+            set => SetValue(ref _skipCompletionNotificationAfterCapstone, value);
+        }
+
+        /// <summary>
+        /// A progress notification fires only when progress passes another multiple of this
+        /// percentage of the goal. 0 notifies on every advance. Clamped to 0-99.
+        /// </summary>
+        public int ProgressToastIntervalPercent
+        {
+            get => _progressToastIntervalPercent;
+            set => SetValue(ref _progressToastIntervalPercent, Math.Max(0, Math.Min(99, value)));
         }
 
         /// <summary>
@@ -2326,8 +2366,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// The overview header's first score card: its type, badge side, show-total and color
-        /// options, stored as a Scores widget's options and edited from the card's right-click
+        /// The overview header's first score card: its type, badge side, show-total, color, rarity
+        /// badge and game art options and a points card's filters, stored as a Scores widget's
+        /// options (the filters under its instance ID) and edited from the card's right-click
         /// menu. Replaced on load so the seeded default is not populated. Profiles saved with the
         /// old card slots are converted by OverviewSettingsMigration.
         /// </summary>
@@ -2413,16 +2454,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showCompletedProgressColoring;
             set => SetValue(ref _showCompletedProgressColoring, value);
-        }
-
-        /// <summary>
-        /// When true, the status column draws the lock of a locked Missable achievement in red
-        /// instead of the glyph color.
-        /// </summary>
-        public bool TintMissableLocks
-        {
-            get => _tintMissableLocks;
-            set => SetValue(ref _tintMissableLocks, value);
         }
 
         /// <summary>
@@ -2564,6 +2595,26 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _categoryCompletionBadgeMode;
             set => SetValue(ref _categoryCompletionBadgeMode, value);
+        }
+
+        /// <summary>
+        /// Whether art in resizable grid columns stretches to fill the cell or stops at its own
+        /// pixel size.
+        /// </summary>
+        public IconScaleMode IconScaleMode
+        {
+            get => _iconScaleMode;
+            set => SetValue(ref _iconScaleMode, value);
+        }
+
+        /// <summary>
+        /// Which part of a nested category the grids' Category column shows: the subcategory, the
+        /// top level, or the full path.
+        /// </summary>
+        public CategoryColumnDisplay CategoryColumnDisplay
+        {
+            get => _categoryColumnDisplay;
+            set => SetValue(ref _categoryColumnDisplay, value);
         }
 
         /// <summary>
@@ -3327,12 +3378,17 @@ namespace PlayniteAchievements.Models.Settings
                 AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,
                 AutoCapstoneTemplateHistory = new List<string>(this.AutoCapstoneTemplateHistory ?? new List<string>()),
                 AutoCapstoneAppliedTemplates = this.AutoCapstoneAppliedTemplates,
+                MetadataDefaults = (this.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone(),
+                MetadataPlatformChoices = ClonePlatformChoices(this.MetadataPlatformChoices),
+                MetadataChoicesSeeded = this.MetadataChoicesSeeded,
+                MetadataConsoleVersion = this.MetadataConsoleVersion,
                 InGamePollIntervalSeconds = this.InGamePollIntervalSeconds,
                 InGamePollRefreshFriends = this.InGamePollRefreshFriends,
                 InGameFriendRefreshMultiplier = this.InGameFriendRefreshMultiplier,
                 InGameFriendBatchSize = this.InGameFriendBatchSize,
                 RecentRefreshGamesCount = this.RecentRefreshGamesCount,
                 DefaultOverviewRefreshMode = this.DefaultOverviewRefreshMode,
+                AchievementTags = AchievementTagHelper.NormalizeDefinitions(this.AchievementTags, ensureSystemTags: true),
                 CustomRefreshPresets = this.CustomRefreshPresets != null
                     ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(this.CustomRefreshPresets))
                     : new List<CustomRefreshPreset>(),
@@ -3363,6 +3419,8 @@ namespace PlayniteAchievements.Models.Settings
                 EnableUnlockToasts = this.EnableUnlockToasts,
                 EnableFriendUnlockToasts = this.EnableFriendUnlockToasts,
                 EnableProgressToasts = this.EnableProgressToasts,
+                SkipCompletionNotificationAfterCapstone = this.SkipCompletionNotificationAfterCapstone,
+                ProgressToastIntervalPercent = this.ProgressToastIntervalPercent,
                 NotificationStyle = this.NotificationStyle?.Clone() ?? NotificationStyleSettings.CreateDefault(),
                 ToastUseThemeStyling = this.ToastUseThemeStyling,
                 FrameUseThemeStyling = this.FrameUseThemeStyling,
@@ -3534,7 +3592,6 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewScoreCard2 = this.ShowOverviewScoreCard2,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
-                TintMissableLocks = this.TintMissableLocks,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
@@ -3548,6 +3605,8 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockDateDisplayMode = this.UnlockDateDisplayMode,
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
+                IconScaleMode = this.IconScaleMode,
+                CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressBadgeSource = this.ProgressBadgeSource,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
@@ -3708,7 +3767,6 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewScoreCard2 = defaults.ShowOverviewScoreCard2;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
-            TintMissableLocks = defaults.TintMissableLocks;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;
@@ -3717,6 +3775,8 @@ namespace PlayniteAchievements.Models.Settings
             UnlockDateDisplayMode = defaults.UnlockDateDisplayMode;
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
+            IconScaleMode = defaults.IconScaleMode;
+            CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressBadgeSource = defaults.ProgressBadgeSource;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
@@ -4404,7 +4464,7 @@ namespace PlayniteAchievements.Models.Settings
                     foreach (var categoryTypePair in gamePair.Value)
                     {
                         var key = (categoryTypePair.Key ?? string.Empty).Trim();
-                        var categoryType = Services.Achievements.AchievementCategoryTypeHelper.Normalize(categoryTypePair.Value);
+                        var categoryType = (categoryTypePair.Value ?? string.Empty).Trim();
                         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(categoryType))
                         {
                             continue;

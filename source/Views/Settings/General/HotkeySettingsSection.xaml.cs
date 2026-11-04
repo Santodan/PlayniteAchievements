@@ -384,7 +384,7 @@ namespace PlayniteAchievements.Views.Settings.General
         private string FormatHotkeyButtonText(string hotkey)
         {
             return string.IsNullOrWhiteSpace(hotkey)
-                ? L("LOCNone")
+                ? L("LOCPlayAch_Common_None")
                 : hotkey;
         }
 

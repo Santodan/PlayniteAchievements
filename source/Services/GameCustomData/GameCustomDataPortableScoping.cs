@@ -75,8 +75,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             portable.ManualCapstoneApiName = PortableKey(portable.ManualCapstoneApiName, game) ?? portable.ManualCapstoneApiName;
             portable.AchievementOrder = Distinct(portable.AchievementOrder?.Select(apiName => PortableKey(apiName, game) ?? apiName));
 
-            portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?.Select(path => TokenizeAnyScope(path, game)));
+            portable.AchievementCategoryOrder = DistinctLabels(portable.AchievementCategoryOrder?.Select(path => TokenizeAnyScope(path, game)));
             portable.AchievementCategoryImageOverrides = CollapseCategoryImages(portable.AchievementCategoryImageOverrides, game, icon);
+            portable.AchievementCategoryKinds = CollapseCategoryKinds(portable.AchievementCategoryKinds, game);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = TokenizeAnyScope(portable.GameSummaryCategory.Label, game);
@@ -152,9 +153,10 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             portable.AchievementOrder = ExpandOrder(portable.AchievementOrder, game);
 
-            portable.AchievementCategoryOrder = Distinct(portable.AchievementCategoryOrder?
+            portable.AchievementCategoryOrder = DistinctLabels(portable.AchievementCategoryOrder?
                 .SelectMany(path => ResolveForEveryScope(path, game, foreign)));
             portable.AchievementCategoryImageOverrides = ExpandCategoryImages(portable.AchievementCategoryImageOverrides, game, foreign);
+            portable.AchievementCategoryKinds = ExpandCategoryKinds(portable.AchievementCategoryKinds, game, foreign);
             if (portable.GameSummaryCategory != null)
             {
                 portable.GameSummaryCategory.Label = ResolveForFirstScope(portable.GameSummaryCategory.Label, game, foreign);
@@ -183,7 +185,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             public Dictionary<string, string> NameByScope { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            public HashSet<string> Names { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public HashSet<string> Names { get; } = new HashSet<string>(CategoryPathHelper.LabelComparer);
 
             public HashSet<string> ApiNames { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -223,7 +225,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     if (!game.NameByScope.ContainsKey(rowScope) && !string.IsNullOrWhiteSpace(category))
                     {
                         var root = CategoryPathHelper.Split(category)[0];
-                        if (!string.Equals(root, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(root, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                         {
                             game.NameByScope[rowScope] = root;
                             game.Names.Add(root);
@@ -367,12 +369,12 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             var groups = map
                 .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
-                .GroupBy(pair => TokenizeAnyScope(pair.Key, game), StringComparer.OrdinalIgnoreCase);
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+                .GroupBy(pair => TokenizeAnyScope(pair.Key, game), CategoryPathHelper.LabelComparer);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var group in groups)
             {
                 var entries = group.ToList();
-                var collapses = !string.Equals(group.Key, entries[0].Key, StringComparison.OrdinalIgnoreCase) &&
+                var collapses = !string.Equals(group.Key, entries[0].Key, CategoryPathHelper.LabelComparison) &&
                                 ScopedPathCount(group.Key, map.Keys, game) == game.Names.Count &&
                                 entries.All(pair => icon(pair.Value.Art) == icon(entries[0].Value.Art));
                 if (collapses)
@@ -390,13 +392,73 @@ namespace PlayniteAchievements.Services.GameCustomData
             return result;
         }
 
+        /// <summary>
+        /// Category kinds keyed by path, collapsed like category art: one portable entry when every
+        /// scope's copy of the path has the same kind.
+        /// </summary>
+        private static Dictionary<string, string> CollapseCategoryKinds(Dictionary<string, string> map, GameScopes game)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
+            foreach (var group in map
+                .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .GroupBy(pair => TokenizeAnyScope(pair.Key, game), CategoryPathHelper.LabelComparer))
+            {
+                var entries = group.ToList();
+                var collapses = !string.Equals(group.Key, entries[0].Key, CategoryPathHelper.LabelComparison) &&
+                                ScopedPathCount(group.Key, map.Keys, game) == game.Names.Count &&
+                                entries.All(pair => string.Equals(pair.Value, entries[0].Value, StringComparison.OrdinalIgnoreCase));
+                if (collapses)
+                {
+                    result[group.Key] = entries[0].Value;
+                    continue;
+                }
+
+                foreach (var pair in entries)
+                {
+                    result[pair.Key] = pair.Value;
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, string> ExpandCategoryKinds(
+            Dictionary<string, string> map,
+            GameScopes game,
+            ISet<string> foreign)
+        {
+            if (map == null || map.Count == 0)
+            {
+                return map;
+            }
+
+            var result = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
+            foreach (var pair in map.Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value)))
+            {
+                foreach (var path in ResolveForEveryScope(pair.Key, game, foreign))
+                {
+                    if (!result.ContainsKey(path))
+                    {
+                        result[path] = pair.Value;
+                    }
+                }
+            }
+
+            return result;
+        }
+
         /// <summary>How many of the game's scope names root a path that tokenizes to <paramref name="tokenized"/>.</summary>
         private static int ScopedPathCount(string tokenized, IEnumerable<string> paths, GameScopes game)
         {
             return paths
-                .Where(path => string.Equals(TokenizeAnyScope(path, game), tokenized, StringComparison.OrdinalIgnoreCase))
+                .Where(path => string.Equals(TokenizeAnyScope(path, game), tokenized, CategoryPathHelper.LabelComparison))
                 .Select(path => CategoryPathHelper.Split(path)[0])
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .Count();
         }
 
@@ -436,7 +498,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             portable.AchievementCategoryOverrides = Project(value => value.Category);
-            portable.AchievementCategoryTypeOverrides = Project(value => value.CategoryType);
+            // Tags and kinds live on the record and the kind map now; the old type map is not written.
+            portable.AchievementCategoryTypeOverrides = null;
             portable.AchievementNotes = Project(value => value.Note);
             portable.AchievementUnlockedIconOverrides = Project(value => value.UnlockedIconPath);
             portable.AchievementLockedIconOverrides = Project(value => value.LockedIconPath);
@@ -466,7 +529,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             var segments = CategoryPathHelper.Split(path);
-            if (!string.Equals(segments[0], scopeName, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(segments[0], scopeName, CategoryPathHelper.LabelComparison))
             {
                 return path;
             }
@@ -609,7 +672,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return map;
             }
 
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in map.Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null))
             {
                 foreach (var path in ResolveForEveryScope(pair.Key, game, foreign))
@@ -675,7 +738,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ? tail
                 : new[] { scopeName }.Concat(tail).ToList();
             return segments.Count == 0
-                ? AchievementCategoryTypeHelper.DefaultCategoryLabel
+                ? AchievementCategoryHelper.DefaultCategoryLabel
                 : CategoryPathHelper.Join(segments);
         }
 
@@ -693,7 +756,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return new[] { path };
             }
 
-            var names = game.ScopeOrder.Select(game.NameOf).Where(name => name != null).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var names = game.ScopeOrder.Select(game.NameOf).Where(name => name != null).Distinct(CategoryPathHelper.LabelComparer).ToList();
             return names.Count == 0
                 ? new[] { Root(null, tail) }
                 : names.Select(name => Root(name, tail));
@@ -706,14 +769,26 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         // ---- shared ------------------------------------------------------------------------
 
+        /// <summary>API names, deduplicated the way API names compare.</summary>
         private static List<string> Distinct(IEnumerable<string> values)
+        {
+            return Distinct(values, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Category paths, deduplicated the way category labels compare.</summary>
+        private static List<string> DistinctLabels(IEnumerable<string> values)
+        {
+            return Distinct(values, CategoryPathHelper.LabelComparer);
+        }
+
+        private static List<string> Distinct(IEnumerable<string> values, IEqualityComparer<string> comparer)
         {
             if (values == null)
             {
                 return null;
             }
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(comparer);
             var result = new List<string>();
             foreach (var value in values)
             {

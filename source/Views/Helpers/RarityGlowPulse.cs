@@ -106,6 +106,15 @@ namespace PlayniteAchievements.Views.Helpers
             DependencyProperty.RegisterAttached(
                 "IsPaused", typeof(bool), typeof(RarityGlowPulse), new PropertyMetadata(false));
 
+        // Marks the local Opacity OnIsActiveChanged pre-sets, so it can be taken back. A template
+        // can apply the trigger that sets IsActive before its own Target attribute: the pre-set
+        // then lands on an element that turns out to be an Effect target, whose pulse never drives
+        // the element's Opacity, and the stray value (the pulse floor, for a phase-locked preview)
+        // would leave the whole glow layer, card surface included, translucent.
+        private static readonly DependencyProperty HasPresetOpacityProperty =
+            DependencyProperty.RegisterAttached(
+                "HasPresetOpacity", typeof(bool), typeof(RarityGlowPulse), new PropertyMetadata(false));
+
         private sealed class ElementPulse
         {
             internal AnimationClock Clock;
@@ -181,6 +190,7 @@ namespace PlayniteAchievements.Views.Helpers
                     element.Opacity = GetPhaseLock(element)
                         ? CurrentPulseOpacity(persisted)
                         : ResolvePulseParams(persisted).Max;
+                    element.SetValue(HasPresetOpacityProperty, true);
                 }
 
                 if (element.IsLoaded)
@@ -367,6 +377,10 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
             {
+                // The target is settled by activation; an Element pre-set made before the
+                // template's Target attribute applied is not this pulse's to keep.
+                ClearPresetOpacity(element);
+
                 // Defer to after the current trigger pass: the element's default Effect is itself
                 // a DropShadowEffect (the neutral card shadow), so applying inline could animate
                 // the effect that the border-glow trigger is about to replace. By Loaded priority
@@ -420,6 +434,16 @@ namespace PlayniteAchievements.Views.Helpers
                 // Drop the phase pre-set local value (see OnIsActiveChanged) so the element
                 // returns to its style/default opacity when the pulse is off.
                 element.ClearValue(UIElement.OpacityProperty);
+                element.ClearValue(HasPresetOpacityProperty);
+            }
+        }
+
+        private static void ClearPresetOpacity(FrameworkElement element)
+        {
+            if ((bool)element.GetValue(HasPresetOpacityProperty))
+            {
+                element.ClearValue(UIElement.OpacityProperty);
+                element.ClearValue(HasPresetOpacityProperty);
             }
         }
 

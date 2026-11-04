@@ -34,7 +34,7 @@
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}">
-                                <Button Content="{DynamicResource LOCClearLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="WipeCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                         MinWidth="130"/>
@@ -42,7 +42,7 @@
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
                                                  Margin="0">
-                                <Button Content="{DynamicResource LOCClearLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="ClearUnownedFriendGameData_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                         MinWidth="130"/>
@@ -60,7 +60,7 @@
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}">
-                                <Button Content="{DynamicResource LOCClearLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="ClearAllIconCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                         MinWidth="130"/>
@@ -68,7 +68,7 @@
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
                                                  Margin="0">
-                                <Button Content="{DynamicResource LOCClearLabel}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="ClearLockedIconCache_Click"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                         MinWidth="130"/>

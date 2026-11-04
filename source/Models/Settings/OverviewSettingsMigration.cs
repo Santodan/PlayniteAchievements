@@ -414,7 +414,7 @@ namespace PlayniteAchievements.Models.Settings
                     {
                         ShowcaseWidgetOptions.SetPieCenterMode(pie, centerMode);
                         ShowcaseWidgetOptions.SetPieShowIcons(pie, showIcons);
-                        ShowcaseWidgetOptions.SetPieShowLegend(pie, showLegend);
+                        ShowcaseWidgetOptions.SetShowLegend(pie, showLegend);
                         ShowcaseWidgetOptions.SetPieLegendPosition(pie, legendPosition);
                         ShowcaseWidgetOptions.SetPieSmallSliceMode(pie, smallSliceMode);
                         ShowcaseWidgetOptions.SetPieIncludeLocked(pie, includeLocked);
@@ -423,9 +423,15 @@ namespace PlayniteAchievements.Models.Settings
                     {
                         ShowcaseTimelineOptions.SetWindow(timeline, window);
                         ShowcaseTimelineOptions.SetGranularity(timeline, granularity);
-                        ShowcaseTimelineOptions.SetSplitByPlatform(timeline, splitByPlatform);
+                        ShowcaseTimelineOptions.SetSplit(
+                            timeline,
+                            splitByPlatform ? ShowcaseTimelineSplit.Platform : ShowcaseTimelineSplit.None);
                         // The strip's timeline always showed its window picker and split toggle.
-                        ShowcaseWidgetOptions.SetShowControls(timeline, true);
+                        ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                            timeline,
+                            ShowcaseControlBarItems.TimelineItems,
+                            ShowcaseControlBarItems.TimeWindow,
+                            ShowcaseControlBarItems.SplitByPlatform);
                     });
                 persisted[layoutName] = JObject.FromObject(layout);
                 if (persisted[visibleName] == null)

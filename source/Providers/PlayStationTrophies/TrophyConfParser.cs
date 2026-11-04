@@ -46,6 +46,66 @@ namespace PlayniteAchievements.Providers.PlayStationTrophies
         }
 
         /// <summary>
+        /// The set's trophies with English text only: names from the TROP_01.SFM sibling, else
+        /// from TROPCONF.SFM elements tagged lang="en". Null when neither exists; the
+        /// default-language TROP.SFM is never read, since its language varies by set.
+        /// </summary>
+        public static List<NpTrophy> ParseEnglishTrophyDefinitions(string tropconfPath, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(tropconfPath) || !File.Exists(tropconfPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                var conf = XDocument.Load(tropconfPath);
+                var trophies = ParseTrophyConfDocument(conf, null);
+                if (trophies.Count == 0)
+                {
+                    return null;
+                }
+
+                var englishPath = Path.Combine(Path.GetDirectoryName(tropconfPath) ?? string.Empty, "TROP_01.SFM");
+                var fromSibling = File.Exists(englishPath);
+                var englishDoc = fromSibling ? XDocument.Load(englishPath) : conf;
+                var englishById = new Dictionary<int, XElement>();
+                foreach (var element in englishDoc.Descendants("trophy"))
+                {
+                    var id = ParseIntAttribute(element, "id", -1);
+                    if (id >= 0 && !englishById.ContainsKey(id))
+                    {
+                        englishById[id] = element;
+                    }
+                }
+
+                var found = false;
+                foreach (var trophy in trophies)
+                {
+                    englishById.TryGetValue(trophy.Id, out var element);
+                    trophy.Name = ReadEnglishText(element, "name", fromSibling);
+                    trophy.Description = ReadEnglishText(element, "detail", fromSibling);
+                    found |= trophy.Name.Length > 0;
+                }
+
+                return found ? trophies : null;
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, $"[Trophies] Failed to read English trophy text alongside '{tropconfPath}'");
+                return null;
+            }
+        }
+
+        // A TROP_01.SFM element is English whatever its tag; a TROPCONF.SFM one only when tagged "en".
+        private static string ReadEnglishText(XElement trophyElement, string elementName, bool fromEnglishFile)
+        {
+            var element = trophyElement?.Elements(elementName).FirstOrDefault(e =>
+                fromEnglishFile || string.Equals(e.Attribute("lang")?.Value?.Trim(), "en", StringComparison.OrdinalIgnoreCase));
+            return element?.Value?.Trim() ?? string.Empty;
+        }
+
+        /// <summary>
         /// Overlays display text from the TROP_XX.SFM sibling matching the requested
         /// locale, falling back to the default-language TROP.SFM. RPCS3 and Vita3K install
         /// every TRP entry into the trophy folder, so the text files sit next to

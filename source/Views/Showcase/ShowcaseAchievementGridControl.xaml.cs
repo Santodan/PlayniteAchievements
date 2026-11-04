@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Showcase;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Views.Showcase
 {
@@ -24,17 +27,19 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(ShowRarityGlowProperty, value);
         }
 
-        public static readonly DependencyProperty ColorNamesByRarityProperty =
+        // The widget's own grid options record, which carries the name color, tag display and
+        // status color; showcase records live outside the grid's settings catalog lookup.
+        public static readonly DependencyProperty AppearanceOptionsProperty =
             DependencyProperty.Register(
-                nameof(ColorNamesByRarity),
-                typeof(bool),
+                nameof(AppearanceOptions),
+                typeof(AchievementGridOptions),
                 typeof(ShowcaseAchievementGridControl),
-                new PropertyMetadata(false));
+                new PropertyMetadata(null));
 
-        public bool ColorNamesByRarity
+        public AchievementGridOptions AppearanceOptions
         {
-            get => (bool)GetValue(ColorNamesByRarityProperty);
-            set => SetValue(ColorNamesByRarityProperty, value);
+            get => (AchievementGridOptions)GetValue(AppearanceOptionsProperty);
+            set => SetValue(AppearanceOptionsProperty, value);
         }
 
         public static readonly DependencyProperty ColorRarityColumnsByRarityProperty =
@@ -50,9 +55,58 @@ namespace PlayniteAchievements.Views.Showcase
             set => SetValue(ColorRarityColumnsByRarityProperty, value);
         }
 
+        /// <summary>
+        /// The whole achievement list of the one game the rows show; set, the grid offers category
+        /// mode while its rows stay within that game, and totals and drills from this list.
+        /// </summary>
+        public static readonly DependencyProperty CategoryItemsSourceProperty =
+            DependencyProperty.Register(
+                nameof(CategoryItemsSource),
+                typeof(IEnumerable<AchievementDisplayItem>),
+                typeof(ShowcaseAchievementGridControl),
+                new PropertyMetadata(null, OnCategoryItemsSourceChanged));
+
+        // Category mode only where a whole-game list backs it; without one the grid's totals
+        // would count only the shown rows.
+        private static void OnCategoryItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var host = (ShowcaseAchievementGridControl)d;
+            if (host.InnerGrid != null)
+            {
+                host.InnerGrid.EnableCategoryMode = e.NewValue != null;
+            }
+        }
+
+        public IEnumerable<AchievementDisplayItem> CategoryItemsSource
+        {
+            get => (IEnumerable<AchievementDisplayItem>)GetValue(CategoryItemsSourceProperty);
+            set => SetValue(CategoryItemsSourceProperty, value);
+        }
+
+        /// <summary>The widget's category grid display options, which category mode's list follows.</summary>
+        public static readonly DependencyProperty CategoryOptionsProperty =
+            DependencyProperty.Register(
+                nameof(CategoryOptions),
+                typeof(CategorySummaryGridOptions),
+                typeof(ShowcaseAchievementGridControl),
+                new PropertyMetadata(null));
+
+        public CategorySummaryGridOptions CategoryOptions
+        {
+            get => (CategorySummaryGridOptions)GetValue(CategoryOptionsProperty);
+            set => SetValue(CategoryOptionsProperty, value);
+        }
+
         public ShowcaseAchievementGridControl()
         {
             InitializeComponent();
+            // The key binds to this control directly: an ancestor binding in XAML only resolves
+            // once the grid joins the visual tree, after it has prepared its columns, and its
+            // category list's, under the default keys, writing into those surfaces' records.
+            InnerGrid.SetBinding(
+                Controls.AchievementDataGridControl.ColumnSettingsKeyProperty,
+                new System.Windows.Data.Binding(nameof(ColumnSettingsKey)) { Source = this });
+            InnerGrid.EnableCategoryMode = CategoryItemsSource != null;
         }
 
         protected override FrameworkElement GridElement => InnerGrid;

@@ -2615,6 +2615,7 @@ namespace PlayniteAchievements.Models
             // inline-surface overrides. The parameterless ctor used for deserialization leaves
             // them empty so a loaded config is taken verbatim.
             Persisted.ResourceOverrides = PersistedSettings.CreateDefaultResourceOverrides();
+            Persisted.MetadataPlatformChoices = PersistedSettings.CreateDefaultMetadataPlatformChoices();
         }
 
         #endregion

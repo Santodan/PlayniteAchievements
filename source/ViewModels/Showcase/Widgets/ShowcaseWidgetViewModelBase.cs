@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -58,25 +60,25 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// </summary>
     public abstract class ShowcaseMosaicWidgetViewModelBase : ShowcaseWidgetViewModelBase
     {
-        private bool _showControlBar;
         private GridControlBarViewModel _controlBar;
 
-        /// <summary>Search/filter bar shown when the widget's Show Control Bar option is on.</summary>
+        /// <summary>The search and filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            protected set => SetValue(ref _controlBar, value);
+            protected set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
 
-        public bool ShowControlBar
-        {
-            get => _showControlBar;
-            private set => SetValue(ref _showControlBar, value);
-        }
+        public bool ShowControlBar => ControlBar != null;
 
         protected sealed override void Refresh()
         {
-            ShowControlBar = ShowcaseWidgetOptions.GetMosaicShowControlBar(Projection?.Instance);
             RefreshLayout();
             RefreshTiles();
         }
@@ -111,12 +113,26 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public BulkObservableCollection<TItem> Items { get; } = new BulkObservableCollection<TItem>();
 
-        /// <summary>Search/filter bar shown when the surface's ShowControlBar option is on.</summary>
+        /// <summary>The search and filter items the widget's settings show; null when they show none.</summary>
         public GridControlBarViewModel ControlBar
         {
             get => _controlBar;
-            protected set => SetValue(ref _controlBar, value);
+            protected set
+            {
+                if (SetValueAndReturn(ref _controlBar, value))
+                {
+                    OnPropertyChanged(nameof(ShowControlBar));
+                }
+            }
         }
+
+        public bool ShowControlBar => ControlBar != null;
+
+        /// <summary>
+        /// The surface's former whole-bar option, which decides an item's visibility until the
+        /// widget's settings choose per item.
+        /// </summary>
+        protected bool LegacyShowControlBar => (GridOptions as GridCommonOptions)?.ShowControlBar == true;
 
         /// <summary>
         /// Persisted column-layout surface. Widgets that allow multiple instances get one
@@ -238,6 +254,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             {
                 Items.ReplaceAll(visible);
             }
+
+            OnItemsRefreshed();
+        }
+
+        /// <summary>Runs after every <see cref="RefreshItems"/>, with <see cref="Items"/> current.</summary>
+        protected virtual void OnItemsRefreshed()
+        {
         }
 
         private bool SameRows(System.Collections.Generic.IEnumerable<TItem> items)
@@ -275,16 +298,18 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
             IEnumerable<AchievementDisplayItem> items)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
+            ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
+            adapter.LocksRows = Projection?.Instance?.Kind == ShowcaseWidgetKind.RecentAchievements &&
+                ShowcaseWidgetOptions.GetAchievementGridSource(Projection.Instance) == ShowcaseAchievementGridSource.UnlockNext;
             return adapter.Apply(list);
         }
 
@@ -340,6 +365,140 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // This grid's own copies of any revealable rows, so a reveal stays in this widget.
         protected override IEnumerable<AchievementDisplayItem> ScopeVisibleItems(
             IEnumerable<AchievementDisplayItem> visible) => _reveals.Map(visible);
+
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
+        private Guid? _categoryGameId;
+        private WeakReference<OverviewDataSnapshot> _categorySnapshot;
+        private CancellationTokenSource _categoryLoad;
+        private AchievementSelectionPipeline _categoryPipeline;
+
+        /// <summary>
+        /// The whole achievement list (locked included) of the one game the rows show, which the
+        /// grid's category mode totals its categories from and lists when drilled into one; empty
+        /// while the rows span several games, where category mode is not offered.
+        /// </summary>
+        public BulkObservableCollection<AchievementDisplayItem> CategoryItems { get; } =
+            new BulkObservableCollection<AchievementDisplayItem>();
+
+        private CategorySummaryGridOptions _categoryGridOptions;
+
+        /// <summary>The widget's own category grid display options, which category mode's list follows.</summary>
+        public CategorySummaryGridOptions CategoryGridOptions
+        {
+            get => _categoryGridOptions;
+            private set => SetValue(ref _categoryGridOptions, value);
+        }
+
+        protected override void Refresh()
+        {
+            base.Refresh();
+            var categorySurface = ShowcaseGridSurfaces.ResolveCategorySurface(ColumnSettingsKey);
+            CategoryGridOptions = categorySurface == null
+                ? null
+                : PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions?.GetCategorySummaries(categorySurface);
+        }
+
+        /// <summary>Only the achievement grid widget backs category mode with the game's whole list.</summary>
+        private bool OffersCategoryMode => Projection?.Instance?.Kind == ShowcaseWidgetKind.RecentAchievements;
+
+        protected override void OnItemsRefreshed()
+        {
+            var gameId = OffersCategoryMode ? ResolveSingleGameId(Items) : null;
+            var snapshot = Projection?.Snapshot;
+            OverviewDataSnapshot loadedFrom = null;
+            _categorySnapshot?.TryGetTarget(out loadedFrom);
+            // Reloaded when the game changes, and when a new snapshot (a refresh) may have
+            // changed the game's achievements.
+            if (gameId == _categoryGameId && ReferenceEquals(loadedFrom, snapshot))
+            {
+                return;
+            }
+
+            // Another game's list must not stand in while this one's loads; a reload of the same
+            // game keeps the list shown until the new one replaces it.
+            if (gameId != _categoryGameId)
+            {
+                CategoryItems.Clear();
+            }
+
+            _categoryGameId = gameId;
+            _categorySnapshot = new WeakReference<OverviewDataSnapshot>(snapshot);
+            _categoryLoad?.Cancel();
+            _categoryLoad = null;
+            if (gameId.HasValue)
+            {
+                LoadCategoryItems(gameId.Value);
+            }
+        }
+
+        private async void LoadCategoryItems(Guid gameId)
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            if (plugin?.AchievementDataService == null)
+            {
+                CategoryItems.ReplaceAll(Items.ToList());
+                return;
+            }
+
+            var load = new CancellationTokenSource();
+            _categoryLoad = load;
+            try
+            {
+                if (_categoryPipeline == null)
+                {
+                    _categoryPipeline = new AchievementSelectionPipeline(plugin.AchievementDataService, plugin.Settings);
+                }
+
+                // The pipeline's cache would hold the game's rows from before a refresh.
+                _categoryPipeline.Invalidate(gameId);
+                var result = await _categoryPipeline
+                    .LoadAsync(gameId, null, load.Token)
+                    .ConfigureAwait(true);
+                if (!load.IsCancellationRequested)
+                {
+                    // A game with no stored list falls back to the shown rows, so the grid, which
+                    // waits for this list to start in category mode, never waits on nothing.
+                    CategoryItems.ReplaceAll(result.Items?.Count > 0 ? result.Items : Items.ToList());
+                    // The Category dropdown lists every category of the game, not only the shown rows'.
+                    _controlBarSlot.Adapter.SetCategoryOptionRows(CategoryItems.ToList());
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, $"Failed to load category rows for game {gameId}.");
+                if (!load.IsCancellationRequested)
+                {
+                    CategoryItems.ReplaceAll(Items.ToList());
+                }
+            }
+        }
+
+        // The rows' one game, or null when they are empty or span several.
+        private static Guid? ResolveSingleGameId(IEnumerable<AchievementDisplayItem> items)
+        {
+            Guid? gameId = null;
+            foreach (var item in items)
+            {
+                var id = item?.PlayniteGameId;
+                if (!id.HasValue)
+                {
+                    return null;
+                }
+
+                if (gameId.HasValue && gameId.Value != id.Value)
+                {
+                    return null;
+                }
+
+                gameId = id;
+            }
+
+            return gameId;
+        }
     }
 
     /// <summary>
@@ -359,10 +518,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override IEnumerable<GameSummaryItem> FilterItems(IEnumerable<GameSummaryItem> items)
         {
-            if (_controlBarSlot.Bind(Projection?.Instance?.InstanceId))
-            {
-                ControlBar = _controlBarSlot.Adapter.ControlBar;
-            }
+            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
+            ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
             var list = (items ?? Enumerable.Empty<GameSummaryItem>())
@@ -370,6 +528,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .ToList();
             // The dropdown lists the whole library's platforms, not only the ones shown now.
             adapter.UpdateOptions(Projection?.Snapshot?.GameSummaries);
+            adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
             return adapter.Apply(list);
         }
 

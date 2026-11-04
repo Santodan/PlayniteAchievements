@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 
-namespace PlayniteAchievements.Providers.Steam
+namespace PlayniteAchievements.Providers.Metadata
 {
     internal sealed partial class SteamHuntersCategoryEnricher
     {
@@ -23,7 +23,8 @@ namespace PlayniteAchievements.Providers.Steam
                 if (apiName != null && cachedByName.TryGetValue(apiName, out var cached))
                 {
                     item.Category = cached.Category;
-                    item.CategoryType = cached.CategoryType;
+                    item.CategoryKind = cached.CategoryKind;
+                    item.Tags = cached.Tags;
                 }
             }
         }

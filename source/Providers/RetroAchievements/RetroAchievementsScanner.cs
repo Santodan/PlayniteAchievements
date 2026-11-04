@@ -862,11 +862,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return RetroAchievementsSubsetTitleResolver.IsSubsetLikeTitle(title);
         }
 
-        private async Task<List<Models.RaGameListWithTitle>> GetOrFetchGameListAsync(int consoleId, CancellationToken cancel)
+        /// <summary>
+        /// The console's game list, fetched once and kept for the scanner's life. Shared with the
+        /// override search, which can run during a refresh, so the cache is locked.
+        /// </summary>
+        internal async Task<List<Models.RaGameListWithTitle>> GetOrFetchGameListAsync(int consoleId, CancellationToken cancel)
         {
-            if (_gameListCache.TryGetValue(consoleId, out var cached))
+            lock (_gameListCache)
             {
-                return cached;
+                if (_gameListCache.TryGetValue(consoleId, out var cached))
+                {
+                    return cached;
+                }
             }
 
             try
@@ -879,7 +886,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return new List<Models.RaGameListWithTitle>();
                 }
 
-                // Try to deserialize as array first (API returns array when h=1 is used)
+                // Try to deserialize as array first (API returns array when h=1 is used); an
+                // empty array is a console with no games, not a parse failure.
                 List<Models.RaGameListWithTitle> games = null;
                 try
                 {
@@ -921,9 +929,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     return new List<Models.RaGameListWithTitle>();
                 }
 
-                if (games.Count > 0)
+                lock (_gameListCache)
                 {
                     _gameListCache[consoleId] = games;
+                }
+                if (games.Count > 0)
+                {
                     _logger?.Info($"[RA] Cached {games.Count} games for consoleId={consoleId}");
                 }
 

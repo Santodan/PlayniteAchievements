@@ -1,6 +1,7 @@
 // --SUCCESSSTORY--
 using System;
 using System.Collections.ObjectModel;
+using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
@@ -47,14 +48,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             {
                 var unlocked = settings.Unlocked;
                 var locked = settings.Locked;
-                items.Add(new UserStatsItem { NameShow = "Total", ValueShow = $"{unlocked.ToString("N0", FormattingCulture.Current)}/{(unlocked + locked).ToString("N0", FormattingCulture.Current)}" });
-                items.Add(new UserStatsItem { NameShow = "Unlocked", ValueShow = unlocked.ToString("N0", FormattingCulture.Current) });
-                items.Add(new UserStatsItem { NameShow = "Locked", ValueShow = locked.ToString("N0", FormattingCulture.Current) });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Column_Total"), ValueShow = $"{unlocked.ToString("N0", FormattingCulture.Current)}/{(unlocked + locked).ToString("N0", FormattingCulture.Current)}" });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Common_Unlocked"), ValueShow = unlocked.ToString("N0", FormattingCulture.Current) });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Common_Locked"), ValueShow = locked.ToString("N0", FormattingCulture.Current) });
                 items.Add(new UserStatsItem { NameShow = "", ValueShow = "" });
-                items.Add(new UserStatsItem { NameShow = "Common", ValueShow = settings.Common?.Stats ?? "0 / 0" });
-                items.Add(new UserStatsItem { NameShow = "Uncommon", ValueShow = settings.Uncommon?.Stats ?? "0 / 0" });
-                items.Add(new UserStatsItem { NameShow = "Rare", ValueShow = settings.Rare?.Stats ?? "0 / 0" });
-                items.Add(new UserStatsItem { NameShow = "Ultra Rare", ValueShow = settings.UltraRare?.Stats ?? "0 / 0" });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Rarity_Common"), ValueShow = settings.Common?.Stats ?? "0 / 0" });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon"), ValueShow = settings.Uncommon?.Stats ?? "0 / 0" });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Rarity_Rare"), ValueShow = settings.Rare?.Stats ?? "0 / 0" });
+                items.Add(new UserStatsItem { NameShow = ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare"), ValueShow = settings.UltraRare?.Stats ?? "0 / 0" });
             }
 
             _viewModel.ItemsSource = items;

@@ -378,9 +378,6 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowRarityGlow =>
             AchievementGridOptions?.ShowRarityGlow ?? true;
 
-        public bool ColorNamesByRarity =>
-            AchievementGridOptions?.ColorNamesByRarity ?? false;
-
         public bool ColorRarityColumnsByRarity =>
             AchievementGridOptions?.ColorRarityColumnsByRarity ?? false;
 
@@ -496,6 +493,10 @@ namespace PlayniteAchievements.ViewModels
                     value => FriendSearchText = value,
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
+                }
             };
             controlBar.Items.Add(new GridToggleFilter(
                 this,
@@ -503,7 +504,12 @@ namespace PlayniteAchievements.ViewModels
                 L("LOCPlayAch_RefreshModeShort_Favorites"),
                 () => FavoritesOnly,
                 value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite));
+                GridToggleFilterIcon.Favorite)
+            {
+                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
+                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
+                ClearedValue = false
+            });
             return controlBar;
         }
 
@@ -849,7 +855,6 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(ShowAchievementsGridControlBar));
             OnPropertyChanged(nameof(UseCoverImages));
             OnPropertyChanged(nameof(ShowRarityGlow));
-            OnPropertyChanged(nameof(ColorNamesByRarity));
             OnPropertyChanged(nameof(ColorRarityColumnsByRarity));
             OnPropertyChanged(nameof(SummaryUseCoverImages));
             OnPropertyChanged(nameof(SummaryShowCompletionGlow));

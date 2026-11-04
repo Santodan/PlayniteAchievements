@@ -191,7 +191,7 @@ namespace PlayniteAchievements.Services.Achievements
             Guid gameId,
             ManagedCustomIconService managedCustomIconService)
         {
-            var result = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             if (source == null)
             {
                 return result;
@@ -200,7 +200,7 @@ namespace PlayniteAchievements.Services.Achievements
             var gameIdText = gameId.ToString("D");
             foreach (var pair in source)
             {
-                var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(pair.Key);
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(pair.Key);
                 if (string.IsNullOrWhiteSpace(category) || pair.Value == null)
                 {
                     continue;

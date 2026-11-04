@@ -119,7 +119,12 @@ namespace PlayniteAchievements.Services.Hydration
                 // Category was already overwritten by a rename override must not lose it.
                 var providerCategory = NormalizeCategory(detail.ProviderCategory ?? detail.Category);
                 detail.ProviderCategory = providerCategory;
-                var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
+                // Captured once as "" rather than null when the provider gives none, so a re-hydrated
+                // instance never mistakes an overridden value for the provider's.
+                var providerTags = AchievementTagHelper.Normalize(detail.ProviderTags ?? detail.Tags);
+                var providerKind = CategoryKindHelper.Normalize(detail.ProviderCategoryKind ?? detail.CategoryKind);
+                detail.ProviderTags = providerTags ?? string.Empty;
+                detail.ProviderCategoryKind = providerKind ?? string.Empty;
 
                 AchievementOverride userOverride = null;
                 if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
@@ -134,11 +139,6 @@ namespace PlayniteAchievements.Services.Hydration
                         providerCategory = NormalizeCategory(userOverride.Category);
                     }
 
-                    if (!string.IsNullOrWhiteSpace(userOverride.CategoryType))
-                    {
-                        providerCategoryType = AchievementCategoryTypeHelper.Normalize(userOverride.CategoryType);
-                    }
-
                     AchievementOverrideApplier.Apply(detail, userOverride, customData.HasManualLink);
                 }
 
@@ -148,7 +148,12 @@ namespace PlayniteAchievements.Services.Hydration
                 // Blank still resolves to the Default label, so a provider that supplies nothing is
                 // unaffected.
                 detail.Category = CategoryPathHelper.NormalizePath(providerCategory);
-                detail.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType);
+                detail.Tags = AchievementTagHelper.ApplyOverride(
+                    providerTags,
+                    userOverride?.ClearTags == true ? string.Empty : userOverride?.Tags);
+                detail.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    customData.GetStoredCategoryKind(detail.Category),
+                    providerKind);
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
                                                  summaryFilteredApiNames.Contains(apiName);

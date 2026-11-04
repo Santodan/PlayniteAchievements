@@ -69,46 +69,21 @@ namespace PlayniteAchievements.Providers.Vita3K
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
-            try
-            {
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
-                    {
-                        var data = await FetchGameDataAsync(game, rarityEnricher, token).ConfigureAwait(false);
-                        return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: _ => false,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                        _logger?.Error(ex, $"[Vita3K] Failed to scan '{game?.Name}'"),
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: null,
-                    cancel).ConfigureAwait(false) ?? new RebuildPayload { Summary = new RebuildSummary() };
-            }
-            finally
-            {
-                rarityEnricher?.Dispose();
-            }
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                gamesToRefresh,
+                onGameStarting,
+                (game, token) => Task.FromResult(new ProviderRefreshExecutor.ProviderGameResult { Data = FetchGameData(game, token) }),
+                onGameCompleted,
+                isAuthRequiredException: _ => false,
+                onGameError: (game, ex, consecutiveErrors) =>
+                    _logger?.Error(ex, $"[Vita3K] Failed to scan '{game?.Name}'"),
+                delayBetweenGamesAsync: null,
+                delayAfterErrorAsync: null,
+                cancel).ConfigureAwait(false) ?? new RebuildPayload { Summary = new RebuildSummary() };
         }
 
-        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
-        {
-            if (_providerSettings?.UseExophaseForRarity != true)
-            {
-                return null;
-            }
-
-            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
-            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
-            return enricher;
-        }
-
-        private async Task<GameAchievementData> FetchGameDataAsync(
+        private GameAchievementData FetchGameData(
             Game game,
-            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             if (game == null)
@@ -133,20 +108,13 @@ namespace PlayniteAchievements.Providers.Vita3K
                 return null;
             }
 
-            if (rarityEnricher != null && data.Achievements.Count > 0)
+            // The trophy set's title, searched before the Playnite name, and the region its title
+            // id belongs to, for the metadata sources that find the game's page.
+            data.MetadataHints = new MetadataHints
             {
-                await rarityEnricher
-                    .EnrichAsync(
-                        game,
-                        data.Achievements,
-                        "psvita",
-                        "PSN",
-                        cancel,
-                        regionHint: ExophaseGameNameMatcher.MapVitaTitleIdToRegionHint(source.TitleId),
-                        searchName: ReadSetTitle(source))
-                    .ConfigureAwait(false);
-            }
-
+                SearchName = ReadSetTitle(source),
+                RegionHint = ExophaseGameNameMatcher.MapVitaTitleIdToRegionHint(source.TitleId)
+            };
             return data;
         }
 
@@ -197,9 +165,9 @@ namespace PlayniteAchievements.Providers.Vita3K
                 var iconPath = GetTrophyIconPath(iconFolder, trophy.Id);
                 var trophyType = NormalizeTrophyType(trophy.TrophyType);
                 var category = CategoryPathHelper.SanitizeSegment(trophy.GroupName);
-                var categoryType = MapGroupIdToCategoryType(trophy.GroupId);
+                var categoryKind = MapGroupIdToCategoryKind(trophy.GroupId);
                 if (!string.IsNullOrWhiteSpace(category) &&
-                    categoryType == "DLC" &&
+                    categoryKind == "DLC" &&
                     !groupArt.ContainsKey(category))
                 {
                     var artPath = GetGroupIconPath(iconFolder, trophy.GroupId);
@@ -223,7 +191,7 @@ namespace PlayniteAchievements.Providers.Vita3K
                     Rarity = GetRarityFromTrophyType(trophyType),
                     TrophyType = trophyType,
                     IsCapstone = trophyType == "platinum",
-                    CategoryType = categoryType,
+                    CategoryKind = categoryKind,
                     Category = category
                 });
             }
@@ -382,8 +350,8 @@ namespace PlayniteAchievements.Providers.Vita3K
             var gameIdText = game.Id.ToString("D");
             foreach (var entry in groupArt)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(entry.Key);
-                if (string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(entry.Key);
+                if (string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -446,7 +414,7 @@ namespace PlayniteAchievements.Providers.Vita3K
             }
         }
 
-        internal static string MapGroupIdToCategoryType(string groupId)
+        internal static string MapGroupIdToCategoryKind(string groupId)
         {
             var normalized = (groupId ?? string.Empty).Trim();
             return normalized.Length == 0 ||

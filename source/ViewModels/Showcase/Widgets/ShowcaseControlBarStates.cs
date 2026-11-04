@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 {
@@ -130,6 +133,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     {
         private readonly Action _onFilterChanged;
         private string _instanceId;
+        private SharedControlBarAdapter _shownAdapter;
+        private string _shownIds;
 
         public ShowcaseControlBarSlot(Action onFilterChanged)
         {
@@ -137,6 +142,50 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         public TAdapter Adapter { get; private set; }
+
+        /// <summary>
+        /// The bar the widget shows: the adapter's search box and items its settings show, as the
+        /// adapter's own objects, so the bar and the widget settings edit the same filters. Null
+        /// when the widget shows none. Rebuilt only when the shown set changes.
+        /// </summary>
+        public GridControlBarViewModel ShownBar { get; private set; }
+
+        /// <summary>
+        /// Rebuilds <see cref="ShownBar"/> from the instance's per-item visibility; true when it
+        /// changed. Call after <see cref="Bind"/>. <paramref name="legacyVisible"/> is the
+        /// widget's former whole-bar option when it is kept outside the widget's options.
+        /// </summary>
+        public bool UpdateShownBar(ShowcaseWidgetInstanceSettings instance, bool? legacyVisible = null)
+        {
+            var shown = (Adapter?.Entries ?? Array.Empty<IGridControlBarEntry>())
+                .Where(entry => ShowcaseWidgetOptions.GetControlBarItemVisible(instance, entry.Id, legacyVisible))
+                .ToList();
+            var ids = string.Join("|", shown.Select(entry => entry.Id));
+            if (ReferenceEquals(_shownAdapter, Adapter) && string.Equals(_shownIds, ids, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            _shownAdapter = Adapter;
+            _shownIds = ids;
+            if (shown.Count == 0)
+            {
+                ShownBar = null;
+                return true;
+            }
+
+            var bar = new GridControlBarViewModel
+            {
+                Search = shown.OfType<GridSearchControl>().FirstOrDefault()
+            };
+            foreach (var item in shown.OfType<GridControlBarItem>())
+            {
+                bar.Items.Add(item);
+            }
+
+            ShownBar = bar;
+            return true;
+        }
 
         /// <summary>Links to the instance's adapter; true when the adapter changed.</summary>
         public bool Bind(string instanceId)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -148,6 +149,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
 
+        /// <summary>
+        /// Kind of each category, keyed by category path (see CategoryKindHelper). A category absent
+        /// here takes its kind from the provider; CategoryKindHelper.None says it has none.
+        /// </summary>
+        public Dictionary<string, string> AchievementCategoryKinds { get; set; }
+
+        /// <summary>Tags only this game offers, alongside the global list in settings.</summary>
+        public List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> AchievementTags { get; set; }
+
         public GameSummaryCategoryData GameSummaryCategory { get; set; }
 
         public List<string> FilteredAchievementApiNames { get; set; }
@@ -226,6 +236,18 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public string ExophaseEnrichmentSlugOverride { get; set; }
 
+        /// <summary>
+        /// Per metadata source key, which game that source supplies data from. Stored here rather
+        /// than locally so links travel with exports and the Workshop.
+        /// </summary>
+        public Dictionary<string, MetadataLinkData> MetadataLinks { get; set; }
+
+        /// <summary>
+        /// Which metadata source supplies each field to this game, over its platform's choices; a
+        /// null field follows the platform. Null when the game follows its platform throughout.
+        /// </summary>
+        public MetadataChoices MetadataChoices { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public List<CustomAchievementDefinition> CustomAchievements { get; set; }
@@ -268,6 +290,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(AchievementTags),
                 GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
@@ -305,6 +329,8 @@ namespace PlayniteAchievements.Models.Settings
                 PreserveCachedUnlocksOnRefreshOverride = PreserveCachedUnlocksOnRefreshOverride,
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
+                MetadataChoices = MetadataChoices?.Clone(),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -339,6 +365,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(AchievementTags),
                 GameSummaryCategory = GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = FilteredAchievementApiNames != null
                     ? new List<string>(FilteredAchievementApiNames)
@@ -370,6 +398,8 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(MetadataLinks),
+                MetadataChoices = MetadataChoices?.Clone(),
                 ManualLink = ManualLink?.Clone(),
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -412,6 +442,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<string>(portable.AchievementCategoryOrder)
                     : null,
                 AchievementCategoryImageOverrides = CloneCategoryImageOverrideMap(portable?.AchievementCategoryImageOverrides),
+                AchievementCategoryKinds = GameCustomDataFile.CloneCategoryKindMap(portable?.AchievementCategoryKinds),
+                AchievementTags = GameCustomDataFile.CloneTagList(portable?.AchievementTags),
                 GameSummaryCategory = portable?.GameSummaryCategory?.Clone(),
                 FilteredAchievementApiNames = portable?.FilteredAchievementApiNames != null
                     ? new List<string>(portable.FilteredAchievementApiNames)
@@ -443,6 +475,8 @@ namespace PlayniteAchievements.Models.Settings
                 NotificationAppearanceOverride = portable?.NotificationAppearanceOverride?.Clone(),
                 ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ExophaseEnrichmentSlugOverride = portable?.ExophaseEnrichmentSlugOverride,
+                MetadataLinks = MetadataLinkData.CloneMap(portable?.MetadataLinks),
+                MetadataChoices = portable?.MetadataChoices?.Clone(),
                 ManualLink = portable?.ManualLink?.Clone(),
                 CustomAchievements = portable?.CustomAchievements != null
                     ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
@@ -470,6 +504,45 @@ namespace PlayniteAchievements.Models.Settings
             return clone;
         }
 
+        internal static Dictionary<string, string> CloneCategoryKindMap(IReadOnlyDictionary<string, string> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
+            foreach (var pair in source)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    clone[pair.Key] = pair.Value;
+                }
+            }
+
+            return clone;
+        }
+
+        internal static List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> CloneTagList(
+            IEnumerable<PlayniteAchievements.Models.Achievements.AchievementTagDefinition> source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var clone = new List<PlayniteAchievements.Models.Achievements.AchievementTagDefinition>();
+            foreach (var definition in source)
+            {
+                if (definition != null)
+                {
+                    clone.Add(definition.Clone());
+                }
+            }
+
+            return clone;
+        }
+
         internal static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
@@ -478,7 +551,7 @@ namespace PlayniteAchievements.Models.Settings
                 return null;
             }
 
-            var clone = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase);
+            var clone = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
             foreach (var pair in source)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null)

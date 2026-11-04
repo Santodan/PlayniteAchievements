@@ -70,18 +70,17 @@ namespace PlayniteAchievements.Providers
     }
 
     /// <summary>
-    /// Optional current-user refresh overload for providers whose definition data comes from a
-    /// source worth sparing on frequent programmatic refreshes. With
-    /// <c>preferCachedDefinitions</c> set (RefreshOptions.PreferCachedDefinitions, used by the
-    /// in-game monitor) the provider reuses its stored definition data instead of re-fetching it.
+    /// Optional English copy of a game's achievement list, for providers that can fetch their
+    /// text in another language than the plugin's.
     /// </summary>
-    internal interface IDefinitionCachePreferenceProvider
+    internal interface IEnglishTitleSource
     {
-        Task<RebuildPayload> RefreshAsync(
-            IReadOnlyList<Game> gamesToRefresh,
-            Action<Game> onGameStarting,
-            Func<Game, GameAchievementData, Task> onGameCompleted,
-            bool preferCachedDefinitions,
-            CancellationToken cancel);
+        /// <summary>
+        /// The game's achievements as this provider lists them in English, keyed by the same
+        /// ApiNames as <paramref name="data"/>; null when it has no English copy. Used only to
+        /// pair metadata sources whose text is in another language than the game's; never shown.
+        /// Providers whose text is always English return <paramref name="data"/>'s own rows.
+        /// </summary>
+        Task<IList<AchievementDetail>> GetEnglishTitlesAsync(Game game, GameAchievementData data, CancellationToken ct);
     }
 }

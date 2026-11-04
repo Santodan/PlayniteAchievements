@@ -131,6 +131,7 @@ namespace PlayniteAchievements.Services.Sound
                     continue;
                 }
 
+                EnsureAudioContentOrThrow(sound.Path, Path.GetFileName(sound.Path));
                 var entryName = SoundsFolderName + "/" + sound.Tier.ToFileBaseName() + extension;
                 manifest.Slots[sound.Tier.ToString()] = entryName;
                 files[entryName] = sound.Path;

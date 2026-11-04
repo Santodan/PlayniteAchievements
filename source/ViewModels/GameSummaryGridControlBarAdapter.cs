@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Overview;
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.ViewModels
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly bool _includeProgress;
         private string _searchText = string.Empty;
         private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
@@ -36,9 +38,26 @@ namespace PlayniteAchievements.ViewModels
         /// and In Progress. Search, No Progress and activity are left out, and their saved state
         /// is not restored.
         /// </param>
-        protected GameSummaryGridControlBarAdapter(bool chartFilters)
+        /// <param name="includeProgress">False to leave the progress filter out as well.</param>
+        /// <param name="achievementFilters">
+        /// True to add the Tags filter after Game and the Rarity and Trophy filters last. They
+        /// narrow which achievements count, never which games: <see cref="Apply"/> ignores them,
+        /// and the widget counts the kept games' achievements through
+        /// <see cref="MatchesAchievement"/> and <see cref="MatchesTally"/>.
+        /// </param>
+        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true, bool achievementFilters = false)
         {
             _chartFilters = chartFilters;
+            _includeProgress = includeProgress;
+            if (achievementFilters)
+            {
+                TagFilter = new TagControlBarFilter(
+                    RaiseFilterChanged,
+                    () => GameFilter.SelectedGameIds,
+                    GameTagKeys);
+                TierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
+            }
+
             ProgressFilterOptions = chartFilters
                 ? new ObservableCollection<string> { CompleteLabel, InProgressLabel }
                 : new ObservableCollection<string> { CompleteLabel, InProgressLabel, NoProgressLabel };
@@ -51,6 +70,60 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public override GridControlBarViewModel ControlBar { get; }
+
+        /// <summary>The bar's Tags filter; null for a bar without achievement filters.</summary>
+        public TagControlBarFilter TagFilter { get; }
+
+        /// <summary>The bar's Rarity and Trophy filters; null for a bar without achievement filters.</summary>
+        public RarityTrophyControlBarFilters TierFilters { get; }
+
+        /// <summary>
+        /// False while the widget counts games, not achievements: the achievement filters then
+        /// hide and do not apply, while their picks are kept for when it counts achievements again.
+        /// </summary>
+        public bool AchievementFiltersApply { get; private set; } = true;
+
+        /// <summary>True while an achievement filter applies and would drop an achievement.</summary>
+        public bool HasAchievementSelection =>
+            AchievementFiltersApply &&
+            (TagFilter?.HasSelection == true || TierFilters?.HasSelection == true);
+
+        /// <summary>Shows and applies the achievement filters, or hides and sets them aside.</summary>
+        public void SetAchievementFiltersApply(bool apply)
+        {
+            AchievementFiltersApply = apply;
+            if (TagFilter != null)
+            {
+                TagFilter.Item.IsVisible = apply;
+            }
+
+            if (TierFilters != null)
+            {
+                TierFilters.RarityItem.IsVisible = apply;
+                TierFilters.TrophyItem.IsVisible = apply;
+            }
+        }
+
+        /// <summary>True for an achievement row the applying achievement filters keep.</summary>
+        public bool MatchesAchievement(AchievementDisplayItem row) =>
+            !AchievementFiltersApply ||
+            ((TagFilter?.MatchesRow(row) ?? true) && (TierFilters?.Matches(row) ?? true));
+
+        /// <summary>True for a tally whose achievements the applying achievement filters keep.</summary>
+        public bool MatchesTally(PlayniteAchievements.Models.Achievements.AchievementTally tally) =>
+            !AchievementFiltersApply ||
+            ((TagFilter?.MatchesTally(tally) ?? true) && (TierFilters?.Matches(tally) ?? true));
+
+        /// <summary>True while the applying achievement filters keep the completions count.</summary>
+        public bool KeepsCompletions =>
+            !AchievementFiltersApply || (TierFilters?.KeepsCompletions ?? true);
+
+        // The tag keys a game's achievements carry, locked or not, from the games the options list.
+        private IEnumerable<string> GameTagKeys(Guid gameId) =>
+            (_optionGames ?? new List<GameSummaryItem>())
+                .Where(game => game?.PlayniteGameId == gameId)
+                .SelectMany(game => game.Tallies ?? Array.Empty<PlayniteAchievements.Models.Achievements.AchievementTally>())
+                .SelectMany(tally => tally.Tags);
 
         public string SearchText
         {
@@ -78,7 +151,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedProviderFilterText =>
             OverviewGameSummaryFilters.BuildProviderFilterText(
                 ProviderFilterGroups,
-                L("LOCPlatformTitle"));
+                L("LOCPlayAch_Common_Platform"));
 
         public ObservableCollection<string> ProgressFilterOptions { get; }
 
@@ -109,6 +182,10 @@ namespace PlayniteAchievements.ViewModels
             }
 
             filtered = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(filtered, ProviderFilterGroups);
+            if (GameFilter.HasSelection)
+            {
+                filtered = filtered.Where(item => GameFilter.Matches(item.PlayniteGameId));
+            }
 
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
@@ -127,17 +204,23 @@ namespace PlayniteAchievements.ViewModels
         {
             // A filter pass re-feeds the same games; rebuilding then would swap the groups out
             // from under an open dropdown, so a toggle there would land on a discarded group.
+            GameFilter.UpdateGames(source);
             var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
+            if (TierFilters?.UpdateGames(games) == true)
+            {
+                ControlBar.Refresh();
+            }
+
             if (ProviderFilterGroupBuilder.HasSameGames(_optionGames, games))
             {
                 return;
             }
 
             // A new snapshot re-feeds new instances of the same games on every edit. When they
-            // would build the same groups, keep the groups and only track the new list. A pending
-            // restore still rebuilds, since it has selections to seed.
-            if (PendingPlatformSelections == null &&
-                ProviderFilterGroupBuilder.HasSameFilterOptions(_optionGames, games))
+            // would build the same groups, keep the groups and only track the new list. Restored
+            // selections still pending name providers the last groups lacked, which the same
+            // options lack too, so they have nothing to seed.
+            if (ProviderFilterGroupBuilder.HasSameFilterOptions(_optionGames, games))
             {
                 _optionGames = games;
                 return;
@@ -149,8 +232,9 @@ namespace PlayniteAchievements.ViewModels
                 ProviderFilterGroups,
                 OnProviderFilterSelectionChanged,
                 PendingPlatformSelections);
-            PendingPlatformSelections = null;
+            SettlePendingPlatformSelections(ProviderFilterGroups);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
+            GameFilter.SetPlatforms(ProviderFilterGroups);
             ControlBar.Refresh();
         }
 
@@ -158,13 +242,17 @@ namespace PlayniteAchievements.ViewModels
 
         public override ControlBarFilterState CaptureState()
         {
-            return new ControlBarFilterState
+            var state = new ControlBarFilterState
             {
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
+                Games = GameFilter.Capture(),
                 Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
                 Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
             };
+            TagFilter?.Capture(state);
+            TierFilters?.Capture(state);
+            return state;
         }
 
         public override void RestoreState(ControlBarFilterState state)
@@ -176,7 +264,13 @@ namespace PlayniteAchievements.ViewModels
 
             _searchText = _chartFilters ? string.Empty : state.SearchText ?? string.Empty;
             PendingPlatformSelections = state.Platforms;
-            RestorePositions(ProgressFilterOptions, _selectedProgressFilters, state.Progress);
+            GameFilter.Restore(state.Games);
+            TagFilter?.Restore(state);
+            TierFilters?.Restore(state);
+            RestorePositions(
+                ProgressFilterOptions,
+                _selectedProgressFilters,
+                _includeProgress ? state.Progress : null);
             RestorePositions(
                 ActivityFilterOptions,
                 _selectedActivityFilters,
@@ -275,6 +369,10 @@ namespace PlayniteAchievements.ViewModels
                         value => SearchText = value,
                         L("LOCPlayAch_Filter_Games"),
                         () => SearchText = string.Empty)
+                    {
+                        Id = ShowcaseControlBarItems.Search,
+                        LabelKey = "LOCPlayAch_Filter_Games"
+                    }
             };
             controlBar.Items.Add(new GridProviderPlatformFilter(
                 this,
@@ -283,18 +381,38 @@ namespace PlayniteAchievements.ViewModels
                 () => ProviderFilterGroups,
                 CollapseUnselectedProviderFilters)
             {
+                Id = ShowcaseControlBarItems.Platform,
+                LabelKey = "LOCPlayAch_Common_Platform",
                 Width = 170
             });
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedProgressFilterText),
-                () => SelectedProgressFilterText,
-                () => ProgressFilterOptions,
-                IsProgressFilterSelected,
-                SetProgressFilterSelected)
+            controlBar.Items.Add(GameFilter.Item);
+            if (TagFilter != null)
             {
-                Width = 170
-            });
+                controlBar.Items.Add(TagFilter.Item);
+            }
+
+            if (_includeProgress)
+            {
+                controlBar.Items.Add(new GridMultiSelectFilter(
+                    this,
+                    nameof(SelectedProgressFilterText),
+                    () => SelectedProgressFilterText,
+                    () => ProgressFilterOptions,
+                    IsProgressFilterSelected,
+                    SetProgressFilterSelected)
+                {
+                    Id = ShowcaseControlBarItems.Progress,
+                    LabelKey = "LOCPlayAch_Progress",
+                    Width = 170
+                });
+            }
+
+            if (TierFilters != null)
+            {
+                controlBar.Items.Add(TierFilters.RarityItem);
+                controlBar.Items.Add(TierFilters.TrophyItem);
+            }
+
             if (_chartFilters)
             {
                 return controlBar;
@@ -308,6 +426,8 @@ namespace PlayniteAchievements.ViewModels
                 IsActivityFilterSelected,
                 SetActivityFilterSelected)
             {
+                Id = ShowcaseControlBarItems.Activity,
+                LabelKey = "LOCPlayAch_Filter_ActivitySelectorPlaceholder",
                 Width = 170
             });
             return controlBar;
@@ -316,6 +436,7 @@ namespace PlayniteAchievements.ViewModels
         private void OnProviderFilterSelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
+            GameFilter.SetPlatforms(ProviderFilterGroups);
             RaiseFilterChanged();
         }
 

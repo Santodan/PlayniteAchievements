@@ -1,5 +1,7 @@
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.ManageAchievements;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -14,7 +16,7 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     internal static class SelectorContextMenuHelper
     {
-        public static void Open(Button button, ContextMenu menu)
+        public static void Open(ButtonBase button, ContextMenu menu)
         {
             if (button == null || menu == null)
             {
@@ -46,7 +48,8 @@ namespace PlayniteAchievements.Views.Helpers
         public static void OpenCategoryTypeMenu(
             Button button,
             ContextMenu menu,
-            IEnumerable<CategoryTypeSelectionOption> options)
+            IEnumerable<TagSelectionOption> options,
+            Guid? gameId)
         {
             if (button == null || menu == null)
             {
@@ -55,17 +58,14 @@ namespace PlayniteAchievements.Views.Helpers
 
             menu.Items.Clear();
 
+            var shown = (options ?? Enumerable.Empty<TagSelectionOption>()).Where(option => option != null).ToList();
+            var iconKeys = TagIconKeys(shown.Select(option => option.Value), gameId);
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var option in options ?? Enumerable.Empty<CategoryTypeSelectionOption>())
+            for (var i = 0; i < shown.Count; i++)
             {
-                if (option == null)
-                {
-                    continue;
-                }
-
+                var option = shown[i];
                 var item = new MenuItem
                 {
-                    Header = option.DisplayName,
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = option.IsSelected
@@ -74,6 +74,8 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     item.Style = itemStyle;
                 }
+
+                SetTagHeader(item, iconKeys, i, option.DisplayName);
 
                 item.Click += (_, __) => option.IsSelected = item.IsChecked;
                 menu.Items.Add(item);
@@ -86,5 +88,24 @@ namespace PlayniteAchievements.Views.Helpers
 
             Open(button, menu);
         }
+
+        /// <summary>
+        /// Each tag's icon key, in order, when at least one of the tags has an icon; null when none
+        /// does, so the menu keeps plain labels without an icon gutter.
+        /// </summary>
+        public static IReadOnlyList<string> TagIconKeys(IEnumerable<string> tags, Guid? gameId)
+        {
+            var keys = tags.Select(tag => TagControlBarFilter.IconKey(tag, gameId)).ToList();
+            return keys.Any(key => key != null) ? keys : null;
+        }
+
+        /// <summary>
+        /// Sets a tag menu item's header: its icon before its label when the menu has an icon gutter
+        /// (a tag without an icon keeps the gutter's width so labels align), else the label.
+        /// </summary>
+        public static void SetTagHeader(MenuItem item, IReadOnlyList<string> iconKeys, int index, string label) =>
+            MultiSelectFilterMenu.SetHeader(
+                item,
+                iconKeys == null ? (object)label : MultiSelectFilterMenu.BuildIconHeader(iconKeys[index], label));
     }
 }

@@ -183,7 +183,8 @@ namespace PlayniteAchievements.Tests.Models
                 Points = points,
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlocked ? new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc) : (DateTime?)null,
-                CategoryType = categoryType
+                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType)
             };
         }
     }

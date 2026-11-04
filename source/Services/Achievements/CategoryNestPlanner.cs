@@ -43,9 +43,9 @@ namespace PlayniteAchievements.Services.Achievements
                 return moves;
             }
 
-            // Keyed case-insensitively but valued with the snapshot's own text, so a
-            // differently-cased caller input cannot rewrite a label's casing as a side effect.
-            var snapshot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            // Keyed with the shared label comparer, so a caller label differing only in case is a
+            // distinct category and not a move source unless the snapshot holds it verbatim.
+            var snapshot = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
             foreach (var label in orderedLabels)
             {
                 if (string.IsNullOrWhiteSpace(label))
@@ -65,9 +65,9 @@ namespace PlayniteAchievements.Services.Achievements
             var moving = movingLabels
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     snapshot.ContainsKey(label))
                 .Select(label => snapshot[label])
                 .ToList();
@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Services.Achievements
                 // row, and a node cannot become its own descendant.
                 if (string.Equals(
                         CategoryPathHelper.Split(target)[0],
-                        AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                        AchievementCategoryHelper.DefaultCategoryLabel,
                         StringComparison.OrdinalIgnoreCase) ||
                     !snapshot.TryGetValue(target, out target) ||
                     moving.Any(label => CategoryPathHelper.IsSelfOrDescendantOf(target, label)))
@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var targetDepth = target == null ? 0 : CategoryPathHelper.GetDepth(target);
-            var plannedResults = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var plannedResults = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var label in moving)
             {
                 var reparented = CategoryPathHelper.Reparent(label, target);
@@ -146,16 +146,16 @@ namespace PlayniteAchievements.Services.Achievements
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
                 .ToList();
-            var renderedSet = new HashSet<string>(rendered, StringComparer.OrdinalIgnoreCase);
+            var renderedSet = new HashSet<string>(rendered, CategoryPathHelper.LabelComparer);
 
             // Same moving-set derivation as PlanNestMoves, then rendered order so multi-drag
             // blocks land in the order the grid showed them.
             var roots = (movingLabels ?? Array.Empty<string>())
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Select(CategoryPathHelper.NormalizePath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(CategoryPathHelper.LabelComparer)
                 .Where(label =>
-                    !string.Equals(label, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(label, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase) &&
                     renderedSet.Contains(label))
                 .ToList();
             roots = roots
@@ -231,7 +231,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             var currentLabels = new List<string>();
             var planned = new List<KeyValuePair<string, string>>();
-            var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenSources = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var pair in currentToProviderLabels)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value))
@@ -246,7 +246,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 currentLabels.Add(current);
-                if (string.Equals(current, AchievementCategoryTypeHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(current, AchievementCategoryHelper.DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -261,11 +261,11 @@ namespace PlayniteAchievements.Services.Achievements
                 }
             }
 
-            var movingSources = new HashSet<string>(planned.Select(move => move.Key), StringComparer.OrdinalIgnoreCase);
+            var movingSources = new HashSet<string>(planned.Select(move => move.Key), CategoryPathHelper.LabelComparer);
             var stayingLabels = new HashSet<string>(
                 currentLabels.Where(label => !movingSources.Contains(label)),
-                StringComparer.OrdinalIgnoreCase);
-            var plannedResults = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                CategoryPathHelper.LabelComparer);
+            var plannedResults = new HashSet<string>(CategoryPathHelper.LabelComparer);
             foreach (var move in planned.OrderByDescending(move => CategoryPathHelper.GetDepth(move.Key)))
             {
                 if (stayingLabels.Contains(move.Value) || !plannedResults.Add(move.Value))

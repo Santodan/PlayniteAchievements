@@ -44,6 +44,35 @@ namespace PlayniteAchievements.Services.Images
             destination.Write(output, 0, output.Length);
         }
 
+        /// <summary>
+        /// The extension a package entry for <paramref name="sourcePath"/> carries: its own
+        /// <paramref name="extension"/> when the file is already portable, ".png" otherwise, which
+        /// is what <see cref="CopyPortable"/> writes for it.
+        /// </summary>
+        internal static string EntryExtension(string sourcePath, string extension)
+        {
+            return IsPortableFile(sourcePath) ? extension : ".png";
+        }
+
+        /// <summary>True when the file at <paramref name="path"/> starts as a portable format; false when unreadable.</summary>
+        internal static bool IsPortableFile(string path)
+        {
+            try
+            {
+                using (var stream = File.OpenRead(path))
+                {
+                    var head = new byte[16];
+                    var read = stream.Read(head, 0, head.Length);
+                    Array.Resize(ref head, read);
+                    return IsPortable(head);
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
         private static byte[] TryEncodePng(byte[] bytes)
         {
             try

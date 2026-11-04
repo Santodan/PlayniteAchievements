@@ -71,6 +71,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
 
         [JsonProperty("Title")]
         public string Title { get; set; }
+
+        [JsonProperty("ConsoleName")]
+        public string ConsoleName { get; set; }
+
+        [JsonProperty("ImageIcon")]
+        public string ImageIcon { get; set; }
     }
 
     internal sealed class RaGameListWithTitleResponse

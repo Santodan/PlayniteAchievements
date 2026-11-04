@@ -247,6 +247,38 @@ namespace PlayniteAchievements.Providers.GOG
             return gameData;
         }
 
+        /// <summary>
+        /// The game's achievements from the GOG API in English, keyed by the same resolved
+        /// achievement IDs as a refresh; null when the product, client or user ID is unavailable.
+        /// </summary>
+        internal async Task<IList<AchievementDetail>> FetchEnglishTitlesAsync(Game game, CancellationToken cancel)
+        {
+            if (!TryGetProductId(game, out var productId))
+            {
+                return null;
+            }
+
+            var clientId = await _apiClient.GetClientIdAsync(productId, cancel).ConfigureAwait(false);
+            var userId = _sessionManager.GetUserId();
+            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            var achievements = await _apiClient.GetAchievementsAsync(clientId, userId, "english", cancel).ConfigureAwait(false);
+            return achievements?
+                .Where(ach => !string.IsNullOrWhiteSpace(ach?.ResolvedAchievementId))
+                .Select(ach => new AchievementDetail
+                {
+                    ApiName = ach.ResolvedAchievementId,
+                    DisplayName = !string.IsNullOrWhiteSpace(ach.ResolvedTitle)
+                        ? ach.ResolvedTitle
+                        : ach.ResolvedAchievementId,
+                    Description = ach.ResolvedDescription ?? string.Empty
+                })
+                .ToList();
+        }
+
         private static double? NormalizePercent(double? rawPercent)
         {
             if (!rawPercent.HasValue)

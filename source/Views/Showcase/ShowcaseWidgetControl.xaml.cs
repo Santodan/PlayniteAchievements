@@ -236,6 +236,51 @@ namespace PlayniteAchievements.Views.Showcase
             control.RebuildBody();
         }
 
+        /// <summary>The ID of the widget instance this control shows, or null before a projection arrives.</summary>
+        public string InstanceId => _projection?.Instance?.InstanceId;
+
+        /// <summary>
+        /// A right-click nothing inside the widget handled (a chart, a card, empty space) offers
+        /// the widget's settings; grids and tiles build their own menus, which carry the same item.
+        /// </summary>
+        protected override void OnMouseRightButtonUp(System.Windows.Input.MouseButtonEventArgs e)
+        {
+            base.OnMouseRightButtonUp(e);
+            if (e.Handled || HasHostContextMenu())
+            {
+                return;
+            }
+
+            var item = ShowcaseWidgetSettingsMenu.TryCreateItem(this, this);
+            if (item == null)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            menu.Items.Add(item);
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
+            menu.PlacementTarget = this;
+            menu.Placement = PlacementMode.MousePoint;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
+        // A host with a menu of its own (the Showcase strip's Edit/View) adds this widget's item
+        // to that menu instead, so one right-click never opens two menus.
+        private bool HasHostContextMenu()
+        {
+            for (var parent = VisualTreeHelper.GetParent(this); parent != null; parent = VisualTreeHelper.GetParent(parent))
+            {
+                if (parent is FrameworkElement element && element.ContextMenu != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // PlayAch.Radius.Section (8) less PlayAch.Thickness.Border (1): the border's inner curve.
         private const double InnerCornerRadius = 7;
 
@@ -463,10 +508,9 @@ namespace PlayniteAchievements.Views.Showcase
                     slideshow.SetEditHold(!IsHitTestVisible);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
-                    // The collapsed Achievements Grid: the pinned source rides the pinned
-                    // view model for reorder support and placeholder rows.
-                    if (ShowcaseWidgetOptions.GetAchievementGridSource(_projection.Instance) ==
-                        ShowcaseAchievementGridSource.Pinned)
+                    // The collapsed Achievements Grid: a collection shown in pin order rides the
+                    // pinned view model for reorder support and placeholder rows.
+                    if (_projection.ResolvedPinCollectionId != null)
                     {
                         SetBodyContent(_projection.AchievementRows?.Count > 0
                             ? (object)UpdateBodyViewModel<PinnedAchievementsWidgetViewModel>()
@@ -481,10 +525,12 @@ namespace PlayniteAchievements.Views.Showcase
 
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
-                    // The collapsed Game Summaries Grid: pinned/favorites sources ride the
-                    // favorites view model for pin reorder support.
+                    // The collapsed Game Summaries Grid: a collection shown in pin order and the
+                    // other sources ride the favorites view model, for pin reorder support and
+                    // its pin-order default sort.
                     if (ShowcaseWidgetOptions.GetGameGridSource(_projection.Instance) ==
-                        ShowcaseGameGridSource.Library)
+                        ShowcaseGameGridSource.Library &&
+                        _projection.ResolvedPinCollectionId == null)
                     {
                         SetBodyContent(_projection.Games?.Count > 0
                             ? (object)UpdateBodyViewModel<GameSummariesWidgetViewModel>()

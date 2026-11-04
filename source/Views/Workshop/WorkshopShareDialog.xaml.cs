@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Workshop;
 using PlayniteAchievements.Services.Workshop.Preview;
 using PlayniteAchievements.Views.Dialogs;
@@ -494,7 +495,9 @@ namespace PlayniteAchievements.Views.Workshop
                     }
 
                     var path = database.GetFullFilePath(image);
-                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length <= MaxCoverBytes)
+                    // Intake refuses a cover it cannot read as PNG, JPEG, GIF or WebP.
+                    if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) && new FileInfo(path).Length <= MaxCoverBytes &&
+                        PackageImageFormat.IsPortableFile(path))
                     {
                         return path;
                     }
@@ -738,9 +741,9 @@ namespace PlayniteAchievements.Views.Workshop
             {
                 StatusText.Text = string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
-                    ResourceProvider.GetString("LOCNameLabel") + ", " +
+                    ResourceProvider.GetString("LOCPlayAch_Common_Name") + ", " +
                     ResourceProvider.GetString("LOCPlayAch_Workshop_Share_AuthorName") + ", " +
-                    ResourceProvider.GetString("LOCGameDescriptionTitle"));
+                    ResourceProvider.GetString("LOCPlayAch_Common_Description"));
                 return null;
             }
 

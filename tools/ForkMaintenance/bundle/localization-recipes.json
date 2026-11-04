@@ -61,6 +61,16 @@
         "path":  "source/Localization/en_US.xaml",
         "entries":  [
                         {
+                            "key":  "LOCGeneralLabel",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCGeneralLabel\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eGeneral\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlatformsTitle",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlatformsTitle\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003ePlatforms\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_Button_BrowseFile",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Button_BrowseFile\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eBrowse File\u003c/sys:String\u003e"
@@ -161,24 +171,9 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_ClearOverrides\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear Overrides\u003c/sys:String\u003e"
                         },
                         {
-                            "key":  "LOCPlayAch_Common_Default",
-                            "baseXml":  null,
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_Default\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eDefault\u003c/sys:String\u003e"
-                        },
-                        {
                             "key":  "LOCPlayAch_Common_DisplayOrder",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_DisplayOrder\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eDisplay Order\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_Common_Enabled",
-                            "baseXml":  null,
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_Enabled\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnabled\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_Common_General",
-                            "baseXml":  null,
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_General\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eGeneral\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Common_Label_Category",
@@ -196,11 +191,6 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_Loading\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eLoading...\u003c/sys:String\u003e"
                         },
                         {
-                            "key":  "LOCPlayAch_Common_None",
-                            "baseXml":  null,
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_None\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eNone\u003c/sys:String\u003e"
-                        },
-                        {
                             "key":  "LOCPlayAch_Common_RenameLabelEllipsis",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_RenameLabelEllipsis\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRename Label...\u003c/sys:String\u003e"
@@ -214,6 +204,11 @@
                             "key":  "LOCPlayAch_Common_Status_Disabled",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_Status_Disabled\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eDisabled\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Common_Status_NoOverrideSet",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Common_Status_NoOverrideSet\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eNo override set\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Common_Status_OverrideSetValue",
@@ -1056,6 +1051,16 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ExclusionHint\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExclude this game from tracking or include it again.\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHeader\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExophase Rarity Slug\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ExophaseEnrichmentHint\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eWhen this platform enriches rarity from Exophase, use this exact Exophase game page instead of automatic matching. Paste an exophase.com game URL or the bare slug.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_ManageAchievements_Overrides_RaHeader",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_RaHeader\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRetroAchievements Game ID Override\u003c/sys:String\u003e"
@@ -1404,6 +1409,11 @@
                             "key":  "LOCPlayAch_Menu_LocalSteamUser_SetFailed",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_LocalSteamUser_SetFailed\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eThe forced Local Steam user could not be saved.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_RefreshGame",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_RefreshGame\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRefresh Game\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_TestModernControls",
@@ -2164,6 +2174,11 @@
                             "key":  "LOCPlayAch_Settings_SteamWebApiKey",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_SteamWebApiKey\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eSteam Web API Key\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_TaggingSection",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_TaggingSection\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eTag Configuration\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Settings_UnlockedAchievements",

@@ -104,6 +104,16 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public IReadOnlyList<string> Platforms { get; set; } = Array.Empty<string>();
 
+        /// <summary>
+        /// When the game was added to the Playnite library, and its release date. Set once at
+        /// build time.
+        /// </summary>
+        public DateTime? Added { get; set; }
+
+        public DateTime? AddedLocal => Added?.ToLocalTime();
+
+        public DateTime? ReleaseDate { get; set; }
+
         private ulong _playtimeSeconds;
         public ulong PlaytimeSeconds
         {
@@ -142,6 +152,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (_totalAchievements != value)
                 {
                     SetValue(ref _totalAchievements, value);
+                    OnPropertyChanged(nameof(RemainingAchievements));
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
                     OnPropertyChanged(nameof(ProgressionCountText));
@@ -158,6 +169,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (_unlockedAchievements != value)
                 {
                     SetValue(ref _unlockedAchievements, value);
+                    OnPropertyChanged(nameof(RemainingAchievements));
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
                     OnPropertyChanged(nameof(ProgressionCountText));
@@ -334,7 +346,9 @@ namespace PlayniteAchievements.ViewModels.Items
         public int PlatformScorePoints { get => _platformScorePoints; set => SetValue(ref _platformScorePoints, value); }
 
         // Points of every achievement, unlocked or not: the most PlatformScorePoints can reach.
-        public int PlatformScorePointsTotal { get; set; }
+        // Also shown as the points segment of the Game column's metadata line.
+        private int _platformScorePointsTotal;
+        public int PlatformScorePointsTotal { get => _platformScorePointsTotal; set => SetValue(ref _platformScorePointsTotal, value); }
 
         // The points family PlatformScorePoints count toward (see PointsFamilies.FromProviderKey); null for none.
         public string PointsFamily { get; set; }
@@ -457,6 +471,14 @@ namespace PlayniteAchievements.ViewModels.Items
             TrophyGoldTotal > 0 ||
             TrophySilverTotal > 0 ||
             TrophyBronzeTotal > 0;
+
+        /// <summary>
+        /// Achievements per tag, unlocked and total, with the user's tag edits applied; null when
+        /// none are tagged. A tag edit replaces the array, never its contents.
+        /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public AchievementTally[] Tallies { get; set; }
 
         private DateTime? _lastPlayed;
         public DateTime? LastPlayed 
@@ -586,6 +608,8 @@ namespace PlayniteAchievements.ViewModels.Items
 
 
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
+
+        public int RemainingAchievements => Math.Max(0, TotalAchievements - UnlockedAchievements);
 
         public string ProgressionText => PercentFormatter.FormatWhole(Progression);
 

@@ -116,8 +116,14 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         private static string GetLocalizedDefaultName(TagType tagType)
         {
-            return DefaultTagNameCatalog.StatusResourceKeys.TryGetValue(tagType, out var statusResourceKey)
-                ? FormatTagName(statusResourceKey)
+            if (DefaultTagNameCatalog.StatusResourceKeys.TryGetValue(tagType, out var statusResourceKey))
+            {
+                return FormatTagName(statusResourceKey);
+            }
+
+            var areaKeys = DefaultTagNameCatalog.GetAreaResourceKeys(tagType);
+            return areaKeys != null
+                ? DefaultTagNameCatalog.ComposeAreaName(areaKeys.Select(ResourceProvider.GetString).ToList())
                 : TaggingSettings.GetDefaultDisplayName(tagType);
         }
 
@@ -635,13 +641,13 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Reconciles only the Customized / Not Customized pair, for a change that cannot have
-        /// moved any other tag.
+        /// Reconciles only the customization kinds (the Customized pair and the area pairs), for a
+        /// change that cannot have moved any other tag.
         /// </summary>
         /// <remarks>
         /// A full sync evaluates every tag, and that means loading the game's hydrated
         /// achievement data -- the whole cost of a sync. Renaming an achievement, writing a note
-        /// or overriding an icon moves this one tag and nothing else, so the load is skipped and
+        /// or overriding an icon moves these tags and nothing else, so the load is skipped and
         /// the other managed tags are left exactly as they are.
         /// </remarks>
         public void SyncCustomizationTagsForGames(List<Guid> gameIds)
@@ -668,15 +674,17 @@ namespace PlayniteAchievements.Services.Tagging
 
                         try
                         {
-                            var applies = GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                                ? TagType.Customized
-                                : TagType.NotCustomized;
-                            var replaced = applies == TagType.Customized
-                                ? TagType.NotCustomized
-                                : TagType.Customized;
+                            // Platform and Metadata only move on a refresh, but an edit can turn a
+                            // layered area's None on or off, which needs the game's data.
+                            var applies = new HashSet<TagType>(DetermineCustomizationTagTypes(
+                                gameId,
+                                () => PlayniteAchievementsPlugin.Instance?.AchievementDataService?.GetGameAchievementData(gameId)));
+                            var changed = false;
+                            foreach (var tagType in CustomizationTagTypes)
+                            {
+                                changed |= SetManagedTag(game, tagConfigs, tagType, applies.Contains(tagType));
+                            }
 
-                            var changed = SetManagedTag(game, tagConfigs, replaced, false);
-                            changed |= SetManagedTag(game, tagConfigs, applies, true);
                             if (changed)
                             {
                                 _api.Database.Games.Update(game);
@@ -693,6 +701,60 @@ namespace PlayniteAchievements.Services.Tagging
             {
                 _logger.Error(ex, "Failed to sync customization tags for games");
             }
+        }
+
+        /// <summary>
+        /// Every kind that tracks customization: the Customized pair and each area's kinds.
+        /// </summary>
+        private static readonly IReadOnlyList<TagType> CustomizationTagTypes =
+            new[] { TagType.Customized, TagType.NotCustomized }
+                .Concat(CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
+                .ToList();
+
+        /// <summary>
+        /// The customization kinds that apply to a game: one side of the Customized pair and the
+        /// applicable kinds of each area. Areas are only classified when one of their kinds is
+        /// enabled, and the game's data is only loaded when a Platform, Metadata or None kind is,
+        /// so the default setup pays nothing for them.
+        /// </summary>
+        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId, Func<GameAchievementData> loadData)
+        {
+            var types = new List<TagType>
+            {
+                GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
+                    ? TagType.Customized
+                    : TagType.NotCustomized
+            };
+
+            if (!AnyAreaTagEnabled(_ => true))
+            {
+                return types;
+            }
+
+            var layers = default(GameDataLayers);
+            if (AnyAreaTagEnabled(layer => layer == TagLayer.Platform || layer == TagLayer.Metadata || layer == TagLayer.None))
+            {
+                var data = loadData?.Invoke();
+                layers = new GameDataLayers
+                {
+                    Platform = data?.PlatformFields,
+                    Metadata = data?.MetadataFields,
+                    Present = Metadata.DataLayers.Present(data?.Achievements)
+                };
+            }
+
+            types.AddRange(CustomizationTagAreas.TagsFor(GameCustomDataLookup.GetCustomizationAreas(gameId, Settings), layers));
+            return types;
+        }
+
+        private bool AnyAreaTagEnabled(Func<TagLayer, bool> layerFilter)
+        {
+            var tagConfigs = Tagging?.TagConfigs;
+            return tagConfigs != null &&
+                   CustomizationTagAreas.All
+                       .SelectMany(area => area.Tags)
+                       .Where(pair => layerFilter(pair.Key))
+                       .Any(pair => tagConfigs.TryGetValue(pair.Value, out var config) && config?.IsEnabled == true);
         }
 
         /// <summary>
@@ -864,10 +926,11 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             var gameId = game.Id;
-            types.Add(
-                GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                    ? TagType.Customized
-                    : TagType.NotCustomized);
+            // Loaded once, and only when something needs it: excluded games stop before the
+            // status tags, but the layered customization tags may still read it.
+            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            var loaded = new Lazy<GameAchievementData>(() => achievementDataService?.GetGameAchievementData(gameId));
+            types.AddRange(DetermineCustomizationTagTypes(gameId, () => loaded.Value));
 
             // Full exclusion is exclusive - no other tags
             if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, Settings))
@@ -885,8 +948,7 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             // Load achievement data through the central data service when available.
-            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
-            var data = achievementDataService?.GetGameAchievementData(gameId);
+            var data = loaded.Value;
 
             // HasAchievements defaults to true on unscanned stubs (so bulk scans do not skip
             // them) and can survive as true with an empty list on rows written by the legacy
@@ -907,8 +969,18 @@ namespace PlayniteAchievements.Services.Tagging
                 return result;
             }
 
-            // Game has achievements - add HasAchievements tag
-            types.Add(TagType.HasAchievements);
+            // Platform achievements are every row but the projected custom ones; a manually
+            // tracked list counts. Custom ones are the user's own, an auto capstone aside.
+            if (data.Achievements.Any(a => a != null && !CustomAchievementProjectionService.IsCustomApiName(a.ApiName)))
+            {
+                types.Add(TagType.HasAchievements);
+            }
+
+            if (GameCustomDataLookup.GetCustomAchievements(gameId, Settings)?.Any(definition =>
+                    definition != null && !definition.IsAutoCapstone && !string.IsNullOrWhiteSpace(definition.DisplayName)) == true)
+            {
+                types.Add(TagType.CustomAchievements);
+            }
 
             // Completed means every achievement unlocked, or every capstone earned. Raw cached data
             // has not been through hydration, so its IsCapstone flags are the provider seed and the

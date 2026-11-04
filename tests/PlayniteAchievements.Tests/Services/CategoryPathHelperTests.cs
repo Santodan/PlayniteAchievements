@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Tests.Services
             foreach (var input in inputs)
             {
                 Assert.AreEqual(
-                    AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(input),
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(input),
                     CategoryPathHelper.NormalizePath(input),
                     $"input [{input ?? "<null>"}]");
             }
@@ -63,7 +63,8 @@ namespace PlayniteAchievements.Tests.Services
             // art, so a child beneath it would be unreachable.
             Assert.AreEqual("Default", CategoryPathHelper.NormalizePath("Default::X"));
             Assert.AreEqual("Default", CategoryPathHelper.NormalizePath("Default::X::Y"));
-            Assert.AreEqual("default", CategoryPathHelper.NormalizePath("default::X"), "root casing is preserved");
+            Assert.AreEqual("Default", CategoryPathHelper.NormalizePath("default::X"), "the root folds to one spelling");
+            Assert.AreEqual("Default", CategoryPathHelper.NormalizePath("DEFAULT"), "a bare root folds too");
             Assert.AreEqual("X::Default", CategoryPathHelper.NormalizePath("X::Default"), "only the root is special");
         }
 
@@ -119,12 +120,23 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void IsDescendantOf_IsStrictAndCaseInsensitive()
+        public void IsDescendantOf_IsStrictAndCaseSensitive()
         {
             Assert.IsFalse(CategoryPathHelper.IsDescendantOf("A", "A"));
             Assert.IsTrue(CategoryPathHelper.IsSelfOrDescendantOf("A", "A"));
-            Assert.IsTrue(CategoryPathHelper.IsSame("a::b", "A::B"));
-            Assert.IsTrue(CategoryPathHelper.IsDescendantOf("a::b", "A"));
+            Assert.IsFalse(CategoryPathHelper.IsSame("dlc1", "DLC1"));
+            Assert.IsFalse(CategoryPathHelper.IsSame("a::b", "A::B"));
+            Assert.IsFalse(CategoryPathHelper.IsDescendantOf("a::b", "A"));
+            Assert.IsTrue(CategoryPathHelper.IsSame("default", "Default"), "the Default bucket matches in any case");
+        }
+
+        [TestMethod]
+        public void ResolveLoose_PrefersExactThenTheOnlyCaseVariant()
+        {
+            Assert.AreEqual("DLC1", CategoryPathHelper.ResolveLoose("DLC1", new[] { "dlc1", "DLC1" }));
+            Assert.AreEqual("Story", CategoryPathHelper.ResolveLoose("story", new[] { "Story", "DLC" }));
+            Assert.IsNull(CategoryPathHelper.ResolveLoose("Dlc1", new[] { "dlc1", "DLC1" }), "ambiguous case variants");
+            Assert.IsNull(CategoryPathHelper.ResolveLoose("Other", new[] { "Story" }));
         }
 
         [TestMethod]

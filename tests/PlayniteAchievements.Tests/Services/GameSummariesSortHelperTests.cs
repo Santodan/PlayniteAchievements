@@ -379,11 +379,86 @@ namespace PlayniteAchievements.Services.Tests
                 items.Select(item => item.GameName).ToArray());
         }
 
+        [DataTestMethod]
+        [DataRow(ListSortDirection.Descending, new[] { "Beta", "Gamma", "Alpha" })]
+        [DataRow(ListSortDirection.Ascending, new[] { "Alpha", "Gamma", "Beta" })]
+        public void Sort_DateAdded_UsesAddedDateWithMissingDatesAsOldest(
+            ListSortDirection direction,
+            string[] expected)
+        {
+            var items = new List<GameSummaryItem>
+            {
+                CreateItem("Alpha", added: null),
+                CreateItem("Beta", added: Utc(2026, 4, 8)),
+                CreateItem("Gamma", added: Utc(2026, 4, 4))
+            };
+
+            GameSummariesSortHelper.Sort(items, GameSummariesSortMode.DateAdded, direction);
+
+            CollectionAssert.AreEqual(expected, items.Select(item => item.GameName).ToArray());
+        }
+
+        [DataTestMethod]
+        [DataRow(ListSortDirection.Descending, new[] { "Gamma", "Alpha", "Beta" })]
+        [DataRow(ListSortDirection.Ascending, new[] { "Beta", "Alpha", "Gamma" })]
+        public void Sort_ReleaseDate_UsesReleaseDateWithMissingDatesAsOldest(
+            ListSortDirection direction,
+            string[] expected)
+        {
+            var items = new List<GameSummaryItem>
+            {
+                CreateItem("Alpha", releaseDate: new DateTime(1998, 11, 21)),
+                CreateItem("Beta", releaseDate: null),
+                CreateItem("Gamma", releaseDate: new DateTime(2017, 3, 3))
+            };
+
+            GameSummariesSortHelper.Sort(items, GameSummariesSortMode.ReleaseDate, direction);
+
+            CollectionAssert.AreEqual(expected, items.Select(item => item.GameName).ToArray());
+        }
+
+        [DataTestMethod]
+        [DataRow(ListSortDirection.Descending, new[] { "Beta", "Gamma", "Alpha" })]
+        [DataRow(ListSortDirection.Ascending, new[] { "Alpha", "Gamma", "Beta" })]
+        public void Sort_Playtime_UsesPlaytimeSeconds(ListSortDirection direction, string[] expected)
+        {
+            var items = new List<GameSummaryItem>
+            {
+                CreateItem("Alpha", playtimeSeconds: 0),
+                CreateItem("Beta", playtimeSeconds: 90000),
+                CreateItem("Gamma", playtimeSeconds: 3600)
+            };
+
+            GameSummariesSortHelper.Sort(items, GameSummariesSortMode.Playtime, direction);
+
+            CollectionAssert.AreEqual(expected, items.Select(item => item.GameName).ToArray());
+        }
+
+        [DataTestMethod]
+        [DataRow(ListSortDirection.Ascending, new[] { "Beta", "Gamma", "Alpha" })]
+        [DataRow(ListSortDirection.Descending, new[] { "Alpha", "Gamma", "Beta" })]
+        public void Sort_Remaining_UsesLockedCount(ListSortDirection direction, string[] expected)
+        {
+            var items = new List<GameSummaryItem>
+            {
+                CreateItem("Alpha", totalAchievements: 50, unlockedAchievements: 10),
+                CreateItem("Beta", totalAchievements: 20, unlockedAchievements: 20),
+                CreateItem("Gamma", totalAchievements: 100, unlockedAchievements: 97)
+            };
+
+            GameSummariesSortHelper.Sort(items, GameSummariesSortMode.Remaining, direction);
+
+            CollectionAssert.AreEqual(expected, items.Select(item => item.GameName).ToArray());
+        }
+
         private static GameSummaryItem CreateItem(
             string gameName,
             string sortingName = null,
             DateTime? lastUnlockUtc = null,
             DateTime? lastPlayed = null,
+            DateTime? added = null,
+            DateTime? releaseDate = null,
+            ulong playtimeSeconds = 0,
             int totalAchievements = 10,
             int unlockedAchievements = 5,
             int collectionScore = 0,
@@ -397,6 +472,9 @@ namespace PlayniteAchievements.Services.Tests
                 SortingName = sortingName ?? gameName,
                 LastUnlockUtc = lastUnlockUtc,
                 LastPlayed = lastPlayed,
+                Added = added,
+                ReleaseDate = releaseDate,
+                PlaytimeSeconds = playtimeSeconds,
                 TotalAchievements = totalAchievements,
                 UnlockedAchievements = unlockedAchievements,
                 CollectionScore = collectionScore,

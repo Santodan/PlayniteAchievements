@@ -28,8 +28,6 @@ namespace PlayniteAchievements.Services.Achievements
         private readonly ILogger _logger;
         private readonly Lazy<LocalizedDefaultStringCatalog> _catalog;
         private readonly object _applySync = new object();
-        private readonly object _pendingSync = new object();
-        private readonly HashSet<Guid> _waitingForEditor = new HashSet<Guid>();
 
         public AutoCapstoneTextService(
             GameCustomDataStore store,
@@ -43,7 +41,6 @@ namespace PlayniteAchievements.Services.Achievements
             _resolveGameName = resolveGameName;
             _logger = logger;
             _catalog = new Lazy<LocalizedDefaultStringCatalog>(() => BuildCatalog(localizationDirectory, logger));
-            OpenEditorRegistry.Closed += OnEditorClosed;
         }
 
         /// <summary>True when the templates in effect are not the ones last applied.</summary>
@@ -51,7 +48,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             return settings != null &&
                 !string.Equals(
-                    AutoCapstoneText.Resolve(settings).Signature,
+                    SantodanAutoCapstoneTextRecovery.AppliedSignature(AutoCapstoneText.Resolve(settings).Signature),
                     settings.AutoCapstoneAppliedTemplates,
                     StringComparison.Ordinal);
         }
@@ -88,26 +85,25 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 _logger?.Info($"Auto capstone text applied: {rewritten} of {gameIds.Count} games rewritten.");
-                return current.Signature;
+                return SantodanAutoCapstoneTextRecovery.AppliedSignature(current.Signature);
             }
         }
 
         private bool ApplyToGame(Guid gameId, AutoCapstoneTemplates current, AutoCapstoneKnownTemplates known)
         {
-            if (OpenEditorRegistry.IsOpen(gameId))
+            if (OpenEditorRegistry.DeferWhileOpen(gameId, this, () => CatchUpAfterEditor(gameId)))
             {
-                lock (_pendingSync)
-                {
-                    _waitingForEditor.Add(gameId);
-                }
-
                 return false;
             }
 
             var gameNames = ResolveGameNames(gameId);
 
+            // A whole-game capstone with platinum text takes its text from the platinum, which the
+            // capstone refresh after each game refresh keeps current.
+            var platinumText = !string.IsNullOrWhiteSpace(AutoCapstoneTemplate.MetadataTextAccessor?.Invoke(gameId).Title);
+
             // Looked at before writing: a save reaches every subscriber, and most games need none.
-            if (!_store.QueryGame(gameId, data => RewriteAll(data, gameNames, current, known, commit: false), false))
+            if (!_store.QueryGame(gameId, data => RewriteAll(data, gameNames, current, known, platinumText, commit: false), false))
             {
                 return false;
             }
@@ -115,7 +111,7 @@ namespace PlayniteAchievements.Services.Achievements
             var changed = false;
             try
             {
-                _store.Update(gameId, data => changed = RewriteAll(data, gameNames, current, known, commit: true));
+                _store.Update(gameId, data => changed = RewriteAll(data, gameNames, current, known, platinumText, commit: true));
             }
             catch (Exception ex)
             {
@@ -131,6 +127,7 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyList<string> gameNames,
             AutoCapstoneTemplates current,
             AutoCapstoneKnownTemplates known,
+            bool platinumText,
             bool commit)
         {
             var definitions = data?.CustomAchievements;
@@ -150,6 +147,7 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 if (copy.IsAutoCapstone &&
+                    !(platinumText && copy.IsWholeGameAutoCapstone) &&
                     AutoCapstoneTextRewriter.Rewrite(copy, ResolveCategory(data, copy), gameNames, current, known))
                 {
                     changed = true;
@@ -249,16 +247,8 @@ namespace PlayniteAchievements.Services.Achievements
             return new LocalizedDefaultStringCatalog(localizationDirectory, definitions, logger);
         }
 
-        private void OnEditorClosed(Guid gameId)
+        private void CatchUpAfterEditor(Guid gameId)
         {
-            lock (_pendingSync)
-            {
-                if (!_waitingForEditor.Remove(gameId))
-                {
-                    return;
-                }
-            }
-
             System.Threading.Tasks.Task.Run(() =>
             {
                 try

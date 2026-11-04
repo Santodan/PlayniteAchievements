@@ -62,9 +62,9 @@ namespace PlayniteAchievements.Tests.Providers
         [DataRow("000", "Base")]
         [DataRow("001", "DLC")]
         [DataRow("anything-else", "DLC")]
-        public void MapTrophyGroupToCategoryType_ClassifiesBaseVsDlc(string groupId, string expected)
+        public void MapTrophyGroupToCategoryKind_ClassifiesBaseVsDlc(string groupId, string expected)
         {
-            Assert.AreEqual(expected, PsnTrophyCategoryHelper.MapTrophyGroupToCategoryType(groupId));
+            Assert.AreEqual(expected, PsnTrophyCategoryHelper.MapTrophyGroupToCategoryKind(groupId));
         }
 
         [DataTestMethod]

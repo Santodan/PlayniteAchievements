@@ -61,7 +61,8 @@ namespace PlayniteAchievements.Services.Database
                         ad.Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
                         ad.Category AS Category,
-                        ad.CategoryType AS CategoryType,
+                        ad.Tags AS Tags,
+                        ad.CategoryKind AS CategoryKind,
                         ad.TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
@@ -129,6 +130,8 @@ namespace PlayniteAchievements.Services.Database
             public string GameName { get; set; }
             public string LibrarySourceName { get; set; }
             public string RaritySource { get; set; }
+            public long? PlatformFields { get; set; }
+            public long? MetadataFields { get; set; }
         }
 
         /// <summary>
@@ -145,7 +148,8 @@ namespace PlayniteAchievements.Services.Database
             int? Points { get; }
             int? ScaledPoints { get; }
             string Category { get; }
-            string CategoryType { get; }
+            string Tags { get; }
+            string CategoryKind { get; }
             string TrophyType { get; }
             long Hidden { get; }
             long IsCapstone { get; }
@@ -168,7 +172,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -190,7 +195,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -335,7 +341,8 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
-            public string CategoryType { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
@@ -359,6 +366,8 @@ namespace PlayniteAchievements.Services.Database
             public string IconPath { get; set; }
             public string CoverPath { get; set; }
             public DateTime? LastPlayed { get; set; }
+            public DateTime? Added { get; set; }
+            public DateTime? ReleaseDate { get; set; }
             public string PlatformText { get; set; }
             public IReadOnlyList<string> Platforms { get; set; } = Array.Empty<string>();
             public string RegionText { get; set; }
@@ -610,6 +619,37 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
+        /// <summary>
+        /// Cache keys of the current user's games whose achievement definitions carry the tag
+        /// <paramref name="tagKey"/> (stored tags are pipe-joined keys). One query, for demoting a
+        /// deleted global tag to the games that use it.
+        /// </summary>
+        public List<string> GetCacheKeysWithTag(string tagKey)
+        {
+            if (string.IsNullOrWhiteSpace(tagKey))
+            {
+                return new List<string>();
+            }
+
+            var escaped = tagKey.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+            return WithReadDb(db =>
+            {
+                var rows = db.Load<CacheKeyRow>(
+                    @"SELECT DISTINCT ugp.CacheKey AS CacheKey
+                      FROM AchievementDefinitions ad
+                      INNER JOIN UserGameProgress ugp ON ugp.GameId = ad.GameId
+                      INNER JOIN Users u ON u.Id = ugp.UserId
+                      WHERE u.IsCurrentUser = 1 AND ('|' || ad.Tags || '|') LIKE ? ESCAPE '\';",
+                    "%|" + escaped + "|%").ToList();
+
+                return rows
+                    .Select(a => a.CacheKey)
+                    .Where(a => !string.IsNullOrWhiteSpace(a))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            });
+        }
+
         public GameAchievementData LoadCurrentUserGameData(string key)
         {
             if (string.IsNullOrWhiteSpace(key))
@@ -634,7 +674,9 @@ namespace PlayniteAchievements.Services.Database
                         g.PlayniteGameId AS PlayniteGameId,
                         g.GameName AS GameName,
                         g.LibrarySourceName AS LibrarySourceName,
-                        g.RaritySource AS RaritySource
+                        g.RaritySource AS RaritySource,
+                        g.PlatformFields AS PlatformFields,
+                        g.MetadataFields AS MetadataFields
                       FROM UserGameProgress ugp
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       INNER JOIN Games g ON g.Id = ugp.GameId
@@ -680,130 +722,145 @@ namespace PlayniteAchievements.Services.Database
 
         public List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGameDataByCacheKey()
         {
-            return WithReadDb(db =>
+            return WithReadDb(db => LoadAllCurrentUserGames(db, withAchievements: true));
+        }
+
+        /// <summary>
+        /// Every current-user game as <see cref="LoadAllCurrentUserGameDataByCacheKey"/> returns it,
+        /// but with no achievements: one query over the games, for callers that only need a game's
+        /// identity (name, provider, ids).
+        /// </summary>
+        public List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGameHeadersByCacheKey()
+        {
+            return WithReadDb(db => LoadAllCurrentUserGames(db, withAchievements: false));
+        }
+
+        private List<KeyValuePair<string, GameAchievementData>> LoadAllCurrentUserGames(SQLiteDatabase db, bool withAchievements)
+        {
+            var progressRows = db.Load<ProgressGameJoinRow>(
+                @"WITH LatestProgress AS (
+                    SELECT
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        TRIM(ugp.CacheKey) AS CacheKey,
+                        ugp.HasAchievements AS HasAchievements,
+                        ugp.LastUpdatedUtc AS LastUpdatedUtc,
+                        g.ProviderKey AS ProviderKey,
+                        g.ProviderPlatformKey AS ProviderPlatformKey,
+                        g.ProviderGameId AS ProviderGameId,
+                        g.ProviderGameKey AS ProviderGameKey,
+                        g.PlayniteGameId AS PlayniteGameId,
+                        g.GameName AS GameName,
+                        g.LibrarySourceName AS LibrarySourceName,
+                        g.RaritySource AS RaritySource,
+                        g.PlatformFields AS PlatformFields,
+                        g.MetadataFields AS MetadataFields,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    INNER JOIN Games g ON g.Id = ugp.GameId
+                    WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    UserGameProgressId,
+                    GameId,
+                    CacheKey,
+                    HasAchievements,
+                    LastUpdatedUtc,
+                    ProviderKey,
+                    ProviderPlatformKey,
+                    ProviderGameId,
+                    ProviderGameKey,
+                    PlayniteGameId,
+                    GameName,
+                    LibrarySourceName,
+                    RaritySource,
+                    PlatformFields,
+                    MetadataFields
+                FROM LatestProgress
+                WHERE RowNum = 1
+                ORDER BY LastUpdatedUtc DESC, UserGameProgressId DESC;").ToList();
+
+            if (progressRows.Count == 0)
             {
-                var progressRows = db.Load<ProgressGameJoinRow>(
-                    @"WITH LatestProgress AS (
-                        SELECT
-                            ugp.Id AS UserGameProgressId,
-                            ugp.GameId AS GameId,
-                            TRIM(ugp.CacheKey) AS CacheKey,
-                            ugp.HasAchievements AS HasAchievements,
-                            ugp.LastUpdatedUtc AS LastUpdatedUtc,
-                            g.ProviderKey AS ProviderKey,
-                            g.ProviderPlatformKey AS ProviderPlatformKey,
-                            g.ProviderGameId AS ProviderGameId,
-                            g.ProviderGameKey AS ProviderGameKey,
-                            g.PlayniteGameId AS PlayniteGameId,
-                            g.GameName AS GameName,
-                            g.LibrarySourceName AS LibrarySourceName,
-                            g.RaritySource AS RaritySource,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY ugp.CacheKey
-                                ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
-                            ) AS RowNum
-                        FROM UserGameProgress ugp
-                        INNER JOIN Users u ON u.Id = ugp.UserId
-                        INNER JOIN Games g ON g.Id = ugp.GameId
-                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
-                          AND ugp.CacheKey IS NOT NULL
-                          AND TRIM(ugp.CacheKey) <> ''
-                    )
+                return new List<KeyValuePair<string, GameAchievementData>>();
+            }
+
+            var selectedByProgressId = new Dictionary<long, ProgressGameJoinRow>(progressRows.Count);
+            var selectedByCacheKey = new Dictionary<string, ProgressGameJoinRow>(StringComparer.OrdinalIgnoreCase);
+            var modelsByProgressId = new Dictionary<long, GameAchievementData>(progressRows.Count);
+            for (int i = 0; i < progressRows.Count; i++)
+            {
+                var row = progressRows[i];
+                var cacheKey = row?.CacheKey?.Trim();
+                if (string.IsNullOrWhiteSpace(cacheKey) || row == null)
+                {
+                    continue;
+                }
+
+                row.CacheKey = cacheKey;
+                selectedByCacheKey[cacheKey] = row;
+                selectedByProgressId[row.UserGameProgressId] = row;
+
+                var model = CreateModel(row);
+                BackfillPlayniteGameIdFromCacheKey(model, row.CacheKey);
+                modelsByProgressId[row.UserGameProgressId] = model;
+            }
+
+            var detailRows = !withAchievements ? new List<ProgressAchievementJoinRow>() : db.Load<ProgressAchievementJoinRow>(
+                @"WITH LatestProgress AS (
                     SELECT
-                        UserGameProgressId,
-                        GameId,
-                        CacheKey,
-                        HasAchievements,
-                        LastUpdatedUtc,
-                        ProviderKey,
-                        ProviderPlatformKey,
-                        ProviderGameId,
-                        ProviderGameKey,
-                        PlayniteGameId,
-                        GameName,
-                        LibrarySourceName,
-                        RaritySource
-                    FROM LatestProgress
-                    WHERE RowNum = 1
-                    ORDER BY LastUpdatedUtc DESC, UserGameProgressId DESC;").ToList();
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    lp.UserGameProgressId AS UserGameProgressId,
+                    " + AchievementDetailColumnsSql + @"
+                  FROM LatestProgress lp
+                  INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                  LEFT JOIN UserAchievements ua
+                    ON ua.AchievementDefinitionId = ad.Id
+                   AND ua.UserGameProgressId = lp.UserGameProgressId
+                  WHERE lp.RowNum = 1
+                  ORDER BY lp.UserGameProgressId, ad.Id;").ToList();
 
-                if (progressRows.Count == 0)
+            for (int i = 0; i < detailRows.Count; i++)
+            {
+                var row = detailRows[i];
+                if (row == null ||
+                    string.IsNullOrWhiteSpace(row.ApiName) ||
+                    !modelsByProgressId.TryGetValue(row.UserGameProgressId, out var model))
                 {
-                    return new List<KeyValuePair<string, GameAchievementData>>();
+                    continue;
                 }
 
-                var selectedByProgressId = new Dictionary<long, ProgressGameJoinRow>(progressRows.Count);
-                var selectedByCacheKey = new Dictionary<string, ProgressGameJoinRow>(StringComparer.OrdinalIgnoreCase);
-                var modelsByProgressId = new Dictionary<long, GameAchievementData>(progressRows.Count);
-                for (int i = 0; i < progressRows.Count; i++)
+                model.Achievements.Add(MapAchievementDetail(row));
+            }
+
+            return selectedByCacheKey
+                .OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(a =>
                 {
-                    var row = progressRows[i];
-                    var cacheKey = row?.CacheKey?.Trim();
-                    if (string.IsNullOrWhiteSpace(cacheKey) || row == null)
-                    {
-                        continue;
-                    }
-
-                    row.CacheKey = cacheKey;
-                    selectedByCacheKey[cacheKey] = row;
-                    selectedByProgressId[row.UserGameProgressId] = row;
-
-                    var model = CreateModel(row);
-                    BackfillPlayniteGameIdFromCacheKey(model, row.CacheKey);
-                    modelsByProgressId[row.UserGameProgressId] = model;
-                }
-
-                var detailRows = db.Load<ProgressAchievementJoinRow>(
-                    @"WITH LatestProgress AS (
-                        SELECT
-                            ugp.Id AS UserGameProgressId,
-                            ugp.GameId AS GameId,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY ugp.CacheKey
-                                ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
-                            ) AS RowNum
-                        FROM UserGameProgress ugp
-                        INNER JOIN Users u ON u.Id = ugp.UserId
-                        INNER JOIN Games g ON g.Id = ugp.GameId
-                        WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
-                          AND ugp.CacheKey IS NOT NULL
-                          AND TRIM(ugp.CacheKey) <> ''
-                    )
-                    SELECT
-                        lp.UserGameProgressId AS UserGameProgressId,
-                        " + AchievementDetailColumnsSql + @"
-                      FROM LatestProgress lp
-                      INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
-                      LEFT JOIN UserAchievements ua
-                        ON ua.AchievementDefinitionId = ad.Id
-                       AND ua.UserGameProgressId = lp.UserGameProgressId
-                      WHERE lp.RowNum = 1
-                      ORDER BY lp.UserGameProgressId, ad.Id;").ToList();
-
-                for (int i = 0; i < detailRows.Count; i++)
-                {
-                    var row = detailRows[i];
-                    if (row == null ||
-                        string.IsNullOrWhiteSpace(row.ApiName) ||
-                        !modelsByProgressId.TryGetValue(row.UserGameProgressId, out var model))
-                    {
-                        continue;
-                    }
-
-                    model.Achievements.Add(MapAchievementDetail(row));
-                }
-
-                return selectedByCacheKey
-                    .OrderBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(a =>
-                    {
-                        return modelsByProgressId.TryGetValue(a.Value.UserGameProgressId, out var model)
-                            ? new KeyValuePair<string, GameAchievementData>(a.Key, model)
-                            : default(KeyValuePair<string, GameAchievementData>);
-                    })
-                    .Where(a => !string.IsNullOrWhiteSpace(a.Key) && a.Value != null)
-                    .ToList();
-            });
+                    return modelsByProgressId.TryGetValue(a.Value.UserGameProgressId, out var model)
+                        ? new KeyValuePair<string, GameAchievementData>(a.Key, model)
+                        : default(KeyValuePair<string, GameAchievementData>);
+                })
+                .Where(a => !string.IsNullOrWhiteSpace(a.Key) && a.Value != null)
+                .ToList();
         }
 
         private AchievementDetail MapAchievementDetail(IAchievementDetailJoinRow row)
@@ -817,8 +874,9 @@ namespace PlayniteAchievements.Services.Database
                 LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
                 Points = row.Points,
                 ScaledPoints = row.ScaledPoints,
-                Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                Tags = AchievementTagHelper.Normalize(row.Tags),
+                CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                 TrophyType = row.TrophyType,
                 Hidden = row.Hidden != 0,
                 IsCapstone = row.IsCapstone != 0,
@@ -856,6 +914,20 @@ namespace PlayniteAchievements.Services.Database
             IReadOnlyDictionary<Guid, HashSet<string>> wanted)
         {
             return _summaryReader.LoadUnlockedApiNames(wanted);
+        }
+
+        /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTallyStates"/>
+        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTallyStates(
+            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
+            ISet<Guid> providerCapstoneGames = null)
+        {
+            return _summaryReader.LoadAchievementTallyStates(wanted, providerCapstoneGames);
+        }
+
+        /// <inheritdoc cref="SummaryCacheReader.LoadTalliesForGame"/>
+        public AchievementTally[] LoadTalliesForGame(Guid playniteGameId)
+        {
+            return _summaryReader.LoadTalliesForGame(playniteGameId);
         }
 
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
@@ -921,6 +993,8 @@ namespace PlayniteAchievements.Services.Database
                     ? ResolvePlayniteAssetPath(playniteGame.CoverImage)
                     : null,
                 LastPlayed = playniteGame?.LastActivity,
+                Added = playniteGame?.Added,
+                ReleaseDate = playniteGame?.ReleaseDate?.Date,
                 PlatformText = PlayniteGameMetadataFormatter.GetPlatformText(playniteGame),
                 Platforms = PlayniteGameMetadataFormatter.GetPlatformNames(playniteGame),
                 RegionText = PlayniteGameMetadataFormatter.GetRegionText(playniteGame),
@@ -2326,7 +2400,8 @@ namespace PlayniteAchievements.Services.Database
                         ad.Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
                         ad.Category AS Category,
-                        ad.CategoryType AS CategoryType,
+                        ad.Tags AS Tags,
+                        ad.CategoryKind AS CategoryKind,
                         ad.TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
@@ -2363,8 +2438,9 @@ namespace PlayniteAchievements.Services.Database
                         LockedIconUrl = MakeAbsolutePath(row.LockedIconPath),
                         Points = row.Points,
                         ScaledPoints = row.ScaledPoints,
-                        Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                        CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                        Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                        Tags = AchievementTagHelper.Normalize(row.Tags),
+                        CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                         TrophyType = row.TrophyType,
                         Hidden = row.Hidden != 0,
                         IsCapstone = row.IsCapstone != 0,
@@ -4104,7 +4180,7 @@ namespace PlayniteAchievements.Services.Database
         {
             return db.Load<AchievementDefinitionRow>(
                 @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath,
-                         Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone,
+                         Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone,
                          GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
                   FROM AchievementDefinitions
                   WHERE GameId = ?
@@ -4243,7 +4319,8 @@ namespace PlayniteAchievements.Services.Database
                 Points = row?.Points,
                 ScaledPoints = row?.ScaledPoints,
                 Category = row?.Category,
-                CategoryType = row?.CategoryType,
+                Tags = row?.Tags,
+                CategoryKind = row?.CategoryKind,
                 TrophyType = row?.TrophyType,
                 Hidden = row != null && row.Hidden != 0,
                 IsCapstone = row != null && row.IsCapstone != 0,
@@ -4701,7 +4778,9 @@ namespace PlayniteAchievements.Services.Database
                         RegionText = presentation.RegionText,
                         PlaytimeSeconds = presentation.PlaytimeSeconds,
                         LastPlayed = presentation.LastPlayed,
-                        FriendCount = (int)Math.Max(0, row.FriendCount),
+                        Added = presentation.Added,
+                        ReleaseDate = presentation.ReleaseDate,
+                        FriendCount =(int)Math.Max(0, row.FriendCount),
                         FriendsWithUnlocksCount = (int)Math.Max(0, row.FriendsWithUnlocksCount),
                         FriendUnlockedAchievementsCount = (int)Math.Max(0, row.UnlockedAchievementsCount),
                         UniqueFriendUnlockedAchievementsCount = (int)Math.Max(0, row.UniqueUnlockedAchievementsCount),
@@ -5151,7 +5230,8 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
-                    ad.CategoryType AS CategoryType,
+                    ad.Tags AS Tags,
+                    ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
                     ad.Hidden AS Hidden,
                     ad.IsCapstone AS IsCapstone,
@@ -5310,8 +5390,9 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
-                    Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(row.Category),
-                    CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(row.CategoryType),
+                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    Tags = AchievementTagHelper.Normalize(row.Tags),
+                    CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
                     Hidden = row.Hidden != 0,
                     IsCapstone = row.IsCapstone != 0,
@@ -5334,7 +5415,8 @@ namespace PlayniteAchievements.Services.Database
                     LockedIconPath = detail.LockedIconPath,
                     PointsValue = detail.ScaledPoints ?? detail.Points,
                     CategoryLabel = detail.Category,
-                    CategoryType = detail.CategoryType,
+                    Tags = detail.Tags,
+                    CategoryKind = detail.CategoryKind,
                     TrophyType = detail.TrophyType,
                     Hidden = detail.Hidden,
                     IsCapstone = detail.IsCapstone,
@@ -5441,15 +5523,21 @@ namespace PlayniteAchievements.Services.Database
                 customData.AchievementCategoryOverrides.TryGetValue(apiName, out var categoryOverride) &&
                 !string.IsNullOrWhiteSpace(categoryOverride))
             {
-                item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(categoryOverride);
+                item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryOverride);
             }
 
-            if (customData.AchievementCategoryTypeOverrides != null &&
-                customData.AchievementCategoryTypeOverrides.TryGetValue(apiName, out var categoryTypeOverride) &&
-                !string.IsNullOrWhiteSpace(categoryTypeOverride))
+            PlayniteAchievements.Models.Settings.AchievementOverride userOverride = null;
+            customData.ResolveAchievementOverrides()?.TryGetValue(apiName, out userOverride);
+            if (userOverride != null && (userOverride.ClearTags || userOverride.Tags != null))
             {
-                item.CategoryType = AchievementCategoryTypeHelper.ApplyOverride(item.CategoryType, categoryTypeOverride);
+                item.Tags = AchievementTagHelper.ApplyOverride(
+                    item.Tags,
+                    userOverride.ClearTags ? string.Empty : userOverride.Tags);
             }
+
+            item.CategoryKind = CategoryKindHelper.ResolveEffective(
+                customData.GetStoredCategoryKind(item.CategoryLabel),
+                item.CategoryKind);
 
             item.AchievementNote = customData.AchievementNotes != null &&
                                    customData.AchievementNotes.TryGetValue(apiName, out var note)
@@ -5916,6 +6004,278 @@ namespace PlayniteAchievements.Services.Database
                         @"DELETE FROM Games
                           WHERE PlayniteGameId = ?;",
                         playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataApplied WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourceSnapshots WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourcePages WHERE PlayniteGameId = ?;",
+                        playniteGameIdText);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Loads every MetadataApplied row.
+        /// </summary>
+        internal List<MetadataAppliedRow> LoadMetadataApplied()
+        {
+            return WithDb(db => db.Load<MetadataAppliedRow>(
+                    @"SELECT PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
+                             CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc
+                      FROM MetadataApplied;")
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Loads every MetadataCoverage row.
+        /// </summary>
+        internal List<MetadataCoverageRow> LoadMetadataCoverage()
+        {
+            return WithDb(db => db.Load<MetadataCoverageRow>(
+                    @"SELECT PlayniteGameId, SourceKey, Matched, Total, Fields
+                      FROM MetadataCoverage;")
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Upserts a game's MetadataApplied row and replaces that game's MetadataCoverage rows
+        /// with <paramref name="coverage"/>, in one transaction. Coverage rows are written under
+        /// <paramref name="applied"/>'s PlayniteGameId; rows with a blank SourceKey are skipped.
+        /// </summary>
+        internal void SaveMetadataApplied(MetadataAppliedRow applied, IReadOnlyList<MetadataCoverageRow> coverage)
+        {
+            if (applied == null || string.IsNullOrWhiteSpace(applied.PlayniteGameId))
+            {
+                return;
+            }
+
+            var gameIdText = applied.PlayniteGameId;
+            var updatedUtc = string.IsNullOrWhiteSpace(applied.UpdatedUtc)
+                ? ToIso(DateTime.UtcNow)
+                : applied.UpdatedUtc;
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        @"INSERT OR REPLACE INTO MetadataApplied
+                              (PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
+                               CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                        gameIdText,
+                        applied.IconSourceKey,
+                        applied.CapstoneArtUrl,
+                        applied.CapstoneTitle,
+                        applied.CapstoneDescription,
+                        applied.CapstoneMatchApiName,
+                        applied.CategoryCapstonesJson,
+                        applied.IconApiNamesJson,
+                        applied.IconFallbackApiNamesJson,
+                        updatedUtc);
+
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        gameIdText);
+
+                    foreach (var row in coverage ?? Array.Empty<MetadataCoverageRow>())
+                    {
+                        if (row == null || string.IsNullOrWhiteSpace(row.SourceKey))
+                        {
+                            continue;
+                        }
+
+                        db.ExecuteNonQuery(
+                            @"INSERT OR REPLACE INTO MetadataCoverage
+                                  (PlayniteGameId, SourceKey, Matched, Total, Fields)
+                              VALUES (?, ?, ?, ?, ?);",
+                            gameIdText,
+                            row.SourceKey,
+                            row.Matched,
+                            row.Total,
+                            row.Fields);
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// Deletes a game's MetadataApplied row and its MetadataCoverage rows.
+        /// </summary>
+        internal void DeleteMetadataApplied(string playniteGameId)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataApplied WHERE PlayniteGameId = ?;",
+                        playniteGameId);
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataCoverage WHERE PlayniteGameId = ?;",
+                        playniteGameId);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Returns the MetadataSourceSnapshots row for a game and source, or null when none is stored.
+        /// </summary>
+        internal MetadataSourceSnapshotRow GetMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            return WithDb(db => db.Load<MetadataSourceSnapshotRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc
+                      FROM MetadataSourceSnapshots
+                      WHERE PlayniteGameId = ? AND SourceKey = ?
+                      LIMIT 1;",
+                    playniteGameId,
+                    sourceKey)
+                .FirstOrDefault());
+        }
+
+        /// <summary>
+        /// Loads every MetadataSourceSnapshots row, across all games and sources.
+        /// </summary>
+        internal List<MetadataSourceSnapshotRow> LoadMetadataSourceSnapshots()
+        {
+            return WithDb(db => db.Load<MetadataSourceSnapshotRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc
+                      FROM MetadataSourceSnapshots;")
+                .ToList());
+        }
+
+        /// <summary>
+        /// Upserts a MetadataSourceSnapshots row keyed by its PlayniteGameId and SourceKey.
+        /// A null RowsJson is stored as an empty string; a blank UpdatedUtc is stored as now.
+        /// </summary>
+        internal void SaveMetadataSourceSnapshot(MetadataSourceSnapshotRow row)
+        {
+            if (row == null ||
+                string.IsNullOrWhiteSpace(row.PlayniteGameId) ||
+                string.IsNullOrWhiteSpace(row.SourceKey))
+            {
+                return;
+            }
+
+            var updatedUtc = string.IsNullOrWhiteSpace(row.UpdatedUtc)
+                ? ToIso(DateTime.UtcNow)
+                : row.UpdatedUtc;
+            WithDb(db =>
+            {
+                db.ExecuteNonQuery(
+                    @"INSERT OR REPLACE INTO MetadataSourceSnapshots
+                          (PlayniteGameId, SourceKey, LinkId, RowsJson, MatchesJson, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?, ?);",
+                    row.PlayniteGameId,
+                    row.SourceKey,
+                    row.LinkId,
+                    row.RowsJson ?? string.Empty,
+                    row.MatchesJson,
+                    updatedUtc);
+            });
+        }
+
+        /// <summary>
+        /// Deletes the MetadataSourceSnapshots row for a game and source.
+        /// </summary>
+        internal void DeleteMetadataSourceSnapshot(string playniteGameId, string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.ExecuteNonQuery(
+                    "DELETE FROM MetadataSourceSnapshots WHERE PlayniteGameId = ? AND SourceKey = ?;",
+                    playniteGameId,
+                    sourceKey);
+            });
+        }
+
+        /// <summary>
+        /// Loads every MetadataSourcePages row for one source, across all games.
+        /// </summary>
+        internal List<MetadataSourcePageRow> LoadMetadataSourcePages(string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return new List<MetadataSourcePageRow>();
+            }
+
+            return WithDb(db => db.Load<MetadataSourcePageRow>(
+                    @"SELECT PlayniteGameId, SourceKey, LinkName, Site, PageSlug
+                      FROM MetadataSourcePages
+                      WHERE SourceKey = ?;",
+                    sourceKey)
+                .Where(row => row != null)
+                .ToList());
+        }
+
+        /// <summary>
+        /// Replaces a game's MetadataSourcePages rows for one source with <paramref name="rows"/>,
+        /// in one transaction. Rows are written under the given game and source; rows with a blank
+        /// Site are skipped, and a null LinkName is stored as an empty string. An empty list only
+        /// deletes.
+        /// </summary>
+        internal void ReplaceMetadataSourcePages(
+            string playniteGameId,
+            string sourceKey,
+            IReadOnlyList<MetadataSourcePageRow> rows)
+        {
+            if (string.IsNullOrWhiteSpace(playniteGameId) || string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return;
+            }
+
+            WithDb(db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery(
+                        "DELETE FROM MetadataSourcePages WHERE PlayniteGameId = ? AND SourceKey = ?;",
+                        playniteGameId,
+                        sourceKey);
+
+                    foreach (var row in rows ?? Array.Empty<MetadataSourcePageRow>())
+                    {
+                        if (row == null || string.IsNullOrWhiteSpace(row.Site))
+                        {
+                            continue;
+                        }
+
+                        db.ExecuteNonQuery(
+                            @"INSERT OR REPLACE INTO MetadataSourcePages
+                                  (PlayniteGameId, SourceKey, LinkName, Site, PageSlug)
+                              VALUES (?, ?, ?, ?, ?);",
+                            playniteGameId,
+                            sourceKey,
+                            row.LinkName ?? string.Empty,
+                            row.Site,
+                            row.PageSlug);
+                    }
                 });
             });
         }
@@ -6610,9 +6970,9 @@ namespace PlayniteAchievements.Services.Database
 
                 db.ExecuteNonQuery(
                     @"INSERT INTO Games
-                        (ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, RaritySource, FirstSeenUtc, LastUpdatedUtc)
+                        (ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, RaritySource, PlatformFields, MetadataFields, FirstSeenUtc, LastUpdatedUtc)
                       VALUES
-                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                     providerKey,
                     DbValue(data.ProviderPlatformKey),
                     DbParam(providerGameId),
@@ -6621,6 +6981,8 @@ namespace PlayniteAchievements.Services.Database
                     DbValue(data.GameName),
                     DbValue(data.LibrarySourceName),
                     DbValue(data.RaritySource?.ToString()),
+                    DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.PlatformFields)),
+                    DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.MetadataFields)),
                     nowIso,
                     updatedIso);
                 return db.ExecuteScalar<long>("SELECT last_insert_rowid();");
@@ -6630,7 +6992,11 @@ namespace PlayniteAchievements.Services.Database
                 "SELECT RaritySource FROM Games WHERE Id = ?;",
                 game.Id);
             var raritySource = SqlNadoCacheBehavior.ResolveRaritySourceToWrite(data.RaritySource, storedRaritySource);
+            // Carried back like the per-achievement rarity, so the in-memory copy keeps showing it.
+            data.RaritySource = raritySource;
 
+            // A null mask means the payload was not refreshed (a re-save of loaded data), so the
+            // stored masks stay.
             db.ExecuteNonQuery(
                 @"UPDATE Games
                   SET ProviderPlatformKey = ?,
@@ -6640,6 +7006,8 @@ namespace PlayniteAchievements.Services.Database
                       GameName = ?,
                       LibrarySourceName = ?,
                       RaritySource = ?,
+                      PlatformFields = COALESCE(?, PlatformFields),
+                      MetadataFields = COALESCE(?, MetadataFields),
                       LastUpdatedUtc = ?
                   WHERE Id = ?;",
                 DbValue(data.ProviderPlatformKey),
@@ -6649,6 +7017,8 @@ namespace PlayniteAchievements.Services.Database
                 DbValue(data.GameName),
                 DbValue(data.LibrarySourceName),
                 DbValue(raritySource?.ToString()),
+                DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.PlatformFields)),
+                DbParam(SqlNadoCacheBehavior.FieldMaskToDb(data.MetadataFields)),
                 updatedIso,
                 game.Id);
 
@@ -6769,7 +7139,7 @@ namespace PlayniteAchievements.Services.Database
             return existing.Id;
         }
 
-        // Fills Category/CategoryType on existing definition rows that still hold the Default
+        // Fills Category, Tags and CategoryKind on existing definition rows that still hold the Default
         // placeholder, matched by ApiName. Used for mapped friend proxy rows: the current user's
         // schema stays canonical, so a friend definition fetch only supplies category data that
         // is missing and never rewrites rows a user scan already categorized.
@@ -6780,12 +7150,12 @@ namespace PlayniteAchievements.Services.Database
             string updatedIso)
         {
             var existingDefinitions = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, Category, CategoryType
+                    @"SELECT Id, GameId, ApiName, Category, Tags, CategoryKind
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
                 .Where(a => a != null)
-                .Select(a => (a.Id, a.ApiName, a.Category, a.CategoryType))
+                .Select(a => (a.Id, a.ApiName, a.Category, a.Tags, a.CategoryKind))
                 .ToList();
 
             var backfills = SqlNadoCacheBehavior.ComputeDefinitionCategoryBackfills(
@@ -6796,11 +7166,13 @@ namespace PlayniteAchievements.Services.Database
                 db.ExecuteNonQuery(
                     @"UPDATE AchievementDefinitions
                       SET Category = ?,
-                          CategoryType = ?,
+                          Tags = ?,
+                          CategoryKind = ?,
                           UpdatedUtc = ?
                       WHERE Id = ?;",
                     DbValue(backfill.Category),
-                    DbValue(backfill.CategoryType),
+                    DbValue(backfill.Tags),
+                    DbValue(backfill.CategoryKind),
                     updatedIso,
                     backfill.DefinitionId);
             }
@@ -6840,7 +7212,7 @@ namespace PlayniteAchievements.Services.Database
             var desiredApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var existingByApiName = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
+                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
@@ -6904,7 +7276,10 @@ namespace PlayniteAchievements.Services.Database
                 // stores what the provider said rather than what the user filed it under.
                 var incomingCategory = CategoryPathHelper.NormalizePath(
                     achievement.ProviderCategory ?? achievement.Category);
-                var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
+                // Tags and kind likewise: hydration replaces them with the user's, and the captured
+                // provider values ("" when the provider gave none) are what this table stores.
+                var incomingTags = AchievementTagHelper.Normalize(achievement.ProviderTags ?? achievement.Tags);
+                var incomingKind = CategoryKindHelper.Normalize(achievement.ProviderCategoryKind ?? achievement.CategoryKind);
                 var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
                 var incomingRarity = achievement.Rarity.ToString();
 
@@ -6916,11 +7291,14 @@ namespace PlayniteAchievements.Services.Database
 
                 if (!existingByApiName.TryGetValue(apiName, out var existing))
                 {
+                    // The payload carries the stored flag back, so the caller's in-memory copy
+                    // reads the capstone the table holds.
+                    achievement.IsCapstone = isCapstone;
                     db.ExecuteNonQuery(
                         @"INSERT INTO AchievementDefinitions
-                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
+                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
                           VALUES
-                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameId,
                         apiName,
                         DbValue(achievement.DisplayName),
@@ -6930,7 +7308,8 @@ namespace PlayniteAchievements.Services.Database
                         DbParam(achievement.Points),
                         DbParam(achievement.ScaledPoints),
                         DbValue(incomingCategory),
-                        DbValue(incomingCategoryType),
+                        DbValue(incomingTags),
+                        DbValue(incomingKind),
                         DbValue(achievement.TrophyType),
                         achievement.Hidden ? 1 : 0,
                         isCapstone ? 1 : 0,
@@ -6963,10 +7342,13 @@ namespace PlayniteAchievements.Services.Database
                 // refresh never restamps one. Without this an achievement the user has since
                 // dropped or nominated would silently revert on the next scan.
                 var incomingIsCapstone = existing.IsCapstone;
+                achievement.IsCapstone = incomingIsCapstone != 0;
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
                 // A payload that does not know the rarity must not blank what is already stored.
+                // The payload carries the stored values back, so the caller's in-memory copy reads
+                // the rarity the table holds.
                 if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
                         incomingGlobalPercent,
                         achievement.Rarity,
@@ -6975,6 +7357,8 @@ namespace PlayniteAchievements.Services.Database
                 {
                     incomingGlobalPercent = existing.GlobalPercentUnlocked;
                     incomingStoredRarity = existing.Rarity;
+                    achievement.GlobalPercentUnlocked = existing.GlobalPercentUnlocked;
+                    achievement.Rarity = ParseStoredRarity(existing.Rarity);
                 }
 
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
@@ -6984,7 +7368,8 @@ namespace PlayniteAchievements.Services.Database
                               existing.Points != incomingPoints ||
                               existing.ScaledPoints != incomingScaledPoints ||
                               !NullableEquals(NormalizeDbText(existing.Category), incomingCategory) ||
-                              !NullableEquals(NormalizeDbText(existing.CategoryType), incomingCategoryType) ||
+                              !NullableEquals(NormalizeDbText(existing.Tags), incomingTags) ||
+                              !NullableEquals(NormalizeDbText(existing.CategoryKind), incomingKind) ||
                               !NullableEquals(NormalizeDbText(existing.TrophyType), incomingTrophyType) ||
                               existing.Hidden != incomingHidden ||
                               existing.GlobalPercentUnlocked != incomingGlobalPercent ||
@@ -7006,7 +7391,8 @@ namespace PlayniteAchievements.Services.Database
                           Points = ?,
                           ScaledPoints = ?,
                           Category = ?,
-                          CategoryType = ?,
+                          Tags = ?,
+                          CategoryKind = ?,
                           TrophyType = ?,
                           Hidden = ?,
                           IsCapstone = ?,
@@ -7022,7 +7408,8 @@ namespace PlayniteAchievements.Services.Database
                                         DbParam(incomingPoints),
                                         DbParam(incomingScaledPoints),
                                         DbValue(incomingCategory),
-                                        DbValue(incomingCategoryType),
+                                        DbValue(incomingTags),
+                                        DbValue(incomingKind),
                                         DbValue(incomingTrophyType),
                                         incomingHidden,
                                         incomingIsCapstone,
@@ -7279,6 +7666,8 @@ namespace PlayniteAchievements.Services.Database
                 ProviderPlatformKey = progress?.ProviderPlatformKey,
                 LibrarySourceName = progress?.LibrarySourceName,
                 RaritySource = SqlNadoCacheBehavior.ParseRaritySource(progress?.RaritySource),
+                PlatformFields = SqlNadoCacheBehavior.ParseFieldMask(progress?.PlatformFields),
+                MetadataFields = SqlNadoCacheBehavior.ParseFieldMask(progress?.MetadataFields),
                 HasAchievements = progress != null && progress.HasAchievements != 0,
                 // ExcludedByUser is populated by callers from settings
                 GameName = progress?.GameName,

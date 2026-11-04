@@ -44,7 +44,7 @@
                                          MinWidth="420"
                                          IsReadOnly="True"
                                          FontFamily="Consolas"/>
-                                <Button Content="{DynamicResource LOCCopyTitle}"
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Copy}"
                                         Click="CopyKey_Click"
                                         Margin="8,0,0,0"/>
                                 <Button Content="{DynamicResource LOCPlayAch_Button_Paste}"

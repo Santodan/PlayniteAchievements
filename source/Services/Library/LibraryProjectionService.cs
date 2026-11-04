@@ -300,13 +300,21 @@ namespace PlayniteAchievements.Services.Library
                     else
                     {
                         // Either no build is running for this key, or the running one started
-                        // before the latest Invalidate(). Start a fresh build; a superseded
-                        // build keeps running but fails the ReferenceEquals check below, so its
-                        // result is returned to its own callers without being stored as current.
+                        // before the latest Invalidate(). A superseded build still finishes for
+                        // its own callers but fails the ReferenceEquals check below, so it is not
+                        // stored as current. The fresh build starts once it has finished: each
+                        // build holds the whole library in memory, and two at once is what ran a
+                        // 32-bit Playnite out of address space.
                         flight = new InFlightBuild
                         {
                             Generation = generation,
-                            Task = Task.Run(build)
+                            Task = existing == null
+                                ? Task.Run(build)
+                                : existing.Task.ContinueWith(
+                                    _ => build(),
+                                    CancellationToken.None,
+                                    TaskContinuationOptions.None,
+                                    TaskScheduler.Default)
                         };
                         _inFlight[key] = flight;
                         owner = true;
@@ -350,9 +358,10 @@ namespace PlayniteAchievements.Services.Library
             }
         }
 
-        // Shares one build per cache key across concurrent callers. Without this, a burst of
-        // invalidations (e.g. per-game saves during a bulk refresh) spawns overlapping
-        // whole-library builds whose combined allocations can exhaust memory.
+        // Shares one build per cache key across concurrent callers, and runs a key's builds one
+        // after another. Without this, a burst of invalidations (e.g. per-game saves during a bulk
+        // refresh) spawns overlapping whole-library builds whose combined allocations can exhaust
+        // memory.
         private sealed class InFlightBuild
         {
             public Task<LibraryProjectionSnapshot> Task;

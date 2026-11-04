@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
@@ -20,7 +21,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedCategoryTypeFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryLabelFilters =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
         private string _searchText = string.Empty;
         private bool _showUnlocked = true;
         private bool _showLocked = true;
@@ -131,16 +132,23 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCTypeLabel"),
-            AchievementCategoryTypeHelper.ToCategoryTypeDisplayText);
+            L("LOCPlayAch_Common_Tags"),
+            GetTypeDisplayName);
+
+        // The game every listed row belongs to, so a game's own tags show their names; null for a
+        // list spanning games, where only global tags resolve.
+        private Guid? _optionsGameId;
+
+        private string GetTypeDisplayName(string key) =>
+            AchievementClassificationFilter.GetDisplayName(key, _optionsGameId);
 
         public ObservableCollection<string> CategoryLabelFilterOptions { get; }
 
         public string SelectedCategoryLabelFilterText => GetSelectedFilterText(
             _selectedCategoryLabelFilters,
             CategoryLabelFilterOptions,
-            L("LOCCategoryLabel"),
-            AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
+            L("LOCPlayAch_Common_Category"),
+            AchievementCategoryHelper.ToCategoryLabelDisplayText);
 
         public IReadOnlyList<AchievementDisplayItem> Apply(IEnumerable<AchievementDisplayItem> source)
         {
@@ -168,27 +176,21 @@ namespace PlayniteAchievements.ViewModels
 
             if (_selectedCategoryTypeFilters.Count > 0)
             {
-                var selectedTypeSet = new HashSet<string>(
-                    _selectedCategoryTypeFilters
-                        .Select(AchievementCategoryTypeHelper.NormalizeOrDefault)
-                        .Where(value => !string.IsNullOrWhiteSpace(value)),
-                    StringComparer.OrdinalIgnoreCase);
-                filtered = filtered.Where(item =>
-                    AchievementCategoryTypeHelper.ParseValues(
-                            AchievementCategoryTypeHelper.NormalizeOrDefault(item.CategoryType))
-                        .Any(selectedTypeSet.Contains));
+                var selectedTypes = _selectedCategoryTypeFilters.ToList();
+                filtered = filtered.Where(item => selectedTypes.Any(key =>
+                    AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key)));
             }
 
             if (_selectedCategoryLabelFilters.Count > 0)
             {
                 var selectedCategorySet = new HashSet<string>(
                     _selectedCategoryLabelFilters
-                        .Select(AchievementCategoryTypeHelper.NormalizeCategoryOrDefault)
+                        .Select(AchievementCategoryHelper.NormalizeCategoryOrDefault)
                         .Where(value => !string.IsNullOrWhiteSpace(value)),
-                    StringComparer.OrdinalIgnoreCase);
+                    CategoryPathHelper.LabelComparer);
                 filtered = filtered.Where(item =>
                     selectedCategorySet.Contains(
-                        AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
+                        AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
             }
 
             if (searchQuery.HasValue)
@@ -204,30 +206,16 @@ namespace PlayniteAchievements.ViewModels
             var sourceItems = (source ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
-            var typeValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             _hasUnlocked = sourceItems.Any(item => item.Unlocked);
             _hasLocked = sourceItems.Any(item => !item.Unlocked);
             _hasHiddenLocked = sourceItems.Any(item => item.Hidden && !item.Unlocked);
 
-            if (sourceItems.Count > 0)
-            {
-                foreach (var item in sourceItems)
-                {
-                    var parsedTypes = AchievementCategoryTypeHelper.ParseValues(
-                        AchievementCategoryTypeHelper.NormalizeOrDefault(item.CategoryType));
-                    foreach (var parsedType in parsedTypes)
-                    {
-                        if (!string.IsNullOrWhiteSpace(parsedType))
-                        {
-                            typeValues.Add(parsedType);
-                        }
-                    }
-                }
-            }
-
-            var typeOptions = AchievementCategoryTypeHelper.AllowedCategoryTypes
-                .Where(typeValues.Contains)
-                .ToList();
+            var gameIds = sourceItems.Select(item => item.PlayniteGameId).Distinct().ToList();
+            _optionsGameId = gameIds.Count == 1 ? gameIds[0] : null;
+            var typeOptions = AchievementClassificationFilter.GetPresentKeys(
+                sourceItems,
+                item => item.Tags,
+                _optionsGameId);
             var categoryOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
                 sourceItems,
                 item => item?.CategoryLabel,
@@ -396,6 +384,10 @@ namespace PlayniteAchievements.ViewModels
                     value => SearchText = value,
                     L("LOCPlayAch_Filter_Achievements"),
                     () => SearchText = string.Empty)
+                {
+                    Id = ShowcaseControlBarItems.Search,
+                    LabelKey = "LOCPlayAch_Filter_Achievements"
+                }
             };
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -404,11 +396,15 @@ namespace PlayniteAchievements.ViewModels
                 () => CategoryTypeFilterOptions,
                 IsCategoryTypeFilterSelected,
                 SetCategoryTypeFilterSelected,
-                AchievementCategoryTypeHelper.ToCategoryTypeDisplayText)
+                GetTypeDisplayName)
             {
+                Id = ShowcaseControlBarItems.Tag,
+                LabelKey = "LOCPlayAch_Common_Tags",
                 Width = 120,
+                // A tag's icon; the other classification keys have none, and name themselves.
+                IconKeyOf = key => TagControlBarFilter.IconKey(key, _optionsGameId),
                 IsCategoryFilter = true,
-                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Type")
+                ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Tags")
             });
             controlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -417,8 +413,10 @@ namespace PlayniteAchievements.ViewModels
                 () => CategoryLabelFilterOptions,
                 IsCategoryLabelFilterSelected,
                 SetCategoryLabelFilterSelected,
-                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText)
+                AchievementCategoryHelper.ToCategoryLabelDisplayText)
             {
+                Id = ShowcaseControlBarItems.Category,
+                LabelKey = "LOCPlayAch_Common_Category",
                 Width = 140,
                 IsCategoryFilter = true,
                 RendersCategoryTree = true,
@@ -435,6 +433,8 @@ namespace PlayniteAchievements.ViewModels
                 () => _friendCompare?.IsCompareAvailable == true,
                 key => _friendCompare?.IsKeyFavorite(key) == true)
             {
+                Id = ShowcaseControlBarItems.Compare,
+                LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
                 Width = 140,
                 ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
             };
@@ -446,7 +446,12 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowUnlocked,
                 value => ShowUnlocked = value,
                 GridToggleFilterIcon.Unlocked,
-                () => _hasUnlocked && _hasLocked));
+                () => _hasUnlocked && _hasLocked)
+            {
+                Id = ShowcaseControlBarItems.Unlocked,
+                LabelKey = "LOCPlayAch_Common_Unlocked",
+                ClearedValue = true
+            });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowLocked),
@@ -454,7 +459,12 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowLocked,
                 value => ShowLocked = value,
                 GridToggleFilterIcon.Locked,
-                () => _hasUnlocked && _hasLocked));
+                () => _hasUnlocked && _hasLocked)
+            {
+                Id = ShowcaseControlBarItems.Locked,
+                LabelKey = "LOCPlayAch_Common_Locked",
+                ClearedValue = true
+            });
             controlBar.Items.Add(new GridToggleFilter(
                 this,
                 nameof(ShowHidden),
@@ -462,16 +472,25 @@ namespace PlayniteAchievements.ViewModels
                 () => ShowHidden,
                 value => ShowHidden = value,
                 GridToggleFilterIcon.Hidden,
-                () => _hasHiddenLocked));
+                () => _hasHiddenLocked)
+            {
+                Id = ShowcaseControlBarItems.Hidden,
+                LabelKey = "LOCPlayAch_Filter_Hidden",
+                ClearedValue = true
+            });
             return controlBar;
         }
 
-        private bool IsCategoryTypeFilterSelected(string value)
+        public bool IsCategoryTypeFilterSelected(string value)
         {
             return IsFilterSelected(_selectedCategoryTypeFilters, value);
         }
 
-        private void SetCategoryTypeFilterSelected(string value, bool isSelected)
+        /// <summary>
+        /// Picks or drops a kind or tag in the Tags filter; the overview's tag pie sets it for the
+        /// selected game's grid.
+        /// </summary>
+        public void SetCategoryTypeFilterSelected(string value, bool isSelected)
         {
             if (!SetFilterSelection(_selectedCategoryTypeFilters, value, isSelected))
             {
@@ -533,9 +552,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            // Options match the selection's own identity rule: type keys ignore case, category labels do not.
             var optionSet = new HashSet<string>(
                 (options ?? Enumerable.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value)),
-                StringComparer.OrdinalIgnoreCase);
+                selectedValues.Comparer);
             return selectedValues.RemoveWhere(value => !optionSet.Contains(value)) > 0;
         }
 

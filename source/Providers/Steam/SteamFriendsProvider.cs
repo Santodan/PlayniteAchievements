@@ -1,6 +1,9 @@
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
 using System;
@@ -13,6 +16,7 @@ namespace PlayniteAchievements.Providers.Steam
 {
     internal sealed class SteamFriendsProvider : IFriendsProvider
     {
+        private readonly PlayniteAchievementsSettings _settings;
         private readonly SteamHttpClient _steamClient;
         private readonly SteamApiClient _steamApiClient;
         private readonly SteamScanner _scanner;
@@ -27,6 +31,7 @@ namespace PlayniteAchievements.Providers.Steam
             new Dictionary<int, Task<SchemaAndPercentages>>();
 
         public SteamFriendsProvider(
+            PlayniteAchievementsSettings settings,
             SteamHttpClient steamClient,
             SteamApiClient steamApiClient,
             SteamScanner scanner,
@@ -35,6 +40,7 @@ namespace PlayniteAchievements.Providers.Steam
             SteamSessionManager sessionManager,
             ILogger logger)
         {
+            _settings = settings;
             _steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
             _steamApiClient = steamApiClient ?? throw new ArgumentNullException(nameof(steamApiClient));
             _scanner = scanner ?? throw new ArgumentNullException(nameof(scanner));
@@ -578,6 +584,7 @@ namespace PlayniteAchievements.Providers.Steam
                 await _scanner
                     .ApplyCategoriesAsync(appId, gameName, achievements, schema, playniteGameId: null, cancel)
                     .ConfigureAwait(false);
+                await ApplySteamHuntersAsync(appId, gameName, achievements, schema, cancel).ConfigureAwait(false);
 
                 var status = achievements.Count > 0
                     ? FriendGameDefinitionStatus.Ok
@@ -601,6 +608,57 @@ namespace PlayniteAchievements.Providers.Steam
                     "Steam game definition fetch failed.",
                     transientFailure: true);
             }
+        }
+
+        /// <summary>
+        /// SteamHunters' grouping for a friend's game definition, which the metadata overlay never
+        /// sees, by the user's Steam-level choices: the fields not chosen keep Steam's own, and
+        /// archived achievements stay Unobtainable. A miss leaves Steam's sets.
+        /// </summary>
+        private async Task ApplySteamHuntersAsync(
+            int appId,
+            string gameName,
+            IList<AchievementDetail> achievements,
+            SchemaAndPercentages schema,
+            CancellationToken cancel)
+        {
+            var choices = _settings?.Persisted?.ResolveMetadataChoices("Steam");
+            var categories = string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
+            var tags = string.Equals(choices?.Tags, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
+            if (_steamHuntersCategoryEnricher == null || (!categories && !tags) || achievements == null)
+            {
+                return;
+            }
+
+            var own = achievements
+                .Where(achievement => achievement != null)
+                .Select(achievement => (achievement, achievement.Category, achievement.CategoryKind, achievement.Tags))
+                .ToList();
+
+            var applied = await _steamHuntersCategoryEnricher
+                .EnrichAsync(appId, gameName, achievements, null, cancel)
+                .ConfigureAwait(false);
+            if (!applied)
+            {
+                return;
+            }
+
+            foreach (var (achievement, category, kind, ownTags) in own)
+            {
+                if (!categories)
+                {
+                    achievement.Category = category;
+                    achievement.CategoryKind = kind;
+                }
+
+                if (!tags)
+                {
+                    achievement.Tags = ownTags;
+                }
+            }
+
+            // SteamHunters grouping resets types, so archived flags are applied again.
+            SteamAchievementSetMapper.ApplyArchived(achievements, schema);
         }
 
         private static bool IsUsableCommunityPage(SteamPageResult page)

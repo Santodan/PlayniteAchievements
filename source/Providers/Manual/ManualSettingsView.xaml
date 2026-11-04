@@ -40,14 +40,9 @@
                     Grid.IsSharedSizeScope="True">
                 <StackPanel>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Manual_Override_Enable}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_Override_Description}">
-                        <CheckBox IsChecked="{Binding Settings.ManualTrackingOverrideEnabled, Mode=TwoWay}"/>
-                    </controls:SettingRow>
-
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_Manual_Override_Description}"
                                          Margin="0">
-                        <CheckBox IsChecked="{Binding Settings.RequireExophaseAuthentication, Mode=TwoWay}"/>
+                        <CheckBox IsChecked="{Binding Settings.ManualTrackingOverrideEnabled, Mode=TwoWay}"/>
                     </controls:SettingRow>
                 </StackPanel>
             </Border>

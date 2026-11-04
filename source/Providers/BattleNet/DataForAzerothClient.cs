@@ -75,8 +75,10 @@ namespace PlayniteAchievements.Providers.BattleNet
     internal sealed class DataForAzerothClient : IDisposable
     {
         public const string SiteDomain = "dataforazeroth.com";
-        public const string BaseUrl = "https://dataforazeroth.com/";
-        public const string IndexUrl = BaseUrl + "dynamic/index.json";
+        public const string BaseUrl = "https://www.dataforazeroth.com/";
+
+        /// <summary>The address the site's own bundle loads its dynamic index from.</summary>
+        public const string IndexUrl = BaseUrl + "retail/dynamic/index.json";
 
         /// <summary>The cookie the gate currently checks. Used for diagnostics only - cookies are
         /// selected by domain, so a renamed or added cookie keeps working.</summary>
@@ -285,9 +287,10 @@ namespace PlayniteAchievements.Providers.BattleNet
         }
 
         /// <summary>
-        /// 405 is the gate's current answer, but the site sits behind a CDN and the status code is
-        /// the least stable part of its signature, so an HTML body from a JSON endpoint counts too.
-        /// A genuine 404 is left alone.
+        /// 405 is the gate's current answer; an HTML refusal status counts too. A 200 HTML page is
+        /// not the gate by itself: the site answers any path it does not hold with its app shell,
+        /// so that case is decided by the body (<see cref="LooksLikeBotCheck"/>). A genuine 404 is
+        /// left alone.
         /// </summary>
         internal static bool IsGatedResponse(int statusCode, string mediaType)
         {
@@ -296,10 +299,13 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return true;
             }
 
-            var isHtml = !string.IsNullOrEmpty(mediaType) &&
-                mediaType.IndexOf("html", StringComparison.OrdinalIgnoreCase) >= 0;
+            return IsHtml(mediaType) && (statusCode == 403 || statusCode == 406 || statusCode == 503);
+        }
 
-            return isHtml && (statusCode == 200 || statusCode == 403 || statusCode == 406 || statusCode == 503);
+        private static bool IsHtml(string mediaType)
+        {
+            return !string.IsNullOrEmpty(mediaType) &&
+                mediaType.IndexOf("html", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         /// <summary>Recognizes the interstitial by its own markers rather than localized prose.</summary>
@@ -362,6 +368,12 @@ namespace PlayniteAchievements.Providers.BattleNet
                             status,
                             !string.IsNullOrEmpty(header),
                             cookieNames);
+                    }
+
+                    if (IsHtml(mediaType))
+                    {
+                        throw new InvalidOperationException(
+                            $"HTTP {status} from {url} was a web page instead of data; the site's data paths may have changed.");
                     }
 
                     return JsonConvert.DeserializeObject<T>(json);

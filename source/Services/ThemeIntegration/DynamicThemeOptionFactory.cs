@@ -15,7 +15,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             IEnumerable<string> keys,
             string selectedKey,
             ICommand applyCommand = null,
-            Func<string, object> commandParameterFactory = null)
+            Func<string, object> commandParameterFactory = null,
+            Func<string, string> getLabel = null)
         {
             var orderedKeys = new List<string>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -36,7 +37,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(orderedKeys
                 .Select(key => new DynamicThemeOption(
                     key,
-                    DynamicThemeLabels.GetLabel(key, key),
+                    getLabel?.Invoke(key) ?? DynamicThemeLabels.GetLabel(key, key),
                     isSelected: IsSelected(key, selectedKey),
                     applyCommand: applyCommand,
                     commandParameter: commandParameterFactory?.Invoke(key)))
@@ -102,10 +103,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .Where(item => item != null)
                 .ToList();
 
-            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var counts = new Dictionary<string, int>(CategoryPathHelper.LabelComparer);
             foreach (var item in items)
             {
-                var label = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category);
+                var label = AchievementCategoryHelper.NormalizeCategoryOrDefault(item.Category);
                 counts.TryGetValue(label, out var count);
                 counts[label] = count + 1;
             }
@@ -115,7 +116,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var preferredOrder = items
                 .Where(item => item.CategoryOrderIndex < int.MaxValue)
                 .OrderBy(item => item.CategoryOrderIndex)
-                .Select(item => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(item.Category));
+                .Select(item => AchievementCategoryHelper.NormalizeCategoryOrDefault(item.Category));
             var orderedLabels = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
                 items,
                 item => item.Category,
@@ -138,9 +139,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // continues to target the exact category.
             options.AddRange(orderedLabels.Select(label => new DynamicThemeOption(
                 label,
-                AchievementCategoryTypeHelper.ToCategoryLeafDisplayText(label),
+                AchievementCategoryHelper.ToCategoryLeafDisplayText(label),
                 counts.TryGetValue(label, out var count) ? count : 0,
-                IsSelected(label, selectedKey),
+                IsSelected(label, selectedKey, CategoryPathHelper.LabelComparison),
                 applyCommand)));
 
             return new ObservableCollection<DynamicThemeOption>(options);
@@ -190,9 +191,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return new ObservableCollection<DynamicThemeOption>(options);
         }
 
-        private static bool IsSelected(string key, string selectedKey)
+        private static bool IsSelected(
+            string key,
+            string selectedKey,
+            StringComparison comparison = StringComparison.OrdinalIgnoreCase)
         {
-            return string.Equals(key ?? string.Empty, selectedKey ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(key ?? string.Empty, selectedKey ?? string.Empty, comparison);
         }
     }
 }

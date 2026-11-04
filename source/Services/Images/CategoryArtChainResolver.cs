@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Services.Images
     internal sealed class CategoryArtChainMemo
     {
         private readonly Dictionary<string, string> _entries =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
 
         internal bool TryGet(string key, out string art) => _entries.TryGetValue(key, out art);
 

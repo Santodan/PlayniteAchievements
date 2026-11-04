@@ -14,10 +14,11 @@ namespace PlayniteAchievements.Services.Library
     /// One showcase page as a library target. The projection holds the page's scalars
     /// (<c>Page</c>: name, row and column counts and weights), its grid (<c>Layout</c>, one
     /// value) and each widget on it by its id on this page (<c>Widgets</c>: kind, title, options
-    /// as one value, grid settings as one value, and its image - a profile background or an Image
-    /// widget's picture - as a file hash under Background).
-    /// Options that belong to the user (pin collection, search and filter state) and every part
-    /// of a profile card but its background stay out, as they stay out of a page package. The
+    /// as one value, each control bar's filters as one value under ControlBar, grid settings as
+    /// one value, and its image - a profile background or an Image widget's picture - as a file
+    /// hash under Background).
+    /// What belongs to the user (the pin collection, control bars' Game selections) and every
+    /// part of a profile card but its background stay out, as they stay out of a page package. The
     /// link maps the package's widget ids to this page's, so a merge pairs each widget with the
     /// one it became; a widget the user added or removed stays as they left it.
     /// </summary>
@@ -30,13 +31,17 @@ namespace PlayniteAchievements.Services.Library
         private const string KindKey = "Kind";
         private const string TitleKey = "Title";
         private const string OptionsKey = "Options";
+        private const string ControlBarKey = "ControlBar";
         private const string GridKey = "Grid";
+        // An achievement grid widget's category list (category mode) keeps its own record.
+        private const string CategoryGridKey = "CategoryGrid";
         private const string BackgroundKey = "Background";
 
         private static readonly string[] AtomicPaths =
         {
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + OptionsKey,
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + GridKey,
+            WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + CategoryGridKey,
             WidgetsKey + "." + JsonThreeWayMerge.AnySegment + "." + BackgroundKey
         };
 
@@ -90,6 +95,7 @@ namespace PlayniteAchievements.Services.Library
                 id => FindWidget(layout, id),
                 id => id,
                 widget => GridOf(grid, widget.Kind, widget.InstanceId),
+                widget => CategoryGridOf(grid, widget.Kind, widget.InstanceId),
                 widget => ShowcaseWidgetImages.GetFilePath(widget));
         }
 
@@ -161,6 +167,10 @@ namespace PlayniteAchievements.Services.Library
                 var incoming = ProjectPackage(portable, map, out var incomingBackgrounds);
                 var current = Project(target);
                 var merged = replace ? incoming : MergeProjections(baseline, current, incoming, out keptEdits);
+                if (replace || baseline == null)
+                {
+                    KeepCurrentControlBars(merged, current);
+                }
 
                 WritePage(layout, grid, page, merged, current, incoming, incomingBackgrounds);
                 ShowcaseLayoutService.Normalize(layout);
@@ -283,6 +293,7 @@ namespace PlayniteAchievements.Services.Library
                 id => FindWidget(normalized, id),
                 id => map.TryGetValue(id, out var local) ? local : null,
                 widget => PackageGridOf(portable, widget.Kind, widget.InstanceId),
+                widget => PackageCategoryGridOf(portable, widget.Kind, widget.InstanceId),
                 widget => map.TryGetValue(widget.InstanceId ?? string.Empty, out var local) && extracted.TryGetValue(local, out var file) ? file : null);
         }
 
@@ -363,6 +374,22 @@ namespace PlayniteAchievements.Services.Library
             return merged;
         }
 
+        // A replace (a reset, or an update without a baseline, where nothing tells the user's
+        // filters apart from ones they never changed) leaves each widget the page already has
+        // with its control bars' filters; a widget it adds takes the package's.
+        private static void KeepCurrentControlBars(JObject merged, JObject current)
+        {
+            var currentWidgets = current[WidgetsKey] as JObject;
+            foreach (var property in (merged[WidgetsKey] as JObject ?? new JObject()).Properties())
+            {
+                if (property.Value is JObject widget &&
+                    currentWidgets?.GetValue(property.Name, StringComparison.OrdinalIgnoreCase) is JObject existing)
+                {
+                    widget[ControlBarKey] = existing[ControlBarKey]?.DeepClone() ?? new JObject();
+                }
+            }
+        }
+
         private void WritePage(
             ShowcaseSettings layout,
             GridOptionsCatalog grid,
@@ -438,13 +465,36 @@ namespace PlayniteAchievements.Services.Library
                 // Read before the options are rebuilt: an Image widget keeps its file there.
                 var currentImage = ShowcaseWidgetImages.GetFilePath(widget);
 
-                // The user's own options (pin collection, search and filter state) stay.
+                // The user's pin collection stays.
                 var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var localBars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var pair in widget.Options ?? new Dictionary<string, string>())
                 {
-                    if (ShowcasePagePortableStore.IsUserOption(pair.Key))
+                    if (ShowcaseWidgetOptions.IsControlBarState(pair.Key))
+                    {
+                        localBars[pair.Key] = pair.Value;
+                    }
+                    else if (ShowcasePagePortableStore.IsUserOption(pair.Key))
                     {
                         options[pair.Key] = pair.Value;
+                    }
+                }
+
+                // Each bar takes its merged filters, with this library's Game selections kept.
+                var mergedBars = value[ControlBarKey] as JObject ?? new JObject();
+                foreach (var key in localBars.Keys
+                             .Concat(mergedBars.Properties().Select(property => property.Name))
+                             .Where(ShowcaseWidgetOptions.IsControlBarState)
+                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                             .ToList())
+                {
+                    localBars.TryGetValue(key, out var local);
+                    var state = ShowcaseWidgetOptions.WithLocalControlBarGames(
+                        (string)mergedBars.GetValue(key, StringComparison.OrdinalIgnoreCase),
+                        local);
+                    if (state != null)
+                    {
+                        options[key] = state;
                     }
                 }
 
@@ -475,6 +525,7 @@ namespace PlayniteAchievements.Services.Library
                 ShowcaseWidgetImages.SetFilePath(widget, image);
 
                 WriteGrid(grid, widget, value[GridKey], currentValue?[GridKey]);
+                WriteCategoryGrid(grid, widget, value[CategoryGridKey], currentValue?[CategoryGridKey]);
             }
         }
 
@@ -526,6 +577,21 @@ namespace PlayniteAchievements.Services.Library
             }
         }
 
+        private static void WriteCategoryGrid(GridOptionsCatalog grid, ShowcaseWidgetInstanceSettings widget, JToken merged, JToken current)
+        {
+            if (grid == null || !(merged is JObject value) || JsonThreeWayMerge.SameValue(merged, current))
+            {
+                return;
+            }
+
+            var key = ShowcaseGridSurfaces.ResolveCategorySurface(
+                ShowcaseGridSurfaces.ResolveWidgetSurface(widget.Kind, widget.InstanceId));
+            if (key != null)
+            {
+                grid.SetCategorySummaries(key, value.ToObject<CategorySummaryGridOptions>(Serializer));
+            }
+        }
+
         // ---- projection -------------------------------------------------------------------------
 
         private static JObject ProjectPage(
@@ -533,6 +599,7 @@ namespace PlayniteAchievements.Services.Library
             Func<string, ShowcaseWidgetInstanceSettings> widgetOf,
             Func<string, string> idOf,
             Func<ShowcaseWidgetInstanceSettings, JToken> gridOf,
+            Func<ShowcaseWidgetInstanceSettings, JToken> categoryGridOf,
             Func<ShowcaseWidgetInstanceSettings, string> backgroundOf)
         {
             var scalars = new JObject
@@ -544,11 +611,9 @@ namespace PlayniteAchievements.Services.Library
                 ["ColumnWeights"] = page.ColumnWeights == null ? null : new JArray(page.ColumnWeights)
             };
 
-            var blocks = (page.Blocks ?? new List<ShowcaseBlockSettings>())
-                .Where(block => block != null)
-                .OrderBy(block => block.Row)
-                .ThenBy(block => block.Column)
-                .ToList();
+            // Every cell, implicit empty ones included, so a projection matches the ones saved as
+            // merge baselines whatever the page stores.
+            var blocks = ShowcaseLayoutService.DenseBlocks(page);
             var layout = new JArray();
             foreach (var block in blocks)
             {
@@ -581,12 +646,28 @@ namespace PlayniteAchievements.Services.Library
                     options[pair.Key] = pair.Value;
                 }
 
+                // Each bar's filters are one value of their own, so a filter the user changed
+                // keeps their whole bar without holding back the widget's other options.
+                var controlBar = new JObject();
+                foreach (var pair in (widget.Options ?? new Dictionary<string, string>())
+                         .Where(pair => ShowcaseWidgetOptions.IsControlBarState(pair.Key))
+                         .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    var state = ShowcaseWidgetOptions.PortableControlBarState(pair.Value);
+                    if (state != null)
+                    {
+                        controlBar[pair.Key] = state;
+                    }
+                }
+
                 widgets[id] = new JObject
                 {
                     [KindKey] = widget.Kind.ToString(),
                     [TitleKey] = widget.CustomTitle,
                     [OptionsKey] = options,
+                    [ControlBarKey] = controlBar,
                     [GridKey] = gridOf(widget),
+                    [CategoryGridKey] = categoryGridOf(widget),
                     [BackgroundKey] = LibraryFileTokens.FileValue(backgroundOf(widget))
                 };
             }
@@ -652,6 +733,42 @@ namespace PlayniteAchievements.Services.Library
             }
 
             return null;
+        }
+
+        private static JToken CategoryGridOf(GridOptionsCatalog grid, ShowcaseWidgetKind kind, string instanceId)
+        {
+            var key = ShowcaseGridSurfaces.ResolveCategorySurface(
+                ShowcaseGridSurfaces.ResolveWidgetSurface(kind, instanceId));
+            return grid != null && key != null &&
+                   grid.CategorySummaries.TryGetValue(key, out var categories)
+                ? CategoryGridToken(categories)
+                : null;
+        }
+
+        private static JToken PackageCategoryGridOf(ShowcasePagePortableFile portable, ShowcaseWidgetKind kind, string exportedId)
+        {
+            var id = exportedId?.Trim() ?? string.Empty;
+            return ShowcaseGridSurfaces.IsAchievementSurface(ShowcaseGridSurfaces.ResolveWidgetSurface(kind, exportedId)) &&
+                   portable.CategoryGridSurfaces != null &&
+                   portable.CategoryGridSurfaces.TryGetValue(id, out var categories)
+                ? CategoryGridToken(categories)
+                : null;
+        }
+
+        // A record still at its defaults reads as none. Showing the widget creates one, and a
+        // created record must not count as the user's edit against a package that had none.
+        private static JToken CategoryGridToken(CategorySummaryGridOptions categories)
+        {
+            if (categories == null)
+            {
+                return null;
+            }
+
+            var token = JObject.FromObject(categories, Serializer);
+            var defaults = JObject.FromObject(
+                new GridOptionsCatalog().GetCategorySummaries(ShowcaseGridSurfaces.AchievementCategories),
+                Serializer);
+            return JToken.DeepEquals(token, defaults) ? null : token;
         }
 
         private static IEnumerable<string> PackageWidgetIds(ShowcasePagePortableFile portable)

@@ -924,11 +924,12 @@ namespace PlayniteAchievements.Services.UI
             // each variant carries its own rarity policy; an item with no realized card degrades
             // to the plain base clone.
             var itemsControl = _activeCardSurface;
-            var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect)>();
+            var overlays = new List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect, ToastBlurPatch Blur)>();
             foreach (var vm in withToastVms)
             {
                 System.Drawing.Bitmap overlay = null;
                 var rect = System.Drawing.Rectangle.Empty;
+                ToastBlurPatch blur = null;
                 if (haveGeometry && itemsControl != null)
                 {
                     var container = itemsControl.ItemContainerGenerator.ContainerFromItem(vm) as FrameworkElement;
@@ -961,11 +962,15 @@ namespace PlayniteAchievements.Services.UI
                                 Horizontal(), AlignBottom(), EffectiveGapDipX(), EffectiveGapDipY(),
                                 out var ix, out var iy);
                             rect = new System.Drawing.Rectangle(ix, iy, physSize.Width, physSize.Height);
+                            if (vm.HasToastBlur)
+                            {
+                                blur = CreateBlurPatch(container, vm);
+                            }
                         }
                     }
                 }
 
-                overlays.Add((vm, overlay, rect));
+                overlays.Add((vm, overlay, rect, blur));
             }
 
             // Now the base frame is needed. With a capture delay this is where the wait actually
@@ -1016,7 +1021,7 @@ namespace PlayniteAchievements.Services.UI
                         {
                             try
                             {
-                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys);
+                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
                             }
                             catch (Exception ex)
                             {
@@ -1239,7 +1244,7 @@ namespace PlayniteAchievements.Services.UI
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
             double captureScale, string probeCase,
             out byte[] pixels, out int width, out int height,
-            out int cardWPhys, out int cardHPhys)
+            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false)
         {
             pixels = null;
             width = 0;
@@ -1300,9 +1305,16 @@ namespace PlayniteAchievements.Services.UI
                 var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
                 var buffer = takeBuffer(stride * ph);
                 var direct = CanRenderDirect(offset);
-                var renderMs = direct
-                    ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
-                    : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+
+                // Saved outputs blur their own frame under a blurred card, so its live background
+                // stays out of every render here (see ToastBlurLayers).
+                double renderMs;
+                using (ToastBlurLayers.HideForOutput(container, keepCardSurface))
+                {
+                    renderMs = direct
+                        ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
+                        : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+                }
 
                 if (ToastCaptureProbe.Enabled && direct)
                 {
@@ -1500,10 +1512,13 @@ namespace PlayniteAchievements.Services.UI
             int ph;
             using (AsyncImage.HoldStills(container, vm == null ? null : (Func<string, ImageSource>)vm.ToastCaptureStill))
             {
-                if (!TryRenderToastItemBytes(
+                var rendered = vm != null && vm.HasToastBlur
+                    ? TryRenderBlurredCardBytes(window, container, out pixels, out pw, out ph)
+                    : TryRenderToastItemBytes(
                         window, container, scratch: null, len => new byte[len], applyHostOpacity: true,
                         captureScale: 1.0, probeCase: "screenshot",
-                        out pixels, out pw, out ph, out _, out _))
+                        out pixels, out pw, out ph, out _, out _);
+                if (!rendered)
                 {
                     return null;
                 }
@@ -1516,6 +1531,48 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return bitmap;
+        }
+
+        /// <summary>
+        /// A blurred card for the with-notification screenshot: the card without its blur layers
+        /// (tint and content over transparency, for the screenshot's own blur to show through) plus
+        /// its effects as a separate layer cast by the full opaque card shape. A single with-effects
+        /// render would instead cast the glow from the translucent tint, weak and showing through.
+        /// </summary>
+        private bool TryRenderBlurredCardBytes(
+            Window window, FrameworkElement container, out byte[] pixels, out int width, out int height)
+        {
+            pixels = null;
+            width = 0;
+            height = 0;
+            var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
+            CollectEffects(container, effects);
+            if (!TryRenderEffectLayer(
+                    window, container, effects, applyHostOpacity: true, captureScale: 1.0, "screenshot-effects",
+                    out var effectLayer, out var effectW, out var effectH, out _, out _))
+            {
+                return false;
+            }
+
+            StripEffects(effects);
+            try
+            {
+                if (!TryRenderToastItemBytes(
+                        window, container, scratch: null, len => new byte[len], applyHostOpacity: true,
+                        captureScale: 1.0, probeCase: "screenshot",
+                        out pixels, out width, out height, out _, out _) ||
+                    width != effectW || height != effectH)
+                {
+                    return false;
+                }
+            }
+            finally
+            {
+                RestoreEffects(effects);
+            }
+
+            OverlayBlitMath.AddScaled(pixels, effectLayer, 1.0);
+            return true;
         }
 
         /// <summary>
@@ -1592,6 +1649,13 @@ namespace PlayniteAchievements.Services.UI
 
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
+
+                // The clip draws its own blur under a blurred card; the card's place in its frame
+                // does not change across the wave, so it is measured once.
+                if (vm.HasToastBlur && !recorder.HasBlur(vm))
+                {
+                    recorder.SetBlur(vm, CreateBlurPatch(container, vm));
+                }
 
                 // A frame primed before the slide substitutes for the first tick's rasterization:
                 // submitting it is only an enqueue, so the slide-in's early frames carry no render
@@ -1952,25 +2016,26 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Captures one card's shadow/glow halo as a difference layer: the card rendered with its
-        /// effects minus the card rendered without them, both in this same dispatcher callback so
-        /// the content (GIF frame, countdown) is identical in the pair. Host opacity is excluded
-        /// from both renders — the per-sample glow scale carries it instead, so a fade theme's
-        /// mid-fade capture doesn't bake a dimmed halo. This pays the software blur exactly once
-        /// per capture; every subsequent tick renders effect-free.
+        /// Renders what <paramref name="effects"/> add to the card as a premultiplied difference
+        /// layer: the card with its effects minus the card without them, both in this one dispatcher
+        /// callback so their content (GIF frame, countdown) is identical. Both renders keep the card
+        /// surface, so a blurred card's glow is cast by its full opaque shape (inside the card the
+        /// two renders agree and the layer is empty). Non-negative by construction.
         /// </summary>
-        private void CaptureShadowLayer(
-            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
-            AchievementToastViewModel vm, CardRenderScratch scratch,
-            List<KeyValuePair<FrameworkElement, Effect>> effects, double captureScale)
+        private bool TryRenderEffectLayer(
+            Window window, FrameworkElement container, List<KeyValuePair<FrameworkElement, Effect>> effects,
+            bool applyHostOpacity, double captureScale, string probeCase,
+            out byte[] layer, out int width, out int height, out int cardWPhys, out int cardHPhys)
         {
-            _waveShadowCaptureCount++;
+            layer = null;
+            width = 0;
+            height = 0;
             if (!TryRenderToastItemBytes(
-                    window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    captureScale, probeCase: "shadow", out var withEffects, out var pw1, out var ph1,
-                    out var cardWPhys, out var cardHPhys))
+                    window, container, scratch: null, len => new byte[len], applyHostOpacity,
+                    captureScale, probeCase, out var withEffects, out var pw1, out var ph1,
+                    out cardWPhys, out cardHPhys, keepCardSurface: true))
             {
-                return;
+                return false;
             }
 
             StripEffects(effects);
@@ -1980,9 +2045,9 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 rendered = TryRenderToastItemBytes(
-                    window, container, scratch: null, len => new byte[len], applyHostOpacity: false,
-                    captureScale, probeCase: "shadow-bare",
-                    out withoutEffects, out pw0, out ph0, out _, out _);
+                    window, container, scratch: null, len => new byte[len], applyHostOpacity,
+                    captureScale, probeCase + "-bare",
+                    out withoutEffects, out pw0, out ph0, out _, out _, keepCardSurface: true);
             }
             finally
             {
@@ -1991,7 +2056,7 @@ namespace PlayniteAchievements.Services.UI
 
             if (!rendered || pw0 != pw1 || ph0 != ph1)
             {
-                return;
+                return false;
             }
 
             // With-effects minus without, in place: non-negative in premultiplied space (an
@@ -2000,6 +2065,32 @@ namespace PlayniteAchievements.Services.UI
             {
                 var delta = withEffects[i] - withoutEffects[i];
                 withEffects[i] = delta > 0 ? (byte)delta : (byte)0;
+            }
+
+            layer = withEffects;
+            width = pw1;
+            height = ph1;
+            return true;
+        }
+
+        /// <summary>
+        /// Captures one card's shadow/glow halo as a difference layer (see
+        /// <see cref="TryRenderEffectLayer"/>). Host opacity is excluded from both renders — the
+        /// per-sample glow scale carries it instead, so a fade theme's mid-fade capture doesn't bake
+        /// a dimmed halo. This pays the software blur exactly once per capture; every subsequent
+        /// tick renders effect-free.
+        /// </summary>
+        private void CaptureShadowLayer(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            AchievementToastViewModel vm, CardRenderScratch scratch,
+            List<KeyValuePair<FrameworkElement, Effect>> effects, double captureScale)
+        {
+            _waveShadowCaptureCount++;
+            if (!TryRenderEffectLayer(
+                    window, container, effects, applyHostOpacity: false, captureScale, "shadow",
+                    out var withEffects, out var pw1, out var ph1, out var cardWPhys, out var cardHPhys))
+            {
+                return;
             }
 
             recorder.SetShadowLayer(vm, withEffects, pw1, ph1);
@@ -2128,14 +2219,16 @@ namespace PlayniteAchievements.Services.UI
         /// Draws the toast overlay onto the base capture at the given physical rect relative to
         /// the rect the capture covers (game client rect, or monitor bounds for the out-of-game
         /// test fire). Physical-pixel coordinates map 1:1 into the capture when it equals that
-        /// rect; the width/height ratio absorbs any rounding or DPI difference. Mutates
-        /// <paramref name="game"/> in place.
+        /// rect; the width/height ratio absorbs any rounding or DPI difference. A non-null
+        /// <paramref name="blur"/> first blurs the shot under the card, standing in for the live
+        /// background the card's render leaves out. Mutates <paramref name="game"/> in place.
         /// </summary>
         private static void CompositeToastOverlay(
             System.Drawing.Bitmap game,
             System.Drawing.Bitmap overlay,
             System.Drawing.Rectangle toastPhys,
-            System.Drawing.Rectangle clientPhys)
+            System.Drawing.Rectangle clientPhys,
+            ToastBlurPatch blur = null)
         {
             var sx = (double)game.Width / clientPhys.Width;
             var sy = (double)game.Height / clientPhys.Height;
@@ -2143,6 +2236,8 @@ namespace PlayniteAchievements.Services.UI
             var y = (int)Math.Round((toastPhys.Y - clientPhys.Y) * sy);
             var w = Math.Max(1, (int)Math.Round(overlay.Width * sx));
             var h = Math.Max(1, (int)Math.Round(overlay.Height * sy));
+
+            blur?.Apply(game, new System.Drawing.Rectangle(x, y, w, h), sx);
 
             using (var g = System.Drawing.Graphics.FromImage(game))
             {
@@ -2787,6 +2882,7 @@ namespace PlayniteAchievements.Services.UI
             EventHandler onRendering = null;
             EventHandler onTrackSample = null;
             SizeChangedEventHandler onHoldSurfaceSized = null;
+            ToastLiveBackdrop liveBackdrop = null;
             ToastOverlayTrackRecorder trackRecorder = null;
             // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
             // sampler saw against the samples it actually took is what shows the cadence landing where
@@ -2887,6 +2983,19 @@ namespace PlayniteAchievements.Services.UI
                 // corner.
                 ReserveSlideTravel(window, items);
                 PlaceWindow(window, "shown");
+
+                // A blurred card's live background starts while the window is still cloaked, so the
+                // capture is delivering frames by the time the slide-in begins. It follows the card
+                // through both slides and stops with the wave.
+                if (visible)
+                {
+                    liveBackdrop = ToastLiveBackdrop.TryStart(
+                        window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero, out var blurSkipped);
+                    if (blurSkipped != null)
+                    {
+                        _logger?.Info($"[Toast] Blur: not started ({blurSkipped}).");
+                    }
+                }
 
                 // Let the card actually reach the screen before the slide starts timing itself.
                 // ApplyDpiCompensation's UpdateLayout is measure/arrange, not pixels; on a monitor at
@@ -3263,6 +3372,12 @@ namespace PlayniteAchievements.Services.UI
                 if (onHoldSurfaceSized != null && _activeCardSurface != null)
                 {
                     _activeCardSurface.SizeChanged -= onHoldSurfaceSized;
+                }
+
+                if (liveBackdrop != null)
+                {
+                    liveBackdrop.Dispose();
+                    _logger?.Info($"[Toast] Blur: {liveBackdrop.Describe()}");
                 }
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
@@ -4325,6 +4440,37 @@ namespace PlayniteAchievements.Services.UI
         // How far past the card surface's bounds the hold's hit region reaches, for theme effects
         // drawn outside them. The bundled template keeps its glow inside the surface.
         private const double HitRegionAllowanceDip = 16d;
+        // The bundled toast template's card CornerRadius, which the saved outputs' blur follows.
+        private const double ToastCardCornerRadiusDip = 8d;
+
+        /// <summary>
+        /// Where a blurred card sits inside its item container (the element the screenshot and the
+        /// clip render) and how far its blur reaches, for the blur those outputs draw under it; null
+        /// when the container has no size.
+        /// </summary>
+        private static ToastBlurPatch CreateBlurPatch(FrameworkElement container, AchievementToastViewModel vm)
+        {
+            if (container == null || container.RenderSize.Width <= 0 || container.RenderSize.Height <= 0)
+            {
+                return null;
+            }
+
+            var size = container.RenderSize;
+            var inset = ToastSurfaceFactory.MeasureCardInset(container);
+            var width = size.Width - inset.Left - inset.Right;
+            var height = size.Height - inset.Top - inset.Bottom;
+            if (width <= 0 || height <= 0)
+            {
+                return null;
+            }
+
+            return new ToastBlurPatch(
+                new System.Drawing.RectangleF(
+                    (float)(inset.Left / size.Width), (float)(inset.Top / size.Height),
+                    (float)(width / size.Width), (float)(height / size.Height)),
+                (float)(ToastCardCornerRadiusDip / size.Width),
+                vm.BlurReachPhys);
+        }
 
         /// <summary>
         /// What the slide animates: the translate in the slide host's transform group. Everything is

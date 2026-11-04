@@ -328,5 +328,57 @@ namespace PlayniteAchievements.Tests.Services.UI
             Assert.IsFalse(effective.ScreenshotWithToast);
             Assert.IsFalse(ProviderNotificationPolicy.Resolve(settings, "Steam").RecordingsEnabled);
         }
+
+        [TestMethod]
+        public void CrossesProgressInterval_ZeroPercent_EveryAdvance()
+        {
+            Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(3, 4, 1000, 0));
+            Assert.IsFalse(ProviderNotificationPolicy.CrossesProgressInterval(4, 4, 1000, 0));
+        }
+
+        [TestMethod]
+        public void CrossesProgressInterval_FiresOnlyAtStepBoundaries()
+        {
+            Assert.IsFalse(ProviderNotificationPolicy.CrossesProgressInterval(0, 99, 1000, 10));
+            Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(99, 100, 1000, 10));
+            Assert.IsFalse(ProviderNotificationPolicy.CrossesProgressInterval(100, 199, 1000, 10));
+        }
+
+        [TestMethod]
+        public void CrossesProgressInterval_JumpOverSeveralSteps_Fires()
+        {
+            Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(95, 250, 1000, 10));
+        }
+
+        [TestMethod]
+        public void CrossesProgressInterval_StepSmallerThanOneUnit_FiresEveryUnit()
+        {
+            Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(0, 1, 5, 10));
+            Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(1, 2, 5, 10));
+        }
+
+        [TestMethod]
+        public void Resolve_GameBehavior_OwnIntervalReplacesGlobal()
+        {
+            var settings = MakeSettings();
+            settings.ProgressToastIntervalPercent = 25;
+            Assert.AreEqual(25, ProviderNotificationPolicy.Resolve(settings, "Steam").ProgressToastIntervalPercent);
+
+            var gameBehavior = GameNotificationBehaviorOverride.FromEffective(settings, null).Clone();
+            Assert.AreEqual(25, gameBehavior.ProgressToastIntervalPercent);
+
+            gameBehavior.ProgressToastIntervalPercent = 0;
+            var gameData = new GameCustomDataFile { NotificationBehaviorOverride = gameBehavior };
+            Assert.AreEqual(0, ProviderNotificationPolicy.Resolve(settings, "Steam", gameData).ProgressToastIntervalPercent);
+        }
+
+        [TestMethod]
+        public void ProgressToastIntervalPercent_ClampsToRange()
+        {
+            var settings = new PersistedSettings { ProgressToastIntervalPercent = 150 };
+            Assert.AreEqual(99, settings.ProgressToastIntervalPercent);
+            settings.ProgressToastIntervalPercent = -5;
+            Assert.AreEqual(0, settings.ProgressToastIntervalPercent);
+        }
     }
 }

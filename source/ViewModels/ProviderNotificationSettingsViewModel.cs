@@ -64,6 +64,7 @@ namespace PlayniteAchievements.ViewModels
                 .Select(key => new ProviderNotificationRowItem(
                     key,
                     _settings.Persisted?.GetProviderNotificationOverride(key),
+                    () => _settings.Persisted,
                     OnRowChanged)));
         }
 
@@ -74,6 +75,15 @@ namespace PlayniteAchievements.ViewModels
             foreach (var row in Rows)
             {
                 row.RefreshProviderAppearance();
+            }
+        }
+
+        /// <summary>Updates what each "Default" cell stands for after the global switches changed.</summary>
+        public void RefreshInherited()
+        {
+            foreach (var row in Rows)
+            {
+                row.RefreshInherited();
             }
         }
 
@@ -133,6 +143,7 @@ namespace PlayniteAchievements.ViewModels
     internal sealed class ProviderNotificationRowItem : ObservableObject
     {
         private readonly Action<ProviderNotificationRowItem> _onChanged;
+        private readonly Func<PersistedSettings> _settings;
         private OverrideState _unlockToasts;
         private OverrideState _friendUnlockToasts;
         private OverrideState _progressToasts;
@@ -146,8 +157,10 @@ namespace PlayniteAchievements.ViewModels
         public ProviderNotificationRowItem(
             string providerKey,
             ProviderNotificationOverride stored,
+            Func<PersistedSettings> settings,
             Action<ProviderNotificationRowItem> onChanged)
         {
+            _settings = settings;
             ProviderKey = providerKey;
             DisplayName = ProviderRegistry.GetLocalizedName(providerKey);
             ProviderRegistry.TryResolveProviderVisuals(providerKey, out var iconKey, out _);
@@ -184,6 +197,46 @@ namespace PlayniteAchievements.ViewModels
         public void RefreshProviderAppearance()
         {
             OnPropertyChanged(nameof(ProviderColorHex));
+        }
+
+        // What each "Default" cell stands for: the global switch, shown muted in the closed dropdown.
+        public string InheritedUnlockToasts => InheritedLabel(settings => settings.EnableUnlockToasts);
+
+        public string InheritedFriendUnlockToasts => InheritedLabel(settings => settings.EnableFriendUnlockToasts);
+
+        public string InheritedProgressToasts => InheritedLabel(settings => settings.EnableProgressToasts);
+
+        public string InheritedScreenshotClean => InheritedLabel(settings => settings.UnlockScreenshotClean);
+
+        public string InheritedScreenshotWithToast => InheritedLabel(settings => settings.UnlockScreenshotWithToast);
+
+        public string InheritedScreenshotFramed => InheritedLabel(settings => settings.UnlockScreenshotFramed);
+
+        public string InheritedRecordingClean => InheritedLabel(settings => settings.UnlockRecordingClean);
+
+        public string InheritedRecordingWithToast => InheritedLabel(settings => settings.UnlockRecordingWithToast);
+
+        public string InheritedRecordingFramed => InheritedLabel(settings => settings.UnlockRecordingFramed);
+
+        public void RefreshInherited()
+        {
+            OnPropertyChanged(nameof(InheritedUnlockToasts));
+            OnPropertyChanged(nameof(InheritedFriendUnlockToasts));
+            OnPropertyChanged(nameof(InheritedProgressToasts));
+            OnPropertyChanged(nameof(InheritedScreenshotClean));
+            OnPropertyChanged(nameof(InheritedScreenshotWithToast));
+            OnPropertyChanged(nameof(InheritedScreenshotFramed));
+            OnPropertyChanged(nameof(InheritedRecordingClean));
+            OnPropertyChanged(nameof(InheritedRecordingWithToast));
+            OnPropertyChanged(nameof(InheritedRecordingFramed));
+        }
+
+        private string InheritedLabel(Func<PersistedSettings, bool> global)
+        {
+            var settings = _settings?.Invoke();
+            return settings == null
+                ? null
+                : ResourceProvider.GetString(global(settings) ? "LOCPlayAch_Settings_Override_On" : "LOCPlayAch_Settings_Override_Off");
         }
 
         public OverrideState UnlockToasts
@@ -245,8 +298,8 @@ namespace PlayniteAchievements.ViewModels
             _recordingClean == OverrideState.Inherit &&
             _recordingWithToast == OverrideState.Inherit &&
             _recordingFramed == OverrideState.Inherit
-                ? ResourceProvider.GetString("LOCDefault")
-                : ResourceProvider.GetString("LOCCustomLabel");
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
+                : ResourceProvider.GetString("LOCPlayAch_Common_Custom");
 
         /// <summary>
         /// Label for the Screenshots popup toggle: "Default" while all three variant cells
@@ -256,8 +309,8 @@ namespace PlayniteAchievements.ViewModels
             _screenshotClean == OverrideState.Inherit &&
             _screenshotWithToast == OverrideState.Inherit &&
             _screenshotFramed == OverrideState.Inherit
-                ? ResourceProvider.GetString("LOCDefault")
-                : ResourceProvider.GetString("LOCCustomLabel");
+                ? ResourceProvider.GetString("LOCPlayAch_Common_Default")
+                : ResourceProvider.GetString("LOCPlayAch_Common_Custom");
 
         /// <summary>
         /// The row's current cell states as an override entry; all-inherit rows produce an entry

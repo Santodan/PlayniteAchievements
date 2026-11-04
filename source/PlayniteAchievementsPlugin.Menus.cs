@@ -149,7 +149,7 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCCancelLabel"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Cancel"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
@@ -187,7 +187,7 @@ namespace PlayniteAchievements
 
             yield return new MainMenuItem
             {
-                Description = ResourceProvider.GetString("LOCCancelLabel"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Cancel"),
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
                 {
@@ -310,7 +310,7 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewAchievements"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_View"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
@@ -322,7 +322,7 @@ namespace PlayniteAchievements
             {
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewFriendsAchievements"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Settings_Friends"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -331,11 +331,26 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Only shown when the game actually has saved captures (Playnite menu items can't be
+            // greyed out, so absence is the "inactive" state here).
+            if (_captureLibraryService?.GameHasCaptures(game.Name) == true)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Column_Captures"),
+                    MenuSection = PluginGameMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenCapturesViewerForGame(game.Name);
+                    }
+                };
+            }
+
             if (!refreshInProgress)
             {
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_RefreshGame"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Button_Refresh"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -353,28 +368,13 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ManageAchievements"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Manage"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
                     OpenManageAchievementsView(game.Id);
                 }
             };
-
-            // Only shown when the game actually has saved captures (Playnite menu items can't be
-            // greyed out, so absence is the "inactive" state here).
-            if (_captureLibraryService?.GameHasCaptures(game.Name) == true)
-            {
-                yield return new GameMenuItem
-                {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewCaptures"),
-                    MenuSection = PluginGameMenuSection,
-                    Action = (a) =>
-                    {
-                        OpenCapturesViewerForGame(game.Name);
-                    }
-                };
-            }
 
             yield return new GameMenuItem
             {
@@ -864,7 +864,7 @@ namespace PlayniteAchievements
             // on close.
             yield return new MainMenuItem
             {
-                Description = ResourceProvider.GetString("LOCOverviewLabel"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Overview"),
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
                 {
@@ -874,7 +874,7 @@ namespace PlayniteAchievements
 
             yield return new MainMenuItem
             {
-                Description = ResourceProvider.GetString("LOCSettingsLabel"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Common_Settings"),
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
                 {
@@ -963,7 +963,7 @@ namespace PlayniteAchievements
 
                 yield return new MainMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCCustomLabel") + "...",
+                    Description = ResourceProvider.GetString("LOCPlayAch_Common_Custom") + "...",
                     MenuSection = PluginMainRefreshSection,
                     Action = (a) =>
                     {
@@ -1020,6 +1020,249 @@ namespace PlayniteAchievements
                             _logger?.Debug(ex, "Manual memory diagnostics failed.");
                         }
                     })
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded TrueGamingProbe.Enabled flag is on.
+            // Deliberately not localized.
+            if (global::PlayniteAchievements.Providers.Metadata.TrueGaming.TrueGamingProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe TrueGaming",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) => _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await global::PlayniteAchievements.Providers.Metadata.TrueGaming.TrueGamingProbe.RunAsync(
+                                PlayniteApi,
+                                _logger,
+                                System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "truegaming"),
+                                CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Warn(ex, "TrueGaming probe failed.");
+                        }
+                    })
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded MetadataSourceProbe.Enabled flag is on.
+            // Deliberately not localized. Probes a fixed list of games against TrueGaming and SteamHunters.
+            if (global::PlayniteAchievements.Providers.Metadata.MetadataSourceProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe collections (TrueGaming, SteamHunters)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "sources");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.MetadataSourceProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_SourceProbe",
+                                    $"Source probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Source probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded TagsCategoriesProbe.Enabled flag is on.
+            // Deliberately not localized. Compares tag and category sources on a fixed list of Steam games.
+            if (global::PlayniteAchievements.Providers.Metadata.TagsCategoriesProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe tags and categories",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "tags-categories");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.TagsCategoriesProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_TagsCategoriesProbe",
+                                    $"Tags and categories probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Tags and categories probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded ExophaseMissingPageProbe.Enabled flag is on.
+            // Deliberately not localized. Loads a fixed list of Exophase award pages, localized and English.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMissingPageProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe missing pages (Exophase)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "exophase-missing-2");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseMissingPageProbe.RunAsync(
+                                    PlayniteApi,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_MissingPageProbe",
+                                    $"Missing-page probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Missing-page probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded DataForAzerothProbe.Enabled flag is on.
+            // Deliberately not localized. Opens the site for its human check, then compares hosts.
+            if (global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe Data for Azeroth hosts",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "dfa-probe");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.BattleNet.DataForAzerothProbe.RunAsync(
+                                    PlayniteApi,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_DfaProbe",
+                                    $"Data for Azeroth probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Data for Azeroth probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded ExophaseCollectionProbe.Enabled flag is on.
+            // Deliberately not localized. Probes a fixed list of Steam collections, plus the games
+            // selected in the library.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseCollectionProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe collections (Exophase PlayStation)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var games = PlayniteApi.MainView.SelectedGames?.ToList() ?? new List<Game>();
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "collections");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseCollectionProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _providerRegistry?.GetMetadataProviders(),
+                                    _achievementDataService,
+                                    games,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_CollectionProbe",
+                                    $"Collection probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Collection probe failed.");
+                            }
+                        });
+                    }
+                };
+            }
+
+            // Developer-only, hidden unless the hardcoded ExophaseIconProbe.Enabled flag is on.
+            // Deliberately not localized. Saves a fixed list of Exophase pages' icons.
+            if (global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseIconProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe borrowed icons (Exophase PlayStation)",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "icon-probe");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await global::PlayniteAchievements.Providers.Metadata.Exophase.ExophaseIconProbe.RunAsync(
+                                    PlayniteApi,
+                                    Settings,
+                                    _refreshService?.IconService,
+                                    _diskImageService,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_IconProbe",
+                                    $"Icon probe finished: {folder}",
+                                    NotificationType.Info);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Icon probe failed.");
+                            }
+                        });
+                    }
                 };
             }
         }

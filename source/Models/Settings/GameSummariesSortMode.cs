@@ -12,6 +12,10 @@ namespace PlayniteAchievements.Models.Settings
         TotalAchievements = 2,
         Progress = 3,
         Alphabetical = 4,
-        PinOrder = 5
+        PinOrder = 5,
+        DateAdded = 6,
+        ReleaseDate = 7,
+        Playtime = 8,
+        Remaining = 9
     }
 }

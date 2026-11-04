@@ -514,7 +514,7 @@ namespace PlayniteAchievements.Tests.Providers
 
             var unobtainable = data.Achievements.Single(item => item.ApiName == "2");
             Assert.IsFalse(unobtainable.Unlocked);
-            Assert.AreEqual("Unobtainable", unobtainable.CategoryType);
+            Assert.AreEqual("Unobtainable", unobtainable.Tags);
             Assert.IsTrue(unobtainable.Hidden);
             Assert.AreEqual("Legacy", unobtainable.Category);
         }
@@ -633,7 +633,7 @@ namespace PlayniteAchievements.Tests.Providers
 
                     Assert.IsNotNull(data);
                     Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "1" && item.Unlocked));
-                    Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "2" && item.CategoryType == "Unobtainable"));
+                    Assert.IsTrue(data.Achievements.Any(item => item.ApiName == "2" && item.Tags == "Unobtainable"));
                 }
 
                 Assert.IsFalse(secondHandler.Requests.Any(IsPublicWowCategoryRequest));
@@ -728,8 +728,8 @@ namespace PlayniteAchievements.Tests.Providers
             }
 
             Assert.AreEqual(2, handler.Requests.Count);
-            Assert.AreEqual("https://dataforazeroth.com/dynamic/index.json", handler.Requests[0].RequestUri.ToString());
-            Assert.AreEqual("https://dataforazeroth.com/dynamic/achievementsrarity.hash.json", handler.Requests[1].RequestUri.ToString());
+            Assert.AreEqual("https://www.dataforazeroth.com/retail/dynamic/index.json", handler.Requests[0].RequestUri.ToString());
+            Assert.AreEqual("https://www.dataforazeroth.com/retail/dynamic/achievementsrarity.hash.json", handler.Requests[1].RequestUri.ToString());
         }
 
         private static Game BattleNetGame(string name)
@@ -967,13 +967,13 @@ namespace PlayniteAchievements.Tests.Providers
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://dataforazeroth.com/dynamic/index.json")
+                    request.RequestUri.ToString() == "https://www.dataforazeroth.com/retail/dynamic/index.json")
                 {
-                    return JsonResponse(@"{""achievementsrarity"":""/dynamic/achievementsrarity.hash.json""}");
+                    return JsonResponse(@"{""achievementsrarity"":""/retail/dynamic/achievementsrarity.hash.json""}");
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://dataforazeroth.com/dynamic/achievementsrarity.hash.json")
+                    request.RequestUri.ToString() == "https://www.dataforazeroth.com/retail/dynamic/achievementsrarity.hash.json")
                 {
                     return JsonResponse(@"{""achievements"":{""6"":100,""157"":4.3049}}");
                 }

@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             RaGameInfoUserProgress gameInfo,
             string rarityStats,
             string categoryLabel = null,
-            string setCategoryType = null)
+            string setCategoryKind = null)
         {
             var list = new List<AchievementDetail>();
 
@@ -79,15 +79,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 var unlockedIcon = BuildBadgeUrl(badge, locked: false);
                 var lockedIcon = BuildBadgeUrl(badge, locked: true);
 
-                // Unlocked achievements are classified by the mode they were earned in;
-                // locked achievements keep the default (null) mode. The set-membership type
-                // (the base set -> "Base", a subset -> "Subset"), RA's achievement type
-                // (progression -> "Progression", win_condition -> "WinCondition", missable ->
-                // "Missable") and the unlock mode combine in canonical order
-                // (e.g. "Base|WinCondition|Hardcore").
-                var unlockModeType = earnedInHardcore ? "Hardcore" : earnedSoftcore ? "Softcore" : null;
-                var categoryType = AchievementCategoryTypeHelper.Combine(
-                    new[] { setCategoryType, MapAchievementType(ach.Type), unlockModeType });
+                // The set's kind (the base set is Base, a subset Subset) goes on the category. RA's
+                // achievement type (progression, win_condition, missable) and, for an unlocked
+                // achievement, the mode it was earned in combine into its tags
+                // (e.g. "WinCondition|Hardcore"); a locked achievement has no mode.
+                var unlockMode = earnedInHardcore ? AchievementTagHelper.Hardcore : earnedSoftcore ? AchievementTagHelper.Softcore : null;
+                var tags = AchievementTagHelper.Combine(new[] { MapAchievementType(ach.Type), unlockMode });
 
                 var detail = new AchievementDetail
                 {
@@ -99,7 +96,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     Points = ach.Points,
                     ScaledPoints = ach.TrueRatio,
                     Category = categoryLabel,
-                    CategoryType = categoryType,
+                    Tags = tags,
+                    CategoryKind = setCategoryKind,
                     UnlockTimeUtc = unlockUtc,
                     Hidden = false,
                     Rarity = globalPercent.HasValue
@@ -132,7 +130,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         Points = achievement.Points,
                         ScaledPoints = achievement.ScaledPoints,
                         Category = achievement.Category,
-                        CategoryType = achievement.CategoryType,
+                        Tags = achievement.Tags,
+                        CategoryKind = achievement.CategoryKind,
                         TrophyType = achievement.TrophyType,
                         Hidden = achievement.Hidden,
                         IsCapstone = achievement.IsCapstone,
@@ -256,7 +255,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         /// <summary>
-        /// The category type for RA's achievement type. Untyped achievements get no type.
+        /// The tag for RA's achievement type. Untyped achievements get no tag.
         /// </summary>
         internal static string MapAchievementType(string raType)
         {

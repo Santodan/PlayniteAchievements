@@ -182,7 +182,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(
                 settings.Pages.Single().Blocks,
                 settings.Pages.Single().RowCount, settings.Pages.Single().ColumnCount));
-            Assert.AreEqual(6, settings.Pages.Single().Blocks.Count);
+            Assert.AreEqual(6, CellBlockCount(settings.Pages.Single()));
         }
 
         [TestMethod]
@@ -205,6 +205,40 @@ namespace PlayniteAchievements.Tests.Models
             CollectionAssert.AreEqual(
                 new[] { 0.5, 1.5, 1d },
                 ShowcaseLayoutService.NormalizeTrackWeights(new[] { 0.5, 1.5, 1d }, 3));
+        }
+
+        [TestMethod]
+        public void TransferTrackWeight_ShrinksATrackBesideANeighbourAtTheMaximum()
+        {
+            // Column weights from a reported page: column 4 sits at MaxTrackWeight, which used to
+            // pin column 3 at its size when dragged or typed through the 3|4 boundary.
+            var weights = new[] { 0.211, 1.056, 1.057, 0.312, 3.0, 0.318, 1.054, 1.055, 0.210 };
+
+            var result = ShowcaseLayoutService.TransferTrackWeight(weights, 3, -0.2);
+
+            Assert.IsTrue(result[3] / result.Sum() < weights[3] / weights.Sum(), "column 3 shrinks");
+            Assert.AreEqual(weights[0] / weights[1], result[0] / result[1], 1e-9, "untouched ratios hold");
+            Assert.AreEqual(weights[6] / weights[8], result[6] / result[8], 1e-9, "untouched ratios hold");
+            Assert.IsTrue(result.All(value =>
+                value >= ShowcaseLayoutService.MinTrackWeight - 1e-9 &&
+                value <= ShowcaseLayoutService.MaxTrackWeight + 1e-9));
+        }
+
+        [TestMethod]
+        public void TransferTrackWeight_MovesWeightWithinThePairWhenNothingIsAtTheLimit()
+        {
+            var result = ShowcaseLayoutService.TransferTrackWeight(new[] { 1d, 1d, 1d }, 0, 0.5);
+
+            CollectionAssert.AreEqual(new[] { 1.5, 0.5, 1d }, result);
+        }
+
+        [TestMethod]
+        public void TransferTrackWeight_StopsAtTheSixtyToOneRatio()
+        {
+            var result = ShowcaseLayoutService.TransferTrackWeight(new[] { 1d, 1d, 2d }, 0, -10);
+
+            Assert.AreEqual(result.Max() / 60, result.Min(), 1e-9);
+            Assert.AreEqual(2d, result[0] + result[1], 1e-9, "the pair keeps its total");
         }
 
         [TestMethod]
@@ -254,8 +288,8 @@ namespace PlayniteAchievements.Tests.Models
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank);
-            var left = page.Blocks.Single(block => block.Row == 0 && block.Column == 0);
-            var right = page.Blocks.Single(block => block.Row == 0 && block.Column == 1);
+            var left = Cell(page, 0, 0);
+            var right = Cell(page, 0, 1);
             var keep = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Scores);
             var remove = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
@@ -270,9 +304,8 @@ namespace PlayniteAchievements.Tests.Models
                 right.BlockId,
                 keep.InstanceId));
 
-            Assert.AreEqual(24, page.Blocks.Count);
-            Assert.AreEqual(keep.InstanceId, page.Blocks.Single(block =>
-                block.Row == 0 && block.Column == 0).WidgetInstanceId);
+            Assert.AreEqual(24, CellBlockCount(page));
+            Assert.AreEqual(keep.InstanceId, Cell(page, 0, 0).WidgetInstanceId);
             Assert.IsFalse(settings.WidgetInstances.Any(widget =>
                 widget.InstanceId == remove.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.IsValidPartition(page.Blocks, page.RowCount, page.ColumnCount));
@@ -316,8 +349,8 @@ namespace PlayniteAchievements.Tests.Models
                 page.Blocks[1].BlockId,
                 survivor.InstanceId));
 
-            Assert.AreEqual(4, page.Blocks.Count);
-            var merged = page.Blocks.Single(block => block.Row == 0 && block.Column == 0);
+            Assert.AreEqual(4, CellBlockCount(page));
+            var merged = Cell(page, 0, 0);
             Assert.AreEqual(2, merged.RowSpan);
             Assert.AreEqual(3, merged.ColumnSpan);
             Assert.AreEqual(survivor.InstanceId, merged.WidgetInstanceId);
@@ -435,7 +468,7 @@ namespace PlayniteAchievements.Tests.Models
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank);
-            var block = page.Blocks[0];
+            var block = Cell(page, 0, 0);
             var original = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
             var replacement = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Statistics);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
@@ -538,6 +571,24 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void PlaceWidget_AllowsASecondProfileOnTheSamePageAndNormalizeKeepsIt()
+        {
+            var settings = ShowcaseLayoutService.CreateDefault();
+            var page = settings.Pages.Single();
+            var first = settings.WidgetInstances.Single(widget => widget.Kind == ShowcaseWidgetKind.Profile);
+            var target = page.Blocks.First(block => block.WidgetInstanceId != first.InstanceId);
+            var second = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Profile);
+
+            Assert.IsTrue(ShowcaseLayoutService.CanPlaceWidget(settings, page.PageId, target.BlockId, second.InstanceId));
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(settings, page.PageId, target.BlockId, second.InstanceId));
+            ShowcaseLayoutService.Normalize(settings);
+
+            CollectionAssert.IsSubsetOf(
+                new[] { first.InstanceId, second.InstanceId },
+                page.Blocks.Select(block => block.WidgetInstanceId).ToList());
+        }
+
+        [TestMethod]
         public void DuplicatePage_ProfileEditOnCopyLeavesOriginalUnchanged()
         {
             var settings = ShowcaseLayoutService.CreateDefault();
@@ -602,10 +653,10 @@ namespace PlayniteAchievements.Tests.Models
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank);
-            var topLeft = page.Blocks.Single(block => block.Row == 0 && block.Column == 0);
-            var topMiddle = page.Blocks.Single(block => block.Row == 0 && block.Column == 1);
-            var middleLeft = page.Blocks.Single(block => block.Row == 1 && block.Column == 0);
-            var middleMiddle = page.Blocks.Single(block => block.Row == 1 && block.Column == 1);
+            var topLeft = Cell(page, 0, 0);
+            var topMiddle = Cell(page, 0, 1);
+            var middleLeft = Cell(page, 1, 0);
+            var middleMiddle = Cell(page, 1, 1);
 
             Assert.IsFalse(ShowcaseLayoutService.TryMerge(
                 settings,
@@ -638,23 +689,23 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void PlaceWidget_SwapsAssignmentsAndEnforcesSingletonKindPerPage()
+        public void PlaceWidget_SwapsAssignmentsAndAllowsRepeatedKindsPerPage()
         {
             var settings = new ShowcaseSettings();
             var page = ShowcaseLayoutService.AddPage(settings, ShowcasePageTemplate.Blank);
-            var first = page.Blocks[0];
-            var second = page.Blocks[1];
+            var first = Cell(page, 0, 0).BlockId;
+            var second = Cell(page, 0, 1).BlockId;
             var firstPie = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
             var secondPie = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
 
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, first.BlockId, firstPie.InstanceId));
+                settings, page.PageId, first, firstPie.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, second.BlockId, secondPie.InstanceId));
+                settings, page.PageId, second, secondPie.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, second.BlockId, firstPie.InstanceId));
-            Assert.AreEqual(firstPie.InstanceId, second.WidgetInstanceId);
-            Assert.AreEqual(secondPie.InstanceId, first.WidgetInstanceId);
+                settings, page.PageId, second, firstPie.InstanceId));
+            Assert.AreEqual(firstPie.InstanceId, Cell(page, 0, 1).WidgetInstanceId);
+            Assert.AreEqual(secondPie.InstanceId, Cell(page, 0, 0).WidgetInstanceId);
 
             var profileOne = ShowcaseLayoutService.CreateWidget(
                 settings,
@@ -663,16 +714,23 @@ namespace PlayniteAchievements.Tests.Models
                 settings,
                 ShowcaseWidgetKind.Profile);
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, page.Blocks[2].BlockId, profileOne.InstanceId));
+                settings, page.PageId, Cell(page, 0, 2).BlockId, profileOne.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.CanPlaceWidget(
-                settings, page.PageId, page.Blocks[3].BlockId, profileOne.InstanceId));
+                settings, page.PageId, Cell(page, 0, 3).BlockId, profileOne.InstanceId));
             Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, page.Blocks[3].BlockId, profileOne.InstanceId));
-            Assert.AreEqual(profileOne.InstanceId, page.Blocks[3].WidgetInstanceId);
-            Assert.IsNull(page.Blocks[2].WidgetInstanceId);
-            Assert.IsFalse(ShowcaseLayoutService.PlaceWidget(
-                settings, page.PageId, page.Blocks[4].BlockId, profileTwo.InstanceId));
+                settings, page.PageId, Cell(page, 0, 3).BlockId, profileOne.InstanceId));
+            Assert.AreEqual(profileOne.InstanceId, Cell(page, 0, 3).WidgetInstanceId);
+            Assert.IsNull(Cell(page, 0, 2).WidgetInstanceId);
+            Assert.IsTrue(ShowcaseLayoutService.PlaceWidget(
+                settings, page.PageId, Cell(page, 0, 4).BlockId, profileTwo.InstanceId));
+            Assert.AreEqual(profileTwo.InstanceId, Cell(page, 0, 4).WidgetInstanceId);
         }
+
+        private static ShowcaseBlockSettings Cell(ShowcasePageSettings page, int row, int column) =>
+            ShowcaseLayoutService.ResolveCell(page, row, column);
+
+        private static int CellBlockCount(ShowcasePageSettings page) =>
+            ShowcaseLayoutService.DenseBlocks(page).Count;
 
         [TestMethod]
         public void Normalize_PreservesValidLastSelectedPage()

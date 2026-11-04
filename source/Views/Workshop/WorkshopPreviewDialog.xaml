@@ -33,9 +33,9 @@
                            TextTrimming="CharacterEllipsis">
                     <Run x:Name="KindRun"/>
                     <Run Text=" · "/>
-                    <Run Text="{DynamicResource LOCVersionLabel}"/><Run Text=" "/><Run x:Name="VersionRun"/>
+                    <Run Text="{DynamicResource LOCPlayAch_Common_Version}"/><Run Text=" "/><Run x:Name="VersionRun"/>
                     <Run Text=" · "/>
-                    <Run Text="{DynamicResource LOCAuthorLabel}"/><Run Text=": "/><Run x:Name="AuthorRun"/>
+                    <Run Text="{DynamicResource LOCPlayAch_Common_Author}"/><Run Text=": "/><Run x:Name="AuthorRun"/>
                 </TextBlock>
                 <TextBlock x:Name="GameLine"
                            Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
@@ -65,7 +65,7 @@
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"
                         Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                <Button Content="{DynamicResource LOCCloseLabel}"
+                <Button Content="{DynamicResource LOCPlayAch_Common_Close}"
                         Click="CloseButton_Click"
                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                         MinWidth="88"

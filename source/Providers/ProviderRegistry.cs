@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Providers
         private readonly Dictionary<string, ProviderSettingsBase> _editSessionOriginals = new Dictionary<string, ProviderSettingsBase>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, ProviderSettingsBase> _editSessionCopies = new Dictionary<string, ProviderSettingsBase>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<Type, object> _sharedServices = new Dictionary<Type, object>();
+        private readonly List<Metadata.IMetadataProvider> _metadataProviders = new List<Metadata.IMetadataProvider>();
         private bool _editSessionActive;
 
         public ProviderRegistry(
@@ -519,11 +520,49 @@ namespace PlayniteAchievements.Providers
             return sorted;
         }
 
-        private IEnumerable<Type> DiscoverProviderTypes()
+        /// <summary>
+        /// Creates every metadata provider in the assembly, resolving constructor dependencies the
+        /// same way as data providers. Call after <see cref="CreateProviders"/> so shared services
+        /// are registered.
+        /// </summary>
+        internal IReadOnlyList<Metadata.IMetadataProvider> CreateMetadataProviders(PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
+        {
+            _metadataProviders.Clear();
+            var types = DiscoverTypes(typeof(Metadata.IMetadataProvider))
+                .Where(type => type.GetConstructors().Length > 0)
+                .Concat(DiscoverTypes(typeof(Metadata.IMetadataProviderFamily)));
+            foreach (var providerType in types)
+            {
+                try
+                {
+                    var instance = CreateInstance(providerType, settings, playniteApi, pluginUserDataPath);
+                    var created = instance is Metadata.IMetadataProviderFamily family
+                        ? family.Providers ?? Array.Empty<Metadata.IMetadataProvider>()
+                        : new[] { instance as Metadata.IMetadataProvider };
+                    _metadataProviders.AddRange(created.Where(provider => !string.IsNullOrWhiteSpace(provider?.Key)));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed to create metadata provider: {providerType.Name}");
+                }
+            }
+
+            _metadataProviders.Sort((a, b) => string.Compare(a.Key, b.Key, StringComparison.OrdinalIgnoreCase));
+            return _metadataProviders;
+        }
+
+        internal IReadOnlyList<Metadata.IMetadataProvider> GetMetadataProviders() => _metadataProviders;
+
+        private IEnumerable<Type> DiscoverProviderTypes() => DiscoverTypes(typeof(IDataProvider));
+
+        private IEnumerable<Type> DiscoverTypes(Type contract)
             => GetType().Assembly.GetTypes()
-                .Where(t => t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters && typeof(IDataProvider).IsAssignableFrom(t));
+                .Where(t => t.IsClass && !t.IsAbstract && !t.ContainsGenericParameters && contract.IsAssignableFrom(t));
 
         private IDataProvider CreateProviderInstance(Type providerType, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
+            => CreateInstance(providerType, settings, playniteApi, pluginUserDataPath) as IDataProvider;
+
+        private object CreateInstance(Type providerType, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
             var ctors = providerType.GetConstructors();
             if (ctors.Length == 0) { _logger?.Warn($"No public constructor for {providerType.Name}"); return null; }
@@ -533,7 +572,7 @@ namespace PlayniteAchievements.Providers
                 var args = ResolveConstructorArguments(ctor, settings, playniteApi, pluginUserDataPath);
                 if (args != null)
                 {
-                    try { return (IDataProvider)ctor.Invoke(args); }
+                    try { return ctor.Invoke(args); }
                     catch (Exception ex) { _logger?.Error(ex, $"Failed to invoke constructor for {providerType.Name}"); }
                 }
             }
@@ -557,11 +596,22 @@ namespace PlayniteAchievements.Providers
                 else if (paramType == typeof(IPlayniteAPI)) args[i] = playniteApi;
                 else if (paramType == typeof(string) && param.Name?.ToLower().Contains("path") == true) args[i] = pluginUserDataPath;
                 else if (TryResolveSharedService(paramType, out var sharedService)) args[i] = sharedService;
+                else if (TryResolveCreatedProvider(paramType, out var dataProvider)) args[i] = dataProvider;
                 else if (param.IsOptional) args[i] = param.DefaultValue;
                 else return null;
             }
 
             return args;
+        }
+
+        // Lets a metadata provider take the data provider whose clients and sessions it reuses
+        // (SteamHunters takes the Steam provider). Only already-created providers resolve.
+        private bool TryResolveCreatedProvider(Type paramType, out object provider)
+        {
+            provider = paramType != null && typeof(IDataProvider).IsAssignableFrom(paramType)
+                ? _providersByKey.Values.FirstOrDefault(paramType.IsInstanceOfType)
+                : null;
+            return provider != null;
         }
 
         private void RegisterSharedServices(IEnumerable<object> sharedServices)

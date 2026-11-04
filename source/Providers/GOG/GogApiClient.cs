@@ -9,6 +9,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -308,19 +309,39 @@ namespace PlayniteAchievements.Providers.GOG
                         return directClientId;
                     }
 
-                    var buildMetaUrl = productData.PreferredBuildMetaUrl;
-                    if (string.IsNullOrWhiteSpace(buildMetaUrl))
+                    var buildMetaUrls = productData.CandidateBuildMetaUrls;
+                    if (buildMetaUrls.Count == 0)
                     {
                         _logger?.Debug($"[GogApi] No build metadata URL found for productId={productId}.");
                         return null;
                     }
 
-                    var metaClientId = await GetClientIdFromBuildMetaAsync(buildMetaUrl, ct).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(metaClientId))
+                    Exception lastFailure = null;
+                    foreach (var buildMetaUrl in buildMetaUrls)
                     {
-                        _logger?.Debug($"[GogApi] Resolved client_id from build metadata for productId={productId}.");
-                        CacheClientId(productId, metaClientId);
-                        return metaClientId;
+                        string metaClientId;
+                        try
+                        {
+                            metaClientId = await GetClientIdFromBuildMetaAsync(buildMetaUrl, ct).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (ex is GogApiHttpException || ex is GogTransientException)
+                        {
+                            _logger?.Debug($"[GogApi] Build metadata failed for productId={productId}, trying next build: {ex.Message}");
+                            lastFailure = ex;
+                            continue;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(metaClientId))
+                        {
+                            _logger?.Debug($"[GogApi] Resolved client_id from build metadata for productId={productId}.");
+                            CacheClientId(productId, metaClientId);
+                            return metaClientId;
+                        }
+                    }
+
+                    if (lastFailure != null)
+                    {
+                        ExceptionDispatchInfo.Capture(lastFailure).Throw();
                     }
 
                     _logger?.Debug($"[GogApi] Build metadata did not contain client_id for productId={productId}.");

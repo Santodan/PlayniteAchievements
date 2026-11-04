@@ -124,6 +124,16 @@ namespace PlayniteAchievements.Models
         }
 
         /// <summary>
+        /// Line shown above the tooltip metrics, such as the tag name; empty shows none.
+        /// </summary>
+        private string _tooltipTitle;
+        public string TooltipTitle
+        {
+            get => _tooltipTitle;
+            set => SetValue(ref _tooltipTitle, value);
+        }
+
+        /// <summary>
         /// Secondary tooltip metric text (percentages).
         /// </summary>
         private string _secondaryMetricText;

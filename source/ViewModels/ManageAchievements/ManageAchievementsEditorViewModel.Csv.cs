@@ -29,7 +29,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _importPortable?.Invoke(
                 MergeImportedDefinitions,
                 MergeCsv,
-                () => MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCImportLabel")));
+                () => MarkUndoIntent(EditorEditIntent.Atomic("Import", "LOCPlayAch_Common_Import")));
         }
 
         /// <summary>
@@ -207,7 +207,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            MarkUndoIntent(EditorEditIntent.Command("ImportCsv", "LOCImportLabel"));
+            MarkUndoIntent(EditorEditIntent.Command("ImportCsv", "LOCPlayAch_Common_Import"));
 
             var outcome = new CsvMergeOutcome();
             var usedIds = new HashSet<string>(
@@ -460,7 +460,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>
         /// Puts an icon cell into the row's slot, where the editor's icon edit then fetches and
-        /// stores it - and drops it again if it is the provider's own picture.
+        /// stores it.
         /// </summary>
         /// <remarks>
         /// A locked icon only counts on a game set to show separate locked art; elsewhere the

@@ -204,7 +204,18 @@ namespace PlayniteAchievements.Common
         /// Navigations on the shared leased view are serialized through a gate; per-call
         /// views run unguarded. An exception from the work marks the view faulted.
         /// </summary>
-        public async Task<T> WithNavigableViewAsync<T>(Func<IWebView, Task<T>> work, CancellationToken ct)
+        public Task<T> WithNavigableViewAsync<T>(Func<IWebView, Task<T>> work, CancellationToken ct) =>
+            RunOnViewAsync<T>(async view => (await work(view).ConfigureAwait(false), false), ct);
+
+        /// <summary>
+        /// Like <see cref="WithNavigableViewAsync{T}"/>, for work that can tell the view must not
+        /// be reused, such as one still loading after a navigation timed out: it returns its result
+        /// with Discard set, and the view is replaced as after an exception.
+        /// </summary>
+        public Task<T> WithDiscardableViewAsync<T>(Func<IWebView, Task<(T Result, bool Discard)>> work, CancellationToken ct) =>
+            RunOnViewAsync(work, ct);
+
+        private async Task<T> RunOnViewAsync<T>(Func<IWebView, Task<(T Result, bool Discard)>> work, CancellationToken ct)
         {
             var (view, owned) = AcquireView();
             if (!owned)
@@ -216,7 +227,9 @@ namespace PlayniteAchievements.Common
             try
             {
                 using var browserOperation = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("offscreen-work " + work.Method.DeclaringType?.Name + "." + work.Method.Name);
-                return await work(view).ConfigureAwait(false);
+                var (result, discard) = await work(view).ConfigureAwait(false);
+                faulted = discard;
+                return result;
             }
             catch
             {

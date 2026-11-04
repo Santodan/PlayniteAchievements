@@ -12,6 +12,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Tests.TestInfrastructure;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Tests.Views
@@ -22,7 +23,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void Enabled_HidesTemplateScrollBarsAfterLoad()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -48,7 +49,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void BodyHover_ShowsEnabledScrollBarsWithoutChangingLayout()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -97,7 +98,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void HeaderHover_KeepsScrollBarsHidden()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -126,7 +127,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void KeyboardFocusWithin_ShowsScrollBars()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -134,15 +135,7 @@ namespace PlayniteAchievements.Tests.Views
                 try
                 {
                     DataGridHoverScrollBarBehavior.SetIsEnabled(grid, true);
-                    window = new Window
-                    {
-                        Width = 340,
-                        Height = 240,
-                        Content = grid,
-                        ShowActivated = true
-                    };
-                    window.Show();
-                    window.Activate();
+                    window = StaTestHost.ShowOffscreen(grid, 340, 240);
                     grid.UpdateLayout();
                     DrainDispatcher();
 
@@ -174,7 +167,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ScrollingGrid_ShowsScrollbarWithoutBodyHover()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -210,7 +203,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void MouseWheel_FullyShowsScrollbarWithoutBodyHover()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -245,7 +238,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ActiveGrid_ShowsIdleScrollbarUntilScrollbarIsHovered()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -286,7 +279,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void DisabledScrollBarsStayHiddenWhileMouseOver()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -317,7 +310,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void DisabledBehavior_RestoresOriginalScrollbarLocalValues()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var grid = CreateScrollableGrid();
                 Window window = null;
@@ -352,7 +345,7 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void OverlayTemplate_VerticalScrollBarStartsBelowHeadersAndDoesNotReserveViewportWidth()
         {
-            RunOnStaThread(() =>
+            StaTestHost.Run(() =>
             {
                 var defaultGrid = CreateScrollableGrid();
                 Window defaultWindow = null;
@@ -397,6 +390,51 @@ namespace PlayniteAchievements.Tests.Views
                 finally
                 {
                     overlayWindow?.Close();
+                }
+            });
+        }
+
+        [TestMethod]
+        public void ScrollViewerHost_HidesUntilHoveredAndShowsAnywhereOverContent()
+        {
+            StaTestHost.Run(() =>
+            {
+                var content = new Border { Height = 600 };
+                var scrollViewer = new ScrollViewer
+                {
+                    Width = 200,
+                    Height = 150,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Visible,
+                    Content = content
+                };
+                Window window = null;
+
+                try
+                {
+                    DataGridHoverScrollBarBehavior.SetIsEnabled(scrollViewer, true);
+                    window = StaTestHost.ShowOffscreen(scrollViewer, 340, 240);
+                    scrollViewer.UpdateLayout();
+                    DrainDispatcher();
+
+                    var scrollBar = scrollViewer.Template.FindName("PART_VerticalScrollBar", scrollViewer) as ScrollBar;
+                    Assert.IsNotNull(scrollBar);
+                    Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
+                    Assert.IsFalse(scrollBar.IsHitTestVisible);
+
+                    RaiseMouseMove(content);
+                    DrainDispatcher();
+
+                    Assert.IsTrue(scrollBar.Opacity > 0d);
+                    Assert.IsTrue(scrollBar.IsHitTestVisible);
+
+                    RaiseMouseLeave(scrollViewer);
+                    DrainDispatcher();
+
+                    Assert.AreEqual(0d, scrollBar.Opacity, 0.001d);
+                }
+                finally
+                {
+                    window?.Close();
                 }
             });
         }
@@ -520,15 +558,7 @@ namespace PlayniteAchievements.Tests.Views
 
         private static Window ShowGrid(DataGrid grid)
         {
-            var window = new Window
-            {
-                Width = 340,
-                Height = 240,
-                Content = grid,
-                ShowActivated = false
-            };
-
-            window.Show();
+            var window = StaTestHost.ShowOffscreen(grid, 340, 240);
             grid.UpdateLayout();
             DrainDispatcher();
             return window;
@@ -694,32 +724,6 @@ namespace PlayniteAchievements.Tests.Views
             dispatcher.Invoke(new Action(() => { }), DispatcherPriority.Input);
             dispatcher.Invoke(new Action(() => { }), DispatcherPriority.Background);
             dispatcher.Invoke(new Action(() => { }), DispatcherPriority.ApplicationIdle);
-        }
-
-        private static void RunOnStaThread(Action action)
-        {
-            Exception error = null;
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    action();
-                }
-                catch (Exception ex)
-                {
-                    error = ex is TargetInvocationException invocationException && invocationException.InnerException != null
-                        ? invocationException.InnerException
-                        : ex;
-                }
-            });
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            thread.Join();
-
-            if (error != null)
-            {
-                throw new AssertFailedException(error.ToString());
-            }
         }
 
         private sealed class TestRow

@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildOrderedCategoryLabels_NormalizesBlankValuesToDefault_AndDedupesCaseInsensitively()
+        public void BuildOrderedCategoryLabels_NormalizesBlankValuesToDefault_AndKeepsCaseVariantsApart()
         {
             var items = new[]
             {
@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Services.Tests
                 item => item?.CategoryLabel);
 
             CollectionAssert.AreEqual(
-                new[] { "Default", "DLC 1" },
+                new[] { "Default", "DLC 1", "dlc 1" },
                 ordered);
         }
 
@@ -87,10 +87,10 @@ namespace PlayniteAchievements.Services.Tests
             var options = OverviewAchievementFilters.BuildSelectedGameFilterOptions(
                 new[]
                 {
-                    new AchievementDisplayItem { CategoryType = "Default", CategoryLabel = "Original Game" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "DLC 1: Revenge" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "DLC 2: Redemption" },
-                    new AchievementDisplayItem { CategoryType = "DLC", CategoryLabel = "Original Game" }
+                    new AchievementDisplayItem { Tags = null, CategoryLabel = "Original Game" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 1: Revenge" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 2: Redemption" },
+                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "Original Game" }
                 },
                 selectedTypeFilters: new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 selectedCategoryFilters: selectedCategoryFilters);

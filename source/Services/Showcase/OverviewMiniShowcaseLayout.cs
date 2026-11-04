@@ -60,7 +60,11 @@ namespace PlayniteAchievements.Services.Showcase
                 configureTimeline: timeline =>
                 {
                     ShowcaseTimelineOptions.SetWindow(timeline, TimeWindow.FromPreset(TimelineRange.OneYear));
-                    ShowcaseWidgetOptions.SetShowControls(timeline, true);
+                    ShowcaseWidgetOptions.ShowOnlyControlBarItems(
+                        timeline,
+                        ShowcaseControlBarItems.TimelineItems,
+                        ShowcaseControlBarItems.TimeWindow,
+                        ShowcaseControlBarItems.SplitByPlatform);
                 });
         }
 
@@ -83,7 +87,7 @@ namespace PlayniteAchievements.Services.Showcase
             {
                 var pie = ShowcaseLayoutService.CreateWidget(settings, ShowcaseWidgetKind.Pie);
                 ShowcaseWidgetOptions.SetPieMode(pie, mode);
-                ShowcaseWidgetOptions.SetPieShowLegend(pie, false);
+                ShowcaseWidgetOptions.SetShowLegend(pie, false);
                 configurePie?.Invoke(pie);
                 page.Blocks.Add(new ShowcaseBlockSettings { Row = 0, Column = column++, WidgetInstanceId = pie.InstanceId });
                 weights.Add(1d);

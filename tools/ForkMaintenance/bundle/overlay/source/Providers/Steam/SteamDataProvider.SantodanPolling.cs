@@ -1,3 +1,4 @@
+using PlayniteAchievements.Providers.Metadata;
 using System;
 using Playnite.SDK;
 using PlayniteAchievements.Providers.Local;

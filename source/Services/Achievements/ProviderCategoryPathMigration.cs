@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Services.Achievements
             var order = currentOrder;
             var images = currentImages;
             var summaryCategory = currentSummaryCategory;
-            var considered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var considered = new HashSet<string>(CategoryPathHelper.LabelComparer);
             CategoryMetadataPlan result = null;
 
             foreach (var category in providerCategories ?? Enumerable.Empty<string>())
@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyDictionary<string, CategoryImageOverrideData> currentImages,
             GameSummaryCategoryData currentSummaryCategory)
         {
-            var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var known = new HashSet<string>(CategoryPathHelper.LabelComparer);
 
             foreach (var label in currentOrder ?? Enumerable.Empty<string>())
             {

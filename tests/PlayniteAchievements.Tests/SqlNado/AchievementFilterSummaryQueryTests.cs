@@ -104,17 +104,17 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void ScoreTotalRows_FlagSoftcoreUnlocksByCategoryType()
+        public void ScoreTotalRows_FlagSoftcoreUnlocksByTag()
         {
             WithSeededDb(db =>
             {
                 const string retroGameId = "44444444-4444-4444-4444-444444444444";
                 Exec(db, $"INSERT INTO Games (Id, ProviderKey, PlayniteGameId, GameName) VALUES (500, 'RetroAchievements', '{retroGameId}', 'Retro');");
                 Exec(db, $"INSERT INTO UserGameProgress (Id, UserId, GameId, CacheKey, HasAchievements, LastUpdatedUtc) VALUES (1500, 1, 500, '{retroGameId}', 1, '2026-07-05T00:00:00Z');");
-                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, CategoryType) VALUES (501, 500, 'r1', 10, 'Base|Hardcore');");
-                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, CategoryType) VALUES (502, 500, 'r2', 25, 'Base|Progression|Softcore');");
-                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, CategoryType) VALUES (503, 500, 'r3', 5, NULL);");
-                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, CategoryType) VALUES (504, 500, 'r4', 7, 'Softcorex');");
+                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, Tags) VALUES (501, 500, 'r1', 10, 'Hardcore');");
+                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, Tags) VALUES (502, 500, 'r2', 25, 'Progression|Softcore');");
+                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, Tags) VALUES (503, 500, 'r3', 5, NULL);");
+                Exec(db, "INSERT INTO AchievementDefinitions (Id, GameId, ApiName, Points, Tags) VALUES (504, 500, 'r4', 7, 'Softcorex');");
                 Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (501, 1500, 501, 1);");
                 Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (502, 1500, 502, 1);");
                 Exec(db, "INSERT INTO UserAchievements (Id, UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (503, 1500, 503, 1);");
@@ -259,17 +259,18 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             var reader = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SummaryCacheReader.cs"));
             var predicateCount = CountOccurrences(reader, "NOT EXISTS (SELECT 1 FROM AchievementOverrides ao");
-            Assert.AreEqual(4, predicateCount, "All four summary queries must carry the AchievementOverrides anti-join.");
+            // Four summary queries, the tallies and the tally states.
+            Assert.AreEqual(6, predicateCount, "All six summary queries must carry the AchievementOverrides anti-join.");
             // The mirror now also holds rows that only carry points or trophy type. Without the
             // flag test those rows would silently drop an achievement from every summary.
             Assert.AreEqual(
-                4,
+                6,
                 CountOccurrences(reader, "AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))"),
                 "Each anti-join must test the filter flags, not merely the row's presence.");
             // The user-editable fields aggregates read must resolve the override first.
             StringAssert.Contains(reader, "COALESCE(aov.Points, ad.Points) AS Points");
-            // Platform scores drop RetroAchievements softcore unlocks by the derived CategoryType token.
-            StringAssert.Contains(reader, "CASE WHEN ('|' || COALESCE(ad.CategoryType, '') || '|') LIKE '%|Softcore|%'");
+            // Platform scores drop RetroAchievements softcore unlocks by the derived Softcore tag.
+            StringAssert.Contains(reader, "CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'");
             StringAssert.Contains(reader, "LOWER(COALESCE(aov.TrophyType, ad.TrophyType, ''))");
             // Rarity stays provider-owned; an override must never reach it.
             Assert.AreEqual(
@@ -290,7 +291,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(schema, "UNIQUE (PlayniteGameId, ApiName)");
             // The narrower predecessor is dropped rather than left to drift.
             StringAssert.Contains(schema, "DROP TABLE IF EXISTS AchievementFilters;");
-            StringAssert.Contains(schema, "SchemaVersion = 18");
+            StringAssert.Contains(schema, "SchemaVersion = 20");
         }
 
         // --- Scoped (per-game) reads -------------------------------------------------------
@@ -524,7 +525,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Points INTEGER NULL,
                 ScaledPoints INTEGER NULL,
                 Category TEXT NULL,
-                CategoryType TEXT NULL,
+                Tags TEXT NULL,
+                CategoryKind TEXT NULL,
                 TrophyType TEXT NULL,
                 Hidden INTEGER NOT NULL DEFAULT 0,
                 IsCapstone INTEGER NOT NULL DEFAULT 0,
@@ -820,7 +822,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     lp.CacheKey AS CacheKey,
                     ad.Rarity AS Rarity,
                     COALESCE(aov.Points, ad.Points) AS Points,
-                    CASE WHEN ('|' || COALESCE(ad.CategoryType, '') || '|') LIKE '%|Softcore|%'
+                    CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'
                          THEN 1 ELSE 0 END AS IsSoftcore
                 FROM LatestProgress lp
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId

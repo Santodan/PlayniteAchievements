@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     baseGameInfo,
                     settings.RaRarityStats,
                     categoryLabel: "Base",
-                    setCategoryType: "Base");
+                    setCategoryKind: "Base");
                 result.Achievements.AddRange(baseAchievements);
                 result.CategoryImageSources.Add(("Base", baseGameInfo));
 
@@ -122,7 +122,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         subsetInfo,
                         settings.RaRarityStats,
                         categoryLabel: categoryLabel,
-                        setCategoryType: "Subset");
+                        setCategoryKind: "Subset");
 
                     result.Achievements.AddRange(subsetAchievements);
                     result.CategoryImageSources.Add((categoryLabel, subsetInfo));

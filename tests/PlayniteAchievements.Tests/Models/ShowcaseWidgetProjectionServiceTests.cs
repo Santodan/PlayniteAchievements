@@ -16,6 +16,46 @@ namespace PlayniteAchievements.Tests.Models
     public class ShowcaseWidgetProjectionServiceTests
     {
         [TestMethod]
+        public void SelectStatistics_OneGameDropsGameCounts()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+
+            var keys = ShowcaseWidgetProjectionService.SelectStatistics(all, null, 1).Select(stat => stat.Key).ToList();
+
+            Assert.AreEqual(all.Count - 3, keys.Count);
+            CollectionAssert.DoesNotContain(keys, "trackedGames");
+            CollectionAssert.DoesNotContain(keys, "playedGames");
+            CollectionAssert.DoesNotContain(keys, "completedGames");
+            CollectionAssert.Contains(keys, "completion");
+        }
+
+        [TestMethod]
+        public void SelectStatistics_SeveralGamesKeepGameCounts()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+
+            Assert.AreEqual(all.Count, ShowcaseWidgetProjectionService.SelectStatistics(all, null, 2).Count);
+            Assert.AreEqual(all.Count, ShowcaseWidgetProjectionService.SelectStatistics(all, null, 0).Count);
+        }
+
+        [TestMethod]
+        public void SelectStatistics_KeepsChosenOrderAndDropsGameCountsForOneGame()
+        {
+            var all = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+            var chosen = new[] { "longestStreak", "trackedGames", "unlocked", "missing" };
+
+            CollectionAssert.AreEqual(
+                new[] { "longestStreak", "trackedGames", "unlocked" },
+                ShowcaseWidgetProjectionService.SelectStatistics(all, chosen, 2).Select(stat => stat.Key).ToList());
+            CollectionAssert.AreEqual(
+                new[] { "longestStreak", "unlocked" },
+                ShowcaseWidgetProjectionService.SelectStatistics(all, chosen, 1).Select(stat => stat.Key).ToList());
+            Assert.AreEqual(
+                0,
+                ShowcaseWidgetProjectionService.SelectStatistics(all, new[] { "playedGames", "completedGames" }, 1).Count);
+        }
+
+        [TestMethod]
         public void Statistics_CalculateRatesPlaytimeAndStreaksFromSharedSnapshot()
         {
             var today = new DateTime(2026, 7, 31);
@@ -91,7 +131,7 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(180, providers[0].Value);
             Assert.AreEqual("Other", providers[1].Key);
             Assert.AreEqual(50, providers[1].Value);
-            Assert.AreEqual("LOCOther", providers[1].LabelKey);
+            Assert.AreEqual("LOCPlayAch_Common_Other", providers[1].LabelKey);
 
             instance.SetOption("Grouping", ShowcasePointsGrouping.Game);
             var games = ShowcaseWidgetProjectionService.BuildNativePoints(snapshot, instance);
@@ -236,7 +276,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.GameSummaries
             };
-            ShowcaseWidgetOptions.SetGameGridSource(gameGridInstance, ShowcaseGameGridSource.Pinned);
+            ShowcaseWidgetOptions.SetCollectionType(gameGridInstance, ShowcaseCollectionType.Games);
             var pinnedGames = ShowcaseWidgetProjectionService.Build(
                 snapshot,
                 settings,
@@ -255,18 +295,8 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(secondGameId, liveFavorites.Single().PlayniteGameId);
 
             var mosaic = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
-            mosaic.SetOption("Source", ShowcaseMosaicSource.Rarest);
-            var rarest = ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic);
-            CollectionAssert.AreEqual(
-                new[]
-                {
-                    timestampLessRare,
-                    rareAchievement,
-                    tierOnlyUltraRare,
-                    firstAchievement
-                },
-                rarest.ToArray());
-            mosaic.SetOption("Source", ShowcaseMosaicSource.Pinned);
+            ShowcaseWidgetOptions.SetMosaicSource(mosaic, ShowcaseMosaicSource.All);
+            ShowcaseWidgetOptions.SetCollectionType(mosaic, ShowcaseCollectionType.Achievements);
             var pinnedMosaic = ShowcaseWidgetProjectionService.ResolveMosaic(snapshot, settings, mosaic);
             CollectionAssert.AreEqual(new[] { firstAchievement, lockedRare }, pinnedMosaic.ToArray());
         }
@@ -645,9 +675,11 @@ namespace PlayniteAchievements.Tests.Models
             var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
                 CalendarInstance(TimelineRange.OneYear),
-                endDate);
+                endDate,
+                firstDayOfWeek: DayOfWeek.Sunday);
 
             Assert.AreEqual(DayOfWeek.Sunday, calendar.StartDate.DayOfWeek);
+            Assert.AreEqual(DayOfWeek.Sunday, calendar.FirstDayOfWeek);
             Assert.IsTrue(calendar.StartDate <= endDate.AddDays(-364));
             Assert.IsTrue(calendar.StartDate > endDate.AddDays(-364 - 7));
             Assert.AreEqual(endDate, calendar.EndDate);
@@ -739,9 +771,31 @@ namespace PlayniteAchievements.Tests.Models
             var quarter = ShowcaseWidgetProjectionService.BuildActivityCalendar(
                 snapshot,
                 CalendarInstance(TimelineRange.ThreeMonths),
-                endDate);
+                endDate,
+                firstDayOfWeek: DayOfWeek.Sunday);
             Assert.AreEqual(DayOfWeek.Sunday, quarter.StartDate.DayOfWeek);
             Assert.IsTrue(quarter.Days.Count < 120);
+        }
+
+        [TestMethod]
+        public void ActivityCalendar_StartsWeeksOnTheGivenFirstDay()
+        {
+            var endDate = new DateTime(2026, 7, 31); // a Friday
+            var snapshot = new OverviewDataSnapshot
+            {
+                GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [endDate] = 1 }
+            };
+
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
+                snapshot,
+                CalendarInstance(TimelineRange.OneMonth),
+                endDate,
+                firstDayOfWeek: DayOfWeek.Monday);
+
+            Assert.AreEqual(DayOfWeek.Monday, calendar.FirstDayOfWeek);
+            Assert.AreEqual(DayOfWeek.Monday, calendar.StartDate.DayOfWeek);
+            Assert.AreEqual(calendar.StartDate, calendar.Days[0].Date);
+            Assert.AreEqual(endDate, calendar.EndDate);
         }
 
         private static ShowcaseWidgetInstanceSettings CalendarInstance(TimelineRange range)
@@ -770,7 +824,8 @@ namespace PlayniteAchievements.Tests.Models
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.ActivityCalendar };
             ShowcaseTimelineOptions.SetWindow(instance, TimeWindow.Custom(new DateTime(2026, 3, 1), new DateTime(2026, 4, 15)));
 
-            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(snapshot, instance, today);
+            var calendar = ShowcaseWidgetProjectionService.BuildActivityCalendar(
+                snapshot, instance, today, firstDayOfWeek: DayOfWeek.Sunday);
 
             Assert.AreEqual(new DateTime(2026, 4, 15), calendar.EndDate);
             Assert.AreEqual(DayOfWeek.Sunday, calendar.StartDate.DayOfWeek);
@@ -979,7 +1034,8 @@ namespace PlayniteAchievements.Tests.Models
                     PlayniteGameId = gameId,
                     ProviderKey = providerKey,
                     PointsValue = points,
-                    CategoryType = categoryType,
+                    CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
+                    Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
                     Unlocked = true,
                     Rarity = RarityTier.Common,
                     GlobalPercentUnlocked = 70,
@@ -1132,7 +1188,7 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void GameSummaries_AppliesActivityScopeAndHideCompletedWithoutSortingOrCapping()
+        public void GameSummaries_KeepsEveryGameInSnapshotOrder()
         {
             var oldest = new GameSummaryItem
             {
@@ -1175,28 +1231,12 @@ namespace PlayniteAchievements.Tests.Models
             };
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.GameSummaries };
 
-            // Sorting and the MaxRows cap live in the widget view model; the resolver keeps
-            // snapshot order and only applies the activity scope and HideCompleted options.
+            // Sorting, the MaxRows cap and the progress and activity filters live in the widget
+            // view model and its control bar; the resolver keeps every game in snapshot order.
             var resolved = ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance);
             CollectionAssert.AreEqual(
                 new[] { oldest, newest, completed, neverUnlocked },
                 resolved.ToArray());
-
-            instance.SetOption("HideCompleted", true);
-            var withoutCompleted = ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance);
-            Assert.IsFalse(withoutCompleted.Contains(completed));
-            Assert.AreEqual(3, withoutCompleted.Count);
-
-            instance.SetOption("HideCompleted", false);
-            ShowcaseWidgetOptions.SetGameActivityScope(instance, GameActivityScope.Played);
-            CollectionAssert.AreEqual(
-                new[] { oldest, newest, completed },
-                ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance).ToArray());
-
-            ShowcaseWidgetOptions.SetGameActivityScope(instance, GameActivityScope.Unplayed);
-            CollectionAssert.AreEqual(
-                new[] { neverUnlocked },
-                ShowcaseWidgetProjectionService.ResolveGameSummaries(snapshot, instance).ToArray());
         }
 
         [TestMethod]
@@ -1234,15 +1274,16 @@ namespace PlayniteAchievements.Tests.Models
             var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.IconMosaic };
             ShowcaseWidgetOptions.SetMosaicContent(instance, ShowcaseMosaicContent.Games);
 
-            var completed = ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance);
-            CollectionAssert.AreEqual(new[] { completedNew, completedOld }, completed.ToArray());
+            // Unset reads as All; completed games are the bar's Progress filter.
+            Assert.AreEqual(3, ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance).Count);
 
             instance.SetOption("Source", ShowcaseGameMosaicSource.All);
             var all = ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance);
             Assert.AreEqual(3, all.Count);
             Assert.AreSame(completedNew, all[0]);
 
-            instance.SetOption("Source", ShowcaseGameMosaicSource.Pinned);
+            ShowcaseWidgetOptions.SetGameMosaicSource(instance, ShowcaseGameMosaicSource.All);
+            ShowcaseWidgetOptions.SetCollectionType(instance, ShowcaseCollectionType.Games);
             CollectionAssert.AreEqual(
                 new[] { favorite, completedOld },
                 ShowcaseWidgetProjectionService.ResolveGameMosaic(snapshot, settings, instance).ToArray());
@@ -1303,9 +1344,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.RecentAchievements
             };
-            ShowcaseWidgetOptions.SetAchievementGridSource(
-                pinnedGrid,
-                ShowcaseAchievementGridSource.Pinned);
+            ShowcaseWidgetOptions.SetCollectionType(pinnedGrid, ShowcaseCollectionType.Achievements);
             var built = ShowcaseWidgetProjectionService.Build(snapshot, settings, pinnedGrid);
             Assert.AreEqual(2, built.AchievementRows.Count);
         }
@@ -1337,9 +1376,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.RecentAchievements
             };
-            ShowcaseWidgetOptions.SetAchievementGridSource(
-                pinnedGrid,
-                ShowcaseAchievementGridSource.Pinned);
+            ShowcaseWidgetOptions.SetCollectionType(pinnedGrid, ShowcaseCollectionType.Achievements);
 
             var first = ShowcaseWidgetProjectionService.Build(snapshot, settings, pinnedGrid);
             var second = ShowcaseWidgetProjectionService.Build(snapshot, settings, pinnedGrid);
@@ -1359,7 +1396,7 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void PinnedSourceWidgets_UseSelectedCollectionAndFallBackToDefault()
+        public void CollectionWidgets_UseSelectedCollectionAndFallBackToDefault()
         {
             var defaultGameId = Guid.NewGuid();
             var selectedGameId = Guid.NewGuid();
@@ -1430,9 +1467,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.RecentAchievements
             };
-            ShowcaseWidgetOptions.SetAchievementGridSource(
-                pinnedAchievements,
-                ShowcaseAchievementGridSource.Pinned);
+            ShowcaseWidgetOptions.SetCollectionType(pinnedAchievements, ShowcaseCollectionType.Achievements);
             ShowcaseWidgetOptions.SetPinCollectionId(
                 pinnedAchievements,
                 achievementCollection.CollectionId);
@@ -1447,7 +1482,7 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.GameSummaries
             };
-            ShowcaseWidgetOptions.SetGameGridSource(pinnedGames, ShowcaseGameGridSource.Pinned);
+            ShowcaseWidgetOptions.SetCollectionType(pinnedGames, ShowcaseCollectionType.Games);
             ShowcaseWidgetOptions.SetPinCollectionId(pinnedGames, gameCollection.CollectionId);
             Assert.AreSame(
                 selectedGame,
@@ -1458,7 +1493,8 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Kind = ShowcaseWidgetKind.IconMosaic
             };
-            iconMosaic.SetOption("Source", ShowcaseMosaicSource.Pinned);
+            ShowcaseWidgetOptions.SetMosaicSource(iconMosaic, ShowcaseMosaicSource.All);
+            ShowcaseWidgetOptions.SetCollectionType(iconMosaic, ShowcaseCollectionType.Achievements);
             ShowcaseWidgetOptions.SetPinCollectionId(iconMosaic, achievementCollection.CollectionId);
             Assert.AreSame(
                 selectedAchievement,
@@ -1469,7 +1505,8 @@ namespace PlayniteAchievements.Tests.Models
                 Kind = ShowcaseWidgetKind.IconMosaic
             };
             ShowcaseWidgetOptions.SetMosaicContent(gameMosaic, ShowcaseMosaicContent.Games);
-            gameMosaic.SetOption("Source", ShowcaseGameMosaicSource.Pinned);
+            ShowcaseWidgetOptions.SetGameMosaicSource(gameMosaic, ShowcaseGameMosaicSource.All);
+            ShowcaseWidgetOptions.SetCollectionType(gameMosaic, ShowcaseCollectionType.Games);
             ShowcaseWidgetOptions.SetPinCollectionId(gameMosaic, gameCollection.CollectionId);
             Assert.AreSame(
                 selectedGame,
@@ -1483,12 +1520,30 @@ namespace PlayniteAchievements.Tests.Models
             Assert.AreEqual(settings.DefaultAchievementPinCollectionId, fallback.ResolvedPinCollectionId);
             Assert.AreSame(defaultAchievement, fallback.AchievementRows.Single());
 
+            // On another source a collection narrows that source's rows to its own.
             ShowcaseWidgetOptions.SetGameGridSource(pinnedGames, ShowcaseGameGridSource.PlayniteFavorites);
             ShowcaseWidgetOptions.SetPinCollectionId(pinnedGames, gameCollection.CollectionId);
+            var favorites = ShowcaseWidgetProjectionService.Build(snapshot, settings, pinnedGames);
+            Assert.AreEqual(0, favorites.Games.Count);
+            Assert.IsNull(favorites.ResolvedPinCollectionId);
+
+            ShowcaseWidgetOptions.SetCollectionType(pinnedGames, ShowcaseCollectionType.None);
             Assert.AreSame(
                 defaultGame,
                 ShowcaseWidgetProjectionService.Build(snapshot, settings, pinnedGames)
                     .Games.Single());
+
+            // A game collection keeps an achievement widget to its games' achievements.
+            var gameScopedAchievements = new ShowcaseWidgetInstanceSettings
+            {
+                Kind = ShowcaseWidgetKind.RecentAchievements
+            };
+            ShowcaseWidgetOptions.SetCollectionType(gameScopedAchievements, ShowcaseCollectionType.Games);
+            ShowcaseWidgetOptions.SetPinCollectionId(gameScopedAchievements, gameCollection.CollectionId);
+            var gameScoped = ShowcaseWidgetProjectionService.Build(snapshot, settings, gameScopedAchievements);
+            Assert.AreSame(selectedAchievement, gameScoped.AchievementRows.Single());
+            Assert.IsNull(gameScoped.ResolvedPinCollectionId);
+            CollectionAssert.AreEqual(new[] { selectedGameId }, gameScoped.Collection.GameIds.ToArray());
         }
 
         [TestMethod]
@@ -1517,7 +1572,7 @@ namespace PlayniteAchievements.Tests.Models
                     Profile = new ShowcaseProfileSettings { Subtitle = "Completionist" }
                 });
 
-            Assert.AreEqual("SteamName", built.ResolvedProfile.DisplayName);
+            Assert.IsNull(built.ResolvedProfile.DisplayName);
             Assert.AreEqual(@"C:\avatar.png", built.ResolvedProfile.AvatarPath);
             Assert.AreEqual("Completionist", built.ResolvedProfile.Subtitle);
             Assert.IsTrue(built.ResolvedProfile.FromProviderIdentity);
