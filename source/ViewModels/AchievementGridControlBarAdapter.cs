@@ -31,17 +31,26 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasHiddenLocked;
         private IGridCompareSource _friendCompare;
         private GridMultiSelectFilter _friendCompareFilter;
+        private readonly RarityTrophyControlBarFilters _tierFilters;
 
         public AchievementGridControlBarAdapter()
         {
             CategoryTypeFilterOptions = new ObservableCollection<string>();
             CategoryLabelFilterOptions = new ObservableCollection<string>();
+            _tierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             ControlBar = CreateControlBar();
         }
 
         public event EventHandler FilterChanged;
 
         public GridControlBarViewModel ControlBar { get; }
+
+        /// <summary>
+        /// The bar's Rarity (the tiers and Capstone) and Trophy filters, the widget bars' own.
+        /// Trophy is offered only while some row of the last <see cref="UpdateOptions"/> has a
+        /// trophy type.
+        /// </summary>
+        public RarityTrophyControlBarFilters TierFilters => _tierFilters;
 
         /// <summary>
         /// Wires a compare source into the bar's pre-built Compare dropdown (the item just ahead
@@ -193,6 +202,11 @@ namespace PlayniteAchievements.ViewModels
                         AchievementCategoryHelper.NormalizeCategoryOrDefault(item.CategoryLabel)));
             }
 
+            if (_tierFilters.HasSelection)
+            {
+                filtered = filtered.Where(_tierFilters.Matches);
+            }
+
             if (searchQuery.HasValue)
             {
                 filtered = filtered.Where(item => _searchIndex.Matches(item, searchQuery));
@@ -237,6 +251,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(SelectedCategoryLabelFilterText));
             }
 
+            _tierFilters.UpdateRows(sourceItems);
             ControlBar.Refresh();
         }
 
@@ -264,12 +279,13 @@ namespace PlayniteAchievements.ViewModels
             || !_showLocked
             || !_showHidden
             || _selectedCategoryTypeFilters.Count > 0
-            || _selectedCategoryLabelFilters.Count > 0;
+            || _selectedCategoryLabelFilters.Count > 0
+            || _tierFilters.HasSelection;
 
-        // Snapshot the current filter state (search, toggles, category selections).
+        // Snapshot the current filter state (search, toggles, category, rarity and trophy selections).
         public GridControlBarFilterState CaptureState()
         {
-            return new GridControlBarFilterState
+            var state = new GridControlBarFilterState
             {
                 SearchText = _searchText,
                 ShowUnlocked = _showUnlocked,
@@ -277,7 +293,10 @@ namespace PlayniteAchievements.ViewModels
                 ShowHidden = _showHidden,
                 CategoryTypeFilters = _selectedCategoryTypeFilters.ToList(),
                 CategoryLabelFilters = _selectedCategoryLabelFilters.ToList(),
+                Tiers = new ControlBarFilterState()
             };
+            _tierFilters.Capture(state.Tiers);
+            return state;
         }
 
         // Restore a previously captured state. Applies silently by default so callers can
@@ -297,6 +316,7 @@ namespace PlayniteAchievements.ViewModels
 
             ReplaceSelections(_selectedCategoryTypeFilters, state.CategoryTypeFilters);
             ReplaceSelections(_selectedCategoryLabelFilters, state.CategoryLabelFilters);
+            _tierFilters.Restore(state.Tiers);
 
             RaiseControlBarChanged();
             if (raiseChanged)
@@ -328,8 +348,9 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        // Reset visibility toggles and category selections to "show everything". Leaves the
-        // search text untouched (callers that share a search box reset it explicitly).
+        // Reset visibility toggles and category, rarity and trophy selections to "show
+        // everything". Leaves the search text untouched (callers that share a search box reset
+        // it explicitly).
         public void ResetFilters(bool raiseChanged = false)
         {
             _showUnlocked = true;
@@ -337,6 +358,7 @@ namespace PlayniteAchievements.ViewModels
             _showHidden = true;
             _selectedCategoryTypeFilters.Clear();
             _selectedCategoryLabelFilters.Clear();
+            _tierFilters.Restore(null);
 
             RaiseControlBarChanged();
             if (raiseChanged)
@@ -422,6 +444,8 @@ namespace PlayniteAchievements.ViewModels
                 RendersCategoryTree = true,
                 ToolTip = L("LOCPlayAch_ManageAchievements_Category_Filter_Label")
             });
+            controlBar.Items.Add(_tierFilters.RarityItem);
+            controlBar.Items.Add(_tierFilters.TrophyItem);
             _friendCompareFilter = new GridMultiSelectFilter(
                 this,
                 null,
