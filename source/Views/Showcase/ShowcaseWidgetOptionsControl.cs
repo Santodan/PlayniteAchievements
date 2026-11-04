@@ -357,6 +357,18 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetHorizontalAlignment(_settings, ShowcaseHorizontalAlignment.Left),
                         value => ShowcaseWidgetOptions.SetHorizontalAlignment(_settings, value),
                         HorizontalAlignmentName);
+                    AddChoice(
+                        panel,
+                        Localize("LOCPlayAch_Showcase_VerticalAlignment"),
+                        new[]
+                        {
+                            ShowcaseVerticalAlignment.Top,
+                            ShowcaseVerticalAlignment.Center,
+                            ShowcaseVerticalAlignment.Bottom
+                        },
+                        ShowcaseWidgetOptions.GetVerticalAlignment(_settings, ShowcaseVerticalAlignment.Top),
+                        value => ShowcaseWidgetOptions.SetVerticalAlignment(_settings, value),
+                        VerticalAlignmentName);
                     AddCollectionChoice(panel, includeAchievementCollections: false);
                     AddControlBarRows<StatisticsControlBarAdapter>(panel);
                     break;
