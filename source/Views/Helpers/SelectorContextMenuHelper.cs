@@ -93,9 +93,13 @@ namespace PlayniteAchievements.Views.Helpers
         /// Each tag's icon key, in order, when at least one of the tags has an icon; null when none
         /// does, so the menu keeps plain labels without an icon gutter.
         /// </summary>
-        public static IReadOnlyList<string> TagIconKeys(IEnumerable<string> tags, Guid? gameId)
+        public static IReadOnlyList<string> TagIconKeys(IEnumerable<string> tags, Guid? gameId) =>
+            TagIconKeys(tags.Select(tag => TagControlBarFilter.IconKey(tag, gameId)));
+
+        /// <summary>The same, from icon keys already resolved (null for a tag without an icon).</summary>
+        public static IReadOnlyList<string> TagIconKeys(IEnumerable<string> iconKeys)
         {
-            var keys = tags.Select(tag => TagControlBarFilter.IconKey(tag, gameId)).ToList();
+            var keys = iconKeys.ToList();
             return keys.Any(key => key != null) ? keys : null;
         }
 
