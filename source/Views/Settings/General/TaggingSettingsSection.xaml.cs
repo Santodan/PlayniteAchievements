@@ -10,8 +10,9 @@ using Playnite.SDK;
 namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
-    /// General settings: Tagging section. Hosts tag enable toggles, tag name overrides, and
-    /// the apply-and-sync / remove-all actions backed by the tag sync service.
+    /// General settings: the Playnite Library page. Hosts the tag, feature and completion status
+    /// sections: enable switches, name overrides, and the apply-and-sync / remove-all actions
+    /// backed by the tag sync service.
     /// </summary>
     public partial class TaggingSettingsSection : UserControl
     {
@@ -82,9 +83,9 @@ namespace PlayniteAchievements.Views.Settings.General
         }
 
         /// <summary>
-        /// Commits pending tag name changes from text boxes to the source. Walks the section's
-        /// tree so the templated per-area rows are covered along with the named boxes; every
-        /// TextBox in this section holds a tag name.
+        /// Commits pending name changes from text boxes to the source. Walks the page's tree so
+        /// the templated rows of every grid are covered; every TextBox on this page holds a tag
+        /// or feature name.
         /// </summary>
         private void CommitTagNameBindings()
         {
@@ -127,12 +128,12 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                // Sync all tags (handles orphan cleanup and re-tagging with new names)
-                tagSyncService.SyncAllTags();
+                // One pass over every enabled field: orphan cleanup and re-tagging with new names.
+                tagSyncService.SyncAll();
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed to apply and sync tags.");
+                _logger?.Error(ex, "Failed to apply and sync the Playnite library fields.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     LF("LOCPlayAch_Status_Failed", ex.Message),
                     L("LOCPlayAch_Title_PluginName"),
@@ -143,10 +144,20 @@ namespace PlayniteAchievements.Views.Settings.General
 
         private void RemoveAllTags_Click(object sender, RoutedEventArgs e)
         {
+            RemoveAll("LOCPlayAch_Tagging_RemoveAllConfirm", service => service.RemoveAllTags());
+        }
+
+        private void RemoveAllFeatures_Click(object sender, RoutedEventArgs e)
+        {
+            RemoveAll("LOCPlayAch_Tagging_RemoveAllFeaturesConfirm", service => service.RemoveAllFeatures());
+        }
+
+        private void RemoveAll(string confirmKey, Action<Services.Tagging.TagSyncService> remove)
+        {
             try
             {
                 var result = _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    L("LOCPlayAch_Tagging_RemoveAllConfirm"),
+                    L(confirmKey),
                     L("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
@@ -163,11 +174,11 @@ namespace PlayniteAchievements.Views.Settings.General
                     return;
                 }
 
-                tagSyncService.RemoveAllTags();
+                remove(tagSyncService);
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Failed to remove tags.");
+                _logger?.Error(ex, "Failed to remove the Playnite library items.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     LF("LOCPlayAch_Status_Failed", ex.Message),
                     L("LOCPlayAch_Title_PluginName"),

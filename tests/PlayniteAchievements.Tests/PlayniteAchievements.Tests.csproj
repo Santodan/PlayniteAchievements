@@ -673,6 +673,8 @@
     <Compile Include="..\..\source\Models\Tagging\CustomizationTagAreas.cs" Link="Source\Models\Tagging\CustomizationTagAreas.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\CustomizationAreaClassifier.cs" Link="Source\Services\GameCustomData\CustomizationAreaClassifier.cs" />
     <Compile Include="..\..\source\Services\Tagging\DefaultTagNameCatalog.cs" Link="Source\Services\Tagging\DefaultTagNameCatalog.cs" />
+    <Compile Include="..\..\source\Services\Tagging\ManagedLibraryField.cs" Link="Source\Services\Tagging\ManagedLibraryField.cs" />
+    <Compile Include="..\..\source\Services\Tagging\LibraryFieldSyncTarget.cs" Link="Source\Services\Tagging\LibraryFieldSyncTarget.cs" />
     <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
     <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
     <Compile Include="..\..\source\Services\UI\NotificationStyleResolver.cs" Link="Source\Services\UI\NotificationStyleResolver.cs" />

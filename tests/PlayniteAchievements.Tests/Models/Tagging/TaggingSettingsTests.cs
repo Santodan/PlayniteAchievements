@@ -113,7 +113,7 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             var settings = new TaggingSettings();
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
-            var configs = settings.StatusRows.SelectMany(row => new[] { row.First, row.Second, row.Third }).Where(config => config != null).ToList();
+            var configs = settings.StatusRows.SelectMany(row => row.GetConfigs()).ToList();
 
             CollectionAssert.AllItemsAreUnique(configs);
             CollectionAssert.Contains(configs, settings.ExcludedFromSummariesConfig);
@@ -122,7 +122,9 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             var achievements = settings.StatusRows[0];
             Assert.AreSame(settings.HasAchievementsConfig, achievements.First);
             Assert.AreSame(settings.TagConfigs[TagType.CustomAchievements], achievements.Second);
-            Assert.AreSame(settings.NoAchievementsConfig, achievements.Third);
+            Assert.AreSame(settings.TagConfigs[TagType.ManualAchievements], achievements.Third);
+            Assert.AreSame(settings.NoAchievementsConfig, achievements.Fourth);
+            Assert.AreEqual("[PA] Manual Achievements", TaggingSettings.GetDefaultDisplayName(TagType.ManualAchievements));
             Assert.AreEqual("[PA] Platform Achievements", TaggingSettings.GetDefaultDisplayName(TagType.HasAchievements));
         }
 
@@ -173,6 +175,106 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.AreEqual(1, settings.TagConfigs.Count);
             Assert.AreEqual("Done", settings.TagConfigs[TagType.Completed].DisplayName);
             StringAssert.Contains(Newtonsoft.Json.JsonConvert.SerializeObject(settings), "\"Completed\":");
+        }
+
+        [TestMethod]
+        public void InitializeDefaults_FillsFeatureConfigsWithExactlyTheFeatureKinds()
+        {
+            var settings = new TaggingSettings();
+
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            CollectionAssert.AreEquivalent(TaggingSettings.FeatureKinds.ToList(), settings.FeatureConfigs.Keys.ToList());
+            Assert.IsTrue(settings.FeatureConfigs.Values.All(config => config.IsEnabled));
+            Assert.AreEqual("[PA] Manual Achievements", settings.FeatureConfigs[TagType.ManualAchievements].DisplayName);
+            Assert.IsFalse(settings.EnableFeatureSync);
+        }
+
+        [TestMethod]
+        public void FeatureStatusRows_UseFeatureConfigs_NotTagConfigs()
+        {
+            var settings = new TaggingSettings();
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            var row = settings.FeatureStatusRows.Single();
+
+            Assert.AreSame(settings.FeatureConfigs[TagType.HasAchievements], row.First);
+            Assert.AreNotSame(settings.HasAchievementsConfig, row.First);
+            Assert.AreSame(settings.GetFeatureConfig(TagType.CustomAchievements), row.Second);
+            Assert.AreSame(settings.FeatureConfigs[TagType.ManualAchievements], row.Third);
+            Assert.IsNull(row.Fourth);
+            Assert.AreEqual(3, row.GetConfigs().Count());
+        }
+
+        [TestMethod]
+        public void Clone_PreservesEnableFeatureSyncAndFeatureConfigs()
+        {
+            var settings = new TaggingSettings { EnableFeatureSync = true, CompletionStatusSwitchSeeded = true };
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            settings.FeatureConfigs[TagType.ManualAchievements].DisplayName = "Linked";
+            settings.FeatureConfigs[TagType.ManualAchievements].IsEnabled = false;
+            settings.FeatureConfigs[TagType.ManualAchievements].TagId = System.Guid.NewGuid();
+
+            var clone = settings.Clone();
+
+            Assert.IsTrue(clone.EnableFeatureSync);
+            Assert.IsTrue(clone.CompletionStatusSwitchSeeded);
+            Assert.AreEqual("Linked", clone.FeatureConfigs[TagType.ManualAchievements].DisplayName);
+            Assert.IsFalse(clone.FeatureConfigs[TagType.ManualAchievements].IsEnabled);
+            Assert.AreEqual(settings.FeatureConfigs[TagType.ManualAchievements].TagId, clone.FeatureConfigs[TagType.ManualAchievements].TagId);
+            Assert.AreNotSame(settings.FeatureConfigs[TagType.ManualAchievements], clone.FeatureConfigs[TagType.ManualAchievements]);
+            Assert.AreEqual("[PA] Manual Achievements", clone.TagConfigs[TagType.ManualAchievements].DisplayName);
+        }
+
+        [TestMethod]
+        public void PersistedSettingsCopyFrom_PreservesFeatureConfigs()
+        {
+            var source = new PersistedSettings
+            {
+                TaggingSettings = new TaggingSettings { EnableFeatureSync = true }
+            };
+            source.TaggingSettings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            source.TaggingSettings.FeatureConfigs[TagType.HasAchievements].DisplayName = "Store";
+
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsTrue(target.TaggingSettings.EnableFeatureSync);
+            Assert.AreEqual("Store", target.TaggingSettings.FeatureConfigs[TagType.HasAchievements].DisplayName);
+        }
+
+        [TestMethod]
+        public void SavedSettingsWithoutFeatureConfigs_LoadThenGainDefaults()
+        {
+            const string json = "{\"EnableTagging\":true,\"TagConfigs\":{\"Completed\":{\"DisplayName\":\"Done\",\"IsEnabled\":true}}}";
+
+            var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>(json);
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            Assert.IsFalse(settings.EnableFeatureSync);
+            Assert.IsFalse(settings.CompletionStatusSwitchSeeded);
+            Assert.AreEqual(3, settings.FeatureConfigs.Count);
+            Assert.AreEqual("[PA] Platform Achievements", settings.FeatureConfigs[TagType.HasAchievements].DisplayName);
+        }
+
+        [TestMethod]
+        public void SavedFeatureConfigs_WithNullOrUnknownEntries_LoadAndGainDefaults()
+        {
+            const string json = "{\"FeatureConfigs\":{" +
+                "\"HasAchievements\":{\"DisplayName\":\"Store\",\"IsEnabled\":false}," +
+                "\"DefaultSource\":{\"DisplayName\":\"Gone\",\"IsEnabled\":true}}}";
+
+            var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>(json);
+            settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+
+            Assert.AreEqual(3, settings.FeatureConfigs.Count);
+            Assert.AreEqual("Store", settings.FeatureConfigs[TagType.HasAchievements].DisplayName);
+            Assert.IsFalse(settings.FeatureConfigs[TagType.HasAchievements].IsEnabled);
+            Assert.IsTrue(settings.FeatureConfigs[TagType.CustomAchievements].IsEnabled);
+
+            var nulled = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>("{\"FeatureConfigs\":null}");
+            nulled.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            Assert.AreEqual(3, nulled.FeatureConfigs.Count);
         }
     }
 }

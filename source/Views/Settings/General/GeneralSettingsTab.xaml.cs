@@ -58,8 +58,8 @@ namespace PlayniteAchievements.Views.Settings.General
                     viewFactory: () => _hotkeySection =
                         new HotkeySettingsSection(settings)),
                 new SettingsNavigationItem(
-                    "Tagging",
-                    ResourceProvider.GetString("LOCPlayAch_Settings_TaggingHeader"),
+                    "PlayniteLibrary",
+                    ResourceProvider.GetString("LOCPlayAch_Settings_PlayniteLibraryHeader"),
                     iconGlyph: "\uF004",
                     viewFactory: () => _taggingSection =
                         new TaggingSettingsSection(plugin, logger)),

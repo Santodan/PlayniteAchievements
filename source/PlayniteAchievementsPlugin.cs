@@ -180,8 +180,9 @@ namespace PlayniteAchievements
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
-        /// refresh (and its tag-sync write) lands after Playnite's post-import metadata download;
-        /// a Tags field already holding a managed tag makes that download skip the field.
+        /// refresh (and its tag and feature sync write) lands after Playnite's post-import metadata
+        /// download; a Tags or Features field already holding a managed item makes that download
+        /// skip the field.
         /// </summary>
         private readonly object _pendingNewGamesGate = new object();
         private readonly HashSet<Guid> _pendingNewGameIds = new HashSet<Guid>();
@@ -2767,8 +2768,7 @@ namespace PlayniteAchievements
 
         private void HandleCustomDataChangedCore(Guid gameId, bool affectsSummaryData)
         {
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            if (_tagSyncService?.AnySyncEnabled == true)
             {
                 // Any custom-data change at all, not just a summary-affecting one: completion
                 // only moves with the summary data, but the Customized tag reports whether the
@@ -2931,8 +2931,7 @@ namespace PlayniteAchievements
 
         private void OnAchievementGameRefreshed(Guid gameId)
         {
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            if (_tagSyncService?.AnySyncEnabled == true)
             {
                 // Queued off-thread into the batched tag-sync drainer so the Playnite DB
                 // write (and its ItemUpdated fan-out) does not run inside the provider's

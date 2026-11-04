@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Services.Tagging
                 [TagType.Completed] = "LOCPlayAch_Completed",
                 [TagType.NoAchievements] = "LOCPlayAch_Tagging_NoAchievements",
                 [TagType.CustomAchievements] = "LOCPlayAch_Tagging_CustomAchievements",
+                [TagType.ManualAchievements] = "LOCPlayAch_Tagging_ManualAchievements",
                 [TagType.Customized] = "LOCPlayAch_Tagging_Customized",
                 [TagType.NotCustomized] = "LOCPlayAch_Tagging_NotCustomized",
                 [TagType.Excluded] = "LOCPlayAch_ManageAchievements_Status_Excluded",
