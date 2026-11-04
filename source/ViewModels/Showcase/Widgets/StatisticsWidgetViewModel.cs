@@ -83,11 +83,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private System.Windows.TextAlignment _textAlignment = System.Windows.TextAlignment.Left;
 
+        /// <summary>Where each tile places its value and label within its cell; top while unset.</summary>
+        public System.Windows.VerticalAlignment VerticalAlignment
+        {
+            get => _verticalAlignment;
+            private set => SetValue(ref _verticalAlignment, value);
+        }
+
+        private System.Windows.VerticalAlignment _verticalAlignment = System.Windows.VerticalAlignment.Top;
+
         protected override void Refresh()
         {
             _scope.Apply(Projection);
             TextAlignment = ImageWidgetViewModel.ToTextAlignment(
                 ShowcaseWidgetOptions.GetHorizontalAlignment(Projection?.Instance, ShowcaseHorizontalAlignment.Left));
+            VerticalAlignment = ImageWidgetViewModel.ToVertical(
+                ShowcaseWidgetOptions.GetVerticalAlignment(Projection?.Instance, ShowcaseVerticalAlignment.Top));
             ControlBar = _scope.ShownBar;
             // The widget's chosen statistics, in the chosen order, without the game counts while
             // it counts one game.
