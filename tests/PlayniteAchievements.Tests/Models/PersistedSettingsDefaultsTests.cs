@@ -198,6 +198,28 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveAutoCapstoneTags()
+        {
+            var source = new PersistedSettings
+            {
+                AutoCapstoneGameTags = "Completion|u-1234abcd",
+                AutoCapstoneCategoryTags = "Missable",
+                AutoCapstoneAppliedTags = "Completion|u-1234abcd\u001fMissable"
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("Completion|u-1234abcd", copy.AutoCapstoneGameTags);
+                Assert.AreEqual("Missable", copy.AutoCapstoneCategoryTags);
+                Assert.AreEqual("Completion|u-1234abcd\u001fMissable", copy.AutoCapstoneAppliedTags);
+            }
+        }
+
+        [TestMethod]
         public void ExclusionFilterPresets_DefaultEmpty()
         {
             var settings = new PersistedSettings();
