@@ -1,5 +1,36 @@
 # Santodan fork feature checklist
 
+## Debug mode and optional polling performance controls - 2026-11-04
+
+- Verify Debug mode is in Santodan-Fork > General, and all performance controls
+  are in Santodan-Fork > Performance. New switches default off and are disabled
+  until custom Local polling is enabled. Existing defaults are documented in
+  `docs/ForkPerformanceOptions.md`.
+- Save/cancel/reopen settings; verify all option values survive the intended flow.
+- Enable Local-only authentication checks: custom Local polls must not open a
+  Steam authentication browser, even without linked accounts. With Debug mode,
+  expect `authScope=local-only`. Manual/remote/upstream authentication must work.
+- Enable waiting-source fingerprints: inspect `waitingForAchievementFile`,
+  `fingerprintChecked`, `fingerprintAvailable`, and `refresh`. A known unchanged
+  source skips refresh; unavailable fingerprints still refresh. Add/remove/change
+  a source file and change a source override: the next configured poll must
+  detect changes. No artificial interval increase is permitted.
+- Enable per-poll folder reuse: identical searches are reused across refresh and
+  monitor configuration. Missing results must expire before the next poll;
+  separate games, settings, providers, nested scopes and concurrent tasks must
+  not share incompatible results. Achievement contents remain fresh.
+- Compare each switch independently with the game relaunched between recordings.
+  Record an idle section first, then unlock achievements at a noted timestamp.
+  Verify notifications are neither missed nor duplicated and retain their timing.
+- Test startup receipts, lightweight discovery, session directory invalidation,
+  metadata reuse, overview deferral, notification-score invalidation and fork-only
+  theme caching using the detailed performance document.
+- With custom polling disabled, preserve upstream behavior. With Debug mode off,
+  do not run the optional CPU sampler; debug CEF tracing must remain passive.
+- Validation: 111 targeted tests and Release rebuild passed. Developer runtime
+  test showed lightweight idle checks and refresh work after unlocks at 70 seconds.
+  Affected-user verification remains pending; retain the startup-peak limitation.
+
 ## Upstream template and General sections - 2026-10-25
 
 - In Santodan-Fork > Achievement Notifications > General, verify separate template,

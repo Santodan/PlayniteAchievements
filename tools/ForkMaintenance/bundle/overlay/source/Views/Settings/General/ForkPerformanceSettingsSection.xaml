@@ -1,0 +1,86 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.General.ForkPerformanceSettingsSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Custom Local polling" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Use custom Local polling mechanism"
+                                         Hint="Use Santodan's source-change checks at the configured polling interval. Disable to use upstream polling. Stop and relaunch the game between comparison runs.">
+                        <CheckBox IsChecked="{Binding UseCustomLocalPolling, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <StackPanel IsEnabled="{Binding UseCustomLocalPolling}">
+                        <controls:SettingRow Label="Limit authentication checks to Local"
+                                             Hint="During custom Local polling, only check the Local provider. Prevent unrelated Steam browser authentication probes, including when no account is linked. Manual refreshes and other providers keep their normal authentication checks.">
+                            <CheckBox IsChecked="{Binding RestrictCustomPollingAuthentication, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Check available sources while waiting for an achievement file"
+                                             Hint="Try a source fingerprint even when the monitor has not found its expected achievement file. Available Steam cache or other supported source files can then skip unchanged full refreshes. If no usable fingerprint is available, refresh normally.">
+                            <CheckBox IsChecked="{Binding CheckCustomPollingSourcesWhileWaiting, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Reuse folder discovery within each poll"
+                                             Hint="Run identical Local folder searches once per poll and reuse their results for refresh and monitor setup. Results are discarded after each poll; achievement contents are always read fresh. This does not change the polling interval.">
+                            <CheckBox IsChecked="{Binding ReuseCustomPollingDiscoveryWithinPoll, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Use lightweight game-start discovery"
+                                             Hint="Check a validated achievement-file path before scanning folders at game start. Missing files, changed settings or an invalid record use normal discovery immediately. Requires one successful refresh to prepare the path; polling deadlines stay unchanged.">
+                            <CheckBox IsChecked="{Binding UseLightweightCustomStartup, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Reuse a validated startup baseline"
+                                             Hint="Skip the first full custom-polling refresh only when a successful refresh from the last 24 hours recorded the same source files, settings, and cached data. Missing or changed data refreshes normally. Enable this before a normal refresh or game-close refresh to prepare the next launch.">
+                            <CheckBox IsChecked="{Binding ReuseCustomPollingStartupBaseline, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Cache installation-folder discovery"
+                                             Hint="Reuse discovered folders during a game session. Directory and settings changes invalidate the cache. Achievement files are still checked at the configured interval.">
+                            <CheckBox IsChecked="{Binding UseCustomPollingDirectoryCache, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Reuse SteamHunters category metadata"
+                                             Hint="During custom polling, reuse cached categories while reading fresh unlocks and progress. Manual refreshes still fetch metadata according to provider settings.">
+                            <CheckBox IsChecked="{Binding UseCustomPollingMetadataCache, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Defer background overview rebuilds during gameplay"
+                                             Hint="With custom polling enabled, cancel pending overview precomputation when a game starts. Opening the overview can still load fresh data.">
+                            <CheckBox IsChecked="{Binding SuppressCustomPollingOverviewWarm, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Fork achievement notifications" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Cache notification score summaries"
+                                         Hint="Use cached library summaries for the fork's notification score wildcards and progress bars. Changed games invalidate their summaries. Disable to calculate scores from the full achievement data.">
+                        <CheckBox IsChecked="{Binding UseForkNotificationSummaryCache, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Fork Theme Migration" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Cache theme-content analysis"
+                                         Hint="Reuse content-analysis results only in Santodan-Fork's Theme Migration tab. Files are still read to detect edits. Upstream migration pages and startup discovery use their original scanning behavior.">
+                        <CheckBox IsChecked="{Binding UseForkThemeMigrationCache, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="CPU investigation" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Sample process CPU by thread"
+                                         Hint="With Debug mode enabled in General, record process CPU and the busiest OS threads every second in PollingDebug.log. Use alongside PerfView to investigate unexplained spikes. This diagnostic adds some measurement overhead. Save settings to apply.">
+                        <CheckBox IsChecked="{Binding SampleProcessCpuThreads, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

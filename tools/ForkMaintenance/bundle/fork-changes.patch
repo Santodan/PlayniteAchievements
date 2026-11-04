@@ -63,6 +63,53 @@ index 8266f714dd88b5c76bc1f463d678fc4e126b5682..8e96c79278d0ccda4381d745e50fe900
 +Test*.json
 +merge-conflict-backup/*
 +.worktrees/
+diff --git a/source/Common/OffscreenViewLeaseSource.cs b/source/Common/OffscreenViewLeaseSource.cs
+index d9e3330f7d9cef719113ae4d88ca7ca8668a2ac3..b2b0a6ae2c0afb334b0c6911f1c708a9e1ffb5eb 100644
+--- a/source/Common/OffscreenViewLeaseSource.cs
++++ b/source/Common/OffscreenViewLeaseSource.cs
+@@ -93,7 +93,7 @@ private void EndLease()
+ 
+             try
+             {
+-                toDispose.Dispose();
++                PlayniteAchievements.Services.Logging.CefDebugTrace.Run<object>("dispose-leased-offscreen", () => { toDispose.Dispose(); return null; });
+             }
+             catch (Exception ex)
+             {
+@@ -120,14 +120,14 @@ private void EndLease()
+                 {
+                     if (_leasedView == null)
+                     {
+-                        _leasedView = _api.WebViews.CreateOffscreenView();
++                        _leasedView = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => _api.WebViews.CreateOffscreenView());
+                     }
+ 
+                     return (_leasedView, false);
+                 }
+             }
+ 
+-            return (_api.WebViews.CreateOffscreenView(), true);
++            return (PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => _api.WebViews.CreateOffscreenView()), true);
+         }
+ 
+         /// <summary>
+@@ -159,7 +159,7 @@ public void ReleaseView(IWebView view, bool owned, bool faulted)
+ 
+             try
+             {
+-                view.Dispose();
++                PlayniteAchievements.Services.Logging.CefDebugTrace.Run<object>("dispose-offscreen", () => { view.Dispose(); return null; });
+             }
+             catch (Exception ex)
+             {
+@@ -215,6 +215,7 @@ public async Task<T> WithNavigableViewAsync<T>(Func<IWebView, Task<T>> work, Can
+             var faulted = false;
+             try
+             {
++                using var browserOperation = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("offscreen-work " + work.Method.DeclaringType?.Name + "." + work.Method.Name);
+                 return await work(view).ConfigureAwait(false);
+             }
+             catch
 diff --git a/source/Common/PathExpansion.cs b/source/Common/PathExpansion.cs
 index de320b154be7529178565021f5f84bd3350ffeb9..86cbd38b903d59b30ba8aa46143fec91534e2c97 100644
 --- a/source/Common/PathExpansion.cs
@@ -223,6 +270,38 @@ index de320b154be7529178565021f5f84bd3350ffeb9..86cbd38b903d59b30ba8aa46143fec91
          /// <summary>
          /// Expands path variables in game paths using Playnite's variable expansion.
          /// Handles variables like {InstallDir}, {Name}, {EmulatorDir}, etc.
+diff --git a/source/Common/WebViewExtensions.cs b/source/Common/WebViewExtensions.cs
+index 188c6e62829ed948503c485cd25f60d520480e2a..e016debd8ad689c3ab6986ea8fb5cec1a0a6ab97 100644
+--- a/source/Common/WebViewExtensions.cs
++++ b/source/Common/WebViewExtensions.cs
+@@ -18,7 +18,8 @@ public static async Task<T> WithOffscreenViewAsync<T>(this IPlayniteAPI api, Fun
+         {
+             var operation = api.MainView.UIDispatcher.InvokeAsync(async () =>
+             {
+-                using (var view = api.WebViews.CreateOffscreenView())
++                using (PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("temporary-offscreen-lifetime"))
++                using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
+                 {
+                     return await work(view);
+                 }
+@@ -53,7 +54,7 @@ public static void DeleteDomainCookies(this IPlayniteAPI api, ILogger logger, st
+             {
+                 api.MainView.UIDispatcher.Invoke(() =>
+                 {
+-                    using (var view = api.WebViews.CreateOffscreenView())
++                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
+                     {
+                         foreach (var domain in domains)
+                         {
+@@ -70,6 +71,8 @@ public static void DeleteDomainCookies(this IPlayniteAPI api, ILogger logger, st
+ 
+         public static async Task NavigateAndWaitAsync(this IWebView webView, string url, int timeoutMs = DefaultNavigationTimeoutMs)
+         {
++            using var browserNavigation = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("navigate host=" + PlayniteAchievements.Services.Logging.CefDebugTrace.Host(url) +
++                " objectId=" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(webView));
+             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+ 
+             void OnLoadingChanged(object sender, WebViewLoadingChangedEventArgs e)
 diff --git a/source/Models/AchievementUnlockedEventArgs.cs b/source/Models/AchievementUnlockedEventArgs.cs
 index 8776195fe88789152964fc6880f2076fa20a98a7..031625f9e8187713877f2789c29089f2b89b48be 100644
 --- a/source/Models/AchievementUnlockedEventArgs.cs
@@ -1240,7 +1319,7 @@ index 1f9cddd7060d1664c1694d9a03184635e52c3d2c..6dcfaa2280881fcb3952313fd43ca0aa
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317d96a3275 100644
+index c4bf80fc573e19cfab6ad045004094a7a44c1530..4f43fe9c10f0a4d3cc2f9117e223654fadcdedad 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -1,4 +1,5 @@
@@ -1425,7 +1504,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
  
                  // NECESSARY TO MAKE SURE CHARTS WORK
                  var Circle = LiveCharts.Wpf.DefaultGeometries.Circle;
-@@ -930,8 +1037,22 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -930,8 +1037,24 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
  
                  // Create provider registry
@@ -1441,6 +1520,8 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
 +                AchievementNotificationDebugLog.Initialize(pluginUserDataPath);
 +                var startupNotificationSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
 +                AchievementNotificationDebugLog.SetEnabled(startupNotificationSettings?.EnableOverlayDebugLogging == true);
++                PollingDebugLog.Configure(pluginUserDataPath, startupNotificationSettings?.EnablePollingDebugLogging == true,
++                    startupNotificationSettings?.SampleProcessCpuThreads == true);
 +                AchievementNotificationDebugLog.LogSettingsSnapshot(
 +                    startupNotificationSettings,
 +                    settings.Persisted,
@@ -1449,7 +1530,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -947,6 +1068,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -947,6 +1070,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
                  }
  
@@ -1463,7 +1544,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
                  // Phase 3: Wire core services, refresh pipeline, and tagging.
                  using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                  {
-@@ -1160,6 +1288,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -1160,6 +1290,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          // the field is assigned.
                          e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                          (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
@@ -1471,7 +1552,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
                          _unlockSounds);
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
-@@ -1194,7 +1323,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -1194,7 +1325,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1480,7 +1561,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
  
                      // A running game's unlocks are announced by the monitor once its write or
                      // refresh returns, so a capstone that write finished is held for the monitor
-@@ -1663,6 +1792,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+@@ -1663,6 +1794,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
              using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
              {
                  _applicationStarted = true;
@@ -1489,7 +1570,7 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
  
                  // Measures the symptom rather than a suspected cause: every other timing here is
                  // a scope around code someone already suspected, and a reported freeze was
-@@ -2261,9 +2392,42 @@ private void ReconfigureInGameMonitor()
+@@ -2261,9 +2394,42 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1532,15 +1613,16 @@ index c4bf80fc573e19cfab6ad045004094a7a44c1530..2879554a4a90f436fe5b100cf0097317
              _applicationStarted = false;
              // A control bar edit in the last second before exit is still waiting on its save.
              Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();
-@@ -2305,6 +2469,7 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -2305,6 +2471,8 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
 +            try { AchievementNotificationDebugLog.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown achievement notification debug logger: {ex}"); }
++            try { PollingDebugLog.Configure(null, false); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown polling debug logger: {ex}"); }
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -2956,6 +3121,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -2956,6 +3124,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -2304,7 +2386,7 @@ index d031fd75ebd821a7e9c4547ffea8f6fdceb28ca7..c1af364cb0dbbb9e1bd0fc9d56c2bb61
          {
              if (appId <= 0)
 diff --git a/source/Providers/Steam/SteamDataProvider.cs b/source/Providers/Steam/SteamDataProvider.cs
-index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df906266af 100644
+index ea4c9295256f5af565e9f00d0d5d80e38a764faf..6e66816c99fe4100e3f829650348bad3e69e9953 100644
 --- a/source/Providers/Steam/SteamDataProvider.cs
 +++ b/source/Providers/Steam/SteamDataProvider.cs
 @@ -1,3 +1,4 @@
@@ -2312,13 +2394,16 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
  using PlayniteAchievements.Models;
  using PlayniteAchievements.Models.Achievements;
  using PlayniteAchievements.Models.Friends;
-@@ -55,9 +56,13 @@ private sealed class SteamInGameState
-         private readonly SteamSessionManager _sessionManager;
-         private readonly SteamWebApiTokenResolver _tokenResolver;
-         private readonly SteamHuntersCategoryEnricher _steamHuntersCategoryEnricher;
-+        // Local-provider metadata survives frequent in-game refresh contexts. Keep it separate
-+        // from the upstream scanner's per-refresh cache so its refresh behavior is unchanged.
-+        private readonly SteamHuntersCategoryEnricher _localSteamHuntersCategoryEnricher;
+@@ -20,7 +21,7 @@
+ 
+ namespace PlayniteAchievements.Providers.Steam
+ {
+-    internal sealed class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDefinitionCachePreferenceProvider, IDisposable
++    internal sealed partial class SteamDataProvider : DataProviderBase<SteamSettings>, IDataProvider, IProfileLinkProvider, IAchievementPageLinkProvider, IProviderOverride, IRefreshAuthContextReceiver, IInGameProgressSource, IOfflineRefreshFallbackProvider, IDefinitionCachePreferenceProvider, IDisposable
+     {
+         /// <summary>
+         /// Resolved once at game start so the fast prong never repeats path discovery. Steam's remote
+@@ -58,6 +59,7 @@ private sealed class SteamInGameState
          private readonly IFriendsProvider _friendsProvider;
          private readonly SteamLocalStatsReader _localStatsReader = new SteamLocalStatsReader();
          private readonly ILogger _logger;
@@ -2326,7 +2411,7 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
  
          // Per-game signature of the last local progress read, so a change in the local stat file's
          // progress values is logged exactly once when it happens. This is the definitive probe for
-@@ -69,13 +74,15 @@ public SteamDataProvider(
+@@ -69,13 +71,15 @@ public SteamDataProvider(
              ILogger logger,
              PlayniteAchievementsSettings settings,
              IPlayniteAPI api,
@@ -2343,14 +2428,11 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
              _sessionManager = new SteamSessionManager(api, logger);
  
              // Create Steam-specific dependencies
-@@ -93,10 +100,18 @@ public SteamDataProvider(
+@@ -93,10 +97,15 @@ public SteamDataProvider(
                  steamHuntersApiClient,
                  logger,
                  categoryArtDownloader);
-+            _localSteamHuntersCategoryEnricher = new SteamHuntersCategoryEnricher(
-+                steamHuntersApiClient,
-+                logger,
-+                categoryArtDownloader);
++            InitializeSantodanMetadataCache(steamHuntersApiClient, logger, categoryArtDownloader);
              _tokenResolver = new SteamWebApiTokenResolver(_sessionManager, logger);
              _sessionManager.SetClearInMemoryAuthState(_steamClient.ClearInMemoryAuthState);
              _scanner = new SteamScanner(settings, _steamClient, steamApiClient, _tokenResolver, _steamHuntersCategoryEnricher, api, logger, categoryArtDownloader: categoryArtDownloader);
@@ -2362,7 +2444,7 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
          }
  
          public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Steam");
-@@ -214,6 +229,54 @@ internal static bool TryGetSteamAppId(Game game, out int appId)
+@@ -214,6 +223,54 @@ internal static bool TryGetSteamAppId(Game game, out int appId)
              return SteamGameIdentity.TryGetSteamAppId(game, out appId);
          }
  
@@ -2417,7 +2499,7 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
          private static bool TryGetPositiveId(string value, out int id)
          {
              return int.TryParse(
-@@ -250,6 +313,26 @@ public async Task<RebuildPayload> RefreshAsync(
+@@ -250,6 +307,27 @@ public async Task<RebuildPayload> RefreshAsync(
              }
          }
  
@@ -2428,14 +2510,15 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
 +            Guid? playniteGameId,
 +            CancellationToken cancel)
 +        {
-+            if (_localSteamHuntersCategoryEnricher == null)
++            var categoryEnricher = GetSantodanExternalCategoryEnricher();
++            if (categoryEnricher == null)
 +            {
 +                return;
 +            }
 +
 +            using (_sessionManager.BeginOffscreenViewLease())
 +            {
-+                await _localSteamHuntersCategoryEnricher
++                await categoryEnricher
 +                    .EnrichAsync(appId, gameName, achievements, playniteGameId, cancel)
 +                    .ConfigureAwait(false);
 +            }
@@ -2444,7 +2527,7 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
          InGameProgressRegistration IInGameProgressSource.TryRegister(
              Game game,
              GameAchievementData cachedSchema)
-@@ -421,7 +504,7 @@ private void LogProgressChange(
+@@ -421,7 +499,7 @@ private void LogProgressChange(
          }
  
          /// <inheritdoc />
@@ -2453,16 +2536,11 @@ index ea4c9295256f5af565e9f00d0d5d80e38a764faf..166d1d322159e6c98a95ed3ec312e4df
  
          public void Dispose()
          {
-@@ -431,6 +514,12 @@ public void Dispose()
+@@ -431,6 +509,7 @@ public void Dispose()
          public void BeginRefreshAuthContext(RefreshAuthContext context)
          {
              _steamHuntersCategoryEnricher?.ClearCache();
-+            // Manual/periodic refreshes and the game-close refresh revalidate metadata.
-+            // Polling only needs fresh unlock/progress values, not fresh category definitions.
-+            if (!Services.Logging.RealtimePollingLogScope.IsActive)
-+            {
-+                _localSteamHuntersCategoryEnricher?.ClearCache();
-+            }
++            ResetSantodanMetadataCache();
              _tokenResolver?.BeginRefreshAuthContext(context);
          }
  
@@ -3403,6 +3481,19 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
          public static bool HasAnyAchievementRows(string html)
          {
              if (string.IsNullOrWhiteSpace(html)) return false;
+diff --git a/source/Providers/Steam/SteamHuntersCategoryEnricher.cs b/source/Providers/Steam/SteamHuntersCategoryEnricher.cs
+index 13fb206b829995f8048aac4d6625167409571d78..1af20dd456f26b13360b0256f98693cdd256a17c 100644
+--- a/source/Providers/Steam/SteamHuntersCategoryEnricher.cs
++++ b/source/Providers/Steam/SteamHuntersCategoryEnricher.cs
+@@ -10,7 +10,7 @@
+ 
+ namespace PlayniteAchievements.Providers.Steam
+ {
+-    internal sealed class SteamHuntersCategoryEnricher
++    internal sealed partial class SteamHuntersCategoryEnricher
+     {
+         private const string BaseCategoryType = SteamCategoryLabels.BaseCategoryType;
+         private const string DlcCategoryType = SteamCategoryLabels.DlcCategoryType;
 diff --git a/source/Providers/Steam/SteamScanner.cs b/source/Providers/Steam/SteamScanner.cs
 index 822902b0676535dd7d688d091380f26c5144237e..96ba3295642456f5aaea5618fa420f03ce62191a 100644
 --- a/source/Providers/Steam/SteamScanner.cs
@@ -3489,7 +3580,7 @@ index 822902b0676535dd7d688d091380f26c5144237e..96ba3295642456f5aaea5618fa420f03
              var hasLoggedOutSteamIdMarker =
                  html.IndexOf("g_steamID = \"0\"", StringComparison.OrdinalIgnoreCase) >= 0 ||
 diff --git a/source/Providers/Steam/SteamSessionManager.cs b/source/Providers/Steam/SteamSessionManager.cs
-index f5d9def6e295a84cb7d723b7d3f554d41dde3b96..c2146ee006f2ed41ac7b994abe086a1b4ebb43c4 100644
+index f5d9def6e295a84cb7d723b7d3f554d41dde3b96..cf5f1b43c61f558749e6498b3f51d02032b21d5a 100644
 --- a/source/Providers/Steam/SteamSessionManager.cs
 +++ b/source/Providers/Steam/SteamSessionManager.cs
 @@ -60,6 +60,11 @@ internal void SetClearInMemoryAuthState(Action clearInMemoryAuthState)
@@ -3518,6 +3609,34 @@ index f5d9def6e295a84cb7d723b7d3f554d41dde3b96..c2146ee006f2ed41ac7b994abe086a1b
              using (PerfScope.Start(_logger, "Steam.ProbeAuthStateAsync", thresholdMs: 50))
              {
                  try
+@@ -667,11 +679,12 @@ private static void InvokeOnUi(IPlayniteAPI api, Action action)
+ 
+         public static bool HasSteamSessionCookies(IPlayniteAPI api, ILogger logger)
+         {
++            using var browserCookies = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("cookie-probe");
+             try
+             {
+                 return InvokeOnUi(api, () =>
+                 {
+-                    using (var view = api.WebViews.CreateOffscreenView())
++                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
+                     {
+                         return HasSteamSessionCookies(view.GetCookies());
+                     }
+@@ -801,11 +814,12 @@ private static Uri GetAddUriForDomain(string cookieDomain)
+ 
+         public static void ClearSteamCookiesFromCef(IPlayniteAPI api, ILogger logger)
+         {
++            using var browserCookies = PlayniteAchievements.Services.Logging.CefDebugTrace.Begin("cookie-clear");
+             try
+             {
+                 InvokeOnUi(api, () =>
+                 {
+-                    using (var view = api.WebViews.CreateOffscreenView())
++                    using (var view = PlayniteAchievements.Services.Logging.CefDebugTrace.Run("create-offscreen", () => api.WebViews.CreateOffscreenView()))
+                     {
+                         // Explicit host and dotted-domain clears are more reliable across CEF cookie stores.
+                         view.DeleteDomainCookies(".steamcommunity.com");
 diff --git a/source/Providers/Steam/SteamSettings.cs b/source/Providers/Steam/SteamSettings.cs
 index d013cc4fe0b54e7b9948942e538d8ac86e8e848c..96aba96482c2fc9f451a6d3508d53376ebeef5a0 100644
 --- a/source/Providers/Steam/SteamSettings.cs
@@ -5014,7 +5133,7 @@ index c7e86c7409741494c6cdb17c85bd30252590c161..798ae91006d8326953c3944e526979e3
 +    </Style>
  </ResourceDictionary>
 diff --git a/source/Services/Achievements/AchievementDataService.cs b/source/Services/Achievements/AchievementDataService.cs
-index e5bd649a6f76adc7e05ff7663abe41dffbc8848f..91912be671165454b0fd89c0c1d7ba4d1a84b1cc 100644
+index e5bd649a6f76adc7e05ff7663abe41dffbc8848f..2b0cec8f50f983d1845dc0fdaaad032c213163c9 100644
 --- a/source/Services/Achievements/AchievementDataService.cs
 +++ b/source/Services/Achievements/AchievementDataService.cs
 @@ -1,3 +1,4 @@
@@ -5022,6 +5141,15 @@ index e5bd649a6f76adc7e05ff7663abe41dffbc8848f..91912be671165454b0fd89c0c1d7ba4d
  using Playnite.SDK;
  using PlayniteAchievements.Services.Database.Rows;
  using PlayniteAchievements.Models;
+@@ -17,7 +18,7 @@ namespace PlayniteAchievements.Services.Achievements
+     /// <summary>
+     /// Centralized read-side service for cached achievement data and hydration overlays.
+     /// </summary>
+-    public sealed class AchievementDataService
++    public sealed partial class AchievementDataService
+     {
+         private static readonly IReadOnlyDictionary<string, string> EmptyIconOverrides =
+             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 @@ -287,6 +288,21 @@ public List<GameAchievementData> GetAllCachedGameDataForLookup()
                  return new List<GameAchievementData>();
              }
@@ -5044,6 +5172,34 @@ index e5bd649a6f76adc7e05ff7663abe41dffbc8848f..91912be671165454b0fd89c0c1d7ba4d
          public List<GameAchievementData> GetAllGameAchievementDataForTheme()
          {
              try
+@@ -1542,9 +1558,12 @@ private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs
+             }
+         }
+ 
+-        private void OnOverviewProjectionSourceChanged(object sender, EventArgs e)
++        private void OnOverviewProjectionSourceChanged(object sender, CacheDeltaEventArgs e)
+         {
+-            InvalidateOverviewProjectionCaches();
++            // A normal write already names its game. Preserve that scope for notification
++            // totals while retaining the existing overview invalidation behavior.
++            InvalidateSantodanNotificationDelta(e);
++            InvalidateOverviewProjectionCaches(invalidateNotificationSummaries: false);
+         }
+ 
+         // Ordering invariant: the filter mirror is written BEFORE the summary memo is cleared,
+@@ -1746,9 +1765,11 @@ public void InvalidateSummariesForPlayniteGames(IReadOnlyList<Guid> gameIds)
+         /// a settings change, a full cache invalidation, a library-wide filter resync -- keeps
+         /// the wholesale behaviour.
+         /// </summary>
+-        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null)
++        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null,
++            bool invalidateNotificationSummaries = true)
+         {
+             var scoped = changedGameIds?.Where(id => id != Guid.Empty).ToList();
++            if (invalidateNotificationSummaries) InvalidateSantodanNotificationSummaries(scoped);
+             if (scoped == null ||
+                 scoped.Count == 0 ||
+                 scoped.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
 diff --git a/source/Services/Achievements/AchievementOverridesService.cs b/source/Services/Achievements/AchievementOverridesService.cs
 index 486d57011595249b0cce7d5375ce302c1a51bfc6..8733b72d8703101042b34af0cc6e09baed772eef 100644
 --- a/source/Services/Achievements/AchievementOverridesService.cs
@@ -5211,7 +5367,7 @@ index ca2982aa8b7ffe3c8149331ebf397abeb41c77c9..70e60752e2dadcd84fb8a1887474e932
                      (a, b) => a.ProgressPercent.CompareTo(b.ProgressPercent),
                      direction),
 diff --git a/source/Services/Cache/CacheManager.cs b/source/Services/Cache/CacheManager.cs
-index 52017bf8f5b3f9f5720b5b733c5957faa95b107f..11fb647831109e26975ff29a8d52ddb289fee718 100644
+index 52017bf8f5b3f9f5720b5b733c5957faa95b107f..fba0bccade8f543f0eb9677dd468ffc39497dff6 100644
 --- a/source/Services/Cache/CacheManager.cs
 +++ b/source/Services/Cache/CacheManager.cs
 @@ -9,6 +9,7 @@
@@ -5222,7 +5378,16 @@ index 52017bf8f5b3f9f5720b5b733c5957faa95b107f..11fb647831109e26975ff29a8d52ddb2
  using PlayniteAchievements.Providers;
  using Playnite.SDK;
  using System.Windows;
-@@ -982,7 +983,15 @@ public GameAchievementData LoadGameData(string key)
+@@ -332,6 +333,8 @@ private void RaiseCacheDeltaUpdatedEvent(string key, CacheDeltaOperationType ope
+ 
+         private void RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs args = null)
+         {
++            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.invalidation-callbacks");
++            PlayniteAchievements.Services.Logging.PollingDebugLog.Write("invalidation full=" + (args?.IsFull != false));
+             try { CacheInvalidated?.Invoke(this, args ?? CacheInvalidatedEventArgs.FullInvalidation); }
+             catch (Exception ex)
+             {
+@@ -982,8 +985,17 @@ public GameAchievementData LoadGameData(string key)
              }
          }
  
@@ -5231,24 +5396,27 @@ index 52017bf8f5b3f9f5720b5b733c5957faa95b107f..11fb647831109e26975ff29a8d52ddb2
 +        // achievement payload per game key, so provider selection is already represented
 +        // by GameAchievementData.ProviderKey.
 +        public GameAchievementData LoadGameData(string key, string providerKey)
-+        {
+         {
 +            return LoadGameData(key);
 +        }
 +
 +        public CacheWriteResult SaveGameData(string key, GameAchievementData data, bool allowLocalRelock = false)
-         {
++        {
++            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.write-and-delta");
              using (PerfScope.Start(_logger, "Cache.SaveGameData", thresholdMs: 25, context: key))
              {
-@@ -1028,7 +1037,7 @@ public CacheWriteResult SaveGameData(string key, GameAchievementData data)
+                 if (string.IsNullOrWhiteSpace(key))
+@@ -1028,7 +1040,8 @@ public CacheWriteResult SaveGameData(string key, GameAchievementData data)
                              toWrite.PlayniteGameId = parsedId;
                          }
  
 -                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite);
-+                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
++                        using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("cache.sql-write"))
++                            renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, allowLocalRelock);
                          renamedPlayniteGameId = toWrite.PlayniteGameId;
  
                          scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-@@ -1664,6 +1673,7 @@ private static GameAchievementData CloneGameData(GameAchievementData source)
+@@ -1664,6 +1677,7 @@ private static GameAchievementData CloneGameData(GameAchievementData source)
                  RaritySource = source.RaritySource,
                  HasAchievements = source.HasAchievements,
                  ExcludedByUser = source.ExcludedByUser,
@@ -5969,7 +6137,7 @@ index 72567b073e3d110942887daba05dd8d4b8545675..bb5ce9c2c05e45a7cc53c38fd623928c
  
      /// <summary>
 diff --git a/source/Services/InGameAchievementMonitor.cs b/source/Services/InGameAchievementMonitor.cs
-index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7bd37cb01f 100644
+index c6fc212655710051b3779be00b102d806407db15..e5483f70e528fa98988bd91730e42f3a33faf722 100644
 --- a/source/Services/InGameAchievementMonitor.cs
 +++ b/source/Services/InGameAchievementMonitor.cs
 @@ -1,3 +1,4 @@
@@ -5977,7 +6145,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
  using System;
  using System.Collections.Generic;
  using System.Diagnostics;
-@@ -12,12 +13,14 @@
+@@ -12,21 +13,24 @@
  using PlayniteAchievements.Models.Friends;
  using PlayniteAchievements.Models.Settings;
  using PlayniteAchievements.Providers;
@@ -5992,7 +6160,10 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
  using PlayniteAchievements.Services.Refresh;
  
  namespace PlayniteAchievements.Services
-@@ -27,6 +30,7 @@ internal sealed class InGameAchievementMonitor : IDisposable
+ {
+-    internal sealed class InGameAchievementMonitor : IDisposable
++    internal sealed partial class InGameAchievementMonitor : IDisposable
+     {
          private const int StartupDelaySeconds = 20;
          private static readonly TimeSpan SchedulerResolution = TimeSpan.FromMilliseconds(100);
          private static readonly TimeSpan FileDebounce = TimeSpan.FromMilliseconds(150);
@@ -6000,7 +6171,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
          private static readonly int[] StableReadRetryMilliseconds = { 100, 250, 500, 1000 };
          /// <summary>
          /// A quiet fast prong re-reads on the registration's safety cadence, so logging every
-@@ -73,8 +77,12 @@ public GamePollState()
+@@ -73,8 +77,13 @@ public GamePollState()
              /// <see cref="Schedule"/> so the two prongs cannot move each other's deadline.
              /// </summary>
              public DateTime NextFallbackDueUtc;
@@ -6010,10 +6181,11 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              public DateTime NextFriendDueUtc;
              public DateTime RecoveryCooldownUtc;
 +            public bool WaitingForLocalAchievementFile;
++            public readonly SantodanLocalPollingState CustomLocalPolling = new SantodanLocalPollingState();
              public IDataProvider Provider;
              public IInGameProgressSource ProgressSource;
              public InGameProgressRegistration Registration;
-@@ -98,8 +106,8 @@ public GamePollState()
+@@ -98,8 +107,8 @@ public GamePollState()
              public readonly CancellationToken SessionToken;
              public readonly InGameReadSchedule Schedule = new InGameReadSchedule();
              public readonly List<IDisposable> WatchSubscriptions = new List<IDisposable>();
@@ -6024,7 +6196,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              /// <summary>
              /// Progress twin of <see cref="ToastedUserKeys"/>: the highest progress numerator
              /// announced per achievement this session, so the two prongs never announce the same
-@@ -218,6 +226,7 @@ public void Start(Game game)
+@@ -218,6 +227,7 @@ public void Start(Game game)
                      NextFallbackDueUtc = now.AddSeconds(StartupDelaySeconds),
                      NextFriendDueUtc = now.AddSeconds(StartupDelaySeconds).Add(GetFriendInterval())
                  };
@@ -6032,7 +6204,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                  _games[game.Id] = state;
  
              }
-@@ -590,7 +599,7 @@ private Task RunTickAsync(CancellationToken token)
+@@ -590,7 +600,7 @@ private Task RunTickAsync(CancellationToken token)
                      .ToList();
                  foreach (var state in fallbackStates)
                  {
@@ -6041,7 +6213,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                  }
  
                  friendStates = _games.Values
-@@ -828,7 +837,12 @@ private void ApplyProgressResult(
+@@ -828,7 +838,12 @@ private void ApplyProgressResult(
                  primed,
                  sessionStartUtc,
                  after,
@@ -6055,7 +6227,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              // Only a read that ran maintenance can own a held capstone. An unchanged write means the
              // refresh prong recorded these unlocks first, and the capstone it held is that prong's
              // to send after the unlock it claims; draining it here would drop it.
-@@ -850,6 +864,14 @@ private void ApplyProgressResult(
+@@ -850,6 +865,14 @@ private void ApplyProgressResult(
                      heldCapstoneCompletes: held.Count > 0);
              }
  
@@ -6070,7 +6242,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              AnnounceHeldCapstones(
                  held,
                  emittableKeys.Count > 0,
-@@ -990,14 +1012,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -990,14 +1013,15 @@ private static IReadOnlyList<string> SelectEmittableKeys(
              bool primed,
              DateTime sessionStartUtc,
              GameAchievementData after,
@@ -6088,7 +6260,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              {
                  return newlyUnlockedKeys;
              }
-@@ -1015,7 +1038,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
+@@ -1015,7 +1039,10 @@ private static IReadOnlyList<string> SelectEmittableKeys(
                  .Where(key =>
                      !string.IsNullOrWhiteSpace(key) &&
                      unlockTimeByKey.TryGetValue(key, out var unlockTimeUtc) &&
@@ -6100,17 +6272,26 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                  .ToList();
          }
  
-@@ -1099,6 +1125,9 @@ provider is IInGameProgressSource candidate &&
+@@ -1055,6 +1082,7 @@ private void ScheduleSourceFailure(GamePollState state, string reason)
+ 
+         private bool ConfigureState(GamePollState state, bool preservePrimeWhenEquivalent)
+         {
++            using var pollingStage = PollingDebugLog.Stage("monitor.configure");
+             if (state?.Game == null)
+             {
+                 return false;
+@@ -1099,6 +1127,10 @@ provider is IInGameProgressSource candidate &&
  
              var nextTargets = NormalizeTargets(registration?.WatchTargets);
              var previousTargets = NormalizeTargets(state.Registration?.WatchTargets);
 +            var waitingForLocalAchievementFile =
 +                provider is LocalSavesProvider localProvider &&
++                !(state.Provider == null && localProvider.HasSantodanKnownAchievementFile(state.Game, cached, state.SessionStartUtc)) &&
 +                !localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out _);
              var equivalent =
                  preservePrimeWhenEquivalent &&
                  string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
-@@ -1109,6 +1138,8 @@ provider is IInGameProgressSource candidate &&
+@@ -1109,6 +1141,8 @@ provider is IInGameProgressSource candidate &&
                  state.Registration?.UnlockAnchorBias == registration?.UnlockAnchorBias;
  
              List<IDisposable> oldSubscriptions = null;
@@ -6119,7 +6300,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              int generation;
              lock (_stateLock)
              {
-@@ -1124,6 +1155,7 @@ provider is IInGameProgressSource candidate &&
+@@ -1124,6 +1158,7 @@ provider is IInGameProgressSource candidate &&
                  }
                  generation = state.Generation;
                  state.Provider = provider;
@@ -6127,7 +6308,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                  state.ProgressSource = progressSource;
                  state.Registration = registration;
                  state.CachedSchema = cached;
-@@ -1134,6 +1166,14 @@ provider is IInGameProgressSource candidate &&
+@@ -1134,6 +1169,14 @@ provider is IInGameProgressSource candidate &&
                  }
  
                  var now = CaptureTimelineClock.UtcNow;
@@ -6142,7 +6323,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                  state.Schedule.Configure(
                      now,
                      progressSource != null,
-@@ -1144,6 +1184,14 @@ provider is IInGameProgressSource candidate &&
+@@ -1144,6 +1187,14 @@ provider is IInGameProgressSource candidate &&
                  {
                      state.NextFriendDueUtc = configuredFriendDue;
                  }
@@ -6157,7 +6338,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              }
  
              DisposeSubscriptions(oldSubscriptions);
-@@ -1180,9 +1228,13 @@ provider is IInGameProgressSource candidate &&
+@@ -1180,9 +1231,13 @@ provider is IInGameProgressSource candidate &&
                  DisposeSubscriptions(subscriptions);
              }
  
@@ -6174,7 +6355,21 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              return true;
          }
  
-@@ -1269,28 +1321,44 @@ private async Task RunFallbackBatchAsync(
+@@ -1264,33 +1319,58 @@ private async Task RunFallbackBatchAsync(
+                 {
+                     token.ThrowIfCancellationRequested();
+                     var batch = providerGroup.ToList();
++                    using var pollingDiagnostics = PollingDebugLog.BeginPoll(string.Join(",", batch.Select(state => state.Game.Id)));
++                    // Fork hook: null leaves the upstream batch completely unchanged.
++                    var customPolling = PrepareSantodanLocalPolling(batch);
++                    if (customPolling != null)
++                    {
++                        batch = customPolling.Games;
++                        if (batch.Count == 0) continue;
++                    }
++                    using var customPollingScope = SantodanPollingScope.Enter(customPolling != null);
+                     var beforeByGame = batch.ToDictionary(
+                         state => state.Game.Id,
                          state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                      var gameIds = batch.Select(state => state.Game.Id).ToList();
                      var timer = Stopwatch.StartNew();
@@ -6238,7 +6433,18 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                      timer.Stop();
  
                      foreach (var state in batch)
-@@ -1311,12 +1379,16 @@ await _executeRefreshAsync(
+@@ -1302,6 +1382,10 @@ await _executeRefreshAsync(
+ 
+                         var before = beforeByGame[state.Game.Id];
+                         var after = _cacheManager?.LoadGameData(state.Game.Id.ToString());
++                        CompleteSantodanLocalPolling(customPolling, state, before, after);
++                        PollingDebugLog.Write("game=" + state.Game.Id + " unlockedBefore=" +
++                            (before?.Achievements?.Count(item => item?.Unlocked == true) ?? 0) + " unlockedAfter=" +
++                            (after?.Achievements?.Count(item => item?.Unlocked == true) ?? 0));
+                         // Read the baseline flag before MarkPrimed below sets it.
+                         var primed = state.Schedule.ShouldEmitUnlocks();
+                         var keys = _differ.DiffUserUnlocks(before, after)
+@@ -1311,12 +1395,16 @@ await _executeRefreshAsync(
                                  InGameUnlockEmissionPolicy.ShouldEmit(
                                      primed,
                                      state.SessionStartUtc,
@@ -6256,7 +6462,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                              state.CachedSchema = after;
                              state.Schedule.MarkPrimed();
                          }
-@@ -1342,6 +1414,7 @@ await _executeRefreshAsync(
+@@ -1342,6 +1430,7 @@ await _executeRefreshAsync(
                                  state.Registration?.UnlockAnchorBias ?? TimeSpan.Zero,
                                  heldCapstoneCompletes: held.Count > 0);
  
@@ -6264,7 +6470,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
                          AnnounceHeldCapstones(
                              held,
                              keys.Count > 0,
-@@ -1441,6 +1514,15 @@ private static void DisposeSubscriptions(IEnumerable<IDisposable> subscriptions)
+@@ -1441,6 +1530,15 @@ private static void DisposeSubscriptions(IEnumerable<IDisposable> subscriptions)
              }
          }
  
@@ -6280,7 +6486,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
          private AchievementUnlockedEventArgs EmitUserUnlocks(
              GamePollState state,
              GameAchievementData before,
-@@ -1801,7 +1883,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
+@@ -1801,7 +1899,9 @@ private HashSet<string> GetToastedFriendSet(GamePollState state, FriendPollTarge
          private bool ShouldPollGame(Game game, bool logReason)
          {
              var persisted = _settings?.Persisted;
@@ -6291,7 +6497,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
              {
                  if (logReason) _logger?.Debug("[InGameMonitor] Disabled in settings.");
                  return false;
-@@ -1833,9 +1917,37 @@ private bool ShouldRunFriendRefresh()
+@@ -1833,9 +1933,37 @@ private bool ShouldRunFriendRefresh()
  
          private TimeSpan GetPollInterval()
          {
@@ -6329,7 +6535,7 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
          private TimeSpan GetFriendInterval()
          {
              var multiplier = Math.Max(
-@@ -2108,7 +2220,9 @@ private AchievementUnlockedEventArgs CreateUserEventArgs(
+@@ -2108,7 +2236,9 @@ private AchievementUnlockedEventArgs CreateUserEventArgs(
                  UnlockedCount = data?.UnlockedCount ?? 0,
                  TotalCount = data?.AchievementCount ?? 0,
                  AchievementNumber = achievementNumber,
@@ -6341,9 +6547,18 @@ index c6fc212655710051b3779be00b102d806407db15..19ac3cfaf9e9d6d00a90cba00a973b7b
          }
  
 diff --git a/source/Services/Library/LibraryProjectionService.cs b/source/Services/Library/LibraryProjectionService.cs
-index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..88e7d765614a883e05f278fdf493342741b4eeaa 100644
+index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..06c8887af4c6736de18ce5c61ad86bcda5f32426 100644
 --- a/source/Services/Library/LibraryProjectionService.cs
 +++ b/source/Services/Library/LibraryProjectionService.cs
+@@ -18,7 +18,7 @@
+ 
+ namespace PlayniteAchievements.Services.Library
+ {
+-    internal sealed class LibraryProjectionService : IDisposable
++    internal sealed partial class LibraryProjectionService : IDisposable
+     {
+         private const int WarmDebounceMs = 1500;
+         private static readonly TimeSpan MinEagerWarmInterval = TimeSpan.FromSeconds(30);
 @@ -112,6 +112,18 @@ public OverviewDataSnapshot GetOverviewSnapshot(
              return snapshot?.OverviewSnapshot ?? new OverviewDataSnapshot();
          }
@@ -6363,7 +6578,15 @@ index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..88e7d765614a883e05f278fdf4933427
          public LibraryRuntimeState GetThemeLightState(
              int recentUnlockLimit,
              CancellationToken token,
-@@ -377,6 +389,23 @@ private LibraryProjectionSnapshot BuildOverview(
+@@ -226,6 +238,7 @@ public void SetGameSessionActive(bool active)
+             lock (_sync)
+             {
+                 _warmSuppressed = active;
++                CancelSantodanPendingWarm(active);
+             }
+         }
+ 
+@@ -377,6 +390,23 @@ private LibraryProjectionSnapshot BuildOverview(
              return projection;
          }
  
@@ -6387,6 +6610,14 @@ index 3de5d7a35842fcdf221a463dcc25f42ebf89d17c..88e7d765614a883e05f278fdf4933427
          private LibraryProjectionSnapshot BuildThemeLight(int recentUnlockLimit, CancellationToken token)
          {
              token.ThrowIfCancellationRequested();
+@@ -536,6 +566,7 @@ private async Task WarmAfterDelayAsync(int generation, TimeSpan minimumDelay)
+                     return;
+                 }
+ 
++                if (ShouldSkipSantodanWarm(generation)) return;
+                 lock (_sync)
+                 {
+                     _lastWarmStartedUtc = DateTime.UtcNow;
 diff --git a/source/Services/Logging/NamedLoggerWrapper.cs b/source/Services/Logging/NamedLoggerWrapper.cs
 index 7b369bfa892da989d430520fb04a2f9ca1a93ca6..37ce96991a75fb5eca6cc4dbeac4692ac84cf714 100644
 --- a/source/Services/Logging/NamedLoggerWrapper.cs
@@ -6422,11 +6653,11 @@ index 7b369bfa892da989d430520fb04a2f9ca1a93ca6..37ce96991a75fb5eca6cc4dbeac4692a
          {
              _innerLogger.Debug($"[{_loggerName}] {message}");
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..e35d2fb3362b4970f1b5b7c77fcde9dc6e436d2e 100644
+index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd43862977d6d5e88 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,84 @@
-+﻿using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
++using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
  using System;
  using System.Collections.Generic;
 +using System.IO;
@@ -6463,7 +6694,8 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..e35d2fb3362b4970f1b5b7c77fcde9dc
  
  namespace PlayniteAchievements.Services
  {
-     public class NotificationPublisher
+-    public class NotificationPublisher
++    public partial class NotificationPublisher
      {
 +        private static readonly Regex OverlayTemplateTokenPattern = new Regex("<([a-zA-Z0-9]+)>", RegexOptions.Compiled);
 +        private static readonly object NotificationScoreCacheLock = new object();
@@ -7393,7 +7625,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..e35d2fb3362b4970f1b5b7c77fcde9dc
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +1091,8080 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +1091,8037 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -14370,7 +14602,9 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..e35d2fb3362b4970f1b5b7c77fcde9dc
 +
 +        private static NotificationScoreContext GetNotificationScoreContext(Game game, string gameName, string achievementName, string achievementRarity)
 +        {
-+            var cacheKey = $"{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
++            using var pollingStage = PollingDebugLog.Stage("notification.scores");
++            var scoreCacheEnabled = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.UseForkNotificationSummaryCache == true;
++            var cacheKey = $"{scoreCacheEnabled}|{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
 +            lock (NotificationScoreCacheLock)
 +            {
 +                if (_notificationScoreCache != null &&
@@ -14396,52 +14630,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..e35d2fb3362b4970f1b5b7c77fcde9dc
 +
 +            try
 +            {
-+                var dataService = plugin?.AchievementDataService;
-+                var gameData = game != null && game.Id != Guid.Empty
-+                    ? dataService?.GetVisibleGameAchievementData(game.Id)
-+                    : null;
-+                // A positive detail limit keeps this on the bounded, invalidation-aware
-+                // summary path. Only the notified game needs full achievement objects.
-+                var summaries = dataService?.GetCachedSummaryDataForTheme(1)?.Games;
-+                var namedGame = summaries?.FirstOrDefault(data =>
-+                    !string.IsNullOrWhiteSpace(gameName) &&
-+                    string.Equals(data?.GameName, gameName, StringComparison.OrdinalIgnoreCase));
-+                if (gameData == null && namedGame?.PlayniteGameId.HasValue == true)
-+                {
-+                    gameData = dataService?.GetVisibleGameAchievementData(namedGame.PlayniteGameId.Value);
-+                }
-+                var achievement = gameData?.Achievements?.FirstOrDefault(item =>
-+                    string.Equals(item?.DisplayName, achievementName, StringComparison.OrdinalIgnoreCase) ||
-+                    string.Equals(item?.ApiName, achievementName, StringComparison.OrdinalIgnoreCase));
-+
-+                if (achievement != null)
-+                {
-+                    context.AchievementCollectionScore = achievement.CollectionScore;
-+                    context.AchievementPrestigeScore = achievement.PrestigeScore;
-+                }
-+                else
-+                {
-+                    var fallbackTier = ResolveNotificationRarityTier(achievementRarity);
-+                    context.AchievementCollectionScore = AchievementScoreCalculator.GetCollectionValue(fallbackTier);
-+                    context.AchievementPrestigeScore = AchievementScoreCalculator.GetPrestigeValue(
-+                        TryParseRarityPercent(achievementRarity),
-+                        fallbackTier);
-+                }
-+                context.AchievementType = achievement?.CategoryType ?? string.Empty;
-+                context.AchievementCategory = achievement?.Category ?? string.Empty;
-+                PopulateGameNotificationScores(context, gameData);
-+
-+                var collectionScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.CollectionScore));
-+                var prestigeScore = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.PrestigeScore));
-+                if (context.TotalCollectionScore <= 0)
-+                {
-+                    context.TotalCollectionScore = collectionScore;
-+                }
-+                if (context.TotalPrestigeScore <= 0)
-+                {
-+                    context.TotalPrestigeScore = prestigeScore;
-+                }
-+                context.TotalPoints = SumNotificationValues(summaries?.Where(item => item != null).Select(item => item.Points));
++                PopulateSantodanNotificationScores(context, game, gameName, achievementName, achievementRarity);
 +            }
 +            catch
 +            {
@@ -15798,7 +15987,7 @@ index 2c0eb8053698378482662710050c9d403e21692a..b26ee1a3a8cfba40b17a74354089ac3c
                      targetGameIds.Add(game.Id);
                  }
 diff --git a/source/Services/Refresh/RefreshRuntime.cs b/source/Services/Refresh/RefreshRuntime.cs
-index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789f372eb04 100644
+index 1923c97d09e09a54648ac5c5427b88534e4ea31a..91a50fc9de664b7a62e644e32058b5c1e832016c 100644
 --- a/source/Services/Refresh/RefreshRuntime.cs
 +++ b/source/Services/Refresh/RefreshRuntime.cs
 @@ -1,3 +1,4 @@
@@ -15836,7 +16025,17 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              _refreshStateManager.EndRun();
          }
  
-@@ -805,8 +813,11 @@ internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
+@@ -788,6 +796,9 @@ internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
+         {
+             var context = new RefreshAuthContext(Guid.NewGuid());
+             var enabledProviders = GetEnabledProviders();
++            enabledProviders = RestrictSantodanPollingAuthProviders(request, enabledProviders,
++                PlayniteAchievements.Providers.ProviderRegistry.Settings<PlayniteAchievements.Providers.Local.LocalSettings>()
++                    ?.RestrictCustomPollingAuthentication == true);
+             if (enabledProviders.Count == 0)
+             {
+                 return context;
+@@ -805,8 +816,11 @@ internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
                      enabledProviders,
                      targetSelectionCache);
                  filterTimer.Stop();
@@ -15850,7 +16049,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              }
  
              await ProbeProvidersForAuthContextAsync(probeCandidates, context, ct).ConfigureAwait(false);
-@@ -823,8 +834,11 @@ internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
+@@ -823,8 +837,11 @@ internal virtual async Task<RefreshAuthContext> GetRefreshAuthContextAsync(
                  var remaining = enabledProviders
                      .Where(provider => !probedKeys.Contains(provider.ProviderKey))
                      .ToList();
@@ -15864,7 +16063,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
                  await ProbeProvidersForAuthContextAsync(remaining, context, ct).ConfigureAwait(false);
              }
  
-@@ -907,8 +921,11 @@ private async Task ProbeProviderForAuthContextAsync(
+@@ -907,8 +924,11 @@ private async Task ProbeProviderForAuthContextAsync(
              {
                  timer.Stop();
                  context.SetProbeResult(provider?.ProviderKey, result, timer.ElapsedMilliseconds, artifact);
@@ -15878,7 +16077,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
                  gate.Release();
              }
          }
-@@ -957,11 +974,14 @@ private CurrentRefreshPlanBuildResult BuildCurrentRefreshPlans(
+@@ -957,11 +977,14 @@ private CurrentRefreshPlanBuildResult BuildCurrentRefreshPlans(
                  })
                  .ToList();
  
@@ -15898,7 +16097,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
  
              return result;
          }
-@@ -1044,8 +1064,11 @@ private async Task<RebuildPayload> ExecuteCurrentProviderPlansAsync(
+@@ -1044,8 +1067,11 @@ private async Task<RebuildPayload> ExecuteCurrentProviderPlansAsync(
  
              var runProvidersInParallel = runProvidersInParallelOverride ?? (_settings?.Persisted?.EnableParallelProviderRefresh ?? true);
              var timer = Stopwatch.StartNew();
@@ -15912,7 +16111,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              var providerResults = await ProviderRefreshExecutor.ExecuteProvidersAsync(
                  plans,
                  runProvidersInParallel,
-@@ -1054,8 +1077,11 @@ private async Task<RebuildPayload> ExecuteCurrentProviderPlansAsync(
+@@ -1054,8 +1080,11 @@ private async Task<RebuildPayload> ExecuteCurrentProviderPlansAsync(
  
              var payload = CreateCurrentRefreshPayload(providerResults);
              timer.Stop();
@@ -15926,7 +16125,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              return payload;
          }
  
-@@ -1609,7 +1635,13 @@ private async Task OnGameRefreshed(
+@@ -1609,7 +1638,13 @@ private async Task OnGameRefreshed(
              // achievement overwrites an unlocked one. A payload that is empty or reports no unlocks
              // for a game that already has some would erase them, so keep the cached data and let a
              // later refresh supply a complete result.
@@ -15941,7 +16140,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              {
                  var incomingTotal = data.Achievements?.Count ?? 0;
                  var incomingUnlockedCount = data.Achievements?.Count(a => a != null && a.Unlocked) ?? 0;
-@@ -1630,7 +1662,11 @@ private async Task OnGameRefreshed(
+@@ -1630,7 +1665,11 @@ private async Task OnGameRefreshed(
              // Restore unlocks the payload reports as locked before anything downstream reads it: the
              // payload is what lands in the memory cache and what the unlocked aggregate is counted
              // from, so correcting it here keeps the memory cache, the rows, and the count in step.
@@ -15954,7 +16153,7 @@ index 1923c97d09e09a54648ac5c5427b88534e4ea31a..a618d5a0c12fd9362e202ae104836789
              if (preservedUnlocks > 0)
              {
                  _logger?.Debug(
-@@ -1673,7 +1709,7 @@ await _achievementIconService.PopulateAchievementIconCacheAsync(
+@@ -1673,7 +1712,7 @@ await _achievementIconService.PopulateAchievementIconCacheAsync(
                  // refresh pipeline (or a provider) is retaining per-game payloads.
                  Common.LeakWatch.Track("ProviderPayload", data);
  
@@ -16611,62 +16810,36 @@ index c7907bc5645ba8d00ad195bca1cdac14cd243297..53f8d408f3a6b46decbe59f5b938b968
                      }
                      catch (Exception ex)
 diff --git a/source/Services/ThemeMigration/ThemeDiscoveryService.cs b/source/Services/ThemeMigration/ThemeDiscoveryService.cs
-index 3060a8f3b0919e794e8988fdb08c9ff41126556b..28d76b1f7d817e113d666a44e1a3aac79c3c2c12 100644
+index 3060a8f3b0919e794e8988fdb08c9ff41126556b..51213769c994f7cb664d718823e5cbc06cfc26c5 100644
 --- a/source/Services/ThemeMigration/ThemeDiscoveryService.cs
 +++ b/source/Services/ThemeMigration/ThemeDiscoveryService.cs
-@@ -1,7 +1,10 @@
+@@ -1,3 +1,4 @@
 +using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
  using System;
  using System.Collections.Generic;
  using System.IO;
- using System.Linq;
-+using System.Security.Cryptography;
-+using System.Text;
- using System.Text.RegularExpressions;
- using Playnite.SDK;
- using PlayniteAchievements.Models.Settings;
-@@ -16,6 +19,40 @@ public sealed class ThemeDiscoveryService
+@@ -11,14 +12,18 @@ namespace PlayniteAchievements.Services.ThemeMigration
+     /// <summary>
+     /// Service for discovering themes that need to be migrated from SuccessStory.
+     /// </summary>
+-    public sealed class ThemeDiscoveryService
++    public sealed partial class ThemeDiscoveryService
+     {
          private readonly ILogger _logger;
          private readonly IPlayniteAPI _playniteApi;
          private const string BackupFolderName = "PlayniteAchievements_backup";
 +        // Must match ThemeMigrationService.PluginExtensionId.
 +        private const string PluginExtensionId = "PlayniteAchievementsSantodan";
-+        // Settings creates multiple discovery services. Share only bounded content hashes
-+        // and scan results, never theme text, paths, or UI objects. Reading each file still
-+        // detects edits even when its timestamp, length, and theme version stay unchanged.
-+        private static readonly object ContentScanCacheLock = new object();
-+        private static readonly Dictionary<string, (bool migratable, bool native)> ContentScanCache =
-+            new Dictionary<string, (bool migratable, bool native)>();
-+        private const int ContentScanCacheLimit = 512;
-+
-+        internal static (bool migratable, bool native) AnalyzeThemeContent(string content)
-+        {
-+            string hash;
-+            using (var sha = SHA256.Create())
-+            {
-+                hash = Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(content ?? string.Empty)));
-+            }
-+
-+            lock (ContentScanCacheLock)
-+            {
-+                if (ContentScanCache.TryGetValue(hash, out var cached))
-+                {
-+                    return cached;
-+                }
-+
-+                var result = (ContainsMigratableReference(content), ContainsNativePlayniteAchievementsSupport(content));
-+                if (ContentScanCache.Count >= ContentScanCacheLimit)
-+                {
-+                    ContentScanCache.Clear();
-+                }
-+                ContentScanCache[hash] = result;
-+                return result;
-+            }
-+        }
++        private readonly Func<bool> _useForkContentCache;
  
-         public ThemeDiscoveryService(ILogger logger, IPlayniteAPI playniteApi)
+-        public ThemeDiscoveryService(ILogger logger, IPlayniteAPI playniteApi)
++        public ThemeDiscoveryService(ILogger logger, IPlayniteAPI playniteApi, Func<bool> useForkContentCache = null)
          {
-@@ -154,11 +191,12 @@ public List<ThemeInfo> DiscoverThemes(string themesRootPath, IReadOnlyDictionary
++            _useForkContentCache = useForkContentCache;
+             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+             _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
+         }
+@@ -154,11 +159,12 @@ public List<ThemeInfo> DiscoverThemes(string themesRootPath, IReadOnlyDictionary
                              Name = themeName,
                              Path = themeDir,
                              HasBackup = hasBackup,
@@ -16684,7 +16857,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..28d76b1f7d817e113d666a44e1a3aac7
                              CurrentThemeVersion = currentVersion,
                              CachedMigratedThemeVersion = cachedVersion,
                              UpgradedSinceLastMigration = upgradedSinceLastMigration
-@@ -212,20 +250,62 @@ private static string StripThemeIdSuffix(string directoryName)
+@@ -212,20 +218,62 @@ private static string StripThemeIdSuffix(string directoryName)
          /// Gets the default Playnite themes directory path.
          /// </summary>
          /// <returns>Path to the themes directory, or null if not found.</returns>
@@ -16753,11 +16926,11 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..28d76b1f7d817e113d666a44e1a3aac7
          }
  
          /// <summary>
-@@ -286,14 +366,14 @@ public string GetDefaultThemesPath()
+@@ -286,14 +334,14 @@ public string GetDefaultThemesPath()
                      {
                          var content = File.ReadAllText(file);
                          filesRead++;
-+                        var analysis = AnalyzeThemeContent(content);
++                        var analysis = AnalyzeThemeContentForCaller(content);
  
 -                        if (ContainsNativePlayniteAchievementsSupport(content))
 +                        if (analysis.native)
@@ -16771,7 +16944,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..28d76b1f7d817e113d666a44e1a3aac7
                          {
                              foundMigratableReference = true;
                          }
-@@ -331,6 +411,37 @@ private static bool ContainsMigratableReference(string content)
+@@ -331,6 +379,37 @@ private static bool ContainsMigratableReference(string content)
                  return false;
              }
  
@@ -16809,7 +16982,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..28d76b1f7d817e113d666a44e1a3aac7
              if (content.IndexOf("SuccessStoryFullscreenHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  content.IndexOf("playnite-successstory-plugin", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  content.IndexOf("SSHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
-@@ -368,7 +479,9 @@ private static bool ContainsNativePlayniteAchievementsSupport(string content)
+@@ -368,7 +447,9 @@ private static bool ContainsNativePlayniteAchievementsSupport(string content)
                  return false;
              }
  
@@ -20129,7 +20302,7 @@ index 75abb7dea61feac054378a48464e638069ef4925..50a0b9bc42f50926d4b140e824ac4048
              _refreshDebounceTimer?.Stop();
              _deltaBatchTimer?.Stop();
 diff --git a/source/ViewModels/SettingsViewModel.cs b/source/ViewModels/SettingsViewModel.cs
-index ea4a12d7aa91d6040439a7e146cba2e2010fb202..5ec894404f1d8b6d6159956f6e5a25431c4012a2 100644
+index ea4a12d7aa91d6040439a7e146cba2e2010fb202..79c2d3ef257b86c0ea0363dfaf06337847478fbc 100644
 --- a/source/ViewModels/SettingsViewModel.cs
 +++ b/source/ViewModels/SettingsViewModel.cs
 @@ -196,6 +196,7 @@ public void CancelEdit()
@@ -20157,7 +20330,7 @@ index ea4a12d7aa91d6040439a7e146cba2e2010fb202..5ec894404f1d8b6d6159956f6e5a2543
              GameCustomDataStore?.SyncRuntimeCaches();
              ApplyThemeResources();
  
-@@ -231,6 +231,17 @@ public bool VerifySettings(out List<string> errors)
+@@ -231,6 +231,19 @@ public bool VerifySettings(out List<string> errors)
              return errors.Count == 0;
          }
  
@@ -20166,6 +20339,8 @@ index ea4a12d7aa91d6040439a7e146cba2e2010fb202..5ec894404f1d8b6d6159956f6e5a2543
 +            AchievementNotificationDebugLog.Initialize(_plugin.GetPluginUserDataPath());
 +            var localSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
 +            AchievementNotificationDebugLog.SetEnabled(localSettings?.EnableOverlayDebugLogging == true);
++            PollingDebugLog.Configure(_plugin.GetPluginUserDataPath(), localSettings?.EnablePollingDebugLogging == true,
++                localSettings?.SampleProcessCpuThreads == true);
 +            AchievementNotificationDebugLog.LogSettingsSnapshot(
 +                localSettings,
 +                Settings?.Persisted,
@@ -21553,10 +21728,10 @@ index 07101135218704f829ac4417559422759ef19650..8e4b305da243180ed59d15728bedd63d
                                  <Button Content="{DynamicResource LOCResetLabel}"
                                          Click="ResetHotkey_Click"
 diff --git a/source/Views/SettingsControl.xaml b/source/Views/SettingsControl.xaml
-index faecf5fa804a3aafec164f7f03d853cde223fe70..f9dcd188c07745d2bf6c31c143b61b3fbf73e541 100644
+index faecf5fa804a3aafec164f7f03d853cde223fe70..8b54cefa99890772c13641de1f0fc9ccf7588e64 100644
 --- a/source/Views/SettingsControl.xaml
 +++ b/source/Views/SettingsControl.xaml
-@@ -29,6 +29,62 @@
+@@ -29,6 +29,72 @@
  
      <Grid Margin="24,20,24,24">
          <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
@@ -21601,6 +21776,16 @@ index faecf5fa804a3aafec164f7f03d853cde223fe70..f9dcd188c07745d2bf6c31c143b61b3f
 +                        <ContentControl x:Name="AchievementNotificationsContent"/>
 +                    </TabItem>
 +
++                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance">
++                        <TabItem.Header>
++                            <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
++                                <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEF3A;"/>
++                                <TextBlock Text="Performance" VerticalAlignment="Center"/>
++                            </StackPanel>
++                        </TabItem.Header>
++                        <ContentControl x:Name="ForkPerformanceSettingsContent"/>
++                    </TabItem>
++
 +                    <!-- Fork migration workflow retained as a separate page alongside v3 migration. -->
 +                    <TabItem x:Name="ForkThemeMigrationTab"
 +                             AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
@@ -21620,7 +21805,7 @@ index faecf5fa804a3aafec164f7f03d853cde223fe70..f9dcd188c07745d2bf6c31c143b61b3f
              <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCGeneralLabel}">
                  <TabItem.Header>
 diff --git a/source/Views/SettingsControl.xaml.cs b/source/Views/SettingsControl.xaml.cs
-index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a665a6f0de 100644
+index 76589be2182172f07ff8ddafc8e14217ab303c7a..07b236ce08c423fb65fdf27c17393003bdf319d7 100644
 --- a/source/Views/SettingsControl.xaml.cs
 +++ b/source/Views/SettingsControl.xaml.cs
 @@ -51,6 +51,7 @@ public partial class SettingsControl : UserControl, IDisposable
@@ -21654,16 +21839,17 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
          /// <summary>
          /// Set before opening settings to navigate directly to a provider tab.
          /// Cleared after use.
-@@ -109,6 +126,8 @@ public SettingsControl(
+@@ -109,6 +126,9 @@ public SettingsControl(
              // Playnite does not reliably set DataContext for settings views.
              // Bind directly to the settings model so XAML uses {Binding SomeSetting}.
              DataContext = _settingsViewModel.Settings;
++            ForkPerformanceSettingsContent.Content = new ForkPerformanceSettingsSection();
 +            ForkGeneralSettingsContent.Content = new ForkGeneralSettingsSection(
 +                _settingsViewModel.Settings, _plugin);
              if (FriendsSettingsContent != null)
              {
                  FriendsSettingsContent.Content = new FriendsSettingsTab(
-@@ -179,6 +198,12 @@ public SettingsControl(
+@@ -179,6 +199,12 @@ public SettingsControl(
  
              _settingsViewModel.Settings.PropertyChanged += Settings_PropertyChanged;
              AttachPersistedSettings(_settingsViewModel.Settings.Persisted);
@@ -21676,7 +21862,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
  
              // Debug logging to verify DataContext and Settings values
              _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
-@@ -260,6 +285,7 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -260,6 +286,7 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
              }
  
              ProviderNavigationItems.Clear();
@@ -21684,7 +21870,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
  
              foreach (var providerKey in _providerRegistry.GetSettingsViewProviderKeys())
              {
-@@ -294,10 +320,20 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -294,10 +321,20 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
                  }
                  else
                  {
@@ -21707,7 +21893,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
                      providerKey,
                      displayName,
                      GetProviderSettingsGroupName(providerKey),
-@@ -307,6 +343,22 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -307,6 +344,22 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
                      settingsViewFactory,
                      redirectProviderKey,
                      subtitle));
@@ -21730,7 +21916,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
              }
  
              if (selectDefault && SelectedProviderNavigationItem == null && ProviderNavigationItems.Count > 0)
-@@ -315,6 +367,10 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -315,6 +368,10 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
              }
  
              _providerNavigationBuilt = true;
@@ -21741,7 +21927,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
              _logger?.Info($"Built {ProviderNavigationItems.Count} platform navigation items");
          }
  
-@@ -360,7 +416,8 @@ private async Task RunAutoAuthCheckAsync(ProviderNavigationItem item, Cancellati
+@@ -360,7 +417,8 @@ private async Task RunAutoAuthCheckAsync(ProviderNavigationItem item, Cancellati
              }
  
              if (token.IsCancellationRequested ||
@@ -21751,7 +21937,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
              {
                  return;
              }
-@@ -425,25 +482,31 @@ private void NavigateToPendingProvider()
+@@ -425,25 +483,31 @@ private void NavigateToPendingProvider()
              PendingNavigationProviderKey = null;
  
              // Find and select the provider navigation item matching the target key
@@ -21787,7 +21973,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
  
              // Inspect the newly selected TabItem by name (uses x:Name from XAML)
              if (e.AddedItems == null || e.AddedItems.Count == 0) return;
-@@ -451,11 +514,60 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
+@@ -451,11 +515,60 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
  
              var name = selected.Name ?? string.Empty;
  
@@ -21849,17 +22035,20 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
          }
  
          // Quick navigation callback used by the General tab's quick-link buttons
-@@ -464,6 +576,18 @@ private void JumpToTab(string tabKey)
+@@ -464,6 +577,21 @@ private void JumpToTab(string tabKey)
              TabItem tab;
              switch (tabKey)
              {
 +                case "Santodan-Fork":
 +                case "ForkGeneral":
++                case "ForkPerformance":
 +                case "ForkPlatforms":
 +                case "AchievementNotifications":
 +                case "ForkThemeMigration":
 +                    SettingsTabControl.SelectedItem = SantodanForkTab;
-+                    ForkSettingsTabControl.SelectedItem = tabKey == "ForkPlatforms"
++                    ForkSettingsTabControl.SelectedItem = tabKey == "ForkPerformance"
++                        ? ForkPerformanceTab
++                        : tabKey == "ForkPlatforms"
 +                        ? ForkPlatformsTab
 +                        : tabKey == "AchievementNotifications"
 +                        ? AchievementNotificationsTab
@@ -21868,7 +22057,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
                  case "Display":
                      tab = DisplayTab;
                      break;
-@@ -499,11 +623,6 @@ private void JumpToTab(string tabKey)
+@@ -499,11 +627,6 @@ private void JumpToTab(string tabKey)
                  BuildProviderNavigationItems();
              }
  
@@ -21880,7 +22069,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
              tab.BringIntoView();
          }
  
-@@ -523,6 +642,7 @@ public void Dispose()
+@@ -523,6 +646,7 @@ public void Dispose()
              _generalSettingsTab?.Dispose();
              _notificationsSettingsTab?.Dispose();
              _workshopSettingsTab?.Dispose();
@@ -21888,7 +22077,7 @@ index 76589be2182172f07ff8ddafc8e14217ab303c7a..e6cf3448c65a399ed4f6b77942fb71a6
          }
  
          private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-@@ -530,7 +650,7 @@ private void Persisted_PropertyChanged(object sender, System.ComponentModel.Prop
+@@ -530,7 +654,7 @@ private void Persisted_PropertyChanged(object sender, System.ComponentModel.Prop
              if (string.IsNullOrEmpty(e?.PropertyName) ||
                  e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
              {
@@ -22700,19 +22889,28 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b8088f977fad 100644
+index a048dbf8521fa15bebe5a412aee83a156fab23bf..4a8a3710ca40e1b7d1b277e8f91d6bd039bb5e0b 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-@@ -8,6 +8,8 @@
+@@ -8,6 +8,17 @@
    </PropertyGroup>
  
    <ItemGroup>
 +    <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
++    <Compile Include="..\..\source\Services\Logging\CefDebugTrace.cs" Link="Source\Services\Logging\CefDebugTrace.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" Link="Source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanPollingConfiguration.cs" Link="Source\Services\InGameMonitoring\SantodanPollingConfiguration.cs" />
++    <Compile Include="..\..\source\Services\Logging\ProcessThreadCpuSampler.cs" Link="Source\Services\Logging\ProcessThreadCpuSampler.cs" />
++    <Compile Include="..\..\source\Services\Logging\PollingDebugLog.cs" Link="Source\Services\Logging\PollingDebugLog.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanPollingScope.cs" Link="Source\Services\InGameMonitoring\SantodanPollingScope.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\LocalPollingDirectoryCache.cs" Link="Source\Services\InGameMonitoring\LocalPollingDirectoryCache.cs" />
++    <Compile Include="..\..\source\Services\InGameMonitoring\LocalPollingFingerprintGate.cs" Link="Source\Services\InGameMonitoring\LocalPollingFingerprintGate.cs" />
++    <Compile Include="..\..\source\Services\Logging\FileLogger.cs" Link="Source\Services\Logging\FileLogger.cs" />
 +    <Compile Include="..\..\source\Services\Logging\NamedLoggerWrapper.cs" Link="Source\Services\Logging\NamedLoggerWrapper.cs" />
      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
      <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
      <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
-@@ -91,6 +93,7 @@
+@@ -91,6 +102,7 @@
      <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameReadSchedule.cs" Link="Source\Services\InGameMonitoring\InGameReadSchedule.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" />
@@ -22720,7 +22918,15 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamStatsPageClassifier.cs" Link="Source\Providers\Steam\SteamStatsPageClassifier.cs" />
-@@ -111,6 +114,7 @@
+@@ -103,6 +115,7 @@
+     <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
+     <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamHuntersApiClient.cs" Link="Source\Providers\Steam\SteamHuntersApiClient.cs" />
++    <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
+     <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
+@@ -111,6 +124,7 @@
      <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
      <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
@@ -22728,7 +22934,15 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
-@@ -231,6 +235,7 @@
+@@ -126,6 +140,7 @@
+     <Compile Include="..\..\source\Services\Achievements\RecentUnlockOrder.cs" Link="Source\Services\Achievements\RecentUnlockOrder.cs" />
+     <Compile Include="..\..\source\Common\ObservableStateCopier.cs" Link="Source\Common\ObservableStateCopier.cs" />
+     <Compile Include="..\..\source\Services\Achievements\OverviewSummaryPatcher.cs" Link="Source\Services\Achievements\OverviewSummaryPatcher.cs" />
++    <Compile Include="..\..\source\Services\Achievements\NotificationGameSummaryCache.cs" Link="Source\Services\Achievements\NotificationGameSummaryCache.cs" />
+     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
+     <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
+     <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
+@@ -231,6 +246,7 @@
      <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -22736,7 +22950,7 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -496,6 +501,7 @@
+@@ -496,6 +512,7 @@
      <Compile Include="..\..\source\Models\Settings\LibraryLink.cs" Link="Source\Models\Settings\LibraryLink.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -22744,7 +22958,7 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\GameNotificationOverrides.cs" Link="Source\Models\Settings\GameNotificationOverrides.cs" />
-@@ -506,6 +512,7 @@
+@@ -506,6 +523,7 @@
      <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
      <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
      <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
@@ -22752,7 +22966,7 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\UnlockSoundSettings.cs" Link="Source\Models\Settings\UnlockSoundSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
-@@ -527,6 +534,7 @@
+@@ -527,6 +545,7 @@
      <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
      <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
@@ -22760,7 +22974,7 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
      <Compile Include="..\..\source\Views\Settings\Controls\GridDisplaySurfaces.cs" Link="Source\Views\Settings\Controls\GridDisplaySurfaces.cs" />
-@@ -598,6 +606,8 @@
+@@ -598,6 +617,8 @@
      <Compile Include="..\..\source\Services\Tagging\DefaultTagNameCatalog.cs" Link="Source\Services\Tagging\DefaultTagNameCatalog.cs" />
      <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
      <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
@@ -22769,7 +22983,12 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Services\UI\NotificationStyleResolver.cs" Link="Source\Services\UI\NotificationStyleResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\ThemeMigrationCacheEntry.cs" Link="Source\Models\Settings\ThemeMigrationCacheEntry.cs" />
      <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
-@@ -669,6 +679,7 @@
+@@ -665,10 +686,12 @@
+     <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
+     <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
+     <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
++    <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.SantodanPolling.cs" Link="Source\Services\Refresh\RefreshRuntime.SantodanPolling.cs" />
+     <Compile Include="..\..\source\Services\Refresh\FriendRefreshCoordinator.cs" Link="Source\Services\Refresh\FriendRefreshCoordinator.cs" />
      <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
      <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
@@ -22777,7 +22996,15 @@ index a048dbf8521fa15bebe5a412aee83a156fab23bf..6d1826121344dd029d3bfafa0009b808
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -777,6 +788,10 @@
+@@ -681,6 +704,7 @@
+     <Compile Include="..\..\source\Services\ThemeMigration\ControlMappings.cs" Link="Source\Services\ThemeMigration\ControlMappings.cs" />
+     <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
+     <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
++    <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.SantodanCache.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.SantodanCache.cs" />
+     <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
+     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
+     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
+@@ -777,6 +801,10 @@
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
@@ -22860,10 +23087,43 @@ index 0934b2ddf2fbca5bbd82170b7536e0aa838ba23b..ce59821fd5cc59024c0a91ab86602b6a
              int total,
              int unlocked,
 diff --git a/tests/PlayniteAchievements.Tests/Services/AuthProbeCandidateTests.cs b/tests/PlayniteAchievements.Tests/Services/AuthProbeCandidateTests.cs
-index c5be0320e74da644ed7303cb4403cd9defaa7476..e515881285e3de9f684bc214714aaf96fa0ff890 100644
+index c5be0320e74da644ed7303cb4403cd9defaa7476..f22af6fb4c66c361a886680b5d3982dffe748fb0 100644
 --- a/tests/PlayniteAchievements.Tests/Services/AuthProbeCandidateTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/AuthProbeCandidateTests.cs
-@@ -433,7 +433,7 @@ public void EnsureDiskCacheOrClearMemory() { }
+@@ -26,6 +26,32 @@ namespace PlayniteAchievements.Services.Tests
+     [TestClass]
+     public class AuthProbeCandidateTests
+     {
++        [TestMethod]
++        public void CustomLocalAuthRestriction_LeavesOtherPathsUntouched()
++        {
++            var providers = new List<IDataProvider>
++            {
++                new FakeProvider("Local", _ => true),
++                new FakeProvider("Steam", _ => true, isAuthenticated: false)
++            };
++            var request = new RefreshRequest
++            {
++                Options = new RefreshOptions { ProviderKeys = new[] { "Local" } }
++            };
++            Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
++            using (PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.Enter(true))
++            {
++                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, false));
++                var restricted = RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true);
++                CollectionAssert.AreEqual(new[] { "Local" }, restricted.Select(p => p.ProviderKey).ToArray());
++                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(null, providers, true));
++                request.Options.ProviderKeys = new[] { "Local", "Steam" };
++                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
++                request.Options.ProviderKeys = Array.Empty<string>();
++                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
++            }
++        }
++
+         [TestMethod]
+         public async Task AuthContext_IncludesCurrentUserOfflineFallback_WhenLiveAuthFails()
+         {
+@@ -433,7 +459,7 @@ public void EnsureDiskCacheOrClearMemory() { }
              public DateTime? GetMostRecentLastUpdatedUtc() => null;
              public List<string> GetCachedGameIds() => new List<string>();
              public GameAchievementData LoadGameData(string key) => null;
@@ -23240,20 +23500,48 @@ index 60160aef932e3b17f6cbab12c9f857b7c173c166..40ac2ba9fe34f1457c8854e3f92f71f5
              public void RemoveGameCache(Guid playniteGameId) { }
              public void NotifyCacheInvalidated() { }
 diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..e84ecc91d0ddd3ce1a339191c33cad14340867a7 100644
+index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..55f01c732c797b7cf3a7d0ca243f85b12bf44979 100644
 --- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-@@ -1,4 +1,4 @@
--using Microsoft.VisualStudio.TestTools.UnitTesting;
-+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
- using Playnite.SDK;
- using Playnite.SDK.Models;
- using Playnite.SDK.Plugins;
-@@ -14,7 +14,156 @@ namespace PlayniteAchievements.ThemeMigration.Tests
+@@ -14,7 +14,203 @@ namespace PlayniteAchievements.ThemeMigration.Tests
      public class ThemeDiscoveryServiceTests
      {
          [TestMethod]
 -        public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPlayniteAchievements()
++        public void ForkCacheIsOptInAndChangingTheOptionDoesNotAffectUpstreamDiscovery()
++        {
++            var root = CreateThemesRoot();
++            try
++            {
++                var theme = Path.Combine(root, "Desktop", "ForkScopeTest");
++                Directory.CreateDirectory(theme);
++                File.WriteAllText(Path.Combine(theme, "theme.yaml"), "Name: Scope Test\nVersion: 1.0\n");
++                File.WriteAllText(Path.Combine(theme, "View.xaml"),
++                    "<TextBlock Text=\"SuccessStory\" /> <!-- " + Guid.NewGuid() + " -->");
++                var enabled = false;
++                var fork = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => enabled);
++                var upstream = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
++                var misses = ThemeDiscoveryService.ContentScanMisses;
++                Assert.IsTrue(upstream.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses);
++                enabled = true;
++                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.IsTrue(ThemeDiscoveryService.ContentScanMisses > misses);
++                misses = ThemeDiscoveryService.ContentScanMisses;
++                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses);
++                enabled = false;
++                File.AppendAllText(Path.Combine(theme, "View.xaml"), "<!-- changed -->");
++                Assert.IsTrue(fork.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.IsTrue(upstream.DiscoverThemes(root).Single().NeedsMigration);
++                Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses,
++                    "Disabled fork scans and upstream scans must bypass the cache entirely.");
++            }
++            finally { DeleteDirectory(root); }
++        }
++
++        [TestMethod]
 +        public void DiscoverThemes_CachedScanDetectsSameLengthEditAndRevertAcrossInstances()
 +        {
 +            var themesRoot = CreateThemesRoot();
@@ -23267,21 +23555,34 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..e84ecc91d0ddd3ce1a339191c33cad14
 +                var edited = original.Replace("SuccessStory", "PlainContent");
 +                File.WriteAllText(viewPath, original);
 +                var timestamp = File.GetLastWriteTimeUtc(viewPath);
-+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
++                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
 +                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
 +
 +                File.WriteAllText(viewPath, edited);
 +                File.SetLastWriteTimeUtc(viewPath, timestamp);
 +                Assert.AreEqual(original.Length, edited.Length);
-+                Assert.IsFalse(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
++                Assert.IsFalse(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
 +                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
 +
 +                File.WriteAllText(viewPath, original);
 +                File.SetLastWriteTimeUtc(viewPath, timestamp);
-+                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi())
++                Assert.IsTrue(new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi(), () => true)
 +                    .DiscoverThemes(themesRoot).Single().NeedsMigration);
 +            }
 +            finally { DeleteDirectory(themesRoot); }
++        }
++
++        [TestMethod]
++        public void AnalyzeThemeContent_RepeatedLargeScanReusesResults()
++        {
++            var prefix = Guid.NewGuid().ToString();
++            var contents = Enumerable.Range(0, 700)
++                .Select(i => "<Grid /> <!-- " + prefix + i + " -->").ToList();
++            foreach (var content in contents) ThemeDiscoveryService.AnalyzeThemeContent(content);
++            var misses = ThemeDiscoveryService.ContentScanMisses;
++            foreach (var content in contents) ThemeDiscoveryService.AnalyzeThemeContent(content);
++            Assert.AreEqual(misses, ThemeDiscoveryService.ContentScanMisses,
++                "Revisiting a theme library larger than the old 512-file limit must reuse its scan results.");
 +        }
 +
 +        [TestMethod]
@@ -23289,7 +23590,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..e84ecc91d0ddd3ce1a339191c33cad14
 +        {
 +            var mixed = "PlayniteAchievementsSantodan SuccessStory";
 +            Assert.AreEqual((true, true), ThemeDiscoveryService.AnalyzeThemeContent(mixed));
-+            for (var i = 0; i < 520; i++)
++            for (var i = 0; i < 4100; i++)
 +            {
 +                Assert.AreEqual((false, false), ThemeDiscoveryService.AnalyzeThemeContent("<Grid /> <!-- " + i + " -->"));
 +            }
@@ -23407,7 +23708,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..e84ecc91d0ddd3ce1a339191c33cad14
          {
              var themesRoot = CreateThemesRoot();
  
-@@ -25,7 +174,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
+@@ -25,7 +221,7 @@ public void DiscoverThemes_DoesNotFlagThemeForMigration_WhenThemeFilesContainPla
                  File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Aniki ReMake\nVersion: 2.5.5\n");
                  File.WriteAllText(
                      Path.Combine(themePath, "View.xaml"),
@@ -23416,7 +23717,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..e84ecc91d0ddd3ce1a339191c33cad14
  
                  var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
                  var themes = service.DiscoverThemes(themesRoot);
-@@ -121,6 +270,115 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
+@@ -121,6 +317,115 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
              }
          }
  
@@ -23704,13 +24005,43 @@ index 29c665447a7f891c79f35e812da2bdd0ed14821b..f3a192f77833935820eb9806e56ba8ac
          {
              private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
 diff --git a/tests/PlayniteAchievements.Tests/Steam/SteamHuntersCategoryEnricherTests.cs b/tests/PlayniteAchievements.Tests/Steam/SteamHuntersCategoryEnricherTests.cs
-index 48af5edbb1edae9191ba00af6ba46048e8de5e2a..00460513fde08b8f9b6612b84ac935c02633fb6b 100644
+index 48af5edbb1edae9191ba00af6ba46048e8de5e2a..7aff94f3522603a236fa333b6ace62395ae55c72 100644
 --- a/tests/PlayniteAchievements.Tests/Steam/SteamHuntersCategoryEnricherTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Steam/SteamHuntersCategoryEnricherTests.cs
-@@ -771,6 +771,40 @@ public async Task GetAchievementGroupsAsync_PersistentErrorPage_GivesUpAfterRetr
+@@ -771,6 +771,70 @@ public async Task GetAchievementGroupsAsync_PersistentErrorPage_GivesUpAfterRetr
              Assert.AreEqual(3, calls);
          }
  
++        [TestMethod]
++        public void ApplyCachedCategories_PreservesFreshProgressAndMatchesApiNames()
++        {
++            var current = new AchievementDetail { ApiName = "ACH_1", ProgressNum = 7, ProgressDenom = 10 };
++            var unmatched = new AchievementDetail { ApiName = "new_ach", Category = "New category" };
++            var cached = new AchievementDetail
++            {
++                ApiName = " ach_1 ", Category = "Expansion", CategoryType = "DLC|Unobtainable",
++                ProgressNum = 1, ProgressDenom = 10
++            };
++            SteamHuntersCategoryEnricher.ApplyCachedCategories(
++                new List<AchievementDetail> { current, unmatched, null },
++                new List<AchievementDetail> { cached, null });
++            Assert.AreEqual("Expansion", current.Category);
++            Assert.AreEqual("DLC|Unobtainable", current.CategoryType);
++            Assert.AreEqual(7, current.ProgressNum);
++            Assert.AreEqual(10, current.ProgressDenom);
++            Assert.AreEqual("New category", unmatched.Category);
++            Assert.IsFalse(current.Unlocked);
++        }
++
++        [TestMethod]
++        public void ApplyCachedCategories_EmptyCacheLeavesNewAchievementsIntact()
++        {
++            var current = new AchievementDetail { ApiName = "ach_1", Category = "Base", ProgressNum = 5 };
++            SteamHuntersCategoryEnricher.ApplyCachedCategories(new[] { current }, null);
++            Assert.AreEqual("Base", current.Category);
++            Assert.AreEqual(5, current.ProgressNum);
++        }
++
 +        [TestMethod]
 +        public async Task EnrichAsync_ReusesMetadataForFreshProgressUntilCacheCleared()
 +        {

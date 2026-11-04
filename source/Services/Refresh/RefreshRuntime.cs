@@ -796,6 +796,9 @@ namespace PlayniteAchievements.Services.Refresh
         {
             var context = new RefreshAuthContext(Guid.NewGuid());
             var enabledProviders = GetEnabledProviders();
+            enabledProviders = RestrictSantodanPollingAuthProviders(request, enabledProviders,
+                PlayniteAchievements.Providers.ProviderRegistry.Settings<PlayniteAchievements.Providers.Local.LocalSettings>()
+                    ?.RestrictCustomPollingAuthentication == true);
             if (enabledProviders.Count == 0)
             {
                 return context;

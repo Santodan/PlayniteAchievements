@@ -19,6 +19,18 @@
                         <CheckBox IsChecked="{Binding UseCustomLocalPolling, Mode=TwoWay}"/>
                     </controls:SettingRow>
                     <StackPanel IsEnabled="{Binding UseCustomLocalPolling}">
+                        <controls:SettingRow Label="Limit authentication checks to Local"
+                                             Hint="During custom Local polling, only check the Local provider. Prevent unrelated Steam browser authentication probes, including when no account is linked. Manual refreshes and other providers keep their normal authentication checks.">
+                            <CheckBox IsChecked="{Binding RestrictCustomPollingAuthentication, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Check available sources while waiting for an achievement file"
+                                             Hint="Try a source fingerprint even when the monitor has not found its expected achievement file. Available Steam cache or other supported source files can then skip unchanged full refreshes. If no usable fingerprint is available, refresh normally.">
+                            <CheckBox IsChecked="{Binding CheckCustomPollingSourcesWhileWaiting, Mode=TwoWay}"/>
+                        </controls:SettingRow>
+                        <controls:SettingRow Label="Reuse folder discovery within each poll"
+                                             Hint="Run identical Local folder searches once per poll and reuse their results for refresh and monitor setup. Results are discarded after each poll; achievement contents are always read fresh. This does not change the polling interval.">
+                            <CheckBox IsChecked="{Binding ReuseCustomPollingDiscoveryWithinPoll, Mode=TwoWay}"/>
+                        </controls:SettingRow>
                         <controls:SettingRow Label="Use lightweight game-start discovery"
                                              Hint="Check a validated achievement-file path before scanning folders at game start. Missing files, changed settings or an invalid record use normal discovery immediately. Requires one successful refresh to prepare the path; polling deadlines stay unchanged.">
                             <CheckBox IsChecked="{Binding UseLightweightCustomStartup, Mode=TwoWay}"/>

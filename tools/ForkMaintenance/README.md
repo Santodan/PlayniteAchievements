@@ -1,5 +1,74 @@
 # Fork maintenance bundle
 
+## Optional polling performance controls and diagnostics - 2026-11-04
+
+Santodan-Fork > General owns Debug mode. Santodan-Fork > Performance owns
+custom Local polling and the optional resource controls from the CPU investigation.
+The full option/default/scope table and test instructions are in
+`docs/ForkPerformanceOptions.md`, included in the bundle overlay.
+
+Preserve these fork-owned implementations when merging upstream:
+
+- `SantodanLocalPolling`, fingerprint gate, directory cache, and startup-baseline
+  store: skip unchanged Local refreshes, preserve the configured interval, and
+  optionally reuse validated startup data and achievement-file discovery.
+- `SantodanPollingConfiguration`: fingerprint source-relevant settings without
+  serializing notification templates and unrelated settings on each poll.
+- `SantodanPollingScope`: isolate the custom async refresh path and per-poll
+  discovery results. Its lifetime includes monitor reconfiguration; nested and
+  concurrent upstream work must not inherit another poll's discovery results.
+- `RefreshRuntime.SantodanPolling`: optional Local-only authentication preflight,
+  including second-chance probes. Never mark remote accounts authenticated.
+  Manual refreshes and upstream polling retain their original preflight.
+- `LocalSavesProvider.SantodanDiscovery`: optional reuse of identical folder
+  resolutions within one poll, including negative results. The original resolver
+  body remains `TryResolveLocalFolderUncached`; the wrapper delegates directly
+  when disabled. Configuration/provider/game changes separate entries. Results
+  expire at the end of the poll, so missing files are searched again next poll.
+- The optional waiting-source check attempts fingerprints even when an expected
+  achievement file is missing. Available supported sources can skip unchanged
+  refreshes; unknown fingerprints always retain the full-refresh fallback.
+- SteamHunters metadata reuse, notification-summary caching, deferred overview
+  precomputation, and theme-content caching remain individually controlled.
+  Theme-content caching applies only to the fork Theme Migration page.
+- Debug-only polling stages, CEF caller tracing, and optional process/thread CPU
+  sampling remain disabled during normal use. Sampling adds its own overhead.
+
+The three latest switches default off: Limit authentication checks to Local;
+Check available sources while waiting for an achievement file; Reuse folder
+discovery within each poll. Each requires custom Local polling. Do not change
+upstream defaults or add these controls to upstream settings tabs. Shared files
+retain only the necessary routing hooks; fork behavior lives in partial/helper
+files. The overview's original loading animation remains restored.
+
+Evidence: the supplied affected-user recording had 25 full fallback polls with
+unavailable fingerprints, each initiating a Steam browser authentication check.
+PerfView attributed about 12.47 CPU seconds inclusively to FindLocalFolders and
+2.00 seconds to CEF out of 20.71 total process CPU seconds. These are sampled CPU
+times, not elapsed time, and must not be compared as a controlled benchmark
+against a different machine/game.
+
+The developer's 2026-11-04 runtime recording with the options enabled showed no
+sampled full Local refreshes or Steam authentication probes during the idle
+section, with lightweight fingerprint checks instead. Idle memory stayed near
+344 MB. psrecord's largest idle peak was 9.3%; most remaining peaks were 4.7% or
+less. The user reported a maximum of 0.3% in Task Manager during idle. These use
+different CPU scales and sample windows. Unlocks began at about 70 seconds,
+after which full Local refresh work appeared. A 52.9% psrecord startup peak
+remains separate. This supports an improvement on the developer's machine, not
+proof that every spike or the affected user's case is resolved.
+
+Validation: 111 targeted tests passed; the required Release rebuild succeeded
+with zero errors and existing warnings. The package ZIP integrity check passed.
+Affected-user runtime retesting and independent A/B comparison of each switch
+remain pending. No release/version manifest changes are part of this update.
+
+The refreshed bundle passed clean three-way preflight and actual replay onto
+upstream v4.1.1 (`002eaa8b2`): 205 overlays, two localization recipes, component
+hashes, and protected-file checks passed. All 347 compared non-protected,
+non-localization fork paths matched the replay after newline normalization.
+Validation used a temporary worktree; no validation snapshot is bundled.
+
 ## Missing English labels - 2026-11-01
 
 The localization recipes now preserve the Default sort label and 55 additional

@@ -113,6 +113,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v4.2.1 merge
 - Fixed the `Memories` wildcards fetching the incorrect values
 - Fixed missing local achievement icons and hidden flags on new Steam Community pages
 - Added `Debug` mode in `Santodan-Fork` --> `General`

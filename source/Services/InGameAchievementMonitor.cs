@@ -1327,6 +1327,7 @@ namespace PlayniteAchievements.Services
                         batch = customPolling.Games;
                         if (batch.Count == 0) continue;
                     }
+                    using var customPollingScope = SantodanPollingScope.Enter(customPolling != null);
                     var beforeByGame = batch.ToDictionary(
                         state => state.Game.Id,
                         state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
@@ -1344,7 +1345,6 @@ namespace PlayniteAchievements.Services
                             }
                         }
                     }
-                    using (SantodanPollingScope.Enter(customPolling != null))
                     using (RealtimePollingLogScope.Enter())
                     using (localProvider?.BeginRealtimeLogThrottle())
                     {

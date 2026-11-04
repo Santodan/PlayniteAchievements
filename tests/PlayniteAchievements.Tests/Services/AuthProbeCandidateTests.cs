@@ -27,6 +27,32 @@ namespace PlayniteAchievements.Services.Tests
     public class AuthProbeCandidateTests
     {
         [TestMethod]
+        public void CustomLocalAuthRestriction_LeavesOtherPathsUntouched()
+        {
+            var providers = new List<IDataProvider>
+            {
+                new FakeProvider("Local", _ => true),
+                new FakeProvider("Steam", _ => true, isAuthenticated: false)
+            };
+            var request = new RefreshRequest
+            {
+                Options = new RefreshOptions { ProviderKeys = new[] { "Local" } }
+            };
+            Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
+            using (PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.Enter(true))
+            {
+                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, false));
+                var restricted = RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true);
+                CollectionAssert.AreEqual(new[] { "Local" }, restricted.Select(p => p.ProviderKey).ToArray());
+                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(null, providers, true));
+                request.Options.ProviderKeys = new[] { "Local", "Steam" };
+                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
+                request.Options.ProviderKeys = Array.Empty<string>();
+                Assert.AreSame(providers, RefreshRuntime.RestrictSantodanPollingAuthProviders(request, providers, true));
+            }
+        }
+
+        [TestMethod]
         public async Task AuthContext_IncludesCurrentUserOfflineFallback_WhenLiveAuthFails()
         {
             var provider = new FakeProvider(

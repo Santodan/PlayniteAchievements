@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-01T14:47:00.3478329Z",
+    "generatedUtc":  "2026-11-04T11:17:19.2659882Z",
     "baselineRef":  "upstream/main",
     "baselineCommit":  "002eaa8b2cdcc5df4c6f4bf2d886c5fbbc2390b2",
     "protectedPaths":  [
@@ -11,13 +11,13 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "CDF243A4880294E6EB2B1D561D27AF2C7F215FEEAA6F216B5623A07F1B6990FC"
+                  "sha256":  "43A5C22E5F9907F62ADF405D575A065068E268744FDF46EADE24223C7606CF68"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "893DC8CD3E85A517C6E9FC42B3FD8BBC6DDFEFCF7D564D2442E3E3910ED5538D",
+                                "sha256":  "284D4660F07BC9D45A2A6AEBE250F93693219BF7272F0745353142714E7CCDA9",
                                 "fileCount":  2,
-                                "entryCount":  449
+                                "entryCount":  466
                             },
     "overlayFiles":  [
                          {
@@ -142,11 +142,11 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "9AC2C7187CEE2751BA1F0C1621A3C70B31FAA1783D8B919C7C0558200937C29C"
+                             "sha256":  "37B5160466DD34CB9D8D6E95467C084476246B5ED263C0FA3FA78C767A7377A6"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "EFF0029ED4EF57E43F0936EF3769F647F1F6686B0A3F6DF07EAE2781B94C3AFE"
+                             "sha256":  "0CD7C2369B7117288DFB8B55891DAECC9C9424900319C1CD751C0E04908D7BD3"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -165,12 +165,32 @@
                              "sha256":  "DB65F74A3B9FF8258A22197DA9D1ADB46FC3548C82B349B7323E97D1707C260C"
                          },
                          {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanDiscovery.cs",
+                             "sha256":  "C53017F7BCCE7AE3DCBFC2EE7EB507E895AA1DAD310D1A280B21847523DE117C"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanPolling.cs",
+                             "sha256":  "10CE8766914DE1B6B9733E5331F16E68A45AD8721224A995AFA507C039B1ABBB"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanStartupBaseline.cs",
+                             "sha256":  "4A9C175240450617FE19E82D3EA2AE2F8FF6080C706AC86B9577787E27FCB002"
+                         },
+                         {
                              "path":  "source/Providers/Steam/SteamApiTokenService.cs",
                              "sha256":  "98C996EDB1D73E09022B343BEFCFCDCF092B17E0E2F0B4913FB530691355838A"
                          },
                          {
                              "path":  "source/Providers/Steam/SteamAsyncConfigTokenHelper.cs",
                              "sha256":  "100429FEFA4A230997E4F9F9EF83AA5BBBC62FCC7D111545F5F0BD12FA2FFB3D"
+                         },
+                         {
+                             "path":  "source/Providers/Steam/SteamDataProvider.SantodanPolling.cs",
+                             "sha256":  "0C524DD449F185928E537365BE0EA33D82C123357F587FAE44EF533ACCFC2B5A"
+                         },
+                         {
+                             "path":  "source/Providers/Steam/SteamHuntersCategoryEnricher.SantodanCache.cs",
+                             "sha256":  "71A9463CEA8555935B7B2EB1F7C32C8C094898AA8426E15930BC469E8BC39DCF"
                          },
                          {
                              "path":  "source/Providers/Steam/SteamOwnedGamesImporter.cs",
@@ -237,12 +257,48 @@
                              "sha256":  "1F756C6D59E12029B329AF90651E927449FBEA3FEC37E7F350C607F97AB2340F"
                          },
                          {
+                             "path":  "source/Services/Achievements/AchievementDataService.SantodanNotifications.cs",
+                             "sha256":  "C3E483A93266DD8C23C15F3BFA4DB3D3D7F48FEA36F50759D6C7D8642B432780"
+                         },
+                         {
+                             "path":  "source/Services/Achievements/NotificationGameSummaryCache.cs",
+                             "sha256":  "691F08C6952FE484F837EBA945138EE0A8D5360036269C5A727653FE42BAB14C"
+                         },
+                         {
                              "path":  "source/Services/Exophase/ExophaseGameAchievementMonitor.cs",
                              "sha256":  "D3138727570B80E6E29BE59AFAD9636E8FB440074629325B544412FCBBACEDCE"
                          },
                          {
                              "path":  "source/Services/InGameMonitoring/InGameSessionUnlocks.cs",
                              "sha256":  "3A865487415E712051C4D443AAE80845ECA4BF826EEF37E1BCA77976F9BE9052"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/LocalPollingDirectoryCache.cs",
+                             "sha256":  "0C89B36C00C44DB86D225809BD6482CE5D28088CF934AC16C7444E83F40BFB09"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/LocalPollingFingerprintGate.cs",
+                             "sha256":  "6B0A299117112E1F79EA5335F4A4EB352DF62B9F9E8ADC7CF0564AA364C50F81"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/SantodanLocalPolling.cs",
+                             "sha256":  "48A68046468E2A8AC6C7C841B671FD44F04964C201371434100ECA7B961A8BD3"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/SantodanPollingConfiguration.cs",
+                             "sha256":  "6452DB084F7FE2C84339E167ADC073A97A47CB53B6AFA94065EFE956BF3629AC"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/SantodanPollingScope.cs",
+                             "sha256":  "117D555DD0031BD954F279F25B8C1DA1EEF7A7F0F41C3AFB503797CE27DC70A1"
+                         },
+                         {
+                             "path":  "source/Services/InGameMonitoring/SantodanStartupBaselineStore.cs",
+                             "sha256":  "6CDFB9723E868600553FC60208620BFCE0B81A2CD2E20461F20D4BD8F9A0C337"
+                         },
+                         {
+                             "path":  "source/Services/Library/LibraryProjectionService.SantodanPolling.cs",
+                             "sha256":  "E395FC7583D0CE1489523DD7C1DE75A4687922F311CCECAC418591A5AE8E40E2"
                          },
                          {
                              "path":  "source/Services/Local/ActiveGameAchievementMonitor.cs",
@@ -257,12 +313,28 @@
                              "sha256":  "BD053D1FD37E4261B0FDFA52851F087C6449A4B8903DA715B4D993E1B54F85E7"
                          },
                          {
+                             "path":  "source/Services/Logging/CefDebugTrace.cs",
+                             "sha256":  "785B1038BD186064D2A228741D9565D6CDA1B874CF9D386B751DEB89FF70D9E4"
+                         },
+                         {
                              "path":  "source/Services/Logging/ForkLogger.cs",
                              "sha256":  "87C7CE5ECD4A57EA338842DEC16256B723716092BF4096704DF0498BCFAB2CF1"
                          },
                          {
+                             "path":  "source/Services/Logging/PollingDebugLog.cs",
+                             "sha256":  "CE5A1C5F8C3B5DD5A057BBFFB6660D9997E974F32BE5E19656F81A5D7509A086"
+                         },
+                         {
+                             "path":  "source/Services/Logging/ProcessThreadCpuSampler.cs",
+                             "sha256":  "7D2164C0E72902309FE348DD35278EF5268D425F092E4A8333D16ABDF59BF968"
+                         },
+                         {
                              "path":  "source/Services/Logging/RealtimePollingLogScope.cs",
                              "sha256":  "31C5DB7A1FFE77DB66C1EAA1DDA046A9D1464257C323C1C23E89339BAC3BF62B"
+                         },
+                         {
+                             "path":  "source/Services/NotificationPublisher.SantodanScores.cs",
+                             "sha256":  "DBDD994C22642DAE7B2BED00CB875DB8D99A742D017801A573908B659984028D"
                          },
                          {
                              "path":  "source/Services/Refresh/CustomRefreshGameMatcher.cs",
@@ -271,6 +343,10 @@
                          {
                              "path":  "source/Services/Refresh/NewGameAutoRefreshPolicy.cs",
                              "sha256":  "F7BD2C45188A65AAFCA2CC698B5FC5FC0ABF267DCB340137C6D01AE36BC53201"
+                         },
+                         {
+                             "path":  "source/Services/Refresh/RefreshRuntime.SantodanPolling.cs",
+                             "sha256":  "B74C5C07B567C5E0AAA054A8D870586CF03B49B963B401EFDAB23C7B70F78793"
                          },
                          {
                              "path":  "source/Services/Refresh/SteamRefreshTargeting.cs",
@@ -303,6 +379,10 @@
                          {
                              "path":  "source/Services/ThemeMigration/StartPageGameContextMenuBridge.cs",
                              "sha256":  "EC9D466FE97213CD0E3B09EF8733EAED16F7365F235C2EBDC8A57085EF8DF0FE"
+                         },
+                         {
+                             "path":  "source/Services/ThemeMigration/ThemeDiscoveryService.SantodanCache.cs",
+                             "sha256":  "3509E63E16A5E7B7DDA8BEF5B4B2BD34861EA6A6019EA1172159E531B68980BF"
                          },
                          {
                              "path":  "source/Services/UI/CustomNotificationProgressBar.cs",
@@ -366,7 +446,7 @@
                          },
                          {
                              "path":  "source/Views/LegacyNotificationSettingsControl.xaml.cs",
-                             "sha256":  "0E70EDAFD48969596AC294F1969318352B548C322D9D68C69426DC9EE2F1278A"
+                             "sha256":  "77C653292D5B2A515C97C77C05C963565598FC32593DF7EDB82F540961239287"
                          },
                          {
                              "path":  "source/Views/LocalAchievementEditorControl.xaml",
@@ -402,11 +482,19 @@
                          },
                          {
                              "path":  "source/Views/Settings/General/ForkGeneralSettingsSection.xaml",
-                             "sha256":  "461E8AE9EC3E7866B327CBC6D22D26D704879F5AC7D1EA3894AE2FB15975BBC5"
+                             "sha256":  "3BFF89248F6660298DBC316109B578B42D6AB1C40D393D61B5D15AB2DB2DD443"
                          },
                          {
                              "path":  "source/Views/Settings/General/ForkGeneralSettingsSection.xaml.cs",
-                             "sha256":  "755BB07FA63CEC8E7FDA7EF8CA7BC5052DB1D69FDF6AB7BBF75C8CF03DD87E1A"
+                             "sha256":  "E8C66A50BD0A78506A4CF355593363BBB596983F8BBBD5728BDD8EFD8FB28B7C"
+                         },
+                         {
+                             "path":  "source/Views/Settings/General/ForkPerformanceSettingsSection.xaml",
+                             "sha256":  "E68458407937FBE379948CE93446A27BA51A1030823BAA0F3D3477C332D44275"
+                         },
+                         {
+                             "path":  "source/Views/Settings/General/ForkPerformanceSettingsSection.xaml.cs",
+                             "sha256":  "39057012A580869AB0ED6683CDECFE6461B55E06ECA5899514DCC38F7D4D566D"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Models/LocalNotificationTypographySettingsTests.cs",
@@ -425,6 +513,10 @@
                              "sha256":  "991938FC6F84F2BDBE95618116C8849537228E8F682BB5794F21519787573B17"
                          },
                          {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/CefDebugTraceTests.cs",
+                             "sha256":  "A5314060D09D60148BC937BF4FF5870FB3F3AFC3AF2C740456A6483B25ACBB0D"
+                         },
+                         {
                              "path":  "tests/PlayniteAchievements.Tests/Services/CustomNotificationProgressBarTests.cs",
                              "sha256":  "35F7692AA5D1170C6ACEEC14A2664A9C8853B915811A504D4CD4D7B3DE9DE544"
                          },
@@ -441,6 +533,14 @@
                              "sha256":  "2A5DA8F6E1D6DC1D60D90AF9C5381491DFDE555887EE6174EC75B37870217771"
                          },
                          {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/LocalPollingDirectoryCacheTests.cs",
+                             "sha256":  "835E866E2A7FC5E3FCBF862FBE213C86AD9F5544006140E40E11B8668EC8ABAB"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/LocalPollingFingerprintGateTests.cs",
+                             "sha256":  "07CD95E9D8BCDB7D1985B7795A88B4D4A81E0BD773FFFE8E6F6DDF376C4C5F31"
+                         },
+                         {
                              "path":  "tests/PlayniteAchievements.Tests/Services/MemoriesWildcardTests.cs",
                              "sha256":  "FCC7060AF13544BE24155C41B5BEDD93A756AA71A4092DD2701FE2679FA03808"
                          },
@@ -449,8 +549,32 @@
                              "sha256":  "478BA33685EC8CD25CFFA1C7551ED02F907331848A3FFF716786A787BB6A2BC9"
                          },
                          {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/NotificationGameSummaryCacheTests.cs",
+                             "sha256":  "61E451BD1CC02FF1CE60EF3BB8B62959329479CA21D4F87427D04D38B14CDC77"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/PollingDebugLogTests.cs",
+                             "sha256":  "37102018EFE4065C98525C8791C2D567C8FA9D33A879D61A9AFFD5FFFA2327DB"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/ProcessThreadCpuSamplerTests.cs",
+                             "sha256":  "4BE318E62EA4AC531ECF113B4D430D66F956231909B37EE936CB8B8652471CAB"
+                         },
+                         {
                              "path":  "tests/PlayniteAchievements.Tests/Services/Ps5RankMigrationTests.cs",
                              "sha256":  "7804BEA69578C714B094A37424FAFAA33B9D8BF8955F4C88F91AD239FF07DF9E"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/SantodanPollingConfigurationTests.cs",
+                             "sha256":  "442B05DF8535A77A9E594CCEBDA3BB3E064123D18A603778B41739FA3CB61343"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/SantodanPollingScopeTests.cs",
+                             "sha256":  "D6C846114B95901073473CD0EA10F7FD086145BFEE8404AEAA6B52718737E88D"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/SantodanStartupBaselineStoreTests.cs",
+                             "sha256":  "7515A81668342F625C049AA1E403670D04C577A528EAC51B08B8B7E0111FC8F9"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Steam/SteamAsyncConfigTokenHelperTests.cs",

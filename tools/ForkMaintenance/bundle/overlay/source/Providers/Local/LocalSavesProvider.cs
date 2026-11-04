@@ -34,7 +34,7 @@ using PlayniteAchievements.Providers.Overrides;
 
 namespace PlayniteAchievements.Providers.Local
 {
-    public class LocalSavesProvider : IDataProvider, IProviderOverride
+    public partial class LocalSavesProvider : IDataProvider, IProviderOverride
     {
         private static readonly HashSet<Guid> ReportedAmbiguousFolderGames = new HashSet<Guid>();
         private static readonly Regex GenericAchievementNamePattern = new Regex(
@@ -333,6 +333,7 @@ namespace PlayniteAchievements.Providers.Local
 
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
         {
+            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.fetch-and-correlate");
             if (TryResolveNemirtingasPaths(game, out var epicSchemaPath, out var epicSavePath))
             {
                 var epicData = await LoadNemirtingasAchievementsAsync(game, epicSchemaPath, epicSavePath).ConfigureAwait(false);
@@ -864,6 +865,8 @@ namespace PlayniteAchievements.Providers.Local
                 return data;
             }
 
+            if (TryReuseSantodanPollingCategories(data)) return data;
+
             var steamProvider = ProviderRegistry.Instance?.GetProvider("Steam") as SteamDataProvider;
             if (steamProvider == null)
             {
@@ -886,11 +889,13 @@ namespace PlayniteAchievements.Providers.Local
             // If we are in 'None' library, the plugin usually sends 0 games.
             // We override this to check every game in your library.
             var targetGames = (games != null && games.Count > 0) ? games : _api.Database.Games.ToList();
+            var summary = new RebuildSummary();
             
             foreach (var game in targetGames)
             {
                     if (token.IsCancellationRequested) break;
 
+                var startupBaseline = CaptureSantodanStartupBaseline(game);
                 var data = await GetAchievementsAsync(game, null);
                 if (data != null)
                 {
@@ -901,12 +906,17 @@ namespace PlayniteAchievements.Providers.Local
                     ProviderRegistry.Write(localSettings);
                     
                     await onAchievementsUpdated(game, data);
+                    SaveSantodanStartupBaseline(game, data, startupBaseline);
+                    // Report only completed writes, so refresh completion can invalidate
+                    // these games rather than clearing every notification summary.
+                    RecordSantodanPollingRefresh(summary, game, data);
                     Log($"DATABASE: Submitted {game.Name} (Count: {data.Achievements.Count})");
                 }
                 
                 if (games?.Count > 0) onGameProcessed(game);
             }
-            return new RebuildPayload();
+            return PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.IsActive
+                ? new RebuildPayload { Summary = summary } : new RebuildPayload();
         }
 
         internal bool TryGetActiveMonitorSourceFingerprint(Game game, out string fingerprint)
@@ -7779,12 +7789,20 @@ namespace PlayniteAchievements.Providers.Local
 
         private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, IEnumerable<string> iniPaths)
         {
+            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.read-parse");
+            PlayniteAchievements.Services.Logging.PollingDebugLog.ObserveFile(jsonPath);
             var merged = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
 
             if (!string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath))
             {
-                var json = await Task.Run(() => File.ReadAllText(jsonPath)).ConfigureAwait(false);
-                var jsonEntries = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
+                var json = await Task.Run(() =>
+                {
+                    using var fileStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.json-read");
+                    return File.ReadAllText(jsonPath);
+                }).ConfigureAwait(false);
+                Dictionary<string, LocalEntry> jsonEntries;
+                using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.json-parse"))
+                    jsonEntries = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
                 if (jsonEntries != null)
                 {
                     var jsonDirectory = Path.GetDirectoryName(jsonPath);
@@ -7804,8 +7822,15 @@ namespace PlayniteAchievements.Providers.Local
                     continue;
                 }
 
-                var ini = await Task.Run(() => File.ReadAllLines(iniPath)).ConfigureAwait(false);
-                var iniEntries = ParseIniEntries(ini);
+                PlayniteAchievements.Services.Logging.PollingDebugLog.ObserveFile(iniPath);
+                var ini = await Task.Run(() =>
+                {
+                    using var fileStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.ini-read");
+                    return File.ReadAllLines(iniPath);
+                }).ConfigureAwait(false);
+                Dictionary<string, LocalEntry> iniEntries;
+                using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.ini-parse"))
+                    iniEntries = ParseIniEntries(ini);
                 var iniDirectory = Path.GetDirectoryName(iniPath);
                 foreach (var entry in iniEntries)
                 {
@@ -8373,7 +8398,7 @@ namespace PlayniteAchievements.Providers.Local
             return false;
         }
 
-        private bool TryResolveLocalFolder(
+        private bool TryResolveLocalFolderUncached(
             Game game,
             string appId,
             out string folderPath,
@@ -8381,6 +8406,7 @@ namespace PlayniteAchievements.Providers.Local
             out bool isOverridden,
             out bool isAmbiguous)
         {
+            using var pollingStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.folder-discovery");
             folderPath = null;
             candidateFolders = Array.Empty<string>();
             isOverridden = false;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -448,6 +448,9 @@ namespace PlayniteAchievements.Providers.Local
         private bool _enableOverlayDebugLogging;
         private bool _enablePollingDebugLogging;
         private bool _useCustomLocalPolling;
+        private bool _restrictCustomPollingAuthentication;
+        private bool _checkCustomPollingSourcesWhileWaiting;
+        private bool _reuseCustomPollingDiscoveryWithinPoll;
         private bool _reuseCustomPollingStartupBaseline;
         private bool _useLightweightCustomStartup;
         private bool _sampleProcessCpuThreads;
@@ -953,6 +956,24 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _useCustomLocalPolling;
             set => SetValue(ref _useCustomLocalPolling, value);
+        }
+
+        public bool RestrictCustomPollingAuthentication
+        {
+            get => _restrictCustomPollingAuthentication;
+            set => SetValue(ref _restrictCustomPollingAuthentication, value);
+        }
+
+        public bool CheckCustomPollingSourcesWhileWaiting
+        {
+            get => _checkCustomPollingSourcesWhileWaiting;
+            set => SetValue(ref _checkCustomPollingSourcesWhileWaiting, value);
+        }
+
+        public bool ReuseCustomPollingDiscoveryWithinPoll
+        {
+            get => _reuseCustomPollingDiscoveryWithinPoll;
+            set => SetValue(ref _reuseCustomPollingDiscoveryWithinPoll, value);
         }
 
         public bool ReuseCustomPollingStartupBaseline

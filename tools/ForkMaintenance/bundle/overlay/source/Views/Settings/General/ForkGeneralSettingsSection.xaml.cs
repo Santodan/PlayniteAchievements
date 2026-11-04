@@ -18,6 +18,21 @@ namespace PlayniteAchievements.Views.Settings.General
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             InitializeComponent();
             DataContext = settings ?? throw new ArgumentNullException(nameof(settings));
+            DebugModeCheckBox.DataContext = Providers.ProviderRegistry.Instance?.GetSettingsForEdit("Local");
+        }
+
+        private void DebugMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is CheckBox checkBox) || !(checkBox.DataContext is Providers.Local.LocalSettings)) return;
+            try
+            {
+                Services.Logging.PollingDebugLog.Configure(_plugin.GetPluginUserDataPath(), checkBox.IsChecked == true,
+                    (checkBox.DataContext as Providers.Local.LocalSettings)?.SampleProcessCpuThreads == true);
+            }
+            catch (Exception ex)
+            {
+                _plugin.PlayniteApi.Dialogs.ShowErrorMessage(ex.Message, "Debug mode");
+            }
         }
 
         private List<string> GetLogPaths()
@@ -27,7 +42,8 @@ namespace PlayniteAchievements.Views.Settings.General
             {
                 Path.Combine(root, "playnite.log"),
                 Path.Combine(root, "extensions.log"),
-                Path.Combine(_plugin.GetPluginUserDataPath(), "playniteachievements.log")
+                Path.Combine(_plugin.GetPluginUserDataPath(), "playniteachievements.log"),
+                Path.Combine(_plugin.GetPluginUserDataPath(), "PollingDebug.log")
             };
         }
 

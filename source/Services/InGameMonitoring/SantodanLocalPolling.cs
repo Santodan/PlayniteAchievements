@@ -41,7 +41,9 @@ namespace PlayniteAchievements.Services
             foreach (var game in games)
             {
                 string fingerprint = null;
-                if (!game.WaitingForLocalAchievementFile)
+                var checkFingerprint = !game.WaitingForLocalAchievementFile ||
+                    ProviderRegistry.Settings<LocalSettings>()?.CheckCustomPollingSourcesWhileWaiting == true;
+                if (checkFingerprint)
                 {
                     try
                     {
@@ -61,7 +63,9 @@ namespace PlayniteAchievements.Services
                 TryReuseSantodanStartupBaseline(game, fingerprint);
                 var refresh = game.CustomLocalPolling.Fingerprint.NeedsRefresh(true, fingerprint);
                 PollingDebugLog.Write("game=" + game.Game.Id + " pollingMechanism=santodan" +
-                    " fingerprintAvailable=" + (fingerprint != null) + " refresh=" + refresh);
+                    " fingerprintAvailable=" + (fingerprint != null) + " refresh=" + refresh +
+                    " waitingForAchievementFile=" + game.WaitingForLocalAchievementFile +
+                    " fingerprintChecked=" + checkFingerprint);
                 if (refresh)
                 {
                     batch.Games.Add(game);

@@ -686,6 +686,7 @@
     <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
+    <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.SantodanPolling.cs" Link="Source\Services\Refresh\RefreshRuntime.SantodanPolling.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshCoordinator.cs" Link="Source\Services\Refresh\FriendRefreshCoordinator.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
