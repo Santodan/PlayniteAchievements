@@ -104,9 +104,12 @@ namespace PlayniteAchievements.ViewModels
         /// ("TagIcon:<codepoint>|<color>", the prefix being ProviderIconConverter.TagIconPrefix,
         /// with an empty color drawing in the text color); null for a tag without an icon.
         /// </summary>
-        public static string IconKey(string key, Guid? gameId)
+        public static string IconKey(string key, Guid? gameId) =>
+            IconKey(AchievementTagRegistry.Resolve(key, gameId));
+
+        /// <summary>The badge key of <paramref name="definition"/> itself, for a tag not yet in the registry.</summary>
+        public static string IconKey(AchievementTagDefinition definition)
         {
-            var definition = AchievementTagRegistry.Resolve(key, gameId);
             var icon = AchievementTagHelper.NormalizeIcon(definition?.Icon);
             return icon == null
                 ? null
