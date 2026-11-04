@@ -96,6 +96,31 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void EventArgs_TestFire_BypassesRarity()
+        {
+            var settings = MakeSettings(clean: false, framed: false);
+            settings.UnlockRecordingRarities = RaritySelection.None;
+            settings.UnlockRecordingAlwaysCaptureCompletion = false;
+
+            var real = new AchievementUnlockedEventArgs { ProviderKey = "Steam", RarityTier = "Common" };
+            Assert.AreEqual(ScreenshotVariants.None, UnlockClipVariantPolicy.Resolve(real, settings));
+
+            var retrigger = new AchievementUnlockedEventArgs { ProviderKey = "Steam", RarityTier = "Common", IsTestFire = true };
+            Assert.AreEqual(ScreenshotVariants.WithToast, UnlockClipVariantPolicy.Resolve(retrigger, settings));
+        }
+
+        [TestMethod]
+        public void BypassRarity_StillHonorsRecordingsSwitch()
+        {
+            var settings = MakeSettings();
+            settings.EnableUnlockRecordings = false;
+
+            Assert.AreEqual(
+                ScreenshotVariants.None,
+                UnlockClipVariantPolicy.Resolve(RarityTier.Common, false, "Steam", settings, bypassRarity: true));
+        }
+
+        [TestMethod]
         public void FramedSeconds_NonPositiveMeansWholeClip()
         {
             var settings = new PersistedSettings { UnlockRecordingFramedSeconds = 0 };
