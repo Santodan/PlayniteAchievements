@@ -20,8 +20,10 @@ namespace PlayniteAchievements.ViewModels
     {
         private DateTime? _unlockRangeFrom;
         private DateTime? _unlockRangeTo;
-        private readonly HashSet<string> _selectedRarityFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private readonly HashSet<string> _selectedTrophyFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // The Achievements grid's Rarity (tiers plus Capstone) and Trophy filters, shared with the
+        // widget bars; built in InitializeGridControlBars.
+        private RarityTrophyControlBarFilters _tierFilters;
 
         // Achievement tag keys; a tag pie slice in the mini-showcase toggles them too.
         private readonly HashSet<string> _selectedTagFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -104,98 +106,18 @@ namespace PlayniteAchievements.ViewModels
             ScheduleAchievementFilterApply();
         }
 
-        // Rarity and trophy filters: their option labels are the slice labels the rarity and
-        // trophy pies draw, so a slice click selects the option of the same name.
-        public ObservableCollection<string> RarityFilterOptions { get; } = new ObservableCollection<string>();
-
-        public ObservableCollection<string> TrophyFilterOptions { get; } = new ObservableCollection<string>();
-
-        public string SelectedRarityFilterText =>
-            GetSelectedFilterText(_selectedRarityFilters, RarityFilterOptions, L("LOCPlayAch_Column_Rarity"));
-
-        public string SelectedTrophyFilterText =>
-            GetSelectedFilterText(_selectedTrophyFilters, TrophyFilterOptions, L("LOCPlayAch_Column_Trophy"));
-
-        public bool IsRarityFilterSelected(string value) => IsFilterSelected(_selectedRarityFilters, value);
-
-        public bool IsTrophyFilterSelected(string value) => IsFilterSelected(_selectedTrophyFilters, value);
-
-        public void SetRarityFilterSelected(string value, bool isSelected)
-        {
-            if (SetFilterSelection(_selectedRarityFilters, value, isSelected))
-            {
-                OnPropertyChanged(nameof(SelectedRarityFilterText));
-                ScheduleAchievementFilterApply();
-            }
-        }
-
-        public void SetTrophyFilterSelected(string value, bool isSelected)
-        {
-            if (SetFilterSelection(_selectedTrophyFilters, value, isSelected))
-            {
-                OnPropertyChanged(nameof(SelectedTrophyFilterText));
-                ScheduleAchievementFilterApply();
-            }
-        }
-
-        private void ClearRarityFilters()
-        {
-            foreach (var value in _selectedRarityFilters.ToList())
-            {
-                SetRarityFilterSelected(value, false);
-            }
-        }
-
-        private void ClearTrophyFilters()
-        {
-            foreach (var value in _selectedTrophyFilters.ToList())
-            {
-                SetTrophyFilterSelected(value, false);
-            }
-        }
-
-        // The badges the Rarity and Trophy filters show beside their labels and in the bar.
-        private string RarityFilterIconKey(string label) =>
-            RarityByLabel().TryGetValue(label ?? string.Empty, out var tier) ? tier.ToDynamicIconKey() : null;
-
-        private string TrophyFilterIconKey(string label) =>
-            TrophyTypeByLabel().TryGetValue(label ?? string.Empty, out var type)
-                ? RarityTrophyControlBarFilters.TrophyChoices
-                    .FirstOrDefault(choice => string.Equals(choice.Type, type, StringComparison.OrdinalIgnoreCase)).IconKey
-                : null;
-
-        private Dictionary<string, RarityTier> RarityByLabel() =>
-            new Dictionary<string, RarityTier>(StringComparer.OrdinalIgnoreCase)
-            {
-                [L("LOCPlayAch_Rarity_Common")] = RarityTier.Common,
-                [L("LOCPlayAch_Rarity_Uncommon")] = RarityTier.Uncommon,
-                [L("LOCPlayAch_Rarity_Rare")] = RarityTier.Rare,
-                [L("LOCPlayAch_Rarity_UltraRare")] = RarityTier.UltraRare
-            };
-
-        private Dictionary<string, string> TrophyTypeByLabel() =>
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [L("LOCPlayAch_Trophy_Platinum")] = "platinum",
-                [L("LOCPlayAch_Trophy_Gold")] = "gold",
-                [L("LOCPlayAch_Trophy_Silver")] = "silver",
-                [L("LOCPlayAch_Trophy_Bronze")] = "bronze"
-            };
-
         /// <summary>
-        /// Fills the rarity options, and the trophy options only when some unlocked achievement
-        /// has a trophy type; an empty list hides the trophy filter.
+        /// Offers the trophy options only while some unlocked achievement has a trophy type; an
+        /// empty list hides the trophy filter. The rarity options (the tiers and Capstone) are
+        /// fixed. The rarity and trophy option labels are the slice labels the rarity and trophy
+        /// pies draw, so a slice click selects the option of the same name.
         /// </summary>
         private void UpdateAchievementFilterOptions()
         {
-            CollectionHelper.SynchronizeCollection(RarityFilterOptions, RarityByLabel().Keys.ToList());
-            var hasTrophies = (_allRecentAchievements ?? new List<AchievementDisplayItem>())
-                .Any(item => !string.IsNullOrWhiteSpace(item?.TrophyType));
-            CollectionHelper.SynchronizeCollection(
-                TrophyFilterOptions,
-                hasTrophies ? TrophyTypeByLabel().Keys.ToList() : new List<string>());
-            OnPropertyChanged(nameof(SelectedRarityFilterText));
-            OnPropertyChanged(nameof(SelectedTrophyFilterText));
+            if (_tierFilters.UpdateRows(_allRecentAchievements))
+            {
+                RecentAchievementsControlBar?.Refresh();
+            }
         }
 
         private void ScheduleAchievementFilterApply() => ScheduleFilterApply();
@@ -237,8 +159,8 @@ namespace PlayniteAchievements.ViewModels
 
         private bool HasAchievementFilters(OverviewLinkedFilter exclude) =>
             ((exclude & OverviewLinkedFilter.UnlockSpan) == 0 && UnlockSpanFilter.HasValue) ||
-            ((exclude & OverviewLinkedFilter.Rarity) == 0 && _selectedRarityFilters.Count > 0) ||
-            ((exclude & OverviewLinkedFilter.Trophy) == 0 && _selectedTrophyFilters.Count > 0) ||
+            ((exclude & OverviewLinkedFilter.Rarity) == 0 && _tierFilters.HasRaritySelection) ||
+            ((exclude & OverviewLinkedFilter.Trophy) == 0 && _tierFilters.HasTrophySelection) ||
             ((exclude & OverviewLinkedFilter.Tag) == 0 && _selectedTagFilters.Count > 0);
 
         /// <summary>
@@ -249,18 +171,9 @@ namespace PlayniteAchievements.ViewModels
         private Func<AchievementDisplayItem, bool> AchievementFilter(OverviewLinkedFilter exclude)
         {
             var span = (exclude & OverviewLinkedFilter.UnlockSpan) == 0 ? UnlockSpanFilter : null;
-            var rarityByLabel = RarityByLabel();
-            var rarities = (exclude & OverviewLinkedFilter.Rarity) == 0 && _selectedRarityFilters.Count > 0
-                ? new HashSet<RarityTier>(_selectedRarityFilters
-                    .Where(rarityByLabel.ContainsKey)
-                    .Select(label => rarityByLabel[label]))
-                : null;
-            var trophyByLabel = TrophyTypeByLabel();
-            var trophies = (exclude & OverviewLinkedFilter.Trophy) == 0 && _selectedTrophyFilters.Count > 0
-                ? new HashSet<string>(
-                    _selectedTrophyFilters.Where(trophyByLabel.ContainsKey).Select(label => trophyByLabel[label]),
-                    StringComparer.OrdinalIgnoreCase)
-                : null;
+            var tiers = _tierFilters;
+            var applyRarity = (exclude & OverviewLinkedFilter.Rarity) == 0 && tiers.HasRaritySelection;
+            var applyTrophy = (exclude & OverviewLinkedFilter.Trophy) == 0 && tiers.HasTrophySelection;
             var tags = (exclude & OverviewLinkedFilter.Tag) == 0 && _selectedTagFilters.Count > 0
                 ? _selectedTagFilters.ToList()
                 : null;
@@ -269,8 +182,8 @@ namespace PlayniteAchievements.ViewModels
                 item?.Unlocked == true &&
                 (!span.HasValue ||
                  (item.UnlockTimeUtc.HasValue && span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))) &&
-                (rarities == null || rarities.Contains(item.Rarity)) &&
-                (trophies == null || trophies.Contains((item.TrophyType ?? string.Empty).Trim())) &&
+                (!applyRarity || tiers.MatchesRarity(item)) &&
+                (!applyTrophy || tiers.MatchesTrophy(item)) &&
                 (tags == null || tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
         }
 
@@ -283,12 +196,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var span = (exclude & OverviewLinkedFilter.UnlockSpan) == 0 ? UnlockSpanFilter : null;
-            var rarity = (exclude & OverviewLinkedFilter.Rarity) == 0
-                ? string.Join(",", _selectedRarityFilters.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
-                : string.Empty;
-            var trophy = (exclude & OverviewLinkedFilter.Trophy) == 0
-                ? string.Join(",", _selectedTrophyFilters.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
-                : string.Empty;
+            var rarity = (exclude & OverviewLinkedFilter.Rarity) == 0 ? _tierFilters.RarityKey : string.Empty;
+            var trophy = (exclude & OverviewLinkedFilter.Trophy) == 0 ? _tierFilters.TrophyKey : string.Empty;
             var tag = (exclude & OverviewLinkedFilter.Tag) == 0
                 ? string.Join(",", _selectedTagFilters.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
                 : string.Empty;
@@ -522,9 +431,10 @@ namespace PlayniteAchievements.ViewModels
 
                     return new[] { complete ? OverviewLinkedSliceKeys.Complete : OverviewLinkedSliceKeys.Incomplete };
                 case ShowcasePieMode.Rarity:
-                    return _selectedRarityFilters.ToList();
+                    // The Capstone label names no slice, so it highlights nothing.
+                    return _tierFilters.SelectedRarityLabels;
                 case ShowcasePieMode.Trophy:
-                    return _selectedTrophyFilters.ToList();
+                    return _tierFilters.SelectedTrophyLabels;
                 case ShowcasePieMode.Tag:
                     return _selectedTagFilters.ToList();
                 default:
@@ -570,22 +480,22 @@ namespace PlayniteAchievements.ViewModels
                 case ShowcasePieMode.Rarity:
                     if (sliceKey == OverviewLinkedSliceKeys.Locked)
                     {
-                        ClearRarityFilters();
+                        _tierFilters.ClearRarity();
                     }
-                    else if (RarityByLabel().ContainsKey(sliceKey))
+                    else if (_tierFilters.RarityOptions.Contains(sliceKey))
                     {
-                        SetRarityFilterSelected(sliceKey, !IsRarityFilterSelected(sliceKey));
+                        _tierFilters.SetRaritySelected(sliceKey, !_tierFilters.IsRaritySelected(sliceKey));
                     }
 
                     return;
                 case ShowcasePieMode.Trophy:
                     if (sliceKey == OverviewLinkedSliceKeys.Locked)
                     {
-                        ClearTrophyFilters();
+                        _tierFilters.ClearTrophy();
                     }
-                    else if (TrophyTypeByLabel().ContainsKey(sliceKey))
+                    else if (_tierFilters.TrophyOptions.Contains(sliceKey))
                     {
-                        SetTrophyFilterSelected(sliceKey, !IsTrophyFilterSelected(sliceKey));
+                        _tierFilters.SetTrophySelected(sliceKey, !_tierFilters.IsTrophySelected(sliceKey));
                     }
 
                     return;
