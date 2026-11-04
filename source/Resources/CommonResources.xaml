@@ -1838,7 +1838,6 @@
     <DataTemplate x:Key="PlayAch.CategoryPathSegmentTemplate" DataType="{x:Type items:CategoryPathSegment}">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Button Content="{Binding Content}"
-                    Command="{Binding NavigateCommand}"
                     IsEnabled="{Binding IsNavigable}"
                     ToolTip="{Binding ToolTip}">
                 <Button.Style>

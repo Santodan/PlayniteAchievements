@@ -209,8 +209,7 @@
             </Grid.RowDefinitions>
 
             <!-- Breadcrumb header, shown only once a category is selected -->
-            <StackPanel Grid.Row="0"
-                        Orientation="Horizontal"
+            <controls:FlexibleRowPanel Grid.Row="0"
                         Margin="0,0,0,8"
                         Visibility="{Binding IsCategorySelected, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{Binding GameName}"
@@ -229,14 +228,15 @@
                         VerticalAlignment="Center"/>
                 <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=AchievementsDataGridControl}"
                         ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Center"
+                        controls:FlexibleRowPanel.Fill="True">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal"/>
+                            <controls:CategoryPathPanel/>
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
-            </StackPanel>
+            </controls:FlexibleRowPanel>
 
             <controls:AchievementDataGridControl x:Name="AchievementsDataGridControl"
                                                  Grid.Row="1"

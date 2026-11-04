@@ -2028,16 +2028,6 @@ namespace PlayniteAchievements.Views.Controls
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        /// <summary>
-        /// Path navigation: returns to the category list rather than drilling into the hop. The
-        /// list is the map and holds every node, so it is one click from there to anywhere - and
-        /// coming back lands on the same scroll position the user drilled in from.
-        /// </summary>
-        private void NavigateToAncestorInList(int depth)
-        {
-            DrillToPath(null);
-        }
-
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
         public void DrillToPath(string path)
         {
@@ -2078,7 +2068,7 @@ namespace PlayniteAchievements.Views.Controls
             DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
             DrilledCategoryPath = drill ? DrilledPath : null;
             DrilledCategorySegments = drill
-                ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
+                ? CategoryPathSegment.Build(_drillPath)
                 : null;
 
             ApplyCategoryPaneLayout();
