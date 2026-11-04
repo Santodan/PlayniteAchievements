@@ -1901,6 +1901,12 @@ namespace PlayniteAchievements.Models
         public static ShowcaseVerticalAlignment GetVerticalAlignment(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, VerticalAlign, ShowcaseVerticalAlignment.Center);
 
+        /// <summary>The widget's vertical alignment, or <paramref name="fallback"/> while unset.</summary>
+        public static ShowcaseVerticalAlignment GetVerticalAlignment(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseVerticalAlignment fallback) =>
+            GetEnum(settings, VerticalAlign, fallback);
+
         public static void SetVerticalAlignment(
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseVerticalAlignment value) => settings?.SetOption(VerticalAlign, value);
