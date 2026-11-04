@@ -91,6 +91,12 @@ namespace PlayniteAchievements.Models.Tagging
         CustomText,
 
         /// <summary>Game has achievements the user authored, an auto capstone aside.</summary>
-        CustomAchievements
+        CustomAchievements,
+
+        /// <summary>
+        /// Game's achievement list is tracked through a manual link. Additive to
+        /// <see cref="HasAchievements"/>, which such a list also counts as.
+        /// </summary>
+        ManualAchievements
     }
 }
