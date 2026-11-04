@@ -21,13 +21,6 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
 
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PlayniteLibraryHeader}"
-                       Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PlayniteLibraryDescription}"
-                       Style="{StaticResource MutedTextStyle}"
-                       Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"
-                       TextWrapping="Wrap"/>
-
             <!-- ================== TAGS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel Grid.IsSharedSizeScope="True">
