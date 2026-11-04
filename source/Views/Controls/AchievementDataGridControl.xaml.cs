@@ -716,6 +716,21 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(AllowDisplaySettingsMenuProperty, value);
         }
 
+        /// <summary>
+        /// When false, a category row's menu offers no edit actions (rename, subcategory, merge,
+        /// duplicate, delete), only Manage Categories. Off in the friend grids: they show another
+        /// user's unlocks, and the user's own category layout is not edited from there.
+        /// </summary>
+        public static readonly DependencyProperty AllowCategoryEditingProperty =
+            DependencyProperty.Register(nameof(AllowCategoryEditing), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        public bool AllowCategoryEditing
+        {
+            get => (bool)GetValue(AllowCategoryEditingProperty);
+            set => SetValue(AllowCategoryEditingProperty, value);
+        }
+
         public static readonly DependencyProperty DelayInitialRenderUntilNormalizedProperty =
             DependencyProperty.Register(nameof(DelayInitialRenderUntilNormalized), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(false, OnDelayInitialRenderUntilNormalizedChanged));
@@ -2028,16 +2043,6 @@ namespace PlayniteAchievements.Views.Controls
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        /// <summary>
-        /// Path navigation: returns to the category list rather than drilling into the hop. The
-        /// list is the map and holds every node, so it is one click from there to anywhere - and
-        /// coming back lands on the same scroll position the user drilled in from.
-        /// </summary>
-        private void NavigateToAncestorInList(int depth)
-        {
-            DrillToPath(null);
-        }
-
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
         public void DrillToPath(string path)
         {
@@ -2078,7 +2083,7 @@ namespace PlayniteAchievements.Views.Controls
             DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
             DrilledCategoryPath = drill ? DrilledPath : null;
             DrilledCategorySegments = drill
-                ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
+                ? CategoryPathSegment.Build(_drillPath)
                 : null;
 
             ApplyCategoryPaneLayout();
@@ -2498,6 +2503,11 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var menu = new ContextMenu();
+            if (AllowCategoryEditing && AppendCategoryEditActions(menu, gameId, summary.CategoryPath ?? summary.CategoryLabel))
+            {
+                menu.Items.Add(new Separator());
+            }
+
             menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(
                 this,
                 "LOCPlayAch_ManageAchievements_Category_Context_ManageCategories",
@@ -2512,6 +2522,52 @@ namespace PlayniteAchievements.Views.Controls
             menu.Placement = PlacementMode.MousePoint;
             menu.IsOpen = true;
             return true;
+        }
+
+        /// <summary>
+        /// The same actions the Manage Categories row menu offers, run headless over a snapshot of
+        /// the game's categories taken as the menu opens. The tab defers its library catch-up to
+        /// teardown; here each applied edit pays it at once, since there is no teardown to wait
+        /// for, and tells an open Manage window on this game to reload.
+        /// </summary>
+        private bool AppendCategoryEditActions(ContextMenu menu, Guid gameId, string categoryLabel)
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var overrides = plugin?.AchievementOverridesService;
+            var dataService = plugin?.AchievementDataService;
+            if (overrides == null || dataService == null)
+            {
+                return false;
+            }
+
+            var logger = PluginLogger.GetLogger(nameof(AchievementDataGridControl));
+            CategoryEditSnapshot snapshot;
+            try
+            {
+                snapshot = CategoryEditSnapshotLoader.Load(
+                    gameId,
+                    dataService,
+                    () => plugin.Settings?.Persisted,
+                    plugin.GameCustomDataStore);
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex, $"Failed loading the category snapshot for gameId={gameId}.");
+                return false;
+            }
+
+            var editor = new CategoryEditor(overrides, () => plugin.Settings?.Persisted, logger, plugin.GameCustomDataStore);
+            return CategoryRowActionsMenuBuilder.Append(
+                menu,
+                this,
+                editor,
+                snapshot,
+                categoryLabel,
+                outcome =>
+                {
+                    AchievementRowOptionsMenuBuilder.NotifySummaryRowsChanged(gameId);
+                    OpenEditorRegistry.NotifyBackgroundWrite(gameId);
+                });
         }
 
         private bool TryResolveCategoryGameId(CategorySummaryItem summary, out Guid gameId)

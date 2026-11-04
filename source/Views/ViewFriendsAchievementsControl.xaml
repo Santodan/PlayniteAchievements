@@ -125,7 +125,7 @@
                         Padding="12,0"
                         BorderBrush="{DynamicResource PlayAch.Brush.ControlBorder}"
                         BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <controls:FlexibleRowPanel VerticalAlignment="Center">
                         <TextBlock Text="{Binding AchievementSectionTitle}"
                                    FontSize="{DynamicResource PlayAch.FontSize.Body}"
                                    FontWeight="Bold"
@@ -154,10 +154,11 @@
                         <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=FriendsAchievementsGrid}"
                                       ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
                                       VerticalAlignment="Center"
+                                      controls:FlexibleRowPanel.Fill="True"
                                       Visibility="{Binding IsCategorySelected, Converter={StaticResource BoolToVis}}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal"/>
+                                    <controls:CategoryPathPanel/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
@@ -175,7 +176,7 @@
                                 Style="{StaticResource ClearGameSelectionButtonStyle}"
                                 Margin="10,0,0,0"
                                 Visibility="{Binding HasFriendSelection, Converter={StaticResource BoolToVis}}"/>
-                    </StackPanel>
+                    </controls:FlexibleRowPanel>
                 </Border>
 
                 <controls:FriendSummariesGridControl x:Name="FriendSummariesGridControl"
@@ -201,6 +202,7 @@
                                                          CategorySummarySource="{Binding SelectedFriendAllAchievements}"
                                                          ColumnSettingsKey="{Binding AchievementColumnSettingsKey}"
                                                          EnableCategoryMode="{Binding HasFriendSelection}"
+                                                         AllowCategoryEditing="False"
                                                          CategoryColumnSettingsKey="ViewFriendsAchievementsCategorySummaries"
                                                          HideCategorySummaryRow="{Binding HideCategorySummaryRow}"
                                                          DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"

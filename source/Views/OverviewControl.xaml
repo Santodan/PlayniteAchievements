@@ -731,8 +731,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0"
-                                        Orientation="Horizontal"
+                            <controls:FlexibleRowPanel Grid.Column="0"
                                         VerticalAlignment="Center">
 
                                 <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
@@ -765,10 +764,11 @@
                                 <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=GameAchievementsGrid}"
                                         ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
                                         VerticalAlignment="Center"
+                                        controls:FlexibleRowPanel.Fill="True"
                                         Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal"/>
+                                            <controls:CategoryPathPanel/>
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
@@ -786,7 +786,7 @@
                                         Click="ClearGameSelection_Click"
                                         Margin="10,0,0,0"/>
 
-                            </StackPanel>
+                            </controls:FlexibleRowPanel>
 
                             <Button Grid.Column="1"
                                     Style="{StaticResource HeaderControlBarToggleStyle}"

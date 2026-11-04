@@ -34,6 +34,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private readonly ILogger _logger;
         private readonly string _gameIdText;
 
+        // Every category write goes through here; this view model keeps the rows and the events.
+        private readonly CategoryEditor _editor;
+
         private List<ManageAchievementsCategoryItem> _allRows = new List<ManageAchievementsCategoryItem>();
 
         // Same row instances as _allRows re-sorted into canonical definition/custom order; used as
@@ -89,6 +92,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _managedCustomIconService = managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
+            _editor = new CategoryEditor(_achievementOverridesService, () => _settings?.Persisted, logger);
 
             CategoryRows = new BulkObservableCollection<ManageAchievementsCategoryMetadataItem>();
             AchievementTagRegistry.Changed += OnTagsChanged;

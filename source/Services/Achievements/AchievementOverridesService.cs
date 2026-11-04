@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Services.Achievements
 {
-    public sealed class AchievementOverridesService
+    public sealed class AchievementOverridesService : ICategoryMetadataWriter
     {
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ICacheManager _cacheService;

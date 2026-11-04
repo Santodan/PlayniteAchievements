@@ -1367,6 +1367,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_categoryControl != null)
             {
                 _categoryControl.SidebarCategoryScopeChanged -= CategoryControl_SidebarCategoryScopeChanged;
+                _categoryControl.Cleanup();
             }
 
             _categoryControl = null;
