@@ -740,7 +740,7 @@ namespace PlayniteAchievements.Views.Helpers
         // they repaint only the clicked row. The Manage editor raises this same scoped invalidation
         // for its edits; without it the summary memo, the Overview's per-game delta, the Showcase
         // and the start page all kept showing the old value.
-        private static void NotifySummaryRowsChanged(Guid gameId)
+        internal static void NotifySummaryRowsChanged(Guid gameId)
         {
             if (gameId != Guid.Empty)
             {
