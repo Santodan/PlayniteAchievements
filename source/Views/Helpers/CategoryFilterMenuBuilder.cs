@@ -127,6 +127,16 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
+        /// The style for a one-shot target chooser. Always the tree style: its guide collapses when
+        /// nothing nests, and it is the one that can drop the check gutter, which these rows never
+        /// use.
+        /// </summary>
+        public static Style ResolveActionItemStyle(FrameworkElement resourceOwner)
+        {
+            return resourceOwner?.TryFindResource(TreeItemStyleKey) as Style;
+        }
+
+        /// <summary>
         /// Replaces <paramref name="menu"/>'s items with one row per category. Returns false when
         /// there is nothing to show, so the caller can leave the menu closed.
         /// </summary>
@@ -240,7 +250,8 @@ namespace PlayniteAchievements.Views.Helpers
                 Header = row.LeafDisplay,
                 ToolTip = row.PathDisplay,
                 TreeShape = row.TreeShape,
-                IsEnabled = row.IsSelectable
+                IsEnabled = row.IsSelectable,
+                ShowsCheckGutter = false
             };
 
             if (itemStyle != null)

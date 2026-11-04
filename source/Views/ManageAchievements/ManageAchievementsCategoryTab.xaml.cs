@@ -423,7 +423,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 .Select(candidate => candidate.CategoryLabel)
                 .ToList();
             var targetRows = CategoryFilterMenuBuilder.BuildRows(validTargets);
-            var itemStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, targetRows);
+            var itemStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(this);
             foreach (var targetRow in targetRows)
             {
                 subcategoryMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
@@ -462,7 +462,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     .Select(candidate => candidate.CategoryLabel)
                     .ToList();
                 var mergeTargetRows = CategoryFilterMenuBuilder.BuildRows(mergeTargets);
-                var mergeStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, mergeTargetRows);
+                var mergeStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(this);
                 foreach (var mergeTargetRow in mergeTargetRows)
                 {
                     mergeMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(

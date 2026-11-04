@@ -74,7 +74,7 @@ namespace PlayniteAchievements.Views.Helpers
                 .Where(candidate => CategoryEditor.CanNestCategoryRowsUnder(snapshot, labels, candidate))
                 .ToList();
             var targetRows = CategoryFilterMenuBuilder.BuildRows(validTargets);
-            var itemStyle = CategoryFilterMenuBuilder.ResolveItemStyle(owner, targetRows);
+            var itemStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(owner);
             foreach (var targetRow in targetRows)
             {
                 subcategoryMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Views.Helpers
                 .Where(candidate => !CategoryPathHelper.IsSelfOrDescendantOf(candidate, label))
                 .ToList();
             var mergeTargetRows = CategoryFilterMenuBuilder.BuildRows(mergeTargets);
-            var mergeStyle = CategoryFilterMenuBuilder.ResolveItemStyle(owner, mergeTargetRows);
+            var mergeStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(owner);
             foreach (var mergeTargetRow in mergeTargetRows)
             {
                 mergeMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(

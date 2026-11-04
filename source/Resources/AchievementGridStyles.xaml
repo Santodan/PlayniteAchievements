@@ -1147,8 +1147,8 @@
                         <Grid MinWidth="120"
                               Margin="4,0,10,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition x:Name="CheckColumn" Width="Auto"/>
+                                <ColumnDefinition x:Name="CheckSpacerColumn" Width="6"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
@@ -1185,6 +1185,13 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- A target chooser has no checkable row, so the gutter goes rather
+                             than sitting empty beside every label. -->
+                        <Trigger Property="ShowsCheckGutter" Value="False">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Collapsed"/>
+                            <Setter TargetName="CheckColumn" Property="Width" Value="0"/>
+                            <Setter TargetName="CheckSpacerColumn" Property="Width" Value="0"/>
+                        </Trigger>
                         <Trigger Property="IsCheckable" Value="False">
                             <Setter TargetName="CheckMark" Property="Visibility" Value="Hidden"/>
                         </Trigger>
