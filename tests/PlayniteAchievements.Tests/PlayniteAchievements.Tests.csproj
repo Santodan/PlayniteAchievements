@@ -238,6 +238,10 @@
     <Compile Include="..\..\source\Services\Achievements\CategoryMetadataRenamer.cs" Link="Source\Services\Achievements\CategoryMetadataRenamer.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryNestPlanner.cs" Link="Source\Services\Achievements\CategoryNestPlanner.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryNameGenerator.cs" Link="Source\Services\Achievements\CategoryNameGenerator.cs" />
+    <Compile Include="..\..\source\Services\Achievements\ICategoryMetadataWriter.cs" Link="Source\Services\Achievements\ICategoryMetadataWriter.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryEditSnapshot.cs" Link="Source\Services\Achievements\CategoryEditSnapshot.cs" />
+    <Compile Include="..\..\source\Services\Achievements\CategoryEditor.cs" Link="Source\Services\Achievements\CategoryEditor.cs" />
+    <Compile Include="..\..\source\ViewModels\Items\CategoryPathSegment.cs" Link="Source\ViewModels\Items\CategoryPathSegment.cs" />
     <Compile Include="..\..\source\Views\Helpers\DataGridDropZone.cs" Link="Source\Views\Helpers\DataGridDropZone.cs" />
     <Compile Include="..\..\source\Services\Achievements\ProviderCategoryPathMigration.cs" Link="Source\Services\Achievements\ProviderCategoryPathMigration.cs" />
     <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
