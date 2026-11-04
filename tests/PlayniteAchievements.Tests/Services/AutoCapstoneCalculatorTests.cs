@@ -512,6 +512,53 @@ namespace PlayniteAchievements.Tests.Services
             return achievement;
         }
 
+        [TestMethod]
+        public void Derive_AddedTagsJoinTheUnionOfTheScopesTags()
+        {
+            // The settings' tags sit beside the achievements' own; duplicates collapse and the
+            // derived Softcore/Hardcore are dropped from either side.
+            var derived = AutoCapstoneCalculator.Derive(
+                new[]
+                {
+                    Achievement("a", categoryType: "Missable"),
+                    Achievement("b", categoryType: "Softcore|Completion")
+                },
+                addedTags: "Completion|u-aaaaaaaa|Hardcore");
+
+            CollectionAssert.AreEquivalent(
+                new[] { "Missable", "Completion", "u-aaaaaaaa" },
+                new List<string>(PlayniteAchievements.Services.Achievements.AchievementTagHelper.GetComponents(derived.Tags)));
+        }
+
+        [TestMethod]
+        public void Derive_NoAddedTags_KeepsTheUnionAlone()
+        {
+            var derived = AutoCapstoneCalculator.Derive(
+                new[] { Achievement("a", categoryType: "Missable") },
+                addedTags: null);
+
+            Assert.AreEqual("Missable", derived.Tags);
+        }
+
+        [TestMethod]
+        public void DeriveForCapstone_PassesAddedTagsThrough()
+        {
+            var wholeGame = AutoCapstoneCalculator.DeriveForCapstone(
+                new[] { Achievement("a"), Achievement("cap") },
+                "cap",
+                isWholeGame: true,
+                addedTags: "Completion");
+            var category = AutoCapstoneCalculator.DeriveForCapstone(
+                new[] { Achievement("a", category: "Main"), Achievement("cap", category: "Main") },
+                "cap",
+                isWholeGame: false,
+                storedCategory: "Main",
+                addedTags: "Completion");
+
+            Assert.AreEqual("Completion", wholeGame.Tags);
+            Assert.AreEqual("Completion", category.Tags);
+        }
+
         private static AchievementDetail Achievement(
             string apiName,
             bool unlocked = false,
