@@ -80,6 +80,9 @@ namespace PlayniteAchievements.Models.Settings
         private string _autoCapstoneCategoryDescriptionTemplate;
         private List<string> _autoCapstoneTemplateHistory = new List<string>();
         private string _autoCapstoneAppliedTemplates;
+        private string _autoCapstoneGameTags;
+        private string _autoCapstoneCategoryTags;
+        private string _autoCapstoneAppliedTags;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -991,6 +994,37 @@ namespace PlayniteAchievements.Models.Settings
             get => _autoCapstoneAppliedTemplates;
             set => SetValue(ref _autoCapstoneAppliedTemplates, value);
         }
+
+        /// <summary>
+        /// Global tag keys (pipe-joined) every whole-game auto capstone carries besides the tags of
+        /// the achievements it stands for. Null for none.
+        /// </summary>
+        public string AutoCapstoneGameTags
+        {
+            get => _autoCapstoneGameTags;
+            set => SetValue(ref _autoCapstoneGameTags, value);
+        }
+
+        /// <summary>
+        /// Global tag keys (pipe-joined) every category auto capstone carries besides the tags of
+        /// the achievements it stands for. Null for none.
+        /// </summary>
+        public string AutoCapstoneCategoryTags
+        {
+            get => _autoCapstoneCategoryTags;
+            set => SetValue(ref _autoCapstoneCategoryTags, value);
+        }
+
+        /// <summary>
+        /// The configured capstone tags the library's auto capstones were last brought in line
+        /// with, so startup and a settings save know whether a change still has to be applied.
+        /// </summary>
+        public string AutoCapstoneAppliedTags
+        {
+            get => _autoCapstoneAppliedTags;
+            set => SetValue(ref _autoCapstoneAppliedTags, value);
+        }
+
         public int InGamePollIntervalSeconds
         {
             get => _inGamePollIntervalSeconds;
@@ -3313,6 +3347,9 @@ namespace PlayniteAchievements.Models.Settings
                 AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,
                 AutoCapstoneTemplateHistory = new List<string>(this.AutoCapstoneTemplateHistory ?? new List<string>()),
                 AutoCapstoneAppliedTemplates = this.AutoCapstoneAppliedTemplates,
+                AutoCapstoneGameTags = this.AutoCapstoneGameTags,
+                AutoCapstoneCategoryTags = this.AutoCapstoneCategoryTags,
+                AutoCapstoneAppliedTags = this.AutoCapstoneAppliedTags,
                 MetadataDefaults = (this.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone(),
                 MetadataPlatformChoices = ClonePlatformChoices(this.MetadataPlatformChoices),
                 MetadataChoicesSeeded = this.MetadataChoicesSeeded,

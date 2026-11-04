@@ -73,6 +73,9 @@ namespace PlayniteAchievements.Models.Settings
             target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
             target.AutoCapstoneTemplateHistory = new List<string>(source.AutoCapstoneTemplateHistory ?? new List<string>());
             target.AutoCapstoneAppliedTemplates = source.AutoCapstoneAppliedTemplates;
+            target.AutoCapstoneGameTags = source.AutoCapstoneGameTags;
+            target.AutoCapstoneCategoryTags = source.AutoCapstoneCategoryTags;
+            target.AutoCapstoneAppliedTags = source.AutoCapstoneAppliedTags;
             target.MetadataDefaults = (source.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
             target.MetadataPlatformChoices = PersistedSettings.ClonePlatformChoices(source.MetadataPlatformChoices);
             target.MetadataChoicesSeeded = source.MetadataChoicesSeeded;

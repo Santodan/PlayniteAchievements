@@ -14,9 +14,11 @@ namespace PlayniteAchievements.Views.Settings.Metadata
     /// Metadata settings tab: a master-detail navigation over the per-platform sources grid, the
     /// global tag list and the auto capstone settings. Sections are created when first selected.
     /// </summary>
-    public partial class MetadataSettingsTab : UserControl
+    public partial class MetadataSettingsTab : UserControl, IDisposable
     {
         private ObservableCollection<SettingsNavigationItem> _navigationItems;
+
+        private AutoCapstoneSettingsSection _autoCapstoneSection;
 
         public MetadataSettingsTab()
         {
@@ -49,11 +51,18 @@ namespace PlayniteAchievements.Views.Settings.Metadata
                     "AutoCapstone",
                     ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Custom_AutoCapstone"),
                     iconGlyph: "",
-                    viewFactory: () => Page(new AutoCapstoneSettingsSection(settings, plugin)))
+                    viewFactory: () => Page(_autoCapstoneSection = new AutoCapstoneSettingsSection(settings, plugin)))
             };
 
             MasterDetail.ItemsSource = items;
             MasterDetail.SelectedItem = items[0];
+        }
+
+        public void Dispose()
+        {
+            // Releases the section's settings subscription, which otherwise roots it for the
+            // settings object's lifetime.
+            _autoCapstoneSection?.Dispose();
         }
 
         public void NavigateToPage(string key)

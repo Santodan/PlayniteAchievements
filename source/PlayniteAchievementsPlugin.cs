@@ -1135,8 +1135,10 @@ namespace PlayniteAchievements
                         _gameCustomDataStore,
                         _achievementOverridesService,
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                        wholeGame => AutoCapstoneTagRule.Resolve(_settingsViewModel?.Settings?.Persisted, wholeGame),
                         NotifyAchievementUnlocked,
                         _logger);
+                    SettingsSaved += OnSettingsSavedForAutoCapstoneTags;
                     // One author for the editor's button and automatic generation alike.
                     _autoCapstoneAuthoring = new AutoCapstoneAuthoring(
                         _gameCustomDataStore,
@@ -1144,6 +1146,7 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         () => _managedCustomIconService,
                         () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
+                        wholeGame => AutoCapstoneTagRule.Resolve(_settingsViewModel?.Settings?.Persisted, wholeGame),
                         () => _metadataLinkStore,
                         _logger);
                     _autoCapstoneTextService = new AutoCapstoneTextService(
@@ -1837,8 +1840,10 @@ namespace PlayniteAchievements
                 }
 
                 // Bring auto capstones still on default text in line with a language or template
-                // change made since they were last applied.
+                // change made since they were last applied, and their tags with a configured-tag
+                // change a save did not finish applying.
                 StartAutoCapstoneTextApply();
+                StartAutoCapstoneTagsApply();
 
                 _notificationImageStore?.PruneOrphans(
                     _settingsViewModel?.Settings?.Persisted,
@@ -1914,6 +1919,8 @@ namespace PlayniteAchievements
         }
 
         private void OnSettingsSavedForAutoCapstoneText(object sender, EventArgs e) => StartAutoCapstoneTextApply();
+
+        private void OnSettingsSavedForAutoCapstoneTags(object sender, EventArgs e) => StartAutoCapstoneTagsApply();
 
         private void OnSettingsSavedForAchievementTags(object sender, EventArgs e)
         {
@@ -2029,6 +2036,38 @@ namespace PlayniteAchievements
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed to apply auto capstone text templates.");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Quietly re-maintains every auto capstone in the background when the tags the settings
+        /// give capstones differ from the ones last applied: after each settings save, which is
+        /// how a change to the lists reaches existing capstones, and at startup for a save whose
+        /// sweep did not finish. The tags of a capstone's own achievements are re-read with them.
+        /// </summary>
+        private void StartAutoCapstoneTagsApply()
+        {
+            var maintainer = _autoCapstoneMaintainer;
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (maintainer == null || !AutoCapstoneTagRule.NeedsApply(persisted))
+            {
+                return;
+            }
+
+            var signature = AutoCapstoneTagRule.Signature(persisted);
+            var dispatcher = Application.Current?.Dispatcher;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    maintainer.MaintainAll();
+                    dispatcher?.BeginInvoke(new Action(() => _settingsViewModel?.UpdatePersistedIncludingEditSnapshot(
+                        settings => settings.AutoCapstoneAppliedTags = signature)));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to apply auto capstone tags.");
                 }
             });
         }
