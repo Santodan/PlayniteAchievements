@@ -55,6 +55,9 @@ namespace PlayniteAchievements.ViewModels.Items
         public bool ShowHidden { get; set; } = true;
         public List<string> CategoryTypeFilters { get; set; } = new List<string>();
         public List<string> CategoryLabelFilters { get; set; } = new List<string>();
+
+        /// <summary>The Rarity (tiers and Capstone) and Trophy picks; null means none.</summary>
+        public PlayniteAchievements.ViewModels.ControlBarFilterState Tiers { get; set; }
     }
 
     /// <summary>
