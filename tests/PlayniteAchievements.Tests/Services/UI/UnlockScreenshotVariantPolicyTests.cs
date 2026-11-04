@@ -126,6 +126,29 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Resolve_BypassRarity_IgnoresThresholdsButNotFeatureFlags()
+        {
+            // Every rarity selection excludes the unlock; a retrigger still produces each enabled
+            // variant, and a disabled variant stays off.
+            var settings = MakeSettings(
+                cleanRarities: RaritySelection.None,
+                withToastRarities: RaritySelection.None,
+                framedRarities: RaritySelection.None);
+
+            Assert.AreEqual(ScreenshotVariants.None, Resolve(settings, RarityTier.UltraRare));
+            Assert.AreEqual(
+                ScreenshotVariants.Clean | ScreenshotVariants.WithToast | ScreenshotVariants.Framed,
+                UnlockScreenshotVariantPolicy.Resolve(
+                    RarityTier.UltraRare, false, "Steam", settings, bypassRarity: true));
+
+            settings.UnlockScreenshotWithToast = false;
+            Assert.AreEqual(
+                ScreenshotVariants.Clean | ScreenshotVariants.Framed,
+                UnlockScreenshotVariantPolicy.Resolve(
+                    RarityTier.UltraRare, false, "Steam", settings, bypassRarity: true));
+        }
+
+        [TestMethod]
         public void Resolve_ProviderOverrideWinsPerVariant()
         {
             var settings = MakeSettings(clean: true, withToast: false, framed: true);
