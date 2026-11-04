@@ -7,10 +7,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
-using PlayniteAchievements.Models.Achievements;
-using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services;
-using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Rules;
@@ -33,6 +30,7 @@ namespace PlayniteAchievements.Services.Tagging
         private readonly Lazy<DefaultTagNameCatalog> _defaultNameCatalog;
         private TaggingSettings _subscribedTaggingSettings;
 
+        private readonly GameTagEvaluator _evaluator;
         private readonly LibraryFieldSyncTarget _tagsTarget;
         private readonly LibraryFieldSyncTarget _featuresTarget;
         private readonly IReadOnlyList<LibraryFieldSyncTarget> _targets;
@@ -49,6 +47,7 @@ namespace PlayniteAchievements.Services.Tagging
             _defaultNameCatalog = new Lazy<DefaultTagNameCatalog>(
                 () => new DefaultTagNameCatalog(localizationDirectory, _logger));
 
+            _evaluator = new GameTagEvaluator(() => Settings);
             _tagsTarget = new LibraryFieldSyncTarget(
                 ItemCollectionField<Tag>.Tags(_api.Database, _logger),
                 _logger,
@@ -458,7 +457,7 @@ namespace PlayniteAchievements.Services.Tagging
             Dictionary<LibraryFieldSyncTarget, HashSet<Guid>> removeIds,
             Guid? targetCompletionStatusId)
         {
-            var evaluation = EvaluateGame(game);
+            var evaluation = _evaluator.Evaluate(game);
             var changed = false;
             foreach (var target in active)
             {
@@ -531,11 +530,11 @@ namespace PlayniteAchievements.Services.Tagging
                         {
                             // Platform and Metadata only move on a refresh, but an edit can turn a
                             // layered area's None on or off, which needs the game's data.
-                            var applies = new HashSet<TagType>(DetermineCustomizationTagTypes(
+                            var applies = new HashSet<TagType>(_evaluator.DetermineCustomizationTagTypes(
                                 gameId,
                                 () => PlayniteAchievementsPlugin.Instance?.AchievementDataService?.GetGameAchievementData(gameId)));
                             var changed = false;
-                            foreach (var tagType in CustomizationTagTypes)
+                            foreach (var tagType in GameTagEvaluator.CustomizationTagTypes)
                             {
                                 changed |= _tagsTarget.SetManaged(game, tagType, applies.Contains(tagType));
                             }
@@ -556,215 +555,6 @@ namespace PlayniteAchievements.Services.Tagging
             {
                 _logger.Error(ex, "Failed to sync customization tags for games");
             }
-        }
-
-        /// <summary>
-        /// Every kind that tracks customization: the Customized pair and each area's kinds.
-        /// </summary>
-        private static readonly IReadOnlyList<TagType> CustomizationTagTypes =
-            new[] { TagType.Customized, TagType.NotCustomized }
-                .Concat(CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
-                .ToList();
-
-        /// <summary>
-        /// The customization kinds that apply to a game: one side of the Customized pair and the
-        /// applicable kinds of each area. Areas are only classified when one of their kinds is
-        /// enabled, and the game's data is only loaded when a Platform, Metadata or None kind is,
-        /// so the default setup pays nothing for them.
-        /// </summary>
-        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId, Func<GameAchievementData> loadData)
-        {
-            var types = new List<TagType>
-            {
-                GameCustomDataLookup.HasVisibleCustomization(gameId, Settings)
-                    ? TagType.Customized
-                    : TagType.NotCustomized
-            };
-
-            if (!AnyAreaTagEnabled(_ => true))
-            {
-                return types;
-            }
-
-            var layers = default(GameDataLayers);
-            if (AnyAreaTagEnabled(layer => layer == TagLayer.Platform || layer == TagLayer.Metadata || layer == TagLayer.None))
-            {
-                var data = loadData?.Invoke();
-                layers = new GameDataLayers
-                {
-                    Platform = data?.PlatformFields,
-                    Metadata = data?.MetadataFields,
-                    Present = Metadata.DataLayers.Present(data?.Achievements)
-                };
-            }
-
-            types.AddRange(CustomizationTagAreas.TagsFor(GameCustomDataLookup.GetCustomizationAreas(gameId, Settings), layers));
-            return types;
-        }
-
-        private bool AnyAreaTagEnabled(Func<TagLayer, bool> layerFilter)
-        {
-            var tagConfigs = Tagging?.TagConfigs;
-            return tagConfigs != null &&
-                   CustomizationTagAreas.All
-                       .SelectMany(area => area.Tags)
-                       .Where(pair => layerFilter(pair.Key))
-                       .Any(pair => tagConfigs.TryGetValue(pair.Value, out var config) && config?.IsEnabled == true);
-        }
-
-        /// <summary>
-        /// The applicable tag types for a game plus whether the game counts as completed.
-        /// Both come out of one evaluation so a sync pass loads each game's achievement
-        /// data once.
-        /// </summary>
-        private struct GameTagEvaluation
-        {
-            public List<TagType> TagTypes;
-            public bool IsCompleted;
-
-            /// <summary>
-            /// True when the evaluation stopped before looking at completion, as it does for an
-            /// excluded game, so <see cref="IsCompleted"/> says nothing about the game.
-            /// </summary>
-            public bool CompletionUnknown;
-
-            /// <summary>Completion for the status rule: null when unknown.</summary>
-            public bool? Completion => CompletionUnknown ? (bool?)null : IsCompleted;
-        }
-
-        /// <summary>
-        /// Completion under a game's stored capstone set, for raw cached data whose IsCapstone
-        /// flags are still the provider seed.
-        /// </summary>
-        private static bool IsCompletedUnderStoredCapstones(
-            GameAchievementData data,
-            CapstoneSet capstones)
-        {
-            var achievements = data?.Achievements;
-            if (achievements == null || achievements.Count == 0)
-            {
-                return false;
-            }
-
-            if (achievements.All(a => a?.Unlocked == true))
-            {
-                return true;
-            }
-
-            var resolver = CapstoneResolver.Resolve(achievements, capstones.Assignments, true);
-            return resolver.Count > 0 &&
-                   resolver.EffectiveApiNames.All(apiName =>
-                       achievements.Any(a =>
-                           a != null &&
-                           a.Unlocked &&
-                           string.Equals((a.ApiName ?? string.Empty).Trim(), apiName, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        /// <summary>
-        /// Determines all applicable kinds for a game. A game can have several (e.g.
-        /// HasAchievements + InProgress). Excluded is exclusive and removes the others;
-        /// ExcludedFromSummaries can coexist with achievement status kinds.
-        /// </summary>
-        private GameTagEvaluation EvaluateGame(Game game)
-        {
-            var types = new List<TagType>();
-            var result = new GameTagEvaluation { TagTypes = types, IsCompleted = false };
-
-            if (game == null)
-            {
-                types.Add(TagType.NoAchievements);
-                return result;
-            }
-
-            var gameId = game.Id;
-            // Loaded once, and only when something needs it: excluded games stop before the
-            // status tags, but the layered customization tags may still read it.
-            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
-            var loaded = new Lazy<GameAchievementData>(() => achievementDataService?.GetGameAchievementData(gameId));
-            types.AddRange(DetermineCustomizationTagTypes(gameId, () => loaded.Value));
-
-            // Full exclusion is exclusive - no other tags
-            if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, Settings))
-            {
-                types.Add(TagType.Excluded);
-                result.CompletionUnknown = true;
-                return result;
-            }
-
-            // Check if excluded from summaries (can coexist with other tags)
-            var excludedFromSummaries = GameCustomDataLookup.IsExcludedFromSummaries(gameId, Settings);
-            if (excludedFromSummaries)
-            {
-                types.Add(TagType.ExcludedFromSummaries);
-            }
-
-            // Load achievement data through the central data service when available.
-            var data = loaded.Value;
-
-            // HasAchievements defaults to true on unscanned stubs (so bulk scans do not skip
-            // them) and can survive as true with an empty list on rows written by the legacy
-            // JSON import or old schema migrations. Tags must match what the UI reports, so
-            // require actual achievements like SummaryCacheReader does, not just the flag.
-            if (data == null || !data.HasAchievements ||
-                data.Achievements == null || data.Achievements.Count == 0)
-            {
-                types.Add(TagType.NoAchievements);
-                return result;
-            }
-
-            // If the game is excluded by user
-            if (data.ExcludedByUser)
-            {
-                types.Add(TagType.Excluded);
-                result.CompletionUnknown = true;
-                return result;
-            }
-
-            // Platform achievements are every row but the projected custom ones; a manually
-            // tracked list counts. Custom ones are the user's own, an auto capstone aside.
-            if (data.Achievements.Any(a => a != null && !CustomAchievementProjectionService.IsCustomApiName(a.ApiName)))
-            {
-                types.Add(TagType.HasAchievements);
-            }
-
-            if (GameCustomDataLookup.GetCustomAchievements(gameId, Settings)?.Any(definition =>
-                    definition != null && !definition.IsAutoCapstone && !string.IsNullOrWhiteSpace(definition.DisplayName)) == true)
-            {
-                types.Add(TagType.CustomAchievements);
-            }
-
-            // Manual achievements are a list tracked through a manual link, on top of the
-            // platform kind that list also counts as.
-            if (ManualAchievementsProvider.TryGetManualLink(gameId, out _))
-            {
-                types.Add(TagType.ManualAchievements);
-            }
-
-            // Completed means every achievement unlocked, or every capstone earned. Raw cached data
-            // has not been through hydration, so its IsCapstone flags are the provider seed and the
-            // stored set has to be applied here before the rule is applied.
-            var capstones = GameCustomDataLookup.GetCapstoneSet(gameId, Settings);
-            var isCompleted = capstones.Materialized
-                ? IsCompletedUnderStoredCapstones(data, capstones)
-                : data.IsCompleted;
-
-            result.IsCompleted = isCompleted;
-
-            // Add status tag based on progress
-            if (isCompleted)
-            {
-                types.Add(TagType.Completed);
-            }
-            else
-            {
-                var unlockedCount = data.Achievements?.Count(a => a?.Unlocked == true) ?? 0;
-                if (unlockedCount > 0)
-                {
-                    types.Add(TagType.InProgress);
-                }
-            }
-
-            return result;
         }
 
         /// <summary>
@@ -882,7 +672,7 @@ namespace PlayniteAchievements.Services.Tagging
 
                         try
                         {
-                            if (ApplyCompletionStatus(game, EvaluateGame(game).Completion, targetStatusId))
+                            if (ApplyCompletionStatus(game, _evaluator.Evaluate(game).Completion, targetStatusId))
                             {
                                 _api.Database.Games.Update(game);
                                 updatedCount++;
