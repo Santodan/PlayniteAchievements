@@ -1,4 +1,5 @@
 <UserControl x:Class="PlayniteAchievements.Views.Settings.Metadata.AutoCapstoneSettingsSection"
+             x:Name="AutoCapstoneSettingsSectionRoot"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -56,10 +57,14 @@
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AutoCapstoneText_Hint}"
                                Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AutoCapstoneTags_Hint}"
+                               Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
                                TextWrapping="Wrap"/>
 
-                    <!-- Whole-game templates, then category ones, each a name and a description. -->
+                    <!-- Whole-game templates and tags, then category ones: a name, a description and a tag picker each. -->
                     <TextBlock Text="{DynamicResource LOCPlayAch_Column_Game}"
                                Style="{StaticResource SubSectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
@@ -67,6 +72,20 @@
                                   Focusable="False"
                                   ItemTemplate="{StaticResource TemplateRowTemplate}"
                                   Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_Tags}"
+                                         Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}">
+                        <Button x:Name="GameTagsButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding GameTagsText, ElementName=AutoCapstoneSettingsSectionRoot}"
+                                Click="GameTagsButton_Click"
+                                MinWidth="180"
+                                Height="{StaticResource PlayAch.Size.Control.Height}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                            </Button.ContextMenu>
+                        </Button>
+                    </controls:SettingRow>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Common_Category}"
                                Style="{StaticResource SubSectionHeaderStyle}"
@@ -75,6 +94,20 @@
                                   Focusable="False"
                                   ItemTemplate="{StaticResource TemplateRowTemplate}"
                                   Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"/>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_Tags}"
+                                         Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}">
+                        <Button x:Name="CategoryTagsButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding CategoryTagsText, ElementName=AutoCapstoneSettingsSectionRoot}"
+                                Click="CategoryTagsButton_Click"
+                                MinWidth="180"
+                                Height="{StaticResource PlayAch.Size.Control.Height}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                            </Button.ContextMenu>
+                        </Button>
+                    </controls:SettingRow>
                 </StackPanel>
             </Border>
         </StackPanel>
