@@ -641,6 +641,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshCategoryMetadataState();
             OnPropertyChanged(nameof(CanMergeCategories));
+            RefreshFilterOptions();
         }
 
         private void CategoryMetadataRow_PropertyChanged(object sender, PropertyChangedEventArgs e)
