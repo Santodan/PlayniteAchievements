@@ -87,7 +87,7 @@ namespace PlayniteAchievements.Services.Refresh
         /// for every current-user refresh request, including one no provider had work for, so a
         /// game tracked only by you is read by the refreshes that name it. Null skips it.
         /// </summary>
-        internal Func<LinkedFiles.LinkedFilePassScope, CancellationToken, Task> LinkedFilePass { get; set; }
+        internal Func<LinkedFiles.LinkedFilePassScope, CancellationToken, Task<IReadOnlyList<Guid>>> LinkedFilePass { get; set; }
 
         private int _savedGamesInCurrentRun;
 
@@ -2184,7 +2184,8 @@ namespace PlayniteAchievements.Services.Refresh
                     }
                 }
 
-                await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+                var linkedOnly = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+                RaiseRequestCompleted(linkedOnly);
                 return;
             }
 
@@ -2195,10 +2196,31 @@ namespace PlayniteAchievements.Services.Refresh
                     targetSelectionCache,
                     externalToken)
                 .ConfigureAwait(false);
-            await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+            var linkedChanged = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+            RaiseRequestCompleted((LastRefreshedGameIds ?? new List<Guid>()).Concat(linkedChanged));
         }
 
-        private async Task RunLinkedFilePassAsync(
+        /// <summary>
+        /// Raised once every refresh request has run, whoever started it and whether or not a
+        /// provider had work: the games the refresh saved plus the games their linked files
+        /// changed. What has to follow a refresh (capstones, tags) keys off this one event.
+        /// </summary>
+        public event Action<List<Guid>> RequestCompleted;
+
+        private void RaiseRequestCompleted(IEnumerable<Guid> gameIds)
+        {
+            try
+            {
+                RequestCompleted?.Invoke((gameIds ?? Enumerable.Empty<Guid>()).Where(id => id != Guid.Empty).Distinct().ToList());
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "RequestCompleted handler failed.");
+            }
+        }
+
+        /// <summary>Reads the linked files the request covers; returns the games whose data they changed.</summary>
+        private async Task<IReadOnlyList<Guid>> RunLinkedFilePassAsync(
             RefreshRequest request,
             RefreshRequestPlanner.ResolvedRequest resolved,
             CancellationToken externalToken)
@@ -2206,7 +2228,7 @@ namespace PlayniteAchievements.Services.Refresh
             var pass = LinkedFilePass;
             if (pass == null || resolved == null || externalToken.IsCancellationRequested)
             {
-                return;
+                return Array.Empty<Guid>();
             }
 
             var scope = LinkedFiles.LinkedFilePassScope.FromRequest(
@@ -2216,12 +2238,12 @@ namespace PlayniteAchievements.Services.Refresh
                 request?.GameIds);
             if (scope == null)
             {
-                return;
+                return Array.Empty<Guid>();
             }
 
             try
             {
-                await pass(scope, externalToken).ConfigureAwait(false);
+                return await pass(scope, externalToken).ConfigureAwait(false) ?? Array.Empty<Guid>();
             }
             catch (OperationCanceledException)
             {
@@ -2230,6 +2252,8 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 _logger?.Warn(ex, "[LinkedFile] The refresh pass failed.");
             }
+
+            return Array.Empty<Guid>();
         }
 
         public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds, CancellationToken externalToken = default)
