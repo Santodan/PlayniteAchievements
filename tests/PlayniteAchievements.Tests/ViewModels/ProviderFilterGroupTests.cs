@@ -180,6 +180,25 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "Linux");
         }
 
+        [TestMethod]
+        public void SeedSavedUnderManual_SelectsTheCustomGroup()
+        {
+            var games = new[]
+            {
+                new GameSummaryItem { GameName = "Fan Game", ProviderKey = "Custom", Provider = "Custom", Platforms = new[] { "PC" } }
+            };
+            var seeds = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>>
+            {
+                ["Manual"] = new System.Collections.Generic.List<string> { "PC" }
+            };
+
+            var groups = ProviderFilterGroupBuilder.Rebuild(games, null, () => { }, seeds);
+
+            var group = groups.Single();
+            Assert.AreEqual("Custom", group.ProviderKey);
+            Assert.IsTrue(group.IsFullySelected);
+        }
+
         private static GameSummaryItem[] Library() => new[]
         {
             new GameSummaryItem { GameName = "Portal", ProviderKey = "Steam", Provider = "Steam", Platforms = new[] { "PC" } },
