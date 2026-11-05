@@ -499,28 +499,7 @@ namespace PlayniteAchievements.Services
         /// </summary>
         private static string ResolveIconSource(string value, string baseDirectory)
         {
-            if (baseDirectory == null ||
-                value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                return value;
-            }
-
-            try
-            {
-                var path = System.IO.Path.IsPathRooted(value)
-                    ? value
-                    : System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDirectory, value));
-                return System.IO.File.Exists(path) ? path : null;
-            }
-            catch (ArgumentException)
-            {
-                return null;
-            }
-            catch (NotSupportedException)
-            {
-                return null;
-            }
+            return LinkedFiles.LinkedFileValueParser.ResolveIconSource(value, baseDirectory);
         }
 
         private static bool TryParseInt(string value, out int parsed)
