@@ -285,7 +285,7 @@
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Command="{Binding ApplyNowCommand}" Margin="0,0,8,0" />
                     <Button Content="{DynamicResource LOCPlayAch_LinkedFile_Unlink}" Command="{Binding UnlinkCommand}" Margin="0,0,8,0" />
-                    <Button Content="{DynamicResource LOCPlayAch_Common_Close}" Click="Close_Click" />
+                    <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}" Click="Cancel_Click" />
                 </StackPanel>
             </DockPanel>
         </Grid>
