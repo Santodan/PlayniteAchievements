@@ -269,6 +269,12 @@ namespace PlayniteAchievements.Models.Settings
                 return "\t";
             }
 
+            // A space delimiter is whitespace itself, so it is given as one space or by name.
+            if (value == " " || string.Equals(value.Trim(), "space", StringComparison.OrdinalIgnoreCase))
+            {
+                return " ";
+            }
+
             var trimmed = value.Trim();
             return trimmed.Length == 0 ? null : trimmed.Substring(0, 1);
         }
