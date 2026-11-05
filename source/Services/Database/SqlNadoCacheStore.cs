@@ -44,6 +44,13 @@ namespace PlayniteAchievements.Services.Database
         /// Shared column list for achievement-detail join queries; requires AchievementDefinitions
         /// aliased as "ad" and UserAchievements aliased as "ua".
         /// </summary>
+        /// <summary>
+        /// The order a game's achievement definitions read in: the ones the metadata source chosen
+        /// for order placed, by their position in its list, then the rest in the order the platform
+        /// first gave them. Requires AchievementDefinitions aliased as "ad".
+        /// </summary>
+        private const string DefinitionOrderSql = "ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id";
+
         private const string AchievementDetailColumnsSql =
             @"ad.ApiName AS ApiName,
                         ad.DisplayName AS DisplayName,
@@ -60,6 +67,7 @@ namespace PlayniteAchievements.Services.Database
                         ad.IsCapstone AS IsCapstone,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                         ad.Rarity AS Rarity,
+                        ad.MetadataOrder AS MetadataOrder,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -147,6 +155,7 @@ namespace PlayniteAchievements.Services.Database
             long IsCapstone { get; }
             double? GlobalPercentUnlocked { get; }
             string Rarity { get; }
+            int? MetadataOrder { get; }
             long? Unlocked { get; }
             string UnlockTimeUtc { get; }
             int? ProgressNum { get; }
@@ -171,6 +180,7 @@ namespace PlayniteAchievements.Services.Database
             public long IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }
+            public int? MetadataOrder { get; set; }
             public long? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
             public int? ProgressNum { get; set; }
@@ -194,6 +204,7 @@ namespace PlayniteAchievements.Services.Database
             public long IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }
+            public int? MetadataOrder { get; set; }
             public long? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
             public int? ProgressNum { get; set; }
@@ -688,7 +699,7 @@ namespace PlayniteAchievements.Services.Database
                         ON ua.AchievementDefinitionId = ad.Id
                        AND ua.UserGameProgressId = ?
                       WHERE ad.GameId = ?
-                      ORDER BY ad.Id;",
+                      ORDER BY " + DefinitionOrderSql + @";",
                     progress.UserGameProgressId,
                     progress.GameId).ToList();
 
@@ -824,7 +835,7 @@ namespace PlayniteAchievements.Services.Database
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
                   WHERE lp.RowNum = 1
-                  ORDER BY lp.UserGameProgressId, ad.Id;").ToList();
+                  ORDER BY lp.UserGameProgressId, " + DefinitionOrderSql + @";").ToList();
 
             for (int i = 0; i < detailRows.Count; i++)
             {
@@ -872,7 +883,8 @@ namespace PlayniteAchievements.Services.Database
                 Rarity = ParseStoredRarity(row.Rarity),
                 UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
                 ProgressNum = row.ProgressNum,
-                ProgressDenom = row.ProgressDenom
+                ProgressDenom = row.ProgressDenom,
+                MetadataOrderIndex = row.MetadataOrder
             };
 
             if (row.Unlocked.HasValue)
@@ -2411,7 +2423,7 @@ namespace PlayniteAchievements.Services.Database
                         AND u.ExternalUserId = ?
                         AND g.ProviderKey = ?
                         AND (" + string.Join(" OR ", clauses) + @")
-                      ORDER BY ad.Id;",
+                      ORDER BY " + DefinitionOrderSql + @";",
                     args.ToArray()).ToList();
 
                 return rows
@@ -4169,10 +4181,10 @@ namespace PlayniteAchievements.Services.Database
             return db.Load<AchievementDefinitionRow>(
                 @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath,
                          Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone,
-                         GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
-                  FROM AchievementDefinitions
+                         GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc
+                  FROM AchievementDefinitions ad
                   WHERE GameId = ?
-                  ORDER BY Id;",
+                  ORDER BY " + DefinitionOrderSql + @";",
                 gameId).ToList();
         }
 
@@ -4314,7 +4326,8 @@ namespace PlayniteAchievements.Services.Database
                 IsCapstone = row != null && row.IsCapstone != 0,
                 GlobalPercentUnlocked = row?.GlobalPercentUnlocked,
                 Rarity = ParseStoredRarity(row?.Rarity),
-                ProgressDenom = row?.ProgressMax
+                ProgressDenom = row?.ProgressMax,
+                MetadataOrderIndex = row?.MetadataOrder
             };
         }
 
@@ -5326,12 +5339,12 @@ namespace PlayniteAchievements.Services.Database
             }
 
             // Recent-unlock queries stay unlock-time ordered so LIMIT takes the newest rows.
-            // Full comparison loads order by AchievementDefinitions id so each friend+game pair's
+            // Full comparison loads order by DefinitionOrderSql so each friend+game pair's
             // rows arrive in the same canonical definition order the non-friend surfaces use,
             // keeping category-order fallbacks independent of unlock recency and grid sorts.
             sql.Append(requireUnlockTime
-                ? " ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, ad.Id"
-                : " ORDER BY u.DisplayName, g.GameName, ad.Id");
+                ? " ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, " + DefinitionOrderSql
+                : " ORDER BY u.DisplayName, g.GameName, " + DefinitionOrderSql);
             if (recentLimit > 0)
             {
                 sql.Append(" LIMIT ?");
@@ -7171,7 +7184,7 @@ namespace PlayniteAchievements.Services.Database
             var desiredApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var existingByApiName = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
+                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
@@ -7255,9 +7268,9 @@ namespace PlayniteAchievements.Services.Database
                     achievement.IsCapstone = isCapstone;
                     db.ExecuteNonQuery(
                         @"INSERT INTO AchievementDefinitions
-                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
+                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc)
                           VALUES
-                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameId,
                         apiName,
                         DbValue(achievement.DisplayName),
@@ -7275,6 +7288,7 @@ namespace PlayniteAchievements.Services.Database
                         DbParam(incomingGlobalPercent),
                         incomingRarity,
                         DbParam(achievement.ProgressDenom),
+                        DbParam(achievement.MetadataOrderIndex),
                         nowIso,
                         updatedIso);
 
@@ -7304,6 +7318,7 @@ namespace PlayniteAchievements.Services.Database
                 achievement.IsCapstone = incomingIsCapstone != 0;
                 var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
+                var incomingMetadataOrder = achievement.MetadataOrderIndex;
 
                 // A payload that does not know the rarity must not blank what is already stored.
                 // The payload carries the stored values back, so the caller's in-memory copy reads
@@ -7333,7 +7348,8 @@ namespace PlayniteAchievements.Services.Database
                               existing.Hidden != incomingHidden ||
                               existing.GlobalPercentUnlocked != incomingGlobalPercent ||
                               !NullableEquals(NormalizeDbText(existing.Rarity), incomingStoredRarity) ||
-                              existing.ProgressMax != incomingProgressMax;
+                              existing.ProgressMax != incomingProgressMax ||
+                              existing.MetadataOrder != incomingMetadataOrder;
 
                 if (!changed)
                 {
@@ -7358,6 +7374,7 @@ namespace PlayniteAchievements.Services.Database
                           GlobalPercentUnlocked = ?,
                           Rarity = ?,
                           ProgressMax = ?,
+                          MetadataOrder = ?,
                           UpdatedUtc = ?
                       WHERE Id = ?;",
                                         DbValue(incomingDisplayName),
@@ -7375,6 +7392,7 @@ namespace PlayniteAchievements.Services.Database
                                         DbParam(incomingGlobalPercent),
                                         incomingStoredRarity,
                                         DbParam(incomingProgressMax),
+                                        DbParam(incomingMetadataOrder),
                     updatedIso,
                     existing.Id);
 

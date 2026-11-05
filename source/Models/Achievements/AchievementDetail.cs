@@ -179,6 +179,14 @@ namespace PlayniteAchievements.Models.Achievements
         public int DefaultOrderIndex { get; set; } = int.MaxValue;
 
         /// <summary>
+        /// This achievement's position in the list of the metadata source chosen for order, or null
+        /// when no source ordered it. Written by the metadata overlay and stored with the
+        /// achievement's definition, whose reads sort by it ahead of the platform's own order.
+        /// </summary>
+        [IgnoreDataMember]
+        public int? MetadataOrderIndex { get; set; }
+
+        /// <summary>
         /// Runtime-only full path to this achievement's saved clean unlock screenshot (no toast,
         /// no frame). Null when none exists on disk; when re-fires produced duplicates the
         /// original file wins. Resolved from the capture library, never persisted.

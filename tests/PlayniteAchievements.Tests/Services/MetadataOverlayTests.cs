@@ -326,6 +326,88 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Order_IsTheSourcesListPosition_AndUnmatchedAchievementsHaveNone()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order)
+            {
+                Rows = { Row("p1", "Bonus"), Row("p2", "Master"), Row("p3", "Dragon Slayer") }
+            };
+            var master = Row("ACH_MASTER", "Master");
+            var dragon = Row("ACH_DRAGON", "Dragon Slayer");
+            var other = Row("ACH_OTHER", "Something Else");
+            other.MetadataOrderIndex = 7;
+            var bonus = Row("ACH_BONUS", "Bonus");
+            var data = Game("Steam", master, dragon, other, bonus);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(order: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, bonus.MetadataOrderIndex);
+            Assert.AreEqual(1, master.MetadataOrderIndex);
+            Assert.AreEqual(2, dragon.MetadataOrderIndex);
+            Assert.IsNull(other.MetadataOrderIndex, "an achievement the source did not match keeps the platform's order");
+        }
+
+        [TestMethod]
+        public async Task Order_WhenOff_LeavesNoPosition()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order | MetadataField.Text)
+            {
+                Rows = { Row("p1", "Master") }
+            };
+            var master = Row("ACH_MASTER", "Master");
+            var data = Game("Steam", master);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(text: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(master.MetadataOrderIndex);
+        }
+
+        [TestMethod]
+        public async Task Order_FromAFailedSource_KeepsTheStoredPositions()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order) { FailFetch = true };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_MASTER", "Master"));
+            var storedDragon = Row("ACH_DRAGON", "Dragon Slayer");
+            storedDragon.MetadataOrderIndex = 4;
+            var stored = Game("Steam", storedDragon, Row("ACH_MASTER", "Master"));
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(order: "PlayStation"), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, playstation.Key, "link-PlayStation");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(4, data.Achievements[0].MetadataOrderIndex);
+            Assert.IsNull(data.Achievements[1].MetadataOrderIndex);
+        }
+
+        [TestMethod]
+        public void Order_IsOffByDefault_AndForPlatformsNoSourceHas()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices { Icons = string.Empty }
+            };
+
+            Assert.AreEqual(string.Empty, settings.MetadataDefaults.Order, "a configuration saved before Order existed completes to Off");
+            Assert.AreEqual(string.Empty, new PersistedSettings().ResolveMetadataChoices("Epic").Order);
+            Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Steam", new MetadataChoices { Order = "PlayStation" }).Order);
+            Assert.AreEqual(string.Empty, settings.ResolveMetadataChoices("Riot", new MetadataChoices { Order = "PlayStation" }).Order);
+            Assert.IsFalse(new MetadataChoices { Order = string.Empty }.IsEmpty());
+            Assert.IsFalse(new MetadataChoices { Order = "Xbox" }.SameAs(new MetadataChoices()));
+            Assert.AreEqual("Xbox", new MetadataChoices { Order = "Xbox" }.Clone().Order);
+        }
+
+        [TestMethod]
         public void PlatformsWithTheirOwnPointsOrTrophyTypes_TakeNone()
         {
             var settings = new PersistedSettings();
@@ -373,7 +455,8 @@ namespace PlayniteAchievements.Tests.Services
                 CapstoneArt = string.Empty,
                 TrophyTypes = string.Empty,
                 Points = string.Empty,
-                Text = string.Empty
+                Text = string.Empty,
+                Order = string.Empty
             }));
             Assert.AreEqual(MetadataChoices.TrueGaming, steam.Tags);
             Assert.AreEqual(MetadataChoices.PlayStation, steam.CapstoneArt);
@@ -1406,7 +1489,8 @@ namespace PlayniteAchievements.Tests.Services
             string capstoneArt = null,
             string trophyTypes = null,
             string points = null,
-            string text = null)
+            string text = null,
+            string order = null)
         {
             var settings = new PersistedSettings();
             settings.MetadataDefaults = new MetadataChoices
@@ -1418,7 +1502,8 @@ namespace PlayniteAchievements.Tests.Services
                 CapstoneArt = capstoneArt ?? string.Empty,
                 TrophyTypes = trophyTypes ?? string.Empty,
                 Points = points ?? string.Empty,
-                Text = text ?? string.Empty
+                Text = text ?? string.Empty,
+                Order = order ?? string.Empty
             };
             return settings;
         }

@@ -17,7 +17,9 @@ namespace PlayniteAchievements.Services.Database
         // v20: metadata state tables (MetadataApplied, MetadataCoverage, MetadataSourceSnapshots,
         // MetadataSourcePages) hold the applied metadata links, per-source snapshots and source
         // page slugs.
-        public const int SchemaVersion = 20;
+        // v21: AchievementDefinitions.MetadataOrder holds each achievement's position in the list
+        // of the metadata source chosen for order.
+        public const int SchemaVersion = 21;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -100,6 +102,7 @@ namespace PlayniteAchievements.Services.Database
                 GlobalPercentUnlocked REAL NULL,
                 Rarity TEXT NOT NULL DEFAULT 'Common',
                 ProgressMax INTEGER NULL,
+                MetadataOrder INTEGER NULL,
                 CreatedUtc TEXT NOT NULL,
                 UpdatedUtc TEXT NOT NULL,
                 FOREIGN KEY (GameId) REFERENCES Games(Id) ON DELETE CASCADE,
@@ -548,6 +551,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Rarity", "TEXT NOT NULL DEFAULT 'Common'", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "MetadataOrder", "INTEGER NULL", definitionColumns, ref backupPath);
 
             ClearRetroAchievementsWinConditionCapstones(db, ref backupPath);
 
@@ -1148,6 +1152,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Rarity", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "MetadataOrder", "AchievementDefinitions", missing);
 
             // Verify ProviderKey column exists in Games and Users tables (migration from ProviderName)
             var gamesColumns = GetColumnNames(db, "Games");

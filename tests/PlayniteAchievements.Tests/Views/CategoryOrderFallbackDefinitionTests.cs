@@ -90,13 +90,14 @@ namespace PlayniteAchievements.Tests.Views
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
 
             // Recent-unlock queries stay unlock-time ordered for LIMIT correctness; full comparison
-            // loads order by AchievementDefinitions id so friend surfaces see the same canonical
+            // loads order by DefinitionOrderSql so friend surfaces see the same canonical
             // definition order as the non-friend surfaces.
             AssertContainsAll(
                 store,
+                "private const string DefinitionOrderSql = \"ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id\";",
                 "sql.Append(requireUnlockTime",
-                "? \" ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, ad.Id\"",
-                ": \" ORDER BY u.DisplayName, g.GameName, ad.Id\");");
+                "? \" ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, \" + DefinitionOrderSql",
+                ": \" ORDER BY u.DisplayName, g.GameName, \" + DefinitionOrderSql);");
         }
 
         [TestMethod]
