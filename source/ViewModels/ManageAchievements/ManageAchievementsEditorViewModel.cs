@@ -557,6 +557,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // A read of the linked file writes its status here; the header chip follows it.
+            if (!ReferenceEquals(e.Previous?.LinkedFile, e.Persisted?.LinkedFile))
+            {
+                RefreshLinkedFileState();
+            }
+
             if (_isApplyingUndo)
             {
                 // The write that reverses a step is not a step of its own.
@@ -6070,6 +6076,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshSourceHeading(rawData, link);
             UnlinkManualTrackingCommand.RaiseCanExecuteChanged();
+            RefreshLinkedFileState();
         }
 
         /// <summary>
