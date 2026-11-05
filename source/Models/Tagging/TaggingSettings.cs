@@ -300,7 +300,7 @@ namespace PlayniteAchievements.Models.Tagging
             {
                 TagType.HasAchievements => "[PA] Platform Achievements",
                 TagType.CustomAchievements => "[PA] Custom Achievements",
-                TagType.ManualAchievements => "[PA] Manual Achievements",
+                TagType.ManualAchievements => "[PA] Custom Tracking",
                 TagType.InProgress => "[PA] In Progress",
                 TagType.Completed => "[PA] Completed",
                 TagType.NoAchievements => "[PA] No Achievements",
