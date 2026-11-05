@@ -64,7 +64,8 @@ namespace PlayniteAchievements.Services.Hydration
 
             var detailList = details as IList<AchievementDetail> ?? details.ToList();
 
-            // The incoming list is provider-ordered (cache reads sort by definition rowid), so its
+            // The incoming list is in source order (cache reads sort by the metadata order source's
+            // positions, then definition rowid), so its
             // position under the custom-order overlay is the game's default order. Unlock-time
             // sorts and toast emission tie-break on this index.
             var orderedForIndex = AchievementOrderHelper.ApplyOrder(
