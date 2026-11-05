@@ -114,11 +114,13 @@
                           Visibility="{Binding UsesHeaderRow, Converter={StaticResource BoolToVis}}" />
                 <StackPanel Orientation="Horizontal" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RootPath}" Style="{StaticResource FieldLabelStyle}" />
-                    <TextBox Width="280"
-                             VerticalContentAlignment="Center"
-                             Text="{Binding RootPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RootPathHint}"
-                             KeyDown="CommitOnEnter_KeyDown" />
+                    <ComboBox Width="280"
+                              IsEditable="True"
+                              ItemsSource="{Binding RowPaths}"
+                              Text="{Binding RootPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RootPathHint}"
+                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                              KeyDown="CommitOnEnter_KeyDown" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RowElementPath}" Style="{StaticResource FieldLabelStyle}" />
