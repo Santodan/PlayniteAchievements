@@ -41,12 +41,18 @@ namespace PlayniteAchievements.Services.Tagging
         /// Names a kind's default had before it was renamed, in every language, so a tag still
         /// called by one counts as un-customized and is renamed to the current default.
         /// </summary>
-        private static readonly IReadOnlyDictionary<TagType, (string ResourceKey, string English)> FormerResourceKeys =
-            new Dictionary<TagType, (string ResourceKey, string English)>
+        /// <remarks>
+        /// A customization tag was once named "Custom" plus its area's noun ("[PA] Custom Source",
+        /// "[PA] Custom Manual Tracking"). Most of those equal today's names; the ones listed here
+        /// are the ones that changed, every English form each has had.
+        /// </remarks>
+        private static readonly IReadOnlyDictionary<TagType, (string ResourceKey, string[] English)> FormerResourceKeys =
+            new Dictionary<TagType, (string ResourceKey, string[] English)>
             {
-                [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", "[PA] Has Achievements"),
-                [TagType.ManualAchievements] = ("LOCPlayAch_Tagging_ManualAchievements", "[PA] Manual Achievements"),
-                [TagType.CustomManualTracking] = ("LOCPlayAch_Tagging_Tag_CustomManualTracking", "[PA] Manual Tracking")
+                [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", new[] { "[PA] Has Achievements" }),
+                [TagType.ManualAchievements] = ("LOCPlayAch_Tagging_ManualAchievements", new[] { "[PA] Manual Achievements" }),
+                [TagType.CustomManualTracking] = ("LOCPlayAch_Tagging_Tag_CustomManualTracking", new[] { "[PA] Manual Tracking", "[PA] Custom Manual Tracking" }),
+                [TagType.CustomSource] = ("LOCPlayAch_Tagging_Tag_CustomSource", new[] { "[PA] Custom Source" })
             };
 
         private static string FormerId(TagType tagType) => tagType + ".Former";
@@ -84,7 +90,7 @@ namespace PlayniteAchievements.Services.Tagging
                     Id = FormerId(kvp.Key),
                     ResourceKeys = new[] { PrefixFormatKey, kvp.Value.ResourceKey },
                     Compose = values => string.Format(values[0], values[1]),
-                    ExtraHardcodedDefaults = new[] { kvp.Value.English }
+                    ExtraHardcodedDefaults = kvp.Value.English
                 });
             }
 
