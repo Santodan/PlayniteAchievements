@@ -104,7 +104,8 @@ namespace PlayniteAchievements.ViewModels
                 new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Toml, "TOML"),
                 new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Xlsx, L("LOCPlayAch_LinkedFile_Format_Xlsx")),
                 new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Xml, "XML"),
-                new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Ini, "INI")
+                new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Ini, "INI"),
+                new LinkedFileOption<LinkedFileFormat>(LinkedFileFormat.Binary, L("LOCPlayAch_LinkedFile_Format_Binary"))
             };
 
             TimeFormatOptions = new[]
