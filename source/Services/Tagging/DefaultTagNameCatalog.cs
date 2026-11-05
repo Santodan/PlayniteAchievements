@@ -44,7 +44,9 @@ namespace PlayniteAchievements.Services.Tagging
         private static readonly IReadOnlyDictionary<TagType, (string ResourceKey, string English)> FormerResourceKeys =
             new Dictionary<TagType, (string ResourceKey, string English)>
             {
-                [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", "[PA] Has Achievements")
+                [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", "[PA] Has Achievements"),
+                [TagType.ManualAchievements] = ("LOCPlayAch_Tagging_ManualAchievements", "[PA] Manual Achievements"),
+                [TagType.CustomManualTracking] = ("LOCPlayAch_Tagging_Tag_CustomManualTracking", "[PA] Manual Tracking")
             };
 
         private static string FormerId(TagType tagType) => tagType + ".Former";
