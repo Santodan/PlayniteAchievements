@@ -95,14 +95,18 @@
                     <ComboBox Width="140"
                               IsEditable="True"
                               ItemsSource="{Binding DelimiterOptions}"
-                              Text="{Binding DelimiterText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                              Text="{Binding DelimiterText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                              KeyDown="CommitOnEnter_KeyDown" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}" Margin="0,0,16,0">
                     <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Sheet}" Style="{StaticResource FieldLabelStyle}" />
                     <ComboBox Width="200"
                               IsEditable="True"
                               ItemsSource="{Binding SheetNames}"
-                              Text="{Binding SheetName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                              Text="{Binding SheetName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                              KeyDown="CommitOnEnter_KeyDown" />
                 </StackPanel>
                 <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_HasHeader}"
                           IsChecked="{Binding HasHeader, Mode=TwoWay}"
