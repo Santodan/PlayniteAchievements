@@ -10,8 +10,9 @@ using System.Windows.Input;
 namespace PlayniteAchievements.Views.Dialogs
 {
     /// <summary>
-    /// The Link File window. Settings are stored as they are entered, so closing is never a
-    /// discard; the host reloads when <see cref="LinkedFileMappingViewModel.ChangedLink"/> is set.
+    /// The Link File window. Apply stores the link, reads the file and closes; Cancel and the
+    /// window's close button discard. The host reloads when
+    /// <see cref="LinkedFileMappingViewModel.ChangedLink"/> is set.
     /// </summary>
     public partial class LinkedFileMappingDialog : UserControl
     {
@@ -93,14 +94,9 @@ namespace PlayniteAchievements.Views.Dialogs
             }
         }
 
-        private void Close_Click(object sender, RoutedEventArgs e)
+        private void Cancel_Click(object sender, RoutedEventArgs e)
         {
-            // A text box still holding focus commits what was typed before the window goes.
-            if (Keyboard.FocusedElement is TextBox focused)
-            {
-                focused.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
-            }
-
+            // Nothing in the window is stored until Apply, so closing discards it.
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
     }
