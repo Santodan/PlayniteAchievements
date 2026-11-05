@@ -456,6 +456,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 nameof(AchievementEditorRow.DisplayName),
                 nameof(AchievementEditorRow.Description),
+                nameof(AchievementEditorRow.ApiNameText),
                 nameof(AchievementEditorRow.PointsText),
                 nameof(AchievementEditorRow.TrophyType),
                 nameof(AchievementEditorRow.Hidden),
@@ -7025,9 +7026,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// description: the key is often the spoiler.
         /// </summary>
         public string ApiNameResolved =>
-            IsProviderRow && !IsBulkRow && !IsBlank && !IsDescriptionHidden
-                ? OriginalApiName
+            !IsBulkRow && !IsBlank && !IsDescriptionHidden
+                ? ApiNameText
                 : string.Empty;
+
+        /// <summary>
+        /// The key a linked file matches this achievement by: the provider's own key for a
+        /// provider row, the bare id for an authored one. Editing it renames an authored row's id;
+        /// the "custom:" prefix is accepted and dropped, since matching takes either form.
+        /// </summary>
+        public string ApiNameText
+        {
+            get => IsBulkRow ? string.Empty : IsProviderRow ? OriginalApiName : NormalizedId;
+            set
+            {
+                if (CanEditApiName)
+                {
+                    var id = CustomAchievementProjectionService.NormalizeId(value);
+                    if (!string.Equals(id, NormalizedId, StringComparison.Ordinal))
+                    {
+                        Id = id;
+                    }
+                }
+
+                // Raised even when refused, so the cell shows what is stored.
+                OnPropertyChanged(nameof(ApiNameText));
+                OnPropertyChanged(nameof(NormalizedId));
+                OnPropertyChanged(nameof(ApiNameResolved));
+                OnPropertyChanged(nameof(HasApiName));
+            }
+        }
+
+        /// <summary>Only an authored row's key is the user's to change.</summary>
+        public bool CanEditApiName => !IsProviderRow && !IsBulkRow && !IsBlank;
 
         public bool HasApiName => !string.IsNullOrWhiteSpace(ApiNameResolved);
 
@@ -7855,6 +7886,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(CanEditRarity));
                     OnPropertyChanged(nameof(CanEditUnlocked));
                     OnPropertyChanged(nameof(CanEditProgress));
+                    OnPropertyChanged(nameof(CanEditApiName));
+                    OnPropertyChanged(nameof(ApiNameText));
                 }
             }
         }
