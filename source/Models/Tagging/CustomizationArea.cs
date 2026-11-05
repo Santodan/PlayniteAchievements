@@ -48,6 +48,9 @@ namespace PlayniteAchievements.Models.Tagging
         Tags = 1 << 11,
 
         /// <summary>Achievement name or description overrides.</summary>
-        Text = 1 << 12
+        Text = 1 << 12,
+
+        /// <summary>Achievements filtered out of views or out of summaries.</summary>
+        Filters = 1 << 13
     }
 }
