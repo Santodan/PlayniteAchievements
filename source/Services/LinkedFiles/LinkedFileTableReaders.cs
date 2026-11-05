@@ -96,24 +96,29 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
         }
 
-        /// <summary>The format a file's extension suggests, or null when it suggests none.</summary>
+        private const int SniffBytes = 64 * 1024;
+
+        /// <summary>
+        /// The format a file is read as, from its extension when that is unambiguous and from
+        /// its first bytes otherwise (text files, common save extensions, no extension). Falls
+        /// back to the extension when the file cannot be read; null when nothing decides it.
+        /// </summary>
         public static LinkedFileFormat? DetectFormat(string path)
         {
             string extension;
             try
             {
-                extension = Path.GetExtension(path ?? string.Empty);
+                extension = (Path.GetExtension(path ?? string.Empty) ?? string.Empty).ToLowerInvariant();
             }
             catch (ArgumentException)
             {
                 return null;
             }
 
-            switch ((extension ?? string.Empty).ToLowerInvariant())
+            switch (extension)
             {
                 case ".csv":
                 case ".tsv":
-                case ".txt":
                 case ".tab":
                 case ".psv":
                     return LinkedFileFormat.Delimited;
@@ -130,8 +135,117 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 case ".cfg":
                 case ".conf":
                     return LinkedFileFormat.Ini;
-                default:
+            }
+
+            var byExtension = extension == ".txt"
+                ? LinkedFileFormat.Delimited
+                : extension == ".bin" || extension == ".dat" || extension == ".sav"
+                    ? LinkedFileFormat.Binary
+                    : (LinkedFileFormat?)null;
+
+            var head = ReadHead(path);
+            return head == null || head.Length == 0 ? byExtension : SniffFormat(head) ?? byExtension;
+        }
+
+        /// <summary>
+        /// The format the first bytes of a file show, or null when they show none: a zip is a
+        /// workbook, control bytes are binary, a leading brace or list is JSON, a leading angle
+        /// bracket is XML, and flag, hex or base64 text is binary.
+        /// </summary>
+        internal static LinkedFileFormat? SniffFormat(byte[] head)
+        {
+            if (head.Length >= 4 && head[0] == 0x50 && head[1] == 0x4B && head[2] == 0x03 && head[3] == 0x04)
+            {
+                return LinkedFileFormat.Xlsx;
+            }
+
+            var start = head.Length >= 3 && head[0] == 0xEF && head[1] == 0xBB && head[2] == 0xBF ? 3 : 0;
+            if (head.Length >= 2 && ((head[0] == 0xFF && head[1] == 0xFE) || (head[0] == 0xFE && head[1] == 0xFF)))
+            {
+                return null;
+            }
+
+            for (var i = start; i < head.Length; i++)
+            {
+                var b = head[i];
+                if (b < 0x09 || (b > 0x0D && b < 0x20))
+                {
+                    return LinkedFileFormat.Binary;
+                }
+            }
+
+            var first = NextNonSpace(head, start);
+            if (first >= 0)
+            {
+                switch ((char)head[first])
+                {
+                    case '{':
+                        return LinkedFileFormat.Json;
+                    case '<':
+                        return LinkedFileFormat.Xml;
+                    case '[':
+                        // A list opens with a value; an INI section opens with its name.
+                        var next = NextNonSpace(head, first + 1);
+                        if (next < 0 || "{[]\"-0123456789".IndexOf((char)head[next]) >= 0)
+                        {
+                            return LinkedFileFormat.Json;
+                        }
+
+                        return LinkedFileFormat.Ini;
+                }
+            }
+
+            if (head.Length < SniffBytes && BinaryTableReader.IsEncodedText(head))
+            {
+                return LinkedFileFormat.Binary;
+            }
+
+            return null;
+        }
+
+        private static int NextNonSpace(byte[] bytes, int from)
+        {
+            for (var i = from; i < bytes.Length; i++)
+            {
+                if (bytes[i] != (byte)' ' && (bytes[i] < 0x09 || bytes[i] > 0x0D))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static byte[] ReadHead(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                {
                     return null;
+                }
+
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    var buffer = new byte[SniffBytes];
+                    var read = 0;
+                    int chunk;
+                    while (read < buffer.Length && (chunk = stream.Read(buffer, read, buffer.Length - read)) > 0)
+                    {
+                        read += chunk;
+                    }
+
+                    Array.Resize(ref buffer, read);
+                    return buffer;
+                }
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
             }
         }
 
