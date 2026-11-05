@@ -53,8 +53,9 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// The Link File window: the file and its format, the saved mappings, a preview whose column
     /// headers pick the achievement field each column feeds, how rows match, and what the match
-    /// would do. Every complete input is stored on the game at once; Apply Now writes the file's
-    /// unlocks, and nothing else does.
+    /// would do. Nothing is stored on the game until Apply, which saves the link, reads the file
+    /// and closes the window; Cancel leaves the game as it was, so a half-finished mapping never
+    /// stays behind. Saved mappings are written to their own list when saved.
     /// </summary>
     public sealed class LinkedFileMappingViewModel : ObservableObject
     {
@@ -734,7 +735,6 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            Persist();
             if (reread)
             {
                 _ = Reread();
@@ -745,7 +745,7 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>Stores the link on the game once there is a file or a mapped column.</summary>
+        /// <summary>Stores the window's link on the game. Only Apply calls it.</summary>
         private void Persist()
         {
             var schema = BuildSchema();
@@ -860,7 +860,7 @@ namespace PlayniteAchievements.ViewModels
                 string.Format(L("LOCPlayAch_LinkedFile_Count_Errors"), report.ParseErrors)
             };
             _services.ShowMessage?.Invoke(string.Join(Environment.NewLine, lines));
-            Recompute();
+            RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
         private void Unlink()
@@ -896,7 +896,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             ApplySchemaToSettings(schema);
-            Persist();
             _ = Reread();
         }
 
@@ -923,7 +922,6 @@ namespace PlayniteAchievements.ViewModels
 
             _mappingName = name;
             store.Save(BuildSchema());
-            Persist();
             ReloadSavedNames();
             SelectedSavedName = SavedNames.FirstOrDefault(saved => string.Equals(saved, name, StringComparison.OrdinalIgnoreCase));
         }
@@ -946,7 +944,6 @@ namespace PlayniteAchievements.ViewModels
             if (string.Equals(_mappingName, oldName, StringComparison.OrdinalIgnoreCase))
             {
                 _mappingName = newName;
-                Persist();
             }
 
             _selectedSavedName = newName;
