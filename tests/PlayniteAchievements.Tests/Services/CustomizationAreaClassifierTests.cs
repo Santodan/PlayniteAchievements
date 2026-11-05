@@ -46,6 +46,9 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.Icons, new GameCustomDataFile { UseSeparateLockedIconsOverride = true });
             AssertOnly(CustomizationArea.Order, new GameCustomDataFile { AchievementOrder = new List<string> { "a" } });
             AssertOnly(CustomizationArea.Goals, new GameCustomDataFile { GoalAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.Filters, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.Filters, new GameCustomDataFile { SummaryFilteredAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.None, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { " " } });
             AssertOnly(CustomizationArea.Capstones, new GameCustomDataFile { ManualCapstoneApiName = "a" });
             AssertOnly(CustomizationArea.Capstones, new GameCustomDataFile { CapstonesMaterialized = true });
             AssertOnly(CustomizationArea.Source, new GameCustomDataFile { ExophaseSlugOverride = "slug" });
@@ -60,7 +63,6 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
                     new PlayniteAchievements.Models.Achievements.AchievementTagDefinition()
                 }
             });
-            AssertOnly(CustomizationArea.None, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { "a" } });
         }
 
         [TestMethod]
