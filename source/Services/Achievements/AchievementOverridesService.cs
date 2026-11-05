@@ -1836,6 +1836,120 @@ namespace PlayniteAchievements.Services.Achievements
             return ManualUnlockWriteResult.Manual;
         }
 
+        /// <summary>
+        /// Records a running game's observed unlocks and progress on the achievements the user
+        /// owns, in at most one store write per kind: custom achievements on their definitions,
+        /// linked-definition achievements in the manual link. Never locks anything; a file that
+        /// locks an achievement is reconciled by the next full read. Returns the API names that
+        /// became unlocked.
+        /// </summary>
+        internal IReadOnlyList<string> ApplyUserOwnedObservations(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementProgressObservation> observations)
+        {
+            var newlyUnlocked = new List<string>();
+            if (playniteGameId == Guid.Empty || observations == null || observations.Count == 0 ||
+                !_gameCustomDataStore.TryLoad(playniteGameId, out var probe) || probe == null)
+            {
+                return newlyUnlocked;
+            }
+
+            var byApiName = new Dictionary<string, AchievementProgressObservation>(StringComparer.OrdinalIgnoreCase);
+            foreach (var observation in observations)
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(observation?.ApiName);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    byApiName[apiName] = observation;
+                }
+            }
+
+            var now = DateTime.UtcNow;
+            if (probe.CustomAchievements != null &&
+                byApiName.Keys.Any(CustomAchievementProjectionService.IsCustomApiName))
+            {
+                var changed = false;
+                var updated = new List<CustomAchievementDefinition>();
+                foreach (var definition in probe.CustomAchievements)
+                {
+                    var clone = definition?.Clone();
+                    if (clone == null)
+                    {
+                        continue;
+                    }
+
+                    var apiName = CustomAchievementProjectionService.BuildApiName(clone.Id);
+                    if (apiName != null && byApiName.TryGetValue(apiName, out var observation))
+                    {
+                        if (observation.Unlocked && !clone.Unlocked)
+                        {
+                            clone.Unlocked = true;
+                            clone.UnlockTimeUtc = observation.UnlockTimeUtc ?? now;
+                            newlyUnlocked.Add(apiName);
+                            changed = true;
+                        }
+
+                        if (observation.ProgressNum.HasValue && (!clone.ProgressNum.HasValue || observation.ProgressNum.Value > clone.ProgressNum.Value))
+                        {
+                            clone.ProgressNum = observation.ProgressNum;
+                            changed = true;
+                        }
+
+                        if (observation.ProgressDenom.HasValue && clone.ProgressDenom != observation.ProgressDenom)
+                        {
+                            clone.ProgressDenom = observation.ProgressDenom;
+                            changed = true;
+                        }
+                    }
+
+                    updated.Add(clone);
+                }
+
+                if (changed)
+                {
+                    SetCustomAchievements(playniteGameId, updated);
+                }
+            }
+
+            if (probe.ManualLink != null)
+            {
+                var states = probe.ManualLink.UnlockStates ?? new Dictionary<string, bool>();
+                var toUnlock = byApiName
+                    .Where(pair => !CustomAchievementProjectionService.IsCustomApiName(pair.Key) &&
+                                   pair.Value.Unlocked &&
+                                   !(states.TryGetValue(pair.Key, out var already) && already))
+                    .ToList();
+                if (toUnlock.Count > 0)
+                {
+                    _gameCustomDataStore.Update(
+                        playniteGameId,
+                        customData =>
+                        {
+                            if (customData.ManualLink == null)
+                            {
+                                return;
+                            }
+
+                            customData.ManualLink.UnlockStates ??= new Dictionary<string, bool>();
+                            customData.ManualLink.UnlockTimes ??= new Dictionary<string, DateTime?>();
+                            foreach (var pair in toUnlock)
+                            {
+                                customData.ManualLink.UnlockStates[pair.Key] = true;
+                                customData.ManualLink.UnlockTimes[pair.Key] = pair.Value.UnlockTimeUtc ?? now;
+                            }
+
+                            customData.ManualLink.LastModifiedUtc = now;
+                        },
+                        // The caller writes the same unlocks to the cache, which raises its own
+                        // invalidation, as TryUnlockUserOwnedAchievement does.
+                        affectsSummaryData: false);
+                    newlyUnlocked.AddRange(toUnlock.Select(pair => pair.Key));
+                }
+            }
+
+            return newlyUnlocked;
+        }
+
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
         {
             var removedFromStore = false;
