@@ -150,13 +150,15 @@ namespace PlayniteAchievements.Services.LinkedFiles
             LinkedFileTable table,
             string message,
             IReadOnlyList<string> warnings,
-            IReadOnlyList<string> sheetNames)
+            IReadOnlyList<string> sheetNames,
+            IReadOnlyList<string> rowPaths)
         {
             Status = status;
             Table = table ?? LinkedFileTable.Empty;
             Message = message;
             Warnings = warnings ?? Array.Empty<string>();
             SheetNames = sheetNames ?? Array.Empty<string>();
+            RowPaths = rowPaths ?? Array.Empty<string>();
         }
 
         public LinkedFileReadStatus Status { get; }
@@ -173,14 +175,28 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>The workbook's sheet names, for the mapping window; empty for other formats.</summary>
         public IReadOnlyList<string> SheetNames { get; }
 
-        public static LinkedFileReadResult Ok(LinkedFileTable table, IReadOnlyList<string> warnings = null, IReadOnlyList<string> sheetNames = null)
+        /// <summary>
+        /// The rows paths a JSON or TOML file offers, for the mapping window: every list and
+        /// object in the document; empty for other formats.
+        /// </summary>
+        public IReadOnlyList<string> RowPaths { get; }
+
+        public static LinkedFileReadResult Ok(
+            LinkedFileTable table,
+            IReadOnlyList<string> warnings = null,
+            IReadOnlyList<string> sheetNames = null,
+            IReadOnlyList<string> rowPaths = null)
         {
-            return new LinkedFileReadResult(LinkedFileReadStatus.Ok, table, null, warnings, sheetNames);
+            return new LinkedFileReadResult(LinkedFileReadStatus.Ok, table, null, warnings, sheetNames, rowPaths);
         }
 
-        public static LinkedFileReadResult Failed(LinkedFileReadStatus status, string message, IReadOnlyList<string> sheetNames = null)
+        public static LinkedFileReadResult Failed(
+            LinkedFileReadStatus status,
+            string message,
+            IReadOnlyList<string> sheetNames = null,
+            IReadOnlyList<string> rowPaths = null)
         {
-            return new LinkedFileReadResult(status, null, message, null, sheetNames);
+            return new LinkedFileReadResult(status, null, message, null, sheetNames, rowPaths);
         }
     }
 }
