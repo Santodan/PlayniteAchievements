@@ -73,6 +73,13 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CodedWidthRows_AcceptAnyPaddingNarrowerThanThePitch()
+        {
+            // 1920 (1900 padded to 64) x 1.5 x 1088 = 3133440; 2048 x 1.5 x 1088 = 3342336 allocated.
+            Assert.AreEqual(1088, Nv12LayoutMath.AlignedHeight(1900, 1080, 2048, 3133440L, 3342336L));
+        }
+
+        [TestMethod]
         public void CodedWidthRows_ThatOverflowTheBuffer_AreRefused()
         {
             Assert.AreEqual(0, Nv12LayoutMath.AlignedHeight(2020, 1080, 2048, 3316224L, 3342335L));
