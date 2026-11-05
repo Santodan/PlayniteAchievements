@@ -119,6 +119,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             DataContext = _viewModel;
             InitializeComponent();
 
+            _viewModel.AttachLinkedFileDialog(ShowLinkedFileDialog);
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
@@ -859,6 +860,69 @@ namespace PlayniteAchievements.Views.ManageAchievements
             return linked;
         }
 
+        /// <summary>
+        /// Opens the Link File window for this game. Settings are stored as they are entered;
+        /// returns true when the window stored, applied or removed a link.
+        /// </summary>
+        private bool ShowLinkedFileDialog()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var store = plugin?.GameCustomDataStore;
+            var gameId = _viewModel.GameId;
+            if (store == null || gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            string L(string key) => ResourceProvider.GetString(key);
+            var title = L("LOCPlayAch_Title_PluginName");
+            var services = new LinkedFileMappingServices
+            {
+                LoadRecord = () => store.LoadOrDefault(gameId),
+                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
+                LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                SchemaStore = plugin.LinkedFileSchemaStore,
+                ApplyNow = () => plugin.LinkedFileSyncService?.SyncGame(gameId, Services.LinkedFiles.LinkedFileSyncReason.UserRequest),
+                BrowseFile = current =>
+                {
+                    var dialog = new System.Windows.Forms.OpenFileDialog
+                    {
+                        Filter = L("LOCPlayAch_LinkedFile_Format_SupportedFiles") +
+                                 " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini|" +
+                                 L("LOCPlayAch_Showcase_AllFiles") + " (*.*)|*.*",
+                        CheckFileExists = true,
+                        Multiselect = false
+                    };
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(current))
+                        {
+                            dialog.InitialDirectory = System.IO.Path.GetDirectoryName(current);
+                            dialog.FileName = System.IO.Path.GetFileName(current);
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                    }
+
+                    return dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK ? dialog.FileName : null;
+                },
+                Confirm = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes,
+                ShowMessage = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.OK, MessageBoxImage.Information),
+                AskName = defaultName => PresetNamePrompt.TryAsk(
+                    plugin,
+                    defaultName,
+                    LinkedFileSchema.SanitizeName,
+                    LinkedFileSchema.MaxNameLength,
+                    out var name,
+                    L("LOCPlayAch_LinkedFile_SaveMappingTitle"))
+                    ? name
+                    : null
+            };
+
+            return LinkedFileMappingDialog.Show(Window.GetWindow(this), new LinkedFileMappingViewModel(services));
+        }
+
         private void EnsureEditorControl(bool forceRecreate)
         {
             if (_editorControl != null && !forceRecreate)
@@ -901,6 +965,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 shareToWorkshop: _viewModel.ShareToWorkshopCommand,
                 importPortable: (mergeCustomAchievements, mergeCsv, beforeReplace) =>
                     _viewModel.ImportPortable(mergeCustomAchievements, mergeCsv, beforeReplace));
+            _editorViewModel.ShowLinkedFileDialog = ShowLinkedFileDialog;
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.IconOverridesSaved += EditorViewModel_IconOverridesSaved;
