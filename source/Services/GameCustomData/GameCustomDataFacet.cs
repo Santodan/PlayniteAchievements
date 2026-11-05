@@ -20,7 +20,9 @@ namespace PlayniteAchievements.Services.GameCustomData
     ///
     /// The manual link is excluded for now. Its write is only half the story, because the link is
     /// re-projected onto the achievement cache by the caller, and unlock state held there is the
-    /// one thing with no provider to re-fetch it from.
+    /// one thing with no provider to re-fetch it from. The linked file is excluded for the same
+    /// reason: its reads are re-projected by the sync service, and the link is edited from its
+    /// own window rather than the grid.
     ///
     /// Everything the editor cannot reach - refresh exclusions, notification appearance, provider
     /// overrides, the game summary category - is excluded so an undo can never reverse a write
