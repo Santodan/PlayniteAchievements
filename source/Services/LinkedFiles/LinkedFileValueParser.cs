@@ -26,9 +26,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowWhiteSpaces;
 
         /// <summary>
-        /// Reads a cell as unlocked or locked. The schema's own words count as unlocked alongside
-        /// the defaults; the default locked words count as locked; a number is unlocked when it
-        /// is not zero. Anything else is not a boolean.
+        /// Reads a cell as unlocked or locked. When the schema lists its own values, they are the
+        /// whole unlocked set: a cell matching one, by text or by numeric value, is unlocked and
+        /// any other non-blank cell is locked. Otherwise the default words decide, and a number is
+        /// unlocked when it is not zero. Anything else is not a boolean.
         /// </summary>
         public static bool TryParseBoolean(string value, IReadOnlyCollection<string> trueValues, out bool parsed)
         {
@@ -39,8 +40,22 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return false;
             }
 
-            if (LinkedFileSchema.DefaultTrueValues.Contains(normalized) ||
-                (trueValues != null && trueValues.Any(candidate => string.Equals((candidate ?? string.Empty).Trim().ToLowerInvariant(), normalized, StringComparison.Ordinal))))
+            var listed = trueValues?
+                .Select(candidate => (candidate ?? string.Empty).Trim().ToLowerInvariant())
+                .Where(candidate => candidate.Length > 0)
+                .ToList();
+            if (listed != null && listed.Count > 0)
+            {
+                var isNumber = double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var cellNumber);
+                parsed = listed.Any(candidate =>
+                    string.Equals(candidate, normalized, StringComparison.Ordinal) ||
+                    (isNumber &&
+                     double.TryParse(candidate, NumberStyles.Float, CultureInfo.InvariantCulture, out var candidateNumber) &&
+                     candidateNumber == cellNumber));
+                return true;
+            }
+
+            if (LinkedFileSchema.DefaultTrueValues.Contains(normalized))
             {
                 parsed = true;
                 return true;
