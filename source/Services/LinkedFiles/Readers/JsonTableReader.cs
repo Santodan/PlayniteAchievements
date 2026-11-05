@@ -39,13 +39,92 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return LinkedFileReadResult.Failed(LinkedFileReadStatus.ReadFailed, "The file is not valid JSON: " + ex.Message);
             }
 
+            var rowPaths = ListRowPaths(root);
             var nodes = SelectPath(root, schema.RootPath);
             if (nodes.Count == 0)
             {
-                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.");
+                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
             }
 
-            return LinkedFileReadResult.Ok(ToTable(nodes));
+            return LinkedFileReadResult.Ok(ToTable(nodes), rowPaths: rowPaths);
+        }
+
+        private const int MaxRowPaths = 200;
+
+        private const int MaxRowPathDepth = 8;
+
+        /// <summary>
+        /// Every list and non-empty object below <paramref name="root"/> as a rows path, in
+        /// document order, following object properties only. The entries of an object whose
+        /// entries are all objects with the same keys are not listed, since that object is a
+        /// table itself. Properties whose names a dotted path cannot address are left out.
+        /// </summary>
+        public static IReadOnlyList<string> ListRowPaths(JToken root)
+        {
+            var paths = new List<string>();
+
+            void Visit(JObject obj, string prefix, int depth)
+            {
+                foreach (var property in obj.Properties())
+                {
+                    if (paths.Count >= MaxRowPaths)
+                    {
+                        return;
+                    }
+
+                    var name = property.Name;
+                    if (name.Length == 0 || name.IndexOfAny(new[] { '.', '[', ']' }) >= 0 || name.Trim() != name)
+                    {
+                        continue;
+                    }
+
+                    var path = prefix == null ? name : prefix + "." + name;
+                    if (property.Value is JArray)
+                    {
+                        paths.Add(path);
+                    }
+                    else if (property.Value is JObject nested && nested.HasValues)
+                    {
+                        paths.Add(path);
+                        if (depth < MaxRowPathDepth && !IsUniformTable(nested))
+                        {
+                            Visit(nested, path, depth + 1);
+                        }
+                    }
+                }
+            }
+
+            if (root is JObject top && !IsUniformTable(top))
+            {
+                Visit(top, null, 1);
+            }
+
+            return paths;
+        }
+
+        /// <summary>Whether every entry of the object is an object with the same property names.</summary>
+        private static bool IsUniformTable(JObject obj)
+        {
+            HashSet<string> keys = null;
+            foreach (var property in obj.Properties())
+            {
+                if (!(property.Value is JObject entry))
+                {
+                    return false;
+                }
+
+                var names = new HashSet<string>(entry.Properties().Select(p => p.Name), StringComparer.Ordinal);
+                if (keys == null)
+                {
+                    keys = names;
+                }
+                else if (!keys.SetEquals(names))
+                {
+                    return false;
+                }
+            }
+
+            return keys != null;
         }
 
         /// <summary>
