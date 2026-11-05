@@ -472,10 +472,13 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasStoredLink => _services.LoadRecord?.Invoke()?.LinkedFile != null;
 
+        /// <summary>
+        /// A complete mapping and a file that reads, or a file that does not exist yet: some
+        /// programs write it only at the first unlock, so the link waits for it.
+        /// </summary>
         public bool CanApplyNow =>
             !string.IsNullOrWhiteSpace(_filePath) &&
-            !IsFileMissing &&
-            _lastRead?.Success == true &&
+            (IsFileMissing || _lastRead?.Success == true) &&
             LinkedFileSchemaValidator.IsValid(BuildSchema());
 
         // ---------------------------------------------------------------- schema
@@ -509,10 +512,13 @@ namespace PlayniteAchievements.ViewModels
                 RootPath = _rootPath,
                 RowElementPath = _rowElementPath,
                 IniFlatMode = _iniFlatMode,
-                Columns = Columns
-                    .Where(column => column.IsMapped)
-                    .Select(column => new LinkedFileColumnMapping { Column = column.ColumnName, Field = column.Field })
-                    .ToList(),
+                // Without a file there are no columns to show, so a loaded mapping stands as loaded.
+                Columns = Columns.Count == 0 && _pendingMappings != null
+                    ? _pendingMappings.Select(mapping => mapping.Clone()).ToList()
+                    : Columns
+                        .Where(column => column.IsMapped)
+                        .Select(column => new LinkedFileColumnMapping { Column = column.ColumnName, Field = column.Field })
+                        .ToList(),
                 // An empty order would fall back to the default; matching nothing is not a choice.
                 MatchOrder = matchOrder.Count > 0 ? matchOrder : new List<LinkedFileMatchKey> { LinkedFileMatchKey.RowOrder },
                 CreateUnmatchedRows = _createUnmatched,
