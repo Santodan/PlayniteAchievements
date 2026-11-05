@@ -84,6 +84,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                         return XmlTableReader.Read(bytes, schema);
                     case LinkedFileFormat.Ini:
                         return IniTableReader.Read(LinkedFileTextDecoder.Decode(bytes), schema);
+                    case LinkedFileFormat.Binary:
+                        return BinaryTableReader.Read(bytes);
                     default:
                         return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Unknown file format.");
                 }
