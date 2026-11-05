@@ -876,13 +876,20 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             string L(string key) => ResourceProvider.GetString(key);
             var title = L("LOCPlayAch_Title_PluginName");
+            var refreshAfterClose = false;
             var services = new LinkedFileMappingServices
             {
                 LoadRecord = () => store.LoadOrDefault(gameId),
                 UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
                 LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
                 SchemaStore = plugin.LinkedFileSchemaStore,
-                ApplyNow = () => plugin.LinkedFileSyncService?.SyncGame(gameId, Services.LinkedFiles.LinkedFileSyncReason.UserRequest),
+                // Apply runs the game's ordinary refresh once the window has closed, so the file
+                // is read the way every refresh reads it and what follows a refresh runs too.
+                ApplyNow = () =>
+                {
+                    refreshAfterClose = true;
+                    return null;
+                },
                 BrowseFile = current =>
                 {
                     var dialog = new System.Windows.Forms.OpenFileDialog
@@ -920,7 +927,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     : null
             };
 
-            return LinkedFileMappingDialog.Show(Window.GetWindow(this), new LinkedFileMappingViewModel(services));
+            var changed = LinkedFileMappingDialog.Show(Window.GetWindow(this), new LinkedFileMappingViewModel(services));
+            if (refreshAfterClose && _viewModel.RefreshGameCommand?.CanExecute(null) == true)
+            {
+                _viewModel.RefreshGameCommand.Execute(null);
+            }
+
+            return changed;
         }
 
         private void EnsureEditorControl(bool forceRecreate)
