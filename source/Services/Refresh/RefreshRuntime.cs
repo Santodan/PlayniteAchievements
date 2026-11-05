@@ -81,6 +81,14 @@ namespace PlayniteAchievements.Services.Refresh
         /// Null leaves provider data as fetched.
         /// </summary>
         internal Metadata.MetadataOverlay MetadataOverlay { get; set; }
+
+        /// <summary>
+        /// Reads the linked files of the games a refresh covers, after its provider work. Runs
+        /// for every current-user refresh request, including one no provider had work for, so a
+        /// game tracked only by you is read by the refreshes that name it. Null skips it.
+        /// </summary>
+        internal Func<LinkedFiles.LinkedFilePassScope, CancellationToken, Task> LinkedFilePass { get; set; }
+
         private int _savedGamesInCurrentRun;
 
         // A refresh that saves many games or scrapes many friend rows fetches many provider web
@@ -2176,6 +2184,7 @@ namespace PlayniteAchievements.Services.Refresh
                     }
                 }
 
+                await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
                 return;
             }
 
@@ -2186,6 +2195,41 @@ namespace PlayniteAchievements.Services.Refresh
                     targetSelectionCache,
                     externalToken)
                 .ConfigureAwait(false);
+            await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+        }
+
+        private async Task RunLinkedFilePassAsync(
+            RefreshRequest request,
+            RefreshRequestPlanner.ResolvedRequest resolved,
+            CancellationToken externalToken)
+        {
+            var pass = LinkedFilePass;
+            if (pass == null || resolved == null || externalToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var scope = LinkedFiles.LinkedFilePassScope.FromRequest(
+                resolved.Mode,
+                resolved.SingleGameId ?? request?.SingleGameId,
+                resolved.Options ?? request?.Options,
+                request?.GameIds);
+            if (scope == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await pass(scope, externalToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[LinkedFile] The refresh pass failed.");
+            }
         }
 
         public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds, CancellationToken externalToken = default)
