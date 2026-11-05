@@ -1284,6 +1284,14 @@ namespace PlayniteAchievements
                     _autoCapstoneMaintainer.DefersAnnouncements = gameId => _inGameMonitor?.IsMonitoring(gameId) == true;
                     _inGameMonitor.MaintainCapstones = gameId => _autoCapstoneMaintainer?.Maintain(gameId);
                     _inGameMonitor.TakeCapstoneAnnouncements = _autoCapstoneMaintainer.TakePendingAnnouncements;
+                    _inGameMonitor.LinkedFileSource = new Services.LinkedFiles.LinkedFileProgressSource(
+                        _gameCustomDataStore,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                        _logger);
+                    _inGameMonitor.ApplyUserOwnedObservations = (gameId, observations) =>
+                        _achievementOverridesService?.ApplyUserOwnedObservations(gameId, observations) ?? (IReadOnlyList<string>)Array.Empty<string>();
+                    _inGameMonitor.LoadGameDataWithCustomAchievements = gameId =>
+                        _achievementDataService?.GetRawGameAchievementDataWithCustomAchievements(gameId);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -2594,8 +2602,10 @@ namespace PlayniteAchievements
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChangedForTags;
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
                     _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForCaptures;
+                    _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForLinkedFile;
                     _eventSubscriptions.Add(() =>
                     {
+                        _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForLinkedFile;
                         _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForCaptures;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChangedForTags;
@@ -2679,6 +2689,28 @@ namespace PlayniteAchievements
                     StringComparison.OrdinalIgnoreCase))
             {
                 _captureLibraryService?.RefreshGameDirectories();
+            }
+        }
+
+        private void GameCustomDataStore_CustomDataWrittenForLinkedFile(object sender, GameCustomDataWrittenEventArgs e)
+        {
+            // A running game picks up a linked, moved or remapped file at once. Read status is
+            // written after every read, so only the path and the mapping count as a change.
+            if (e == null || _inGameMonitor?.IsMonitoring(e.PlayniteGameId) != true)
+            {
+                return;
+            }
+
+            var before = e.Previous?.LinkedFile;
+            var after = e.Persisted?.LinkedFile;
+            var samePath = string.Equals(before?.FilePath, after?.FilePath, StringComparison.OrdinalIgnoreCase);
+            var sameMapping = string.Equals(
+                Newtonsoft.Json.JsonConvert.SerializeObject(before?.Schema),
+                Newtonsoft.Json.JsonConvert.SerializeObject(after?.Schema),
+                StringComparison.Ordinal);
+            if (!samePath || !sameMapping)
+            {
+                _inGameMonitor.Reconfigure();
             }
         }
 
