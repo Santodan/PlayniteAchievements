@@ -117,6 +117,8 @@ namespace PlayniteAchievements.Models.Tagging
                 custom: TagType.CustomGoals, none: TagType.NoGoals),
             Area(CustomizationArea.Notes, "LOCPlayAch_Tagging_Area_Notes",
                 custom: TagType.CustomNotes, none: TagType.NoNotes),
+            Area(CustomizationArea.Filters, "LOCPlayAch_Menu_Filters",
+                custom: TagType.CustomFilters, none: TagType.NoFilters),
             Area(CustomizationArea.Notifications, "LOCPlayAch_Tagging_Area_Notifications",
                 custom: TagType.CustomNotifications),
             Area(CustomizationArea.Source, "LOCPlayAch_Tagging_Area_Source",
