@@ -14,7 +14,8 @@ namespace PlayniteAchievements.Models.Settings
         Xlsx,
         Xml,
         Ini,
-        Toml
+        Toml,
+        Binary
     }
 
     /// <summary>The achievement field a file column feeds.</summary>
