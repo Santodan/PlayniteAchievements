@@ -53,6 +53,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("\t", LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = "\\t" }).Delimiter);
             Assert.AreEqual("\t", LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = "\t" }).Delimiter);
             Assert.AreEqual(";", LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = " ;; " }).Delimiter);
+            Assert.AreEqual(" ", LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = " " }).Delimiter);
+            Assert.AreEqual(" ", LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = "Space" }).Delimiter);
+            Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = "" }).Delimiter);
             Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = "  " }).Delimiter);
             Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema { Delimiter = null }).Delimiter);
             Assert.AreEqual('|', new LinkedFileSchema { Delimiter = "|" }.DelimiterChar);
