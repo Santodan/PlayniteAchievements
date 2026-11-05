@@ -331,7 +331,9 @@ namespace PlayniteAchievements.Providers.Manual
 
             return string.Format(
                 L("LOCPlayAch_ManageAchievements_Manual_LinkSummary"),
-                string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
+                string.IsNullOrWhiteSpace(link.SourceKey)
+                    ? ProviderRegistry.GetLocalizedName(Services.CustomProviders.CustomProviderKeys.BaseKey)
+                    : link.SourceKey,
                 string.IsNullOrWhiteSpace(link.SourceGameId)
                     ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable")
                     : link.SourceGameId);
