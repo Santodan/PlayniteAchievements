@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void ChoosingAFile_StoresTheLinkAndReadsThePreview()
+        public void ChoosingAFile_ReadsThePreviewButStoresNothingBeforeApply()
         {
             WithFolder(folder =>
             {
@@ -110,12 +110,14 @@ namespace PlayniteAchievements.Tests.ViewModels
                 var path = CreateFile(folder);
 
                 vm.FilePath = path;
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
 
-                Assert.AreEqual(path, harness.Record.LinkedFile?.FilePath);
-                Assert.AreEqual(LinkedFileFormat.Delimited, harness.Record.LinkedFile.Schema.Format);
+                Assert.AreEqual(LinkedFileFormat.Delimited, vm.BuildSchema().Format);
                 Assert.AreEqual(2, vm.Columns.Count);
                 Assert.AreEqual(3, vm.PreviewRows.Count);
-                Assert.IsTrue(vm.ChangedLink);
+                Assert.AreEqual(0, harness.Writes, "Closing without Apply leaves the game as it was.");
+                Assert.IsNull(harness.Record.LinkedFile);
+                Assert.IsFalse(vm.ChangedLink);
             });
         }
 
@@ -142,7 +144,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual(LinkedFileField.Ignore, vm.Columns[0].Field, "Picking a field another column feeds moves it.");
                 Assert.AreEqual(LinkedFileField.ApiName, vm.Columns[1].Field);
 
-                var stored = harness.Record.LinkedFile.Schema.Columns.Single();
+                var stored = vm.BuildSchema().Columns.Single();
                 Assert.AreEqual("done", stored.Column);
                 Assert.AreEqual(LinkedFileField.ApiName, stored.Field);
             });
@@ -235,7 +237,8 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.IsTrue(store.TryGet("My mapping", out var saved));
                 Assert.AreEqual("id", saved.Columns.Single().Column);
                 Assert.AreEqual("My mapping", vm.SelectedSavedName);
-                Assert.AreEqual("My mapping", harness.Record.LinkedFile.Schema.Name);
+                Assert.AreEqual("My mapping", vm.BuildSchema().Name);
+                Assert.IsNull(harness.Record.LinkedFile, "Saving a mapping to the list does not link the game.");
 
                 vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
                 vm.ApplySavedCommand.Execute(null);
@@ -245,11 +248,11 @@ namespace PlayniteAchievements.Tests.ViewModels
                 vm.RenameSavedCommand.Execute(null);
                 Assert.IsTrue(store.Contains("Renamed"));
                 Assert.IsFalse(store.Contains("My mapping"));
-                Assert.AreEqual("Renamed", harness.Record.LinkedFile.Schema.Name);
+                Assert.AreEqual("Renamed", vm.BuildSchema().Name);
 
                 vm.DeleteSavedCommand.Execute(null);
                 Assert.AreEqual(0, store.GetAll().Count);
-                Assert.IsNotNull(harness.Record.LinkedFile, "Deleting a saved mapping never touches the game's own copy.");
+                Assert.AreEqual(LinkedFileField.ApiName, vm.Columns[0].Field, "Deleting a saved mapping leaves the window's own mapping.");
             });
         }
 
@@ -267,11 +270,15 @@ namespace PlayniteAchievements.Tests.ViewModels
                 vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Unlocked);
                 Assert.IsTrue(vm.ApplyNowCommand.CanExecute(null));
 
-                vm.ApplyNowCommand.Execute(null);
-                StringAssert.Contains(harness.Message, "LOCPlayAch_LinkedFile_ApplyReportTitle");
-
                 var closed = false;
                 vm.RequestClose += (s, e) => closed = true;
+                vm.ApplyNowCommand.Execute(null);
+                StringAssert.Contains(harness.Message, "LOCPlayAch_LinkedFile_ApplyReportTitle");
+                Assert.IsTrue(closed, "Apply closes the window.");
+                Assert.AreEqual("done", harness.Record.LinkedFile.Schema.Columns.Single(column => column.Field == LinkedFileField.Unlocked).Column);
+                Assert.IsTrue(vm.ChangedLink);
+
+                closed = false;
                 harness.ConfirmAnswer = false;
                 vm.UnlinkCommand.Execute(null);
                 Assert.IsNotNull(harness.Record.LinkedFile, "A declined confirmation keeps the link.");
@@ -293,7 +300,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsTrue(vm.IsFileMissing);
             Assert.IsFalse(vm.ApplyNowCommand.CanExecute(null));
-            Assert.AreEqual(@"C:\nowhere\progress.csv", harness.Record.LinkedFile.FilePath, "The path is kept so the file can appear later.");
+            Assert.IsNull(harness.Record.LinkedFile, "A missing file cannot be applied, so nothing is stored.");
         }
 
         [TestMethod]
