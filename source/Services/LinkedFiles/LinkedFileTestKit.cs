@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
     internal static class LinkedFileTestKit
     {
         /// <summary>Shows the developer menu item. Turn off before a release build.</summary>
-        public const bool Enabled = true;
+        public const bool Enabled = false;
 
         public const string GameName = "PA Linked File Test";
 
