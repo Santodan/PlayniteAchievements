@@ -92,6 +92,26 @@ namespace PlayniteAchievements.Views.Dialogs
                 textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
                 e.Handled = true;
             }
+            else if (sender is ComboBox comboBox)
+            {
+                comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>
+        /// Applies an item picked from an editable combo at once. The combo sets its text after
+        /// the selection event, so the binding updates on the next dispatcher turn.
+        /// </summary>
+        private void CommitOnSelection_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!(sender is ComboBox comboBox) || comboBox.SelectedItem == null || !comboBox.IsKeyboardFocusWithin && !comboBox.IsDropDownOpen)
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(() =>
+                comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource()));
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
