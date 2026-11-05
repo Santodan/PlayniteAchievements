@@ -119,6 +119,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
+            normalized.LinkedFile = NormalizeLinkedFile(normalized.LinkedFile, normalized.ManualLink != null, normalized.CustomAchievements);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -189,6 +190,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
             normalized.CustomProvider = NormalizeCustomProviderSnapshot(normalized.CustomProvider, normalized.CustomProviderId);
+            normalized.LinkedFileSchema = NormalizeLinkedFileSchema(normalized.LinkedFileSchema, normalized.ManualLink != null, normalized.CustomAchievements);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -241,7 +243,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.MetadataChoices?.IsEmpty() == false ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFile != null;
         }
 
         public static bool HasPortableData(GameCustomDataPortableFile data)
@@ -281,7 +284,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.NotificationAppearanceOverride != null ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFileSchema != null;
         }
 
         /// <summary>
@@ -335,7 +339,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.NotificationAppearanceOverride != null ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFile?.Schema != null;
         }
 
         public static GameCustomDataFile MergePreferExisting(GameCustomDataFile existing, GameCustomDataFile legacy)
@@ -459,7 +464,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 // Follows whichever side supplied the custom achievements it belongs to.
                 CustomProviderId = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
                     ? existing.CustomProviderId
-                    : legacy.CustomProviderId
+                    : legacy.CustomProviderId,
+                // No legacy source ever carried a linked file.
+                LinkedFile = existing.LinkedFile?.Clone()
             };
         }
 
@@ -1469,6 +1476,44 @@ namespace PlayniteAchievements.Services.GameCustomData
                 CreatedUtc = createdUtc,
                 LastModifiedUtc = lastModifiedUtc
             };
+        }
+
+        /// <summary>
+        /// A linked file only has meaning while the game is custom-tracked or has custom
+        /// achievements, so it is dropped otherwise and never keeps an empty row alive. The mapping
+        /// is normalized like any package model; the path and read status are local state.
+        /// </summary>
+        private static LinkedFileLink NormalizeLinkedFile(
+            LinkedFileLink link,
+            bool hasManualLink,
+            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        {
+            var schema = NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
+            if (schema == null)
+            {
+                return null;
+            }
+
+            return new LinkedFileLink
+            {
+                FilePath = NormalizeString(link.FilePath),
+                Schema = schema,
+                LastReadUtc = link.LastReadUtc,
+                LastReadStatus = NormalizeString(link.LastReadStatus)
+            };
+        }
+
+        private static LinkedFileSchema NormalizeLinkedFileSchema(
+            LinkedFileSchema schema,
+            bool hasManualLink,
+            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        {
+            if (schema == null || (!hasManualLink && (customAchievements == null || customAchievements.Count == 0)))
+            {
+                return null;
+            }
+
+            return LinkedFileSchema.Normalize(schema);
         }
 
         /// <summary>
