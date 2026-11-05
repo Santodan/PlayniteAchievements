@@ -181,6 +181,7 @@
         "list": "value"
       },
       "Kind": "value",
+      "LinkedFileSchema": "LinkedFileSchema",
       "ManualCapstoneApiName": "value",
       "ManualLink": "ManualAchievementLink",
       "MetadataChoices": "MetadataChoices",
@@ -256,6 +257,34 @@
       },
       "Widths": {
         "map": "value"
+      }
+    },
+    "LinkedFileColumnMapping": {
+      "Column": "value",
+      "Field": "value"
+    },
+    "LinkedFileSchema": {
+      "AssumeLocalTime": "value",
+      "Columns": {
+        "list": "LinkedFileColumnMapping"
+      },
+      "CreateUnmatchedRows": "value",
+      "CustomTimeFormat": "value",
+      "Delimiter": "value",
+      "Format": "value",
+      "HasHeader": "value",
+      "IniFlatMode": "value",
+      "MatchOrder": {
+        "list": "value"
+      },
+      "Name": "value",
+      "RootPath": "value",
+      "RowElementPath": "value",
+      "RowPresenceMeansUnlocked": "value",
+      "SheetName": "value",
+      "TimeFormat": "value",
+      "UnlockedTrueValues": {
+        "list": "value"
       }
     },
     "ManualAchievementLink": {
