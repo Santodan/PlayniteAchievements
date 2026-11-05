@@ -167,6 +167,33 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Json_ListsEveryListAndObjectAsARowsPath()
+        {
+            const string text = "{\"Count\": 0, \"LevelData\": {\"a1\": {}, \"a2\": {}}, \"achievements\": [], \"odd.name\": [], \"nested\": {\"list\": [1]}}";
+            var schema = new LinkedFileSchema { Format = LinkedFileFormat.Json };
+
+            var result = ParseText(text, schema);
+
+            CollectionAssert.AreEqual(
+                new[] { "LevelData", "achievements", "nested", "nested.list" },
+                result.RowPaths.ToArray());
+
+            var missing = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Json, RootPath = "nope" });
+            Assert.AreEqual(LinkedFileReadStatus.SchemaInvalid, missing.Status);
+            Assert.AreEqual(4, missing.RowPaths.Count, "A wrong path still offers the file's paths.");
+        }
+
+        [TestMethod]
+        public void Json_EmptyListStillNamesItsValueColumn()
+        {
+            var result = ParseText("{\"achievements\": []}", new LinkedFileSchema { Format = LinkedFileFormat.Json, RootPath = "achievements" });
+
+            Assert.IsTrue(result.Success, result.Message);
+            CollectionAssert.AreEqual(new[] { "$value" }, result.Table.Columns.ToArray());
+            Assert.AreEqual(0, result.Table.Rows.Count);
+        }
+
+        [TestMethod]
         public void Json_InvalidText_ReadFailed()
         {
             var result = ParseText("{\"a\":", new LinkedFileSchema { Format = LinkedFileFormat.Json });
