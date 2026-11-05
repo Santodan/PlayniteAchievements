@@ -76,6 +76,8 @@ namespace PlayniteAchievements
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementMarkerToggle _achievementMarkerToggle;
         private readonly AchievementDataService _achievementDataService;
+        private readonly Services.LinkedFiles.LinkedFileSchemaStore _linkedFileSchemaStore;
+        private Services.LinkedFiles.LinkedFileSyncService _linkedFileSyncService;
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCacheManager;
@@ -215,6 +217,8 @@ namespace PlayniteAchievements
         public AutoCapstoneAuthoring AutoCapstoneAuthoring => _autoCapstoneAuthoring;
         public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
+        public Services.LinkedFiles.LinkedFileSchemaStore LinkedFileSchemaStore => _linkedFileSchemaStore;
+        public Services.LinkedFiles.LinkedFileSyncService LinkedFileSyncService => _linkedFileSyncService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
         public RayTrackService RayTrackService => _rayTrackService;
@@ -940,6 +944,7 @@ namespace PlayniteAchievements
                 // User-defined custom providers resolve through static hooks so the registry and
                 // the icon converter stay free of the store type (both are linked into the tests).
                 _customProviderStore = new Services.CustomProviders.CustomProviderStore(pluginUserDataPath, _logger);
+                _linkedFileSchemaStore = new Services.LinkedFiles.LinkedFileSchemaStore(pluginUserDataPath, _logger);
                 ProviderRegistry.CustomProviderResolver = ResolveCustomProviderVisuals;
                 Views.Converters.ProviderIconConverter.CustomGeometryResolver = id => _customProviderStore?.GetGeometry(id);
                 Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
@@ -1113,6 +1118,17 @@ namespace PlayniteAchievements
                         currentUserIdentityLoader: () => _friendCacheManager?.LoadCurrentUserIdentities(),
                         hasActiveSnapshotPublisher: () => _startPageDataCoordinator?.HasActivePublisher == true);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
+
+                    // Linked files are read after each refresh's provider work, for the games it covers.
+                    _linkedFileSyncService = new Services.LinkedFiles.LinkedFileSyncService(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        _achievementDataService,
+                        _cacheManager,
+                        _manualSourceRegistry,
+                        _settingsViewModel.Settings,
+                        _logger);
+                    _refreshService.LinkedFilePass = (scope, cancel) => _linkedFileSyncService.RunPassAsync(scope, cancel);
 
                     // Reconcile the cache DB's AchievementFilters mirror against custom data
                     // before any summary read (theme wiring, projection warm). Synchronous and
@@ -1653,6 +1669,15 @@ namespace PlayniteAchievements
 
             if (!AnyProviderCapable(game))
             {
+                // A game tracked only by you has no provider refresh to carry its file read, so
+                // the session-end read of its linked file runs here.
+                if (_linkedFileSyncService != null)
+                {
+                    await _linkedFileSyncService
+                        .SyncGamesAsync(new[] { game.Id }, Services.LinkedFiles.LinkedFileSyncReason.SessionEnd, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+
                 _logger.Info($"Game stopped: {game.Name}; no enabled provider is capable, skipping refresh.");
                 // No refresh delta will arrive to rebuild the projection after the session's
                 // suppressed warms; schedule it explicitly (no-op while other games still run).
