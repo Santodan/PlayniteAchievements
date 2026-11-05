@@ -64,17 +64,14 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return null;
             }
 
+            // The file need not exist yet: some programs write it only at the first unlock. The
+            // watcher and the safety re-read pick it up when it appears.
             string directory;
             try
             {
-                if (!File.Exists(link.FilePath))
-                {
-                    return null;
-                }
-
-                directory = Path.GetDirectoryName(link.FilePath);
+                directory = Path.GetDirectoryName(Path.GetFullPath(link.FilePath));
             }
-            catch (ArgumentException)
+            catch (Exception ex) when (ex is ArgumentException || ex is NotSupportedException || ex is PathTooLongException)
             {
                 return null;
             }
@@ -121,7 +118,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 var info = new FileInfo(state.Link.FilePath);
                 if (!info.Exists)
                 {
-                    return InGameProgressQueryResult.Failed(gameId, LinkedFileReadStatus.FileMissing.ToString());
+                    // Nothing yet, which is a successful read of nothing: the first read is the
+                    // silent baseline, so the unlocks in a file that appears later are announced.
+                    state.LastLength = -1;
+                    state.HasRead = false;
+                    return InGameProgressQueryResult.Succeeded(gameId, Array.Empty<AchievementProgressObservation>(), isDelta: true);
                 }
 
                 // The safety re-read runs every half second; an untouched file has nothing new.
