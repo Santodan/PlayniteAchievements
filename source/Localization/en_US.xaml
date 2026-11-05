@@ -211,6 +211,7 @@
     <sys:String x:Key="LOCPlayAch_Column_PrestigeLevel">Prestige Level</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_AchievementName">Achievement Name</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_ApiName">API Name</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_RarityTier">Rarity Tier</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_RarityPercent">Rarity Percent</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Total">Total</sys:String>
