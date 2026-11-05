@@ -174,6 +174,9 @@ namespace PlayniteAchievements.ViewModels
 
         public ObservableCollection<string> SheetNames { get; } = new ObservableCollection<string>();
 
+        /// <summary>The lists and objects a JSON or TOML file offers as its rows.</summary>
+        public ObservableCollection<string> RowPaths { get; } = new ObservableCollection<string>();
+
         /// <summary>Raised after the preview's columns were rebuilt, so the view regenerates its grid columns.</summary>
         public event EventHandler ColumnsRebuilt;
 
@@ -667,6 +670,12 @@ namespace PlayniteAchievements.ViewModels
             foreach (var sheet in read?.SheetNames ?? Array.Empty<string>())
             {
                 SheetNames.Add(sheet);
+            }
+
+            RowPaths.Clear();
+            foreach (var path in read?.RowPaths ?? Array.Empty<string>())
+            {
+                RowPaths.Add(path);
             }
 
             if (read == null)
