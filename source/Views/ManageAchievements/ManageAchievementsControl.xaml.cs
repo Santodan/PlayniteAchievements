@@ -816,7 +816,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             control.UnlinkCommand = _viewModel.UnlinkManualTrackingCommand;
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_ManualTracking"),
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_LinkDefinitions"),
                 control,
                 new WindowOptions
                 {
