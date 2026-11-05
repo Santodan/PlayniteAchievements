@@ -113,14 +113,26 @@ namespace PlayniteAchievements.Services.LinkedFiles
         private static Game EnsureGame(IPlayniteAPI api, string folder)
         {
             var existing = api.Database.Games.FirstOrDefault(candidate => string.Equals(candidate.Name, GameName, StringComparison.Ordinal));
-            var message = "Linked file test game is running. Edit and save the files in " + folder +
-                          " to see unlocks arrive. Press Enter here to stop the game.";
+            // The game is a dialog owned by its own process, so it counts as the game's window:
+            // notifications wait until the game is in front, and clicking the dialog after saving
+            // a file brings it there. A console would not do, since a terminal can host it under
+            // another process.
+            var lines = new[]
+            {
+                "The linked file test game is running.",
+                string.Empty,
+                "Edit and save a file in " + folder + ", then click this window: notifications wait until the game is in front.",
+                string.Empty,
+                "Click OK to stop the game."
+            };
+            var message = string.Join(" + [char]10 + ", lines.Select(line => "'" + line.Replace("'", "''") + "'"));
             var action = new GameAction
             {
                 Name = "Play",
                 Type = GameActionType.File,
                 Path = "powershell.exe",
-                Arguments = "-NoProfile -Command \"Write-Host '" + message.Replace("'", "''") + "'; Read-Host | Out-Null\"",
+                Arguments = "-NoProfile -WindowStyle Hidden -Command \"Add-Type -AssemblyName System.Windows.Forms; " +
+                            "[System.Windows.Forms.MessageBox]::Show((" + message + "), '" + GameName + "') | Out-Null\"",
                 IsPlayAction = true
             };
 
