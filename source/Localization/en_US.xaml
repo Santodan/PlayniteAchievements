@@ -280,8 +280,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame">Map to Playnite Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame_PlatformMismatch">The selected Playnite game is not on the same platform as the Exophase friend game ({0}).</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This deletes their cached achievements, icons, and any linked definitions, linked files and unlock times.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for &quot;{0}&quot;?&#10;&#10;This deletes its cached achievements, icons, and any linked definitions, linked file and unlock times.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This deletes their cached achievements, icons, and any linked definitions and unlock times.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for &quot;{0}&quot;?&#10;&#10;This deletes its cached achievements, icons, and any linked definitions and unlock times.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_DisplaySettings">Display Settings…</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear their data?&#10;&#10;This hides them from the achievements view and deletes their cached data and custom tracking.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude &quot;{0}&quot; and clear its data?&#10;&#10;This hides the game from the achievements view and deletes its cached data and custom tracking.</sys:String>
