@@ -353,7 +353,7 @@
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
                         <!-- One button: it links an unlinked game and relinks a linked one. -->
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_LinkDefinitions}"
                                 Command="{Binding ManualLinkCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
