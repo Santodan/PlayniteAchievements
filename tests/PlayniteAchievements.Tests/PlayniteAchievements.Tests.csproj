@@ -552,6 +552,7 @@
     <Compile Include="..\..\source\Services\LinkedFiles\Readers\XlsxTableReader.cs" Link="Source\Services\LinkedFiles\Readers\XlsxTableReader.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\Readers\XmlTableReader.cs" Link="Source\Services\LinkedFiles\Readers\XmlTableReader.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\Readers\IniTableReader.cs" Link="Source\Services\LinkedFiles\Readers\IniTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\BinaryTableReader.cs" Link="Source\Services\LinkedFiles\Readers\BinaryTableReader.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileValueParser.cs" Link="Source\Services\LinkedFiles\LinkedFileValueParser.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileMatcher.cs" Link="Source\Services\LinkedFiles\LinkedFileMatcher.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileApplier.cs" Link="Source\Services\LinkedFiles\LinkedFileApplier.cs" />
