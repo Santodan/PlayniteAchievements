@@ -123,6 +123,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Goals;
             }
 
+            if (AnyUserName(data.FilteredAchievementApiNames) ||
+                AnyUserName(data.SummaryFilteredAchievementApiNames))
+            {
+                areas |= CustomizationArea.Filters;
+            }
+
             if (data.ProviderOverride != null ||
                 HasText(data.ExophaseEnrichmentSlugOverride) ||
                 data.RetroAchievementsGameIdOverride > 0 ||
