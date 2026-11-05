@@ -1677,13 +1677,19 @@ namespace PlayniteAchievements
 
             if (!AnyProviderCapable(game))
             {
-                // A game tracked only by you has no provider refresh to carry its file read, so
-                // the session-end read of its linked file runs here.
-                if (_linkedFileSyncService != null)
+                // A game tracked only by you still gets its game-close refresh when it has a
+                // linked file: with no provider work the refresh reads the file and runs what
+                // follows every refresh, the same as for any other game.
+                if (_gameCustomDataStore?.LoadOrDefault(game.Id)?.LinkedFile != null)
                 {
-                    await _linkedFileSyncService
-                        .SyncGamesAsync(new[] { game.Id }, Services.LinkedFiles.LinkedFileSyncReason.SessionEnd, CancellationToken.None)
-                        .ConfigureAwait(false);
+                    _logger.Info($"Game stopped: {game.Name}. Reading its linked file.");
+                    await _refreshCoordinator.ExecuteAsync(new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = game.Id
+                    }).ConfigureAwait(false);
+                    _libraryProjectionService?.Warm();
+                    return;
                 }
 
                 _logger.Info($"Game stopped: {game.Name}; no enabled provider is capable, skipping refresh.");
