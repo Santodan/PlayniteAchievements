@@ -555,7 +555,7 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows file time</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">Times are local</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValues">Values meaning unlocked</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">Words that mean unlocked, separated by commas. True, yes, 1, unlocked, earned and achieved always count.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">Values that mean unlocked, separated by commas. Once set, every other value means locked. Leave blank to use true, yes, 1, unlocked, earned and achieved.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Matched">Matched: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Unlocked">Unlocks: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Relocked">Relocks: {0}</sys:String>
