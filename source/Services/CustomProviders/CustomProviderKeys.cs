@@ -53,6 +53,18 @@ namespace PlayniteAchievements.Services.CustomProviders
             return TryGetId(providerKey, out _);
         }
 
+        /// <summary>
+        /// The key a game or achievement shows and filters under: games you track through linked
+        /// definitions show as Custom, alongside custom-only games. Display and filtering only;
+        /// never compare the result to decide behavior, which keys off the stored provider key.
+        /// </summary>
+        public static string ToDisplayKey(string providerKey)
+        {
+            return string.Equals(providerKey?.Trim(), FallbackProviderKey, StringComparison.OrdinalIgnoreCase)
+                ? BaseKey
+                : providerKey;
+        }
+
         public static bool IsBaseKey(string providerKey)
         {
             return string.Equals(providerKey?.Trim(), BaseKey, StringComparison.OrdinalIgnoreCase);
