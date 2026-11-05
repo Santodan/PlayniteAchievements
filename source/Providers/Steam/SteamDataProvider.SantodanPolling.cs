@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Providers.Steam
         private void InitializeSantodanMetadataCache(SteamHuntersApiClient client, ILogger logger,
             SteamCategoryArtDownloader downloader)
         {
+            _santodanSchemaClient = client;
             _santodanMetadata = new Lazy<SteamHuntersCategoryEnricher>(
                 () => new SteamHuntersCategoryEnricher(client, logger, downloader));
         }

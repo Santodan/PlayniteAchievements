@@ -9376,7 +9376,23 @@ namespace PlayniteAchievements.Providers.Local
                 return null;
             }
 
-            var authenticatedSteamSchema = await TryAuthenticatedSteamSchemaAsync().ConfigureAwait(false);
+            // Explicit SteamHunters preference is account-free, including before any Steam
+            // authentication probe. Keep Steam's authenticated path for the Steam preference.
+            if (schemaPreference == LocalSteamSchemaPreference.PreferSteamHunters)
+            {
+                if (cachedFallback != null) return cachedFallback;
+                var anonymousSchema = await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                if (anonymousSchema?.Achievements?.Count > 0)
+                {
+                    CacheSchema(anonymousSchema, "steamhunters");
+                    Log($"SCHEMA SOURCE SELECTED: appId={appId} preference={schemaPreference} source=steamhunters (no login)");
+                    return anonymousSchema;
+                }
+            }
+
+            var authenticatedSteamSchema = schemaPreference == LocalSteamSchemaPreference.PreferSteamHunters
+                ? null
+                : await TryAuthenticatedSteamSchemaAsync().ConfigureAwait(false);
             if (authenticatedSteamSchema?.Achievements?.Count > 0)
             {
                 CacheSchema(authenticatedSteamSchema, "steam-web-api");
@@ -9396,7 +9412,7 @@ namespace PlayniteAchievements.Providers.Local
                 switch (schemaPreference)
                 {
                     case LocalSteamSchemaPreference.PreferSteamHunters:
-                        baseSchema = await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                        // Already attempted before the authenticated path.
                         break;
                     case LocalSteamSchemaPreference.PreferSteam:
                         baseSchema = await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
@@ -9545,7 +9561,7 @@ namespace PlayniteAchievements.Providers.Local
             // anonymous fallback the user selected.
             if (string.Equals(source, "steam-web-api", StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                return preference != LocalSteamSchemaPreference.PreferSteamHunters;
             }
 
             switch (preference)
@@ -9991,27 +10007,28 @@ namespace PlayniteAchievements.Providers.Local
             try
             {
                 using var httpClient = CreateAnonymousSteamHttpClient();
-                var url = $"https://steamhunters.com/api/apps/{appId}/achievements";
-                var payload = await httpClient.GetStringAsync(url).ConfigureAwait(false);
-                if (string.IsNullOrWhiteSpace(payload))
-                {
-                    return null;
-                }
-
-                var items = JArray.Parse(payload);
-                if (items.Count == 0)
+                var steamProvider = ProviderRegistry.Instance?.GetProvider("Steam") as SteamDataProvider;
+                var rows = steamProvider == null ? null :
+                    await steamProvider.GetSteamHuntersSchemaAsync(appId, CancellationToken.None).ConfigureAwait(false);
+                if (rows == null || rows.Count == 0)
                 {
                     return null;
                 }
 
                 var percentages = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-                var achievements = items
-                    .OfType<JObject>()
-                    .Select(item => CreateSteamHuntersAchievement(appId, item, percentages))
-                    .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.Name))
-                    .GroupBy(achievement => achievement.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(group => group.First())
-                    .ToList();
+                var achievements = rows.Select(row => new SchemaAchievement
+                {
+                    Name = row.ApiName,
+                    DisplayName = row.DisplayName,
+                    Description = row.Description,
+                    Icon = row.UnlockedIconPath,
+                    IconGray = row.LockedIconPath,
+                    Hidden = row.Hidden ? 1 : 0,
+                    GlobalPercent = row.GlobalPercentUnlocked,
+                    Points = row.Points
+                }).ToList();
+                foreach (var row in rows.Where(row => row.GlobalPercentUnlocked.HasValue))
+                    percentages[row.ApiName] = row.GlobalPercentUnlocked.Value;
 
                 if (achievements.Count == 0)
                 {

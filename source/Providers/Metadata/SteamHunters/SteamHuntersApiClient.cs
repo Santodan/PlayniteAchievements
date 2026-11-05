@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Metadata
 {
-    internal sealed class SteamHuntersApiClient
+    internal sealed partial class SteamHuntersApiClient
     {
         private const string BaseUrl = "https://steamhunters.com/api";
 

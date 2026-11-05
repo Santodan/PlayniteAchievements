@@ -226,12 +226,12 @@
                                   Margin="0,0,0,6">
                                 <ComboBoxItem Content="Prefer Steam sources first, then SteamHunters"
                                     Tag="{x:Static local:LocalSteamSchemaPreference.PreferSteam}"/>
-                            <ComboBoxItem Content="Prefer SteamHunters first"
+                            <ComboBoxItem Content="Prefer SteamHunters first (no login required)"
                                     Tag="{x:Static local:LocalSteamSchemaPreference.PreferSteamHunters}"/>
                             <ComboBoxItem Content="Prefer Completionist.me first"
                                 Tag="{x:Static local:LocalSteamSchemaPreference.PreferCompletionist}"/>
                            </ComboBox>
-                          <TextBlock Text="This controls which public web source is tried first when Steam API and local Steam schema files are unavailable. The Steam option falls back to SteamHunters first, then Steam Community. SteamHunters can expose API names when available. Completionist.me and Steam Community are title-based fallbacks and may not correlate with API-key-only save files like Goldberg JSON."
+                          <TextBlock Text="SteamHunters works without a Steam or SteamHunters account. Selecting it tries its public achievement definitions before Steam and skips Steam authentication. The Steam option uses Steam first and falls back to SteamHunters when unavailable. Completionist.me and Steam Community are title-based fallbacks and may not correlate with API-key-only save files like Goldberg JSON."
                                 Style="{StaticResource MutedTextStyle}"
                                 Margin="0,0,0,12"
                                 TextWrapping="Wrap"/>

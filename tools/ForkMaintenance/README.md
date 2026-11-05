@@ -1,5 +1,32 @@
 # Fork maintenance bundle
 
+## Account-free SteamHunters definitions for Local - 2026-11-05
+
+Preserve the public SteamHunters schema path introduced after the v4.2.1
+integration. SteamHunters metadata matching must not call the authenticated
+`SteamManualSource.GetAchievementsAsync`. It reads public definitions through
+`SteamHuntersApiClient.SantodanSchema`, with the existing browser transport,
+request pacing and retries. Public definitions are English and must not be
+marked as localized when the plugin language differs.
+
+Local's **Prefer SteamHunters first (no login required)** selection tries those
+definitions before any Steam authentication probe, including when an authenticated
+schema was previously cached. **Prefer Steam sources first, then SteamHunters**
+retains its Steam attempt and account-free SteamHunters fallback. Preserve the
+Local settings wording, provider routing partial, schema parser and regression
+tests. Achievement definitions must not import another user's unlock state.
+
+Validation of the implementation: required Release rebuild succeeded and all
+42 SteamHunters tests passed. Live no-account refresh verification in Playnite
+remains pending. The bundle continues to target upstream v4.2.1; protected
+release manifests are excluded.
+
+Bundle validation passed clean three-way preflight and actual replay onto a
+separate upstream v4.2.1 checkout: 208 overlays, two localization recipes,
+component hashes and protected-file checks passed. All nine SteamHunters
+implementation/test files match the replay after newline normalization. Unrelated
+workspace changes were excluded from this bundle refresh.
+
 ## Upstream v4.2.1 integration - 2026-11-04
 
 Updated to upstream tag `v4.2.1` (`4b2f60f29`), preserving the fork identity and

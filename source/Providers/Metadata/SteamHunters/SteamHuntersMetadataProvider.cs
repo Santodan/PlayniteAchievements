@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Metadata
 {
     /// <summary>
     /// SteamHunters categories, types and category art. A game another provider services is
-    /// linked to a Steam appId, the Steam schema supplies the titles the shared matcher pairs with
+    /// linked to a Steam appId, the public SteamHunters schema supplies the titles the shared matcher pairs with
     /// the provider's achievements, and SteamHunters groups those schema rows. A Steam game is
     /// linked by its own appId without storing the link, and SteamHunters groups its own
     /// achievements, so they join by ApiName.
@@ -152,7 +152,7 @@ namespace PlayniteAchievements.Providers.Metadata
             if (targets?.Count > 0)
             {
                 var health = new MetadataLookupHealth();
-                var search = new MetadataPageSearch((name, token) => StoreCandidatesAsync(name, health, token), SchemaRowsAsync, englishRows: EnglishRowsFor);
+                var search = new MetadataPageSearch((name, token) => StoreCandidatesAsync(name, health, token), SchemaRowsAsync);
                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames, englishTitles: request.EnglishTitles).ConfigureAwait(false);
                 if (health.LeavesDoubt(choice))
@@ -199,35 +199,27 @@ namespace PlayniteAchievements.Providers.Metadata
         }
 
         /// <summary>An app's schema rows, loaded once per run.</summary>
-        private Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, CancellationToken ct) =>
-            SchemaRowsAsync(appId, Language, ct);
-
-        /// <summary>An app's schema rows in <paramref name="language"/>, loaded once per run.</summary>
-        private async Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, string language, CancellationToken ct)
+        private async Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, CancellationToken ct)
         {
-            var cacheKey = appId + "|" + language;
             lock (_schemaRows)
             {
-                if (_schemaRows.TryGetValue(cacheKey, out var cached))
+                if (_schemaRows.TryGetValue(appId, out var cached))
                 {
                     return cached;
                 }
             }
 
-            var rows = await SteamSchema.GetAchievementsAsync(appId, language, ct).ConfigureAwait(false) ?? new List<AchievementDetail>();
+            var rows = int.TryParse(appId, out var parsedAppId)
+                ? await _steam.GetSteamHuntersSchemaAsync(parsedAppId, ct).ConfigureAwait(false)
+                : null;
+            if (rows == null) return null;
             lock (_schemaRows)
             {
-                _schemaRows.Set(cacheKey, rows);
+                _schemaRows.Set(appId, rows);
             }
 
             return rows;
         }
-
-        /// <summary>An app's English schema rows, null when the plugin's language already is English.</summary>
-        private Task<IList<AchievementDetail>> EnglishRowsFor(string appId, CancellationToken ct) =>
-            EnglishTitlePairing.IsEnglish(Language)
-                ? Task.FromResult<IList<AchievementDetail>>(null)
-                : SchemaRowsAsync(appId, "english", ct);
 
         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
         {
@@ -247,7 +239,7 @@ namespace PlayniteAchievements.Providers.Metadata
             }
 
             var appIdText = appId.ToString(CultureInfo.InvariantCulture);
-            var rows = await SteamSchema.GetAchievementsAsync(appIdText, Language, ct).ConfigureAwait(false);
+            var rows = await SchemaRowsAsync(appIdText, ct).ConfigureAwait(false);
             if (rows == null || rows.Count == 0)
             {
                 return null;
@@ -266,9 +258,8 @@ namespace PlayniteAchievements.Providers.Metadata
             {
                 GameArtUrl = SteamImageUrls.Header(appId),
                 ApiNamesMayBeShared = true,
-                // Steam's schema is read in the plugin's language.
-                TextInPluginLanguage = true,
-                EnglishRows =EnglishTitlePairing.IsEnglish(Language) ? null : (Func<CancellationToken, Task<IList<AchievementDetail>>>)(token => EnglishRowsFor(appIdText, token)),
+                // Public SteamHunters definitions are English; do not label them as localized.
+                TextInPluginLanguage = EnglishTitlePairing.IsEnglish(Language),
                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
                                  string.Equals(manualAppId, appIdText, StringComparison.Ordinal),
                 ExtendedLinkId = string.Equals(appIdText, linkId?.Trim(), StringComparison.Ordinal) ? null : appIdText

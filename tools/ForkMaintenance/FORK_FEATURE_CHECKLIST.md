@@ -1,5 +1,25 @@
 # Santodan fork feature checklist
 
+## Account-free SteamHunters definitions for Local - 2026-11-05
+
+- Without a Steam or SteamHunters login, refresh a Local game linked to Steam
+  app ID 71340 (Sonic Generations). Public definitions and metadata must load
+  without `ManualSourceAuthenticationException` from the SteamHunters path.
+- Select **Prefer SteamHunters first (no login required)**: try SteamHunters
+  before any Steam token resolution. A previously cached authenticated Steam
+  schema must not override this selection.
+- Select **Prefer Steam sources first, then SteamHunters**: keep Steam first;
+  when authentication or Steam is unavailable, use SteamHunters without login.
+- Preserve API names, hidden flags, icons, percentages and points. Read progress
+  and unlock times from the Local source, never a public user's profile.
+- SteamHunters schema matching must use public definitions, browser transport,
+  pacing and retries; do not restore authenticated Steam manual-schema calls.
+- With a non-English plugin language, do not label English public metadata as
+  localized. Retain Local's optional anonymous localization enrichment.
+- Preserve the schema parser/endpoint tests and existing category tests.
+  Implementation validation: 42 SteamHunters tests and Release rebuild passed;
+  live Playnite verification remains pending.
+
 ## Debug mode and optional polling performance controls - 2026-11-04
 
 - Verify Debug mode is in Santodan-Fork > General, and all performance controls

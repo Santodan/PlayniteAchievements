@@ -1663,6 +1663,19 @@ index d5059c992b35a17e3a2d9fcae13ff06fbd234905..d883a1a67809d38eef884322bea90845
          /// <summary>
          /// Exophase user ID (username).
          /// </summary>
+diff --git a/source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.cs b/source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.cs
+index 5991ae0054210279fd6292db4ad5f6e17c4de0dd..1ed9c71a916877718818eea455c5f574da8d70c8 100644
+--- a/source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.cs
++++ b/source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.cs
+@@ -9,7 +9,7 @@
+ 
+ namespace PlayniteAchievements.Providers.Metadata
+ {
+-    internal sealed class SteamHuntersApiClient
++    internal sealed partial class SteamHuntersApiClient
+     {
+         private const string BaseUrl = "https://steamhunters.com/api";
+ 
 diff --git a/source/Providers/Metadata/SteamHunters/SteamHuntersCategoryEnricher.cs b/source/Providers/Metadata/SteamHunters/SteamHuntersCategoryEnricher.cs
 index 5127a908d1b27ba5331f624fdb70a0185ddd69f8..7cd07b674201066776132df307f363f4ab7ac97e 100644
 --- a/source/Providers/Metadata/SteamHunters/SteamHuntersCategoryEnricher.cs
@@ -1676,6 +1689,93 @@ index 5127a908d1b27ba5331f624fdb70a0185ddd69f8..7cd07b674201066776132df307f363f4
      {
          private const string BaseKind = SteamCategoryLabels.BaseKind;
          private const string DlcKind = SteamCategoryLabels.DlcKind;
+diff --git a/source/Providers/Metadata/SteamHunters/SteamHuntersMetadataProvider.cs b/source/Providers/Metadata/SteamHunters/SteamHuntersMetadataProvider.cs
+index 172b586d5da5265d42a5281a4c40289cf7823e67..3b9a2767b06ccb07029bda23fe5e6503774804b9 100644
+--- a/source/Providers/Metadata/SteamHunters/SteamHuntersMetadataProvider.cs
++++ b/source/Providers/Metadata/SteamHunters/SteamHuntersMetadataProvider.cs
+@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Providers.Metadata
+ {
+     /// <summary>
+     /// SteamHunters categories, types and category art. A game another provider services is
+-    /// linked to a Steam appId, the Steam schema supplies the titles the shared matcher pairs with
++    /// linked to a Steam appId, the public SteamHunters schema supplies the titles the shared matcher pairs with
+     /// the provider's achievements, and SteamHunters groups those schema rows. A Steam game is
+     /// linked by its own appId without storing the link, and SteamHunters groups its own
+     /// achievements, so they join by ApiName.
+@@ -152,7 +152,7 @@ public async Task<MetadataSourceLink> ResolveLinkAsync(MetadataLinkRequest reque
+             if (targets?.Count > 0)
+             {
+                 var health = new MetadataLookupHealth();
+-                var search = new MetadataPageSearch((name, token) => StoreCandidatesAsync(name, health, token), SchemaRowsAsync, englishRows: EnglishRowsFor);
++                var search = new MetadataPageSearch((name, token) => StoreCandidatesAsync(name, health, token), SchemaRowsAsync);
+                 var names = request.SearchNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                 var choice = await search.ChooseAsync(names, targets, MetadataSubGame.From(targets), ct, request.CategoryNames, sharedNames: request.AlternateNames, englishTitles: request.EnglishTitles).ConfigureAwait(false);
+                 if (health.LeavesDoubt(choice))
+@@ -199,36 +199,28 @@ private async Task<IReadOnlyList<MetadataPageCandidate>> StoreCandidatesAsync(st
+         }
+ 
+         /// <summary>An app's schema rows, loaded once per run.</summary>
+-        private Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, CancellationToken ct) =>
+-            SchemaRowsAsync(appId, Language, ct);
+-
+-        /// <summary>An app's schema rows in <paramref name="language"/>, loaded once per run.</summary>
+-        private async Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, string language, CancellationToken ct)
++        private async Task<IList<AchievementDetail>> SchemaRowsAsync(string appId, CancellationToken ct)
+         {
+-            var cacheKey = appId + "|" + language;
+             lock (_schemaRows)
+             {
+-                if (_schemaRows.TryGetValue(cacheKey, out var cached))
++                if (_schemaRows.TryGetValue(appId, out var cached))
+                 {
+                     return cached;
+                 }
+             }
+ 
+-            var rows = await SteamSchema.GetAchievementsAsync(appId, language, ct).ConfigureAwait(false) ?? new List<AchievementDetail>();
++            var rows = int.TryParse(appId, out var parsedAppId)
++                ? await _steam.GetSteamHuntersSchemaAsync(parsedAppId, ct).ConfigureAwait(false)
++                : null;
++            if (rows == null) return null;
+             lock (_schemaRows)
+             {
+-                _schemaRows.Set(cacheKey, rows);
++                _schemaRows.Set(appId, rows);
+             }
+ 
+             return rows;
+         }
+ 
+-        /// <summary>An app's English schema rows, null when the plugin's language already is English.</summary>
+-        private Task<IList<AchievementDetail>> EnglishRowsFor(string appId, CancellationToken ct) =>
+-            EnglishTitlePairing.IsEnglish(Language)
+-                ? Task.FromResult<IList<AchievementDetail>>(null)
+-                : SchemaRowsAsync(appId, "english", ct);
+-
+         public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request, string linkId, CancellationToken ct)
+         {
+             if (!(AppId(linkId) is int appId))
+@@ -247,7 +239,7 @@ public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request,
+             }
+ 
+             var appIdText = appId.ToString(CultureInfo.InvariantCulture);
+-            var rows = await SteamSchema.GetAchievementsAsync(appIdText, Language, ct).ConfigureAwait(false);
++            var rows = await SchemaRowsAsync(appIdText, ct).ConfigureAwait(false);
+             if (rows == null || rows.Count == 0)
+             {
+                 return null;
+@@ -266,9 +258,8 @@ public async Task<AchievementSourceSet> FetchAsync(MetadataLinkRequest request,
+             {
+                 GameArtUrl = SteamImageUrls.Header(appId),
+                 ApiNamesMayBeShared = true,
+-                // Steam's schema is read in the plugin's language.
+-                TextInPluginLanguage = true,
+-                EnglishRows =EnglishTitlePairing.IsEnglish(Language) ? null : (Func<CancellationToken, Task<IList<AchievementDetail>>>)(token => EnglishRowsFor(appIdText, token)),
++                // Public SteamHunters definitions are English; do not label them as localized.
++                TextInPluginLanguage = EnglishTitlePairing.IsEnglish(Language),
+                 SharesApiNames = gameId.HasValue && TryGetManualSteamAppId(gameId.Value, out var manualAppId) &&
+                                  string.Equals(manualAppId, appIdText, StringComparison.Ordinal),
+                 ExtendedLinkId = string.Equals(appIdText, linkId?.Trim(), StringComparison.Ordinal) ? null : appIdText
 diff --git a/source/Providers/ProviderIcons.xaml b/source/Providers/ProviderIcons.xaml
 index acbb7011625ebe515b8ca9f10f463d4b09cb8efe..83a80ba359f71b4d6a3c9a671de47d28ac1b8317 100644
 --- a/source/Providers/ProviderIcons.xaml
@@ -22887,7 +22987,7 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f387d31ceff 100644
+index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39ee972ebc 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -8,6 +8,17 @@
@@ -22916,15 +23016,17 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" Link="Source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
-@@ -106,6 +118,7 @@
+@@ -105,7 +117,9 @@
+     <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
      <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
      <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" />
++    <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.SantodanSchema.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.SantodanSchema.cs" />
      <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersCategoryEnricher.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersCategoryEnricher.cs" />
 +    <Compile Include="..\..\source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" Link="Source\Providers\Steam\SteamHuntersCategoryEnricher.SantodanCache.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
      <Compile Include="..\..\source\Providers\IInGameProgressSource.cs" Link="Source\Providers\IInGameProgressSource.cs" />
-@@ -113,6 +126,7 @@
+@@ -113,6 +127,7 @@
      <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
      <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
@@ -22932,7 +23034,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
-@@ -128,6 +142,7 @@
+@@ -128,6 +143,7 @@
      <Compile Include="..\..\source\Services\Achievements\RecentUnlockOrder.cs" Link="Source\Services\Achievements\RecentUnlockOrder.cs" />
      <Compile Include="..\..\source\Common\ObservableStateCopier.cs" Link="Source\Common\ObservableStateCopier.cs" />
      <Compile Include="..\..\source\Services\Achievements\OverviewSummaryPatcher.cs" Link="Source\Services\Achievements\OverviewSummaryPatcher.cs" />
@@ -22940,7 +23042,15 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
      <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
      <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
-@@ -243,6 +258,7 @@
+@@ -161,6 +177,7 @@
+     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneScope.cs" Link="Source\Services\Achievements\AutoCapstoneScope.cs" />
+     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTemplate.cs" Link="Source\Services\Achievements\AutoCapstoneTemplate.cs" />
+     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneText.cs" Link="Source\Services\Achievements\AutoCapstoneText.cs" />
++    <Compile Include="..\..\source\Services\Achievements\SantodanAutoCapstoneTextRecovery.cs" Link="Source\Services\Achievements\SantodanAutoCapstoneTextRecovery.cs" />
+     <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTextRewriter.cs" Link="Source\Services\Achievements\AutoCapstoneTextRewriter.cs" />
+     <Compile Include="..\..\source\Services\Achievements\CapstoneResolver.cs" Link="Source\Services\Achievements\CapstoneResolver.cs" />
+     <Compile Include="..\..\source\Services\Achievements\CapstoneCompletion.cs" Link="Source\Services\Achievements\CapstoneCompletion.cs" />
+@@ -243,6 +260,7 @@
      <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -22948,7 +23058,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -556,6 +572,7 @@
+@@ -556,6 +574,7 @@
      <Compile Include="..\..\source\Services\Metadata\MetadataLookupHealth.cs" Link="Source\Services\Metadata\MetadataLookupHealth.cs" />
      <Compile Include="..\..\source\Services\Metadata\MetadataLinkResolver.cs" Link="Source\Services\Metadata\MetadataLinkResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -22956,7 +23066,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\GameNotificationOverrides.cs" Link="Source\Models\Settings\GameNotificationOverrides.cs" />
-@@ -566,6 +583,7 @@
+@@ -566,6 +585,7 @@
      <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
      <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
      <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
@@ -22964,7 +23074,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\UnlockSoundSettings.cs" Link="Source\Models\Settings\UnlockSoundSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
-@@ -592,6 +610,7 @@
+@@ -592,6 +612,7 @@
      <Compile Include="..\..\source\Models\Settings\AchievementTagDisplay.cs" Link="Source\Models\Settings\AchievementTagDisplay.cs" />
      <Compile Include="..\..\source\Models\Settings\AchievementStatusColorMode.cs" Link="Source\Models\Settings\AchievementStatusColorMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
@@ -22972,7 +23082,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
      <Compile Include="..\..\source\Views\Settings\Controls\GridDisplaySurfaces.cs" Link="Source\Views\Settings\Controls\GridDisplaySurfaces.cs" />
-@@ -670,6 +689,8 @@
+@@ -670,6 +691,8 @@
      <Compile Include="..\..\source\Services\Tagging\DefaultTagNameCatalog.cs" Link="Source\Services\Tagging\DefaultTagNameCatalog.cs" />
      <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
      <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
@@ -22981,7 +23091,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\UI\NotificationStyleResolver.cs" Link="Source\Services\UI\NotificationStyleResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\ThemeMigrationCacheEntry.cs" Link="Source\Models\Settings\ThemeMigrationCacheEntry.cs" />
      <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
-@@ -738,10 +759,12 @@
+@@ -738,10 +761,12 @@
      <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
@@ -22994,7 +23104,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -754,6 +777,7 @@
+@@ -754,6 +779,7 @@
      <Compile Include="..\..\source\Services\ThemeMigration\ControlMappings.cs" Link="Source\Services\ThemeMigration\ControlMappings.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
@@ -23002,7 +23112,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..bc9f1e31d4e53d8e86f108aa61112f38
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
-@@ -853,6 +877,10 @@
+@@ -853,6 +879,10 @@
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />

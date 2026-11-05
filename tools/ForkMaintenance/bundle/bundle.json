@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-04T11:43:59.6859492Z",
+    "generatedUtc":  "2026-11-05T07:37:54.8940074Z",
     "baselineRef":  "v4.2.1",
     "baselineCommit":  "4b2f60f29aaa5a393664245547886262952b85c1",
     "protectedPaths":  [
@@ -11,11 +11,11 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "DBA250426FE70EF10CBEE336E988421F019CECB7EC2A2D86705BE49DEE5B8722"
+                  "sha256":  "F8935CE6D81282CBB51E86F4356F52BBD4870D57877EA123D8A545418E84F597"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
-                                "sha256":  "A719DFB23DE5F888E1DC9E053C80A60953EF868AC54F635BEAB43009F7F7AB9E",
+                                "sha256":  "E3E8704B13124DBECBCEC9FF5A13C0A6AABFAD1873A88393D519312755CBF523",
                                 "fileCount":  2,
                                 "entryCount":  469
                             },
@@ -142,7 +142,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "37B5160466DD34CB9D8D6E95467C084476246B5ED263C0FA3FA78C767A7377A6"
+                             "sha256":  "B8C0B3E48E409120E662B219B58082036C9DEFED8E929E7AF1DAE305E4315BA9"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
@@ -150,7 +150,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
-                             "sha256":  "05D553A9D36163539F42797CBA209E30BF2BA2031A0B646AEC0441FCA8F2161C"
+                             "sha256":  "E3645FDA319ADFA84AAFF6F01C68A3C6A363F5C8631F49C90498CF88DEF32F51"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml.cs",
@@ -177,6 +177,10 @@
                              "sha256":  "4A9C175240450617FE19E82D3EA2AE2F8FF6080C706AC86B9577787E27FCB002"
                          },
                          {
+                             "path":  "source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.SantodanSchema.cs",
+                             "sha256":  "A368748E075E16EA8FDA2AD35BCB642809EE20EFAB4EEAF4DE97C1322C3EB92B"
+                         },
+                         {
                              "path":  "source/Providers/Steam/SteamApiTokenService.cs",
                              "sha256":  "98C996EDB1D73E09022B343BEFCFCDCF092B17E0E2F0B4913FB530691355838A"
                          },
@@ -186,7 +190,11 @@
                          },
                          {
                              "path":  "source/Providers/Steam/SteamDataProvider.SantodanPolling.cs",
-                             "sha256":  "83B7970273AAC3C7C728A50C8848E095CCEA0C70B0632A396E237350FE811CED"
+                             "sha256":  "01966B7BA3FA55434F065290BCF1D23AEE1A9D0407FF6F152677044B668BCB27"
+                         },
+                         {
+                             "path":  "source/Providers/Steam/SteamDataProvider.SantodanSteamHuntersSchema.cs",
+                             "sha256":  "66FE438CFCD76B7153CD48AA42CE6D78A80E3A7C08FBA0F0EFEABC5FDC68CD75"
                          },
                          {
                              "path":  "source/Providers/Steam/SteamHuntersCategoryEnricher.SantodanCache.cs",
@@ -579,6 +587,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Steam/SteamAsyncConfigTokenHelperTests.cs",
                              "sha256":  "1456844C879D1CD7FA072327FC55E527E4E321D98293813925FD275FB3263FEC"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Steam/SteamHuntersPublicSchemaTests.cs",
+                             "sha256":  "8B75156B55A786449366E70454E12EE4C01F9DB1C99BBEA4916ADCB627359CE5"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/TestSupport/LocalSavesProviderStub.cs",
