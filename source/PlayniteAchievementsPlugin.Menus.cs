@@ -929,7 +929,7 @@ namespace PlayniteAchievements
                                 "The test game \"" + Services.LinkedFiles.LinkedFileTestKit.GameName + "\" is ready, with its CSV linked and applied.\n\n" +
                                 "Report: " + reportPath + "\n\n" +
                                 "Next: open Manage Achievements on the test game. Use Link File to load the other saved mappings (Test JSON, Test TOML, Test XML, Test INI, Test INI flat, Test Excel). " +
-                                "Start the game to watch the file live, edit and save a file while it runs, then press Enter in its window to stop it.",
+                                "Press Play to watch the file live: edit and save a file, then click the test game's window, because notifications wait until the game is in front. Click OK in that window to stop the game.",
                                 "Linked file test");
                             System.Diagnostics.Process.Start("explorer.exe", "\"" + System.IO.Path.GetDirectoryName(reportPath) + "\"");
                         }
