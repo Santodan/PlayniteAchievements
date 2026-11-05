@@ -117,6 +117,17 @@
                                        Visibility="{Binding HasManualTrackingLink, Converter={StaticResource BoolToVis}}">
                                 <Run Text="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}" /><Run Text=": " /><Run Text="{Binding ManualTrackingSummary, Mode=OneWay}" />
                             </TextBlock>
+                            <WrapPanel Margin="0,2,0,0"
+                                       Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource OverviewMutedTextStyle}" Margin="0,0,8,0">
+                                    <Run Text="{DynamicResource LOCPlayAch_LinkedFile_Title}" /><Run Text=": " /><Run Text="{Binding LinkedFileSummary, Mode=OneWay}" />
+                                </TextBlock>
+                                <Button Command="{Binding OpenLinkedFileCommand}"
+                                        Style="{StaticResource InlineLinkButtonStyle}">
+                                    <TextBlock Text="{Binding LinkedFileActionText}"
+                                               TextDecorations="Underline" />
+                                </Button>
+                            </WrapPanel>
                         </StackPanel>
 
                         <!-- The game's actions: Clear (achievement data or custom data), Refresh and
