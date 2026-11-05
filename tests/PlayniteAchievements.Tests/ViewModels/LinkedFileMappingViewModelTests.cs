@@ -47,7 +47,9 @@ namespace PlayniteAchievements.Tests.ViewModels
                     ReadFile = (path, schema) =>
                     {
                         Reads++;
-                        return LinkedFileReadResult.Ok(Table);
+                        return File.Exists(path)
+                            ? LinkedFileReadResult.Ok(Table)
+                            : LinkedFileReadResult.Failed(LinkedFileReadStatus.FileMissing, "missing");
                     },
                     LoadAchievements = () => new List<AchievementDetail>
                     {
@@ -299,8 +301,39 @@ namespace PlayniteAchievements.Tests.ViewModels
             vm.FilePath = @"C:\nowhere\progress.csv";
 
             Assert.IsTrue(vm.IsFileMissing);
-            Assert.IsFalse(vm.ApplyNowCommand.CanExecute(null));
-            Assert.IsNull(harness.Record.LinkedFile, "A missing file cannot be applied, so nothing is stored.");
+            Assert.IsFalse(vm.ApplyNowCommand.CanExecute(null), "Without a complete mapping there is nothing to apply.");
+            Assert.IsNull(harness.Record.LinkedFile);
+        }
+
+        [TestMethod]
+        public void MissingFile_CanBeLinkedWithACompleteSavedMapping()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                var store = new LinkedFileSchemaStore(folder);
+                store.Save(new LinkedFileSchema
+                {
+                    Name = "Section per achievement",
+                    Format = LinkedFileFormat.Ini,
+                    Columns = new List<LinkedFileColumnMapping>
+                    {
+                        new LinkedFileColumnMapping { Column = "$section", Field = LinkedFileField.ApiName },
+                        new LinkedFileColumnMapping { Column = "Achieved", Field = LinkedFileField.Unlocked }
+                    }
+                });
+                harness.AppliedReport = new LinkedFileApplyReport { Status = LinkedFileReadStatus.FileMissing };
+                var vm = new LinkedFileMappingViewModel(harness.Services(store));
+
+                vm.FilePath = Path.Combine(folder, "not-yet", "achievements.ini");
+                vm.SelectedSavedName = "Section per achievement";
+                vm.ApplySavedCommand.Execute(null);
+
+                Assert.IsTrue(vm.ApplyNowCommand.CanExecute(null), "A file written only at the first unlock can be linked before it exists.");
+                vm.ApplyNowCommand.Execute(null);
+                Assert.AreEqual(Path.Combine(folder, "not-yet", "achievements.ini"), harness.Record.LinkedFile.FilePath);
+                Assert.AreEqual(LinkedFileFormat.Ini, harness.Record.LinkedFile.Schema.Format);
+            });
         }
 
         [TestMethod]
