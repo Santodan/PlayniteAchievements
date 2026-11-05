@@ -24,7 +24,12 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var custom = new List<string> { "Done" };
             Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("done", custom, out var done) && done);
-            Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("true", custom, out var stillTrue) && stillTrue, "The defaults stay alongside the schema's own words.");
+            Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("true", custom, out var notListed) && !notListed, "The schema's own values replace the defaults.");
+
+            var levels = new List<string> { "2" };
+            Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("2.0", levels, out var two) && two, "Listed numbers match by value.");
+            Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("1", levels, out var oneLevel) && !oneLevel);
+            Assert.IsTrue(LinkedFileValueParser.TryParseBoolean("0", levels, out var zeroLevel) && !zeroLevel);
         }
 
         [TestMethod]
