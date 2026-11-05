@@ -97,6 +97,10 @@ namespace PlayniteAchievements.Models.Tagging
         /// Game's achievement list is tracked through a manual link. Additive to
         /// <see cref="HasAchievements"/>, which such a list also counts as.
         /// </summary>
-        ManualAchievements
+        ManualAchievements,
+
+        // The Filters area: achievements filtered out of views or summaries, or none.
+        CustomFilters,
+        NoFilters
     }
 }
