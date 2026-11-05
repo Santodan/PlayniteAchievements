@@ -1199,6 +1199,63 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
+                    <!-- The key a linked file matches by. Editable for authored rows, where it is the
+                         achievement's id; a provider row shows the provider's key read-only. Masked
+                         with the description, since the key is often the spoiler. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ApiName}"
+                                            Width="180"
+                                            MinWidth="80"
+                                            SortMemberPath="ApiNameText"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorApiName"
+                                            IsReadOnly="True"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_ApiName}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <controls:EditOnClickPresenter VerticalAlignment="Center"
+                                                                   IsEnabled="{Binding CanEditApiName}"
+                                                                   helpers:EditorCellRouting.Field="ApiNameText"
+                                                                   Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}">
+                                        <controls:EditOnClickPresenter.DisplayTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource GridEditorDisplayBorderStyle}">
+                                                    <Border Style="{StaticResource GridEditorDisplayHostStyle}">
+                                                        <TextBlock Text="{Binding ApiNameText}"
+                                                                   Style="{StaticResource GridEditorDisplayTextStyle}" />
+                                                    </Border>
+                                                </Border>
+                                            </DataTemplate>
+                                        </controls:EditOnClickPresenter.DisplayTemplate>
+                                        <controls:EditOnClickPresenter.EditorTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding ApiNameText, Mode=OneWay}"
+                                                         Style="{StaticResource GridEditorTextBoxStyle}"
+                                                         PreviewKeyDown="RoutedCellTextBox_KeyDown"
+                                                         helpers:EditorCellRouting.Field="ApiNameText" />
+                                            </DataTemplate>
+                                        </controls:EditOnClickPresenter.EditorTemplate>
+                                    </controls:EditOnClickPresenter>
+                                    <controls:LazyContent IsActive="{Binding IsDescriptionHidden}">
+                                        <controls:LazyContent.Template>
+                                            <DataTemplate>
+                                                <Border Background="Transparent"
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Cursor="Hand"
+                                                        ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                        PreviewMouseLeftButtonDown="MaskedDescription_PreviewMouseLeftButtonDown">
+                                                    <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                               Style="{StaticResource MaskedCellTextStyle}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </controls:LazyContent.Template>
+                                    </controls:LazyContent>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                                             Width="320"
                                             SortMemberPath="UnlockTime"
