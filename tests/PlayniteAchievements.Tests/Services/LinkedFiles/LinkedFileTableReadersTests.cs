@@ -69,6 +69,18 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Delimited_SpaceSeparator_ReadsRunsOfSpacesAsOne()
+        {
+            var result = ParseText("45 1792954109\r\n1   1792954482\r\n  7 1793462635  \r\n\r\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited, Delimiter = " ", HasHeader = false });
+
+            CollectionAssert.AreEqual(new[] { "1", "2" }, result.Table.Columns.ToArray());
+            Assert.AreEqual(3, result.Table.Rows.Count);
+            CollectionAssert.AreEqual(new[] { "45", "1792954109" }, Row(result.Table, 0));
+            CollectionAssert.AreEqual(new[] { "1", "1792954482" }, Row(result.Table, 1));
+            CollectionAssert.AreEqual(new[] { "7", "1793462635" }, Row(result.Table, 2));
+        }
+
+        [TestMethod]
         public void Delimited_RaggedRowsArePaddedAndExtraCellsGetPositionalColumns()
         {
             var result = ParseText("id,done\na\nb,1,extra\n", new LinkedFileSchema { Format = LinkedFileFormat.Delimited });
