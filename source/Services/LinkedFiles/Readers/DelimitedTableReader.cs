@@ -19,7 +19,14 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 .Select(index => "Row " + (index + 1).ToString(CultureInfo.InvariantCulture) + " uses a different separator than the file.")
                 .ToList();
 
-            var rows = records.Rows.Where(row => row.Any(cell => !string.IsNullOrWhiteSpace(cell))).ToList();
+            // A space separator reads a run of spaces as one, so aligned columns parse as written.
+            IEnumerable<List<string>> parsed = records.Rows;
+            if (records.Delimiter == ' ')
+            {
+                parsed = parsed.Select(row => row.Where(cell => !string.IsNullOrEmpty(cell)).ToList());
+            }
+
+            var rows = parsed.Where(row => row.Any(cell => !string.IsNullOrWhiteSpace(cell))).ToList();
             if (rows.Count == 0)
             {
                 return LinkedFileReadResult.Ok(LinkedFileTable.Empty, warnings);
