@@ -97,12 +97,15 @@ namespace PlayniteAchievements.Services.LinkedFiles
             return _lastReports.TryGetValue(gameId, out report);
         }
 
-        /// <summary>Reads the linked files a refresh covers. Runs off the calling thread.</summary>
-        public Task RunPassAsync(LinkedFilePassScope scope, CancellationToken cancel)
+        /// <summary>
+        /// Reads the linked files a refresh covers, off the calling thread. Returns the games
+        /// whose data a file changed.
+        /// </summary>
+        public Task<IReadOnlyList<Guid>> RunPassAsync(LinkedFilePassScope scope, CancellationToken cancel)
         {
             if (scope == null)
             {
-                return Task.CompletedTask;
+                return Task.FromResult<IReadOnlyList<Guid>>(Array.Empty<Guid>());
             }
 
             return Task.Run(async () =>
@@ -110,7 +113,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 var linked = FindLinkedGameIds();
                 if (linked.Count == 0)
                 {
-                    return;
+                    return (IReadOnlyList<Guid>)Array.Empty<Guid>();
                 }
 
                 IEnumerable<Guid> targets = scope.IsLibraryWide
@@ -122,17 +125,25 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     targets = targets.Where(id => !excluded.Contains(id));
                 }
 
-                await SyncGamesAsync(targets.ToList(), LinkedFileSyncReason.Refresh, cancel).ConfigureAwait(false);
+                return await SyncGamesAsync(targets.ToList(), LinkedFileSyncReason.Refresh, cancel).ConfigureAwait(false);
             }, cancel);
         }
 
-        public async Task SyncGamesAsync(IReadOnlyList<Guid> gameIds, LinkedFileSyncReason reason, CancellationToken cancel)
+        /// <summary>Reads each game's linked file in turn; returns the games whose data a file changed.</summary>
+        public async Task<IReadOnlyList<Guid>> SyncGamesAsync(IReadOnlyList<Guid> gameIds, LinkedFileSyncReason reason, CancellationToken cancel)
         {
+            var changed = new List<Guid>();
             foreach (var gameId in gameIds ?? Array.Empty<Guid>())
             {
                 cancel.ThrowIfCancellationRequested();
-                await Task.Run(() => SyncGame(gameId, reason), cancel).ConfigureAwait(false);
+                var report = await Task.Run(() => SyncGame(gameId, reason), cancel).ConfigureAwait(false);
+                if (report?.ChangedAnything == true)
+                {
+                    changed.Add(gameId);
+                }
             }
+
+            return changed;
         }
 
         /// <summary>Reads one game's linked file and writes what it says.</summary>
