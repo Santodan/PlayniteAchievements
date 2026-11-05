@@ -227,6 +227,20 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
+            // An empty list or object still names the column its entries will fill, so a file
+            // that lists only earned entries can be mapped before anything is earned.
+            if (columns.Count == 0 && nodes.Count == 1)
+            {
+                if (nodes[0] is JArray)
+                {
+                    columns.Add(ValueColumn);
+                }
+                else if (nodes[0] is JObject)
+                {
+                    columns.Add(KeyColumn);
+                }
+            }
+
             var ordered = new List<string>(columns);
             if (columnIndex.ContainsKey(KeyColumn))
             {
