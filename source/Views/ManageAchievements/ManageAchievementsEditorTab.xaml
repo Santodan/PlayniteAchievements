@@ -363,6 +363,20 @@
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="0"
                                 Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}" />
+                        <!-- The linked file: a plain button until a file is linked, then the file's
+                             name and state, which opens the same window. -->
+                        <Button Content="{DynamicResource LOCPlayAch_LinkedFile_LinkButton}"
+                                ToolTip="{DynamicResource LOCPlayAch_LinkedFile_LinkHint}"
+                                Command="{Binding OpenLinkedFileCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding ShowLinkFileButton, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="{Binding LinkedFileChipText}"
+                                ToolTip="{Binding LinkedFileToolTip}"
+                                Command="{Binding OpenLinkedFileCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}" />
                     </StackPanel>
                     <TextBlock Text="{Binding StatusText}"
                                Style="{StaticResource StatusTextStyle}"
