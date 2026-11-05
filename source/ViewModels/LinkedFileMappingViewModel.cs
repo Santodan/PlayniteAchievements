@@ -134,7 +134,7 @@ namespace PlayniteAchievements.ViewModels
             };
             _fieldOptions = FieldOptions.ToDictionary(option => option.Value);
 
-            DelimiterOptions = new[] { L("LOCPlayAch_Common_Automatic"), ",", ";", "Tab", "|" };
+            DelimiterOptions = new[] { L("LOCPlayAch_Common_Automatic"), ",", ";", "Tab", "Space", "|" };
 
             _selectedFormat = FormatOptions[0];
             _selectedTimeFormat = TimeFormatOptions[0];
@@ -1006,6 +1006,11 @@ namespace PlayniteAchievements.ViewModels
 
         private string ParseDelimiter(string text)
         {
+            if (!string.IsNullOrEmpty(text) && text.Trim().Length == 0)
+            {
+                return " ";
+            }
+
             var trimmed = (text ?? string.Empty).Trim();
             if (trimmed.Length == 0 || string.Equals(trimmed, DelimiterOptions[0], StringComparison.CurrentCultureIgnoreCase))
             {
@@ -1022,7 +1027,12 @@ namespace PlayniteAchievements.ViewModels
                 return DelimiterOptions[0];
             }
 
-            return delimiter == "\t" ? "Tab" : delimiter;
+            if (delimiter == "\t")
+            {
+                return "Tab";
+            }
+
+            return delimiter == " " ? "Space" : delimiter;
         }
 
         private string DescribeReadFailure(LinkedFileReadResult read)
