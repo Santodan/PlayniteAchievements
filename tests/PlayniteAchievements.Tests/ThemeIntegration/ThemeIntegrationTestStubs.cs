@@ -199,6 +199,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public int DefaultOrderIndex { get; set; } = int.MaxValue;
 
+        public int? MetadataOrderIndex { get; set; }
+
         public string CleanCapturePath { get; set; }
 
         public string NotificationCapturePath { get; set; }

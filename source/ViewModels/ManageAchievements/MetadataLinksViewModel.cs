@@ -106,6 +106,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_Tagging_Area_Text"));
             }
 
+            if (Uses(choices.Order, MetadataField.Order))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_AchievementOrder"));
+            }
+
             return string.Join(", ", fields);
         }
 

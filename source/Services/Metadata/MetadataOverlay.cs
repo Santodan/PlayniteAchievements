@@ -440,6 +440,12 @@ namespace PlayniteAchievements.Services.Metadata
                 KeepStored(data.Achievements, stored, _ => true, (target, old) => target.Points = old.Points ?? target.Points);
             }
 
+            ApplyOrder(plan.OrderKeys, sets, data.Achievements);
+            if (Failed(plan.OrderKeys, MetadataField.Order))
+            {
+                KeepStored(data.Achievements, stored, _ => true, (target, old) => target.MetadataOrderIndex = old.MetadataOrderIndex);
+            }
+
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = SavedArt(sets.Values, capstone);
             var capstoneTitle = capstone?.DisplayName;
@@ -657,7 +663,8 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
                 Chosen(choices.Points, MetadataField.Points),
-                Chosen(choices.Text, MetadataField.Text));
+                Chosen(choices.Text, MetadataField.Text),
+                Chosen(choices.Order, MetadataField.Order));
         }
 
         /// <summary>
@@ -1322,6 +1329,51 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
+        /// Gives each achievement the order source matched to its row's position in the source's
+        /// list, and clears it on the rest, which then read after the ordered ones in the
+        /// platform's order.
+        /// </summary>
+        private static void ApplyOrder(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            IList<AchievementDetail> targets)
+        {
+            foreach (var target in targets ?? Array.Empty<AchievementDetail>())
+            {
+                if (target != null)
+                {
+                    target.MetadataOrderIndex = null;
+                }
+            }
+
+            var set = keys
+                .Select(key => sets.TryGetValue(key, out var found) ? found : null)
+                .FirstOrDefault(found => found != null && (found.Set.UnavailableFields & MetadataField.Order) == 0);
+            if (set == null)
+            {
+                return;
+            }
+
+            var positions = new Dictionary<AchievementDetail, int>();
+            for (var i = 0; i < set.Set.Achievements.Count; i++)
+            {
+                var row = set.Set.Achievements[i];
+                if (row != null && !positions.ContainsKey(row))
+                {
+                    positions[row] = i;
+                }
+            }
+
+            foreach (var match in set.Matches)
+            {
+                if (match.Target != null && match.Source != null && positions.TryGetValue(match.Source, out var position))
+                {
+                    match.Target.MetadataOrderIndex = position;
+                }
+            }
+        }
+
+        /// <summary>
         /// The category art of each category source, for the categories it gave the game's
         /// achievements; the first source wins a label. A collection's lists also give their game
         /// image to the category most of their matched achievements are in.
@@ -1724,7 +1776,8 @@ namespace PlayniteAchievements.Services.Metadata
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
                 List<string> pointsKeys,
-                List<string> textKeys)
+                List<string> textKeys,
+                List<string> orderKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
@@ -1734,7 +1787,8 @@ namespace PlayniteAchievements.Services.Metadata
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
                 TextKeys = textKeys;
-                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys).Concat(textKeys)
+                OrderKeys = orderKeys;
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys).Concat(textKeys).Concat(orderKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
@@ -1747,6 +1801,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> PointsKeys { get; }
 
             public List<string> TextKeys { get; }
+
+            public List<string> OrderKeys { get; }
 
             /// <summary>Sources supplying achievement fields, judged by how many achievements they match.</summary>
             public List<string> PerAchievementKeys { get; }
@@ -1776,7 +1832,8 @@ namespace PlayniteAchievements.Services.Metadata
                        (Has(CapstoneArtKeys) ? MetadataField.CapstoneArt : MetadataField.None) |
                        (Has(TrophyTypeKeys) ? MetadataField.TrophyTypes : MetadataField.None) |
                        (Has(PointsKeys) ? MetadataField.Points : MetadataField.None) |
-                       (Has(TextKeys) ? MetadataField.Text : MetadataField.None);
+                       (Has(TextKeys) ? MetadataField.Text : MetadataField.None) |
+                       (Has(OrderKeys) ? MetadataField.Order : MetadataField.None);
             }
         }
     }

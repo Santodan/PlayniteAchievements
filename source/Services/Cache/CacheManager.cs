@@ -1894,7 +1894,8 @@ namespace PlayniteAchievements.Services.Cache
                     Rarity = achievement.Rarity,
                     ProgressNum = achievement.ProgressNum,
                     ProgressDenom = achievement.ProgressDenom,
-                    AchievementNote = achievement.AchievementNote
+                    AchievementNote = achievement.AchievementNote,
+                    MetadataOrderIndex = achievement.MetadataOrderIndex
                 });
             }
 

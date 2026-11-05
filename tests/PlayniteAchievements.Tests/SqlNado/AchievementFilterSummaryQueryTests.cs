@@ -291,7 +291,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(schema, "UNIQUE (PlayniteGameId, ApiName)");
             // The narrower predecessor is dropped rather than left to drift.
             StringAssert.Contains(schema, "DROP TABLE IF EXISTS AchievementFilters;");
-            StringAssert.Contains(schema, "SchemaVersion = 20");
+            StringAssert.Contains(schema, "SchemaVersion = 21");
         }
 
         // --- Scoped (per-game) reads -------------------------------------------------------
