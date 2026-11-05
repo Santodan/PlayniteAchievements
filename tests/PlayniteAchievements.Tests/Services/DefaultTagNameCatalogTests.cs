@@ -132,6 +132,21 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
+        public void GetRelocalizedName_RenamesTheFormerManualTagNames()
+        {
+            var catalog = new DefaultTagNameCatalog(null);
+
+            Assert.AreEqual(
+                "[PA] Custom Tracking",
+                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Achievements", "[PA] Custom Tracking"));
+            Assert.AreEqual(
+                "[PA] Linked Source",
+                catalog.GetRelocalizedName(TagType.CustomManualTracking, "[PA] Manual Tracking", "[PA] Linked Source"));
+            Assert.IsNull(catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Tracking", "[PA] Custom Tracking"),
+                "a former name belongs to its own kind only");
+        }
+
+        [TestMethod]
         public void GetRelocalizedName_HealsKnownDefaultToCurrentDefault()
         {
             WriteLocale("en_US.xaml", EnglishXaml);
