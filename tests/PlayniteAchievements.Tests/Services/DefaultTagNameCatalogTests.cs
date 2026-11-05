@@ -142,6 +142,13 @@ namespace PlayniteAchievements.Services.Tagging.Tests
             Assert.AreEqual(
                 "[PA] Linked Source",
                 catalog.GetRelocalizedName(TagType.CustomManualTracking, "[PA] Manual Tracking", "[PA] Linked Source"));
+            Assert.AreEqual(
+                "[PA] Linked Source",
+                catalog.GetRelocalizedName(TagType.CustomManualTracking, "[PA] Custom Manual Tracking", "[PA] Linked Source"),
+                "the older Custom-plus-area name is a former default too");
+            Assert.AreEqual(
+                "[PA] Source Override",
+                catalog.GetRelocalizedName(TagType.CustomSource, "[PA] Custom Source", "[PA] Source Override"));
             Assert.IsNull(catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Tracking", "[PA] Custom Tracking"),
                 "a former name belongs to its own kind only");
         }
