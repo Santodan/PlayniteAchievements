@@ -27,13 +27,14 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return LinkedFileReadResult.Failed(LinkedFileReadStatus.ReadFailed, ex.Message);
             }
 
+            var rowPaths = JsonTableReader.ListRowPaths(root);
             var nodes = JsonTableReader.SelectPath(root, schema.RootPath);
             if (nodes.Count == 0)
             {
-                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.");
+                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
             }
 
-            return LinkedFileReadResult.Ok(JsonTableReader.ToTable(nodes));
+            return LinkedFileReadResult.Ok(JsonTableReader.ToTable(nodes), rowPaths: rowPaths);
         }
     }
 
