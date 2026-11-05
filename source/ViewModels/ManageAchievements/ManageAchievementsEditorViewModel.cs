@@ -398,6 +398,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case nameof(AchievementEditorRow.ProgressDenomText):
                     return "Progress";
 
+                // The API Name cell writes the id; both names are one edit.
+                case nameof(AchievementEditorRow.ApiNameText):
+                case nameof(AchievementEditorRow.Id):
+                    return nameof(AchievementEditorRow.Id);
+
                 default:
                     return propertyName;
             }
@@ -495,7 +500,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 nameof(AchievementEditorRow.UnlockedIconPath),
                 nameof(AchievementEditorRow.LockedIconPath),
                 nameof(AchievementEditorRow.Unlocked),
-                nameof(AchievementEditorRow.UnlockTime)
+                nameof(AchievementEditorRow.UnlockTime),
+                // An authored row's id, edited through the API Name cell.
+                nameof(AchievementEditorRow.Id)
             }
             .ToDictionary(
                 name => name,
@@ -923,10 +930,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     foreach (var change in entry.RowValues)
                     {
-                        if (!byApiName.TryGetValue(change.ApiName, out var row) ||
+                        var isIdChange = change.PropertyName == nameof(AchievementEditorRow.Id);
+
+                        // The step was recorded under the row's key before the edit, but an id
+                        // edit moves the key once it saves: undoing finds the row under the id it
+                        // was given, redoing under the id it had.
+                        var lookupKey = isIdChange
+                            ? CustomAchievementProjectionService.BuildApiName((reverse ? change.NewValue : change.OldValue) as string) ?? change.ApiName
+                            : change.ApiName;
+                        if (lookupKey == null ||
+                            !byApiName.TryGetValue(lookupKey, out var row) ||
                             !UndoableRowFields.TryGetValue(change.PropertyName, out var property) ||
                             property == null)
                         {
+                            continue;
+                        }
+
+                        if (isIdChange)
+                        {
+                            // Through the cell's own setter, so the grid and the details pane
+                            // show the id it puts back.
+                            row.ApiNameText = (reverse ? change.OldValue : change.NewValue) as string;
+                            touchedAuthoredRow = true;
                             continue;
                         }
 
