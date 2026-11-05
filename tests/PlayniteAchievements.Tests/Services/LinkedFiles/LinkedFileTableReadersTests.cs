@@ -484,7 +484,8 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual(LinkedFileFormat.Xlsx, LinkedFileTableReaders.DetectFormat("a.xlsx"));
             Assert.AreEqual(LinkedFileFormat.Xml, LinkedFileTableReaders.DetectFormat("a.xml"));
             Assert.AreEqual(LinkedFileFormat.Ini, LinkedFileTableReaders.DetectFormat("a.ini"));
-            Assert.IsNull(LinkedFileTableReaders.DetectFormat("a.bin"));
+            Assert.AreEqual(LinkedFileFormat.Binary, LinkedFileTableReaders.DetectFormat("a.bin"));
+            Assert.IsNull(LinkedFileTableReaders.DetectFormat("a.exe"));
             Assert.IsNull(LinkedFileTableReaders.DetectFormat(null));
         }
 
