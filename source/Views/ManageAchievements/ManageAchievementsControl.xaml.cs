@@ -895,7 +895,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     var dialog = new System.Windows.Forms.OpenFileDialog
                     {
                         Filter = L("LOCPlayAch_LinkedFile_Format_SupportedFiles") +
-                                 " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini|" +
+                                 " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav|" +
                                  L("LOCPlayAch_Showcase_AllFiles") + " (*.*)|*.*",
                         CheckFileExists = true,
                         Multiselect = false
