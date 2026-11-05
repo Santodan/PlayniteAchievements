@@ -46,8 +46,34 @@ namespace PlayniteAchievements.Services.Capture
 
             // Neither accounts for the length exactly; the frame-width reading is the historical
             // one and stays the default.
-            return fromWidth > 0 ? fromWidth : fromPitch;
+            if (fromWidth > 0 || fromPitch > 0)
+            {
+                return fromWidth > 0 ? fromWidth : fromPitch;
+            }
+
+            // Some decoders count rows at the coded width: the frame width rounded up to the
+            // macroblock (16), or a wider alignment. A 2020-wide frame at pitch 2048 reporting
+            // 3316224 bytes is 2032-wide rows over 1088; a 406-wide one at pitch 448 reporting
+            // 119808 is 416-wide rows over 192. Tried only when nothing else fits.
+            foreach (var alignment in CodedWidthAlignments)
+            {
+                var codedWidth = (frameW + alignment - 1) / alignment * alignment;
+                if (codedWidth == frameW || codedWidth == pitch || codedWidth > pitch)
+                {
+                    continue;
+                }
+
+                var fromCoded = CandidateHeight(codedWidth, frameH, pitch, contiguousLength, maxLength);
+                if (fromCoded > 0)
+                {
+                    return fromCoded;
+                }
+            }
+
+            return 0;
         }
+
+        private static readonly int[] CodedWidthAlignments = { 16, 32 };
 
         /// <summary>Whether a candidate's own surface is exactly the length that was reported.</summary>
         private static bool IsExact(int alignedH, int pitch, long contiguousLength)
