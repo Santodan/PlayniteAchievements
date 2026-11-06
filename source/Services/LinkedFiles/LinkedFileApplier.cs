@@ -284,6 +284,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
     /// </summary>
     public static class LinkedFileApplier
     {
+        /// <param name="isSameIcon">
+        /// Whether a stored icon (first) already holds the file's icon source (second), for icons
+        /// that were copied into the game's icon folder. Null compares the text.
+        /// </param>
         public static LinkedFileApplyPlan Build(
             LinkedFileTable table,
             LinkedFileSchema schema,
@@ -291,7 +295,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
             IReadOnlyList<AchievementDetail> achievements,
             ManualAchievementLink manualLink,
             IReadOnlyList<CustomAchievementDefinition> customDefinitions,
-            DateTime nowUtc)
+            DateTime nowUtc,
+            Func<string, string, bool> isSameIcon = null)
         {
             var plan = new LinkedFileApplyPlan();
             var report = plan.Report;
@@ -378,7 +383,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                         continue;
                     }
 
-                    ApplyToCustom(definition, values, nowUtc, report);
+                    ApplyToCustom(definition, values, nowUtc, report, isSameIcon);
                 }
                 else if (manualLink != null)
                 {
@@ -414,8 +419,17 @@ namespace PlayniteAchievements.Services.LinkedFiles
             return plan;
         }
 
-        private static void ApplyToCustom(CustomAchievementDefinition definition, LinkedFileRowValues values, DateTime nowUtc, LinkedFileApplyReport report)
+        private static void ApplyToCustom(
+            CustomAchievementDefinition definition,
+            LinkedFileRowValues values,
+            DateTime nowUtc,
+            LinkedFileApplyReport report,
+            Func<string, string, bool> isSameIcon)
         {
+            bool SameIcon(string stored, string source) =>
+                string.Equals(stored, source, StringComparison.OrdinalIgnoreCase) ||
+                stored != null && isSameIcon?.Invoke(stored, source) == true;
+
             var changed = false;
             if (values.HasUnlockInfo)
             {
@@ -483,13 +497,13 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 changed = true;
             }
 
-            if (values.UnlockedIconPath != null && !string.Equals(definition.UnlockedIconPath, values.UnlockedIconPath, StringComparison.OrdinalIgnoreCase))
+            if (values.UnlockedIconPath != null && !SameIcon(definition.UnlockedIconPath, values.UnlockedIconPath))
             {
                 definition.UnlockedIconPath = values.UnlockedIconPath;
                 changed = true;
             }
 
-            if (values.LockedIconPath != null && !string.Equals(definition.LockedIconPath, values.LockedIconPath, StringComparison.OrdinalIgnoreCase))
+            if (values.LockedIconPath != null && !SameIcon(definition.LockedIconPath, values.LockedIconPath))
             {
                 definition.LockedIconPath = values.LockedIconPath;
                 changed = true;
