@@ -1127,7 +1127,8 @@ namespace PlayniteAchievements
                         _cacheManager,
                         _manualSourceRegistry,
                         _settingsViewModel.Settings,
-                        _logger);
+                        _logger,
+                        _managedCustomIconService);
                     _refreshService.LinkedFilePass = (scope, cancel) => _linkedFileSyncService.RunPassAsync(scope, cancel);
 
                     // Reconcile the cache DB's AchievementFilters mirror against custom data
