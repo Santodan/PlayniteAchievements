@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -51,6 +52,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         private readonly ManualSourceRegistry _manualSources;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
+        private readonly LinkedFileIcons _icons;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private readonly ConcurrentDictionary<Guid, LinkedFileApplyReport> _lastReports =
             new ConcurrentDictionary<Guid, LinkedFileApplyReport>();
@@ -65,7 +67,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
             ICacheManager cacheManager,
             ManualSourceRegistry manualSources,
             PlayniteAchievementsSettings settings,
-            ILogger logger)
+            ILogger logger,
+            ManagedCustomIconService managedIcons = null)
         {
             _store = store ?? throw new ArgumentNullException(nameof(store));
             _overrides = overrides ?? throw new ArgumentNullException(nameof(overrides));
@@ -74,6 +77,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             _manualSources = manualSources;
             _settings = settings;
             _logger = logger;
+            _icons = managedIcons == null ? null : new LinkedFileIcons(managedIcons, logger);
         }
 
         /// <summary>A file can be linked to a custom-tracked game or one with custom achievements.</summary>
@@ -232,7 +236,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 achievements,
                 data.ManualLink,
                 data.CustomAchievements,
-                nowUtc);
+                nowUtc,
+                _icons == null ? (Func<string, string, bool>)null : (stored, source) => _icons.IsSameIcon(gameId, stored, source));
             plan.Report.FilePath = link.FilePath;
             foreach (var warning in read.Warnings)
             {
@@ -241,7 +246,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
             if (plan.Report.Status == LinkedFileReadStatus.Ok)
             {
-                ApplyPlan(gameId, plan);
+                ApplyPlan(gameId, plan, data.CustomAchievements);
             }
 
             var level = plan.Report.ChangedAnything || plan.Report.ParseErrors > 0 ? "Info" : "Debug";
@@ -258,10 +263,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
             return Record(gameId, link, plan.Report);
         }
 
-        private void ApplyPlan(Guid gameId, LinkedFileApplyPlan plan)
+        private void ApplyPlan(Guid gameId, LinkedFileApplyPlan plan, IReadOnlyList<CustomAchievementDefinition> previousCustom)
         {
             if (plan.CustomChanged)
             {
+                _icons?.Materialize(gameId, previousCustom, plan.CustomDefinitions);
                 _overrides.SetCustomAchievements(gameId, plan.CustomDefinitions);
             }
 
