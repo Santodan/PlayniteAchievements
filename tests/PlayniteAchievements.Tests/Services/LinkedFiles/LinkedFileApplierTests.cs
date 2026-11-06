@@ -59,6 +59,23 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void IconAlreadyCopiedFromTheSameSource_IsUnchanged()
+        {
+            var definitions = Definitions();
+            definitions[0].UnlockedIconPath = @"C:\managed\c1.png";
+            var table = Table(new[] { "id", "icon" }, new[] { "c1", "https://example.com/c1.png" });
+            var schema = Schema(("id", LinkedFileField.ApiName), ("icon", LinkedFileField.UnlockedIconPath));
+
+            var same = LinkedFileApplier.Build(table, schema, null, Achievements(), null, definitions, Now, (stored, source) => true);
+            var different = LinkedFileApplier.Build(table, schema, null, Achievements(), null, definitions, Now);
+
+            Assert.IsFalse(same.CustomChanged);
+            Assert.AreEqual(@"C:\managed\c1.png", same.CustomDefinitions[0].UnlockedIconPath);
+            Assert.IsTrue(different.CustomChanged);
+            Assert.AreEqual("https://example.com/c1.png", different.CustomDefinitions[0].UnlockedIconPath);
+        }
+
+        [TestMethod]
         public void FileWinsForTheRowsItContains_IncludingRelocks()
         {
             var table = Table(
