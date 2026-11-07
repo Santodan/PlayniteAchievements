@@ -1,6 +1,7 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.LinkedFiles;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -36,69 +37,9 @@ namespace PlayniteAchievements.Services
 
     public sealed class CustomAchievementTextImportService
     {
-        private enum Field
-        {
-            Unknown,
-            Id,
-            DisplayName,
-            Description,
-            Points,
-            TrophyType,
-            Hidden,
-            Rarity,
-            Category,
-            ProgressNum,
-            ProgressDenom,
-            Unlocked,
-            UnlockTime,
-            UnlockedIconPath,
-            LockedIconPath
-        }
+        internal const string TrophyTypeMessage = "is not bronze, silver, gold or platinum.";
 
-        private static readonly Dictionary<string, Field> HeaderAliases =
-            new Dictionary<string, Field>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["id"] = Field.Id,
-                ["customid"] = Field.Id,
-                ["api"] = Field.Id,
-                ["apiname"] = Field.Id,
-                ["name"] = Field.DisplayName,
-                ["title"] = Field.DisplayName,
-                ["achievement"] = Field.DisplayName,
-                ["achievementname"] = Field.DisplayName,
-                ["displayname"] = Field.DisplayName,
-                ["description"] = Field.Description,
-                ["desc"] = Field.Description,
-                ["details"] = Field.Description,
-                ["points"] = Field.Points,
-                ["score"] = Field.Points,
-                ["gamerscore"] = Field.Points,
-                ["trophy"] = Field.TrophyType,
-                ["trophytype"] = Field.TrophyType,
-                ["hidden"] = Field.Hidden,
-                ["secret"] = Field.Hidden,
-                ["rarity"] = Field.Rarity,
-                ["category"] = Field.Category,
-                ["categorylabel"] = Field.Category,
-                ["progress"] = Field.ProgressNum,
-                ["progressnum"] = Field.ProgressNum,
-                ["current"] = Field.ProgressNum,
-                ["progressdenom"] = Field.ProgressDenom,
-                ["progresstotal"] = Field.ProgressDenom,
-                ["total"] = Field.ProgressDenom,
-                ["unlocked"] = Field.Unlocked,
-                ["earned"] = Field.Unlocked,
-                ["unlocktime"] = Field.UnlockTime,
-                ["unlockedat"] = Field.UnlockTime,
-                ["earnedat"] = Field.UnlockTime,
-                ["dateunlocked"] = Field.UnlockTime,
-                ["unlockedicon"] = Field.UnlockedIconPath,
-                ["lockedicon"] = Field.LockedIconPath
-            };
-
-        private const string TrophyTypeMessage = "is not bronze, silver, gold or platinum.";
-
-        private const string RarityMessage = "is not a percent from 0 to 100, or Common, Uncommon, Rare or Ultra Rare.";
+        internal const string RarityMessage ="is not a percent from 0 to 100, or Common, Uncommon, Rare or Ultra Rare.";
 
         /// <summary>
         /// Reads every row, keeping only the cells that were filled in, and checks each value.
@@ -124,12 +65,12 @@ namespace PlayniteAchievements.Services
             }
 
             var header = rows[headerIndex];
-            var mapping = new List<Field>(header.Count);
-            var seen = new HashSet<Field>();
+            var mapping = new List<LinkedFileField>(header.Count);
+            var seen = new HashSet<LinkedFileField>();
             foreach (var cell in header)
             {
-                var field = ResolveField(cell);
-                if (field == Field.Unknown)
+                var field = LinkedFileColumnGuesser.ResolveCsvHeader(cell);
+                if (field == LinkedFileField.Ignore)
                 {
                     var name = NormalizeText(cell);
                     if (name != null)
@@ -145,7 +86,7 @@ namespace PlayniteAchievements.Services
                 mapping.Add(field);
             }
 
-            if (!seen.Contains(Field.Id) && !seen.Contains(Field.DisplayName))
+            if (!seen.Contains(LinkedFileField.ApiName) && !seen.Contains(LinkedFileField.DisplayName))
             {
                 result.Errors.Add("An ID or Title column is required.");
             }
@@ -266,7 +207,7 @@ namespace PlayniteAchievements.Services
         /// <summary>A new authored achievement built from a row's cells.</summary>
         public static CustomAchievementDefinition ToDefinition(CustomAchievementCsvRow row, string id)
         {
-            return new CustomAchievementDefinition
+            var definition = new CustomAchievementDefinition
             {
                 Id = id,
                 DisplayName = row.DisplayName,
@@ -274,10 +215,6 @@ namespace PlayniteAchievements.Services
                 Points = row.Points,
                 TrophyType = row.TrophyType,
                 Hidden = row.Hidden ?? false,
-                Rarity = row.RarityPercent.HasValue
-                    ? PercentRarityHelper.GetRarityTier(row.RarityPercent.Value).ToString()
-                    : row.RarityTier,
-                GlobalPercentUnlocked = row.RarityPercent,
                 Category = row.Category,
                 ProgressNum = row.ProgressNum,
                 ProgressDenom = row.ProgressDenom,
@@ -286,6 +223,20 @@ namespace PlayniteAchievements.Services
                 UnlockedIconPath = row.UnlockedIconPath,
                 LockedIconPath = row.LockedIconPath
             };
+            SetRarity(definition, row.RarityPercent, row.RarityTier);
+            return definition;
+        }
+
+        /// <summary>
+        /// Stores a parsed rarity cell on a definition: a percent sets the percent and the tier it
+        /// falls in; a tier alone sets the tier and clears the percent.
+        /// </summary>
+        public static void SetRarity(CustomAchievementDefinition definition, double? percent, string tier)
+        {
+            definition.Rarity = percent.HasValue
+                ? PercentRarityHelper.GetRarityTier(percent.Value).ToString()
+                : tier;
+            definition.GlobalPercentUnlocked = percent;
         }
 
         /// <summary>
@@ -354,26 +305,17 @@ namespace PlayniteAchievements.Services
             return CategoryPathHelper.JoinRaw(normalized.Split('>'));
         }
 
-        private static Field ResolveField(string header)
-        {
-            var normalized = NormalizeHeader(header);
-            return !string.IsNullOrWhiteSpace(normalized) &&
-                   HeaderAliases.TryGetValue(normalized, out var field)
-                ? field
-                : Field.Unknown;
-        }
-
         private static void ApplyField(
             CustomAchievementCsvParseResult result,
             CustomAchievementCsvRow row,
-            Field field,
+            LinkedFileField field,
             string column,
             string rawValue,
             int rowNumber,
             string iconBaseDirectory)
         {
             var value = NormalizeText(rawValue);
-            if (field == Field.Unknown || value == null)
+            if (field == LinkedFileField.Ignore || value == null)
             {
                 return;
             }
@@ -383,16 +325,16 @@ namespace PlayniteAchievements.Services
 
             switch (field)
             {
-                case Field.Id:
+                case LinkedFileField.ApiName:
                     row.Id = CustomAchievementProjectionService.NormalizeId(value);
                     break;
-                case Field.DisplayName:
+                case LinkedFileField.DisplayName:
                     row.DisplayName = value;
                     break;
-                case Field.Description:
+                case LinkedFileField.Description:
                     row.Description = value;
                     break;
-                case Field.Points:
+                case LinkedFileField.Points:
                     if (TryParseInt(value, out var points) && points >= 0)
                     {
                         row.Points = points;
@@ -402,14 +344,14 @@ namespace PlayniteAchievements.Services
                         Error("is not a whole number of 0 or more.");
                     }
                     break;
-                case Field.TrophyType:
+                case LinkedFileField.TrophyType:
                     row.TrophyType = NormalizeTrophyType(value);
                     if (row.TrophyType == null)
                     {
                         Error(TrophyTypeMessage);
                     }
                     break;
-                case Field.Hidden:
+                case LinkedFileField.Hidden:
                     if (TryParseBoolean(value, out var hidden))
                     {
                         row.Hidden = hidden;
@@ -419,7 +361,7 @@ namespace PlayniteAchievements.Services
                         Error("is not true or false.");
                     }
                     break;
-                case Field.Rarity:
+                case LinkedFileField.Rarity:
                     if (TryParseRarity(value, out var percent, out var tier))
                     {
                         row.RarityPercent = percent;
@@ -430,10 +372,10 @@ namespace PlayniteAchievements.Services
                         Error(RarityMessage);
                     }
                     break;
-                case Field.Category:
+                case LinkedFileField.Category:
                     row.Category = ParseCategoryPath(value);
                     break;
-                case Field.ProgressNum:
+                case LinkedFileField.ProgressNum:
                     if (TryParseInt(value, out var progress) && progress >= 0)
                     {
                         row.ProgressNum = progress;
@@ -443,7 +385,7 @@ namespace PlayniteAchievements.Services
                         Error("is not a whole number of 0 or more.");
                     }
                     break;
-                case Field.ProgressDenom:
+                case LinkedFileField.ProgressDenom:
                     if (TryParseInt(value, out var total) && total > 0)
                     {
                         row.ProgressDenom = total;
@@ -453,7 +395,7 @@ namespace PlayniteAchievements.Services
                         Error("is not a whole number greater than 0.");
                     }
                     break;
-                case Field.Unlocked:
+                case LinkedFileField.Unlocked:
                     if (TryParseBoolean(value, out var unlocked))
                     {
                         row.Unlocked = unlocked;
@@ -463,7 +405,7 @@ namespace PlayniteAchievements.Services
                         Error("is not true or false.");
                     }
                     break;
-                case Field.UnlockTime:
+                case LinkedFileField.UnlockTime:
                     if (TryParseUnlockTimeUtc(value, out var unlockTimeUtc))
                     {
                         row.UnlockTimeUtc = unlockTimeUtc;
@@ -473,14 +415,14 @@ namespace PlayniteAchievements.Services
                         Error("is not a date and time.");
                     }
                     break;
-                case Field.UnlockedIconPath:
-                case Field.LockedIconPath:
+                case LinkedFileField.UnlockedIconPath:
+                case LinkedFileField.LockedIconPath:
                     var icon = ResolveIconSource(value, iconBaseDirectory);
                     if (icon == null)
                     {
                         Error("is not a web address or a file that exists.");
                     }
-                    else if (field == Field.UnlockedIconPath)
+                    else if (field == LinkedFileField.UnlockedIconPath)
                     {
                         row.UnlockedIconPath = icon;
                     }
