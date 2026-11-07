@@ -142,8 +142,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
         }
 
         /// <summary>
-        /// Whether sections are the records: there are at least two, and at least half of the
-        /// distinct keys appear in more than one section.
+        /// Whether sections are the records: there are at least two, at least half of the
+        /// distinct keys appear in more than one section, and keys do not outnumber sections more
+        /// than two to one. A section per achievement repeats a few field names across many
+        /// sections; a section per kind of data, such as unlocks and progress, lists many
+        /// achievements in a few sections even when every achievement appears in each.
         /// </summary>
         private static bool SectionsAreRecords(IReadOnlyList<Section> sections)
         {
@@ -160,7 +163,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             var shared = sectionsByKey.Values.Count(count => count > 1);
-            return sectionsByKey.Count > 0 && shared * 2 >= sectionsByKey.Count;
+            return sectionsByKey.Count > 0 &&
+                   shared * 2 >= sectionsByKey.Count &&
+                   sections.Count * 2 >= sectionsByKey.Count;
         }
 
         /// <summary>One row per distinct key, in file order, with one column per section.</summary>
