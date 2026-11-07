@@ -556,6 +556,7 @@
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileValueParser.cs" Link="Source\Services\LinkedFiles\LinkedFileValueParser.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileMatcher.cs" Link="Source\Services\LinkedFiles\LinkedFileMatcher.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileApplier.cs" Link="Source\Services\LinkedFiles\LinkedFileApplier.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileColumnGuesser.cs" Link="Source\Services\LinkedFiles\LinkedFileColumnGuesser.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaStore.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaStore.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFilePassScope.cs" Link="Source\Services\LinkedFiles\LinkedFilePassScope.cs" />
