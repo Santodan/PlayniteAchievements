@@ -52,6 +52,10 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
 
+            <DataTemplate x:Key="MatchColumnHeaderTemplate">
+                <TextBlock Text="{Binding}" Margin="2" TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
+
             <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                 <Style.Triggers>
@@ -157,10 +161,6 @@
                                      ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowElementPathHint}"
                                      KeyDown="CommitOnEnter_KeyDown" />
                         </StackPanel>
-                        <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_IniFlat}"
-                                  IsChecked="{Binding IniFlatMode, Mode=TwoWay}"
-                                  Style="{StaticResource OptionCheckBoxStyle}"
-                                  Visibility="{Binding ShowsIniFlatMode, Converter={StaticResource BoolToVis}}" />
                     </WrapPanel>
                 </DockPanel>
             </StackPanel>
