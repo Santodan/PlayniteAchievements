@@ -138,7 +138,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
 
                 var achievements = _loadAchievements(gameId) ?? Array.Empty<AchievementDetail>();
-                var match = LinkedFileMatcher.Match(read.Table, state.Link.Schema, achievements);
+                var match = LinkedFileMatcher.Match(read.Table, state.Link.Schema, achievements, state.Link.Pairings);
                 var observations = new List<AchievementProgressObservation>();
                 var nowUtc = DateTime.UtcNow;
                 foreach (var rowMatch in match.Matches)
