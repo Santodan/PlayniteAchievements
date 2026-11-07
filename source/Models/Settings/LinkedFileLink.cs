@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Models.Settings
 {
@@ -19,6 +20,13 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>The <c>LinkedFileReadStatus</c> name of the last read, or null before one.</summary>
         public string LastReadStatus { get; set; }
 
+        /// <summary>
+        /// Rows the user paired by hand, by row key (see <c>LinkedFileMatcher.RowKey</c>): the
+        /// achievement's API name, or "" for a row that pairs with nothing. Rows not listed are
+        /// matched automatically. Null when there are none.
+        /// </summary>
+        public Dictionary<string, string> Pairings { get; set; }
+
         [JsonIgnore]
         public bool HasFilePath => !string.IsNullOrWhiteSpace(FilePath);
 
@@ -29,7 +37,8 @@ namespace PlayniteAchievements.Models.Settings
                 FilePath = FilePath,
                 Schema = Schema?.Clone(),
                 LastReadUtc = LastReadUtc,
-                LastReadStatus = LastReadStatus
+                LastReadStatus = LastReadStatus,
+                Pairings = Pairings == null ? null : new Dictionary<string, string>(Pairings, StringComparer.Ordinal)
             };
         }
     }
