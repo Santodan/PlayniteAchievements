@@ -278,11 +278,17 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsXlsx => _selectedFormat?.Value == LinkedFileFormat.Xlsx;
 
-        public bool UsesRootPath => _selectedFormat?.Value == LinkedFileFormat.Json || _selectedFormat?.Value == LinkedFileFormat.Toml;
+        public bool UsesRootPath =>
+            _selectedFormat?.Value == LinkedFileFormat.Json ||
+            _selectedFormat?.Value == LinkedFileFormat.Toml ||
+            _selectedFormat?.Value == LinkedFileFormat.Ini;
 
         public bool IsXml => _selectedFormat?.Value == LinkedFileFormat.Xml;
 
         public bool IsIni => _selectedFormat?.Value == LinkedFileFormat.Ini;
+
+        /// <summary>One key per row across every section only matters while no section is picked.</summary>
+        public bool ShowsIniFlatMode => IsIni && string.IsNullOrWhiteSpace(_rootPath);
 
         public bool UsesHeaderRow => IsDelimited || IsXlsx;
 
@@ -301,7 +307,11 @@ namespace PlayniteAchievements.ViewModels
         public string RootPath
         {
             get => _rootPath;
-            set => SetSetting(ref _rootPath, value, reread: true);
+            set
+            {
+                SetSetting(ref _rootPath, value, reread: true);
+                OnPropertyChanged(nameof(ShowsIniFlatMode));
+            }
         }
 
         public string SheetName
@@ -1027,6 +1037,7 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(UsesRootPath));
             OnPropertyChanged(nameof(IsXml));
             OnPropertyChanged(nameof(IsIni));
+            OnPropertyChanged(nameof(ShowsIniFlatMode));
             OnPropertyChanged(nameof(UsesHeaderRow));
         }
 
