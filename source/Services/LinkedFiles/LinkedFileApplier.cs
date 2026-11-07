@@ -36,11 +36,25 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
         public int? Points { get; set; }
 
+        /// <summary>Lowercase bronze, silver, gold or platinum.</summary>
+        public string TrophyType { get; set; }
+
+        /// <summary>True when the row gives a rarity, as a percent or a tier.</summary>
+        public bool HasRarity { get; set; }
+
+        public double? RarityPercent { get; set; }
+
+        public string RarityTier { get; set; }
+
+        /// <summary>The stored category path.</summary>
+        public string Category { get; set; }
+
         public List<string> Errors { get; } = new List<string>();
 
         public bool HasDefinitionFields =>
             DisplayName != null || Description != null || Hidden.HasValue ||
-            UnlockedIconPath != null || LockedIconPath != null || Points.HasValue;
+            UnlockedIconPath != null || LockedIconPath != null || Points.HasValue ||
+            TrophyType != null || HasRarity || Category != null;
 
         public static LinkedFileRowValues Parse(LinkedFileTable table, int rowIndex, LinkedFileSchema schema, string fileDirectory, DateTime nowUtc)
         {
@@ -167,6 +181,33 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     values.Errors.Add("Points '" + pointsCell + "' is not a whole number of 0 or more.");
                 }
             }
+
+            var trophyCell = Cell(LinkedFileField.TrophyType, out _);
+            if (trophyCell != null)
+            {
+                values.TrophyType = CustomAchievementTextImportService.NormalizeTrophyType(trophyCell);
+                if (values.TrophyType == null)
+                {
+                    values.Errors.Add("Trophy '" + trophyCell + "' " + CustomAchievementTextImportService.TrophyTypeMessage);
+                }
+            }
+
+            var rarityCell = Cell(LinkedFileField.Rarity, out _);
+            if (rarityCell != null)
+            {
+                if (CustomAchievementTextImportService.TryParseRarity(rarityCell, out var percent, out var tier))
+                {
+                    values.HasRarity = true;
+                    values.RarityPercent = percent;
+                    values.RarityTier = tier;
+                }
+                else
+                {
+                    values.Errors.Add("Rarity '" + rarityCell + "' " + CustomAchievementTextImportService.RarityMessage);
+                }
+            }
+
+            values.Category = CustomAchievementTextImportService.ParseCategoryPath(Cell(LinkedFileField.Category, out _));
 
             var unlockedIconCell = Cell(LinkedFileField.UnlockedIconPath, out _);
             if (unlockedIconCell != null)
@@ -405,7 +446,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
             if (definitionFieldsIgnored)
             {
-                report.AddMessage("Name, description, icon, hidden and points columns apply to custom achievements only; linked definitions keep their source's values.");
+                report.AddMessage("Name, description, icon, hidden, points, trophy, rarity and category columns apply to custom achievements only; linked definitions keep their source's values.");
             }
 
             if (schema.CreateUnmatchedRows)
@@ -497,6 +538,29 @@ namespace PlayniteAchievements.Services.LinkedFiles
             if (values.Points.HasValue && definition.Points != values.Points)
             {
                 definition.Points = values.Points;
+                changed = true;
+            }
+
+            if (values.TrophyType != null && !string.Equals(definition.TrophyType, values.TrophyType, StringComparison.Ordinal))
+            {
+                definition.TrophyType = values.TrophyType;
+                changed = true;
+            }
+
+            if (values.HasRarity)
+            {
+                var rarity = definition.Rarity;
+                var percent = definition.GlobalPercentUnlocked;
+                CustomAchievementTextImportService.SetRarity(definition, values.RarityPercent, values.RarityTier);
+                if (!string.Equals(rarity, definition.Rarity, StringComparison.Ordinal) || percent != definition.GlobalPercentUnlocked)
+                {
+                    changed = true;
+                }
+            }
+
+            if (values.Category != null && !string.Equals(definition.Category, values.Category, StringComparison.Ordinal))
+            {
+                definition.Category = values.Category;
                 changed = true;
             }
 
@@ -617,6 +681,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     Description = values.Description,
                     Hidden = values.Hidden ?? false,
                     Points = values.Points,
+                    TrophyType = values.TrophyType,
+                    Category = values.Category,
                     UnlockedIconPath = values.UnlockedIconPath,
                     LockedIconPath = values.LockedIconPath,
                     ProgressNum = values.ProgressNum,
@@ -624,6 +690,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     Unlocked = values.HasUnlockInfo && values.Unlocked,
                     UnlockTimeUtc = values.HasUnlockInfo && values.Unlocked ? values.UnlockTimeUtc ?? nowUtc : (DateTime?)null
                 };
+
+                if (values.HasRarity)
+                {
+                    CustomAchievementTextImportService.SetRarity(definition, values.RarityPercent, values.RarityTier);
+                }
 
                 plan.CustomDefinitions.Add(definition);
                 customByApiName[CustomAchievementProjectionService.BuildApiName(id)] = definition;
