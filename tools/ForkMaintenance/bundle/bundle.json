@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-07T08:32:50.0028050Z",
+    "generatedUtc":  "2026-11-07T16:16:57.3253669Z",
     "baselineRef":  "v4.2.1",
     "baselineCommit":  "4b2f60f29aaa5a393664245547886262952b85c1",
     "protectedPaths":  [
@@ -146,7 +146,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "B8C0B3E48E409120E662B219B58082036C9DEFED8E929E7AF1DAE305E4315BA9"
+                             "sha256":  "9AE833BD9DEACA9C839AA86B435CE25B981446005B89DB0534CA2482DC060169"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
@@ -174,7 +174,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanPolling.cs",
-                             "sha256":  "F8AD28ED3923C42DC6A28060C1081B6549421F5AA8A4EBCF6872372403CA3F8E"
+                             "sha256":  "50F75479589ED7D0B16117B65ACD2987920ADA4CE91072579205FEB6724C7A9C"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanStartupBaseline.cs",
@@ -899,10 +899,6 @@
                          {
                              "path":  "tools/ThemeMigration/Test-Ps5TrophyProgressBridge.ps1",
                              "sha256":  "FAB18FB5E1EC093AFEF0D726737168D78DF47CDA11973D84E0F244AC312666EF"
-                         },
-                         {
-                             "path":  "UPSTREAM_V4.0.1_CONFLICT_REVIEW.md",
-                             "sha256":  "464A45A9FEF442CA37E388701000D3A0BBF0CE1F8F4B50EEA9DA573D19A93CED"
                          }
                      ]
 }

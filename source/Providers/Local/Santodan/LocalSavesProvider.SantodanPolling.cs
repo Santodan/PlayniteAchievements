@@ -56,7 +56,8 @@ namespace PlayniteAchievements.Providers.Local
 
         private static void RecordSantodanPollingRefresh(RebuildSummary summary, Game game, GameAchievementData data)
         {
-            if (!PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.IsActive) return;
+            // Normal refreshes need the same completed-game list as polling: downstream
+            // capstone generation and maintenance run only for the games reported here.
             summary.RefreshedGameIds.Add(game.Id);
             summary.GamesRefreshed++;
             if (data.HasAchievements) summary.GamesWithAchievements++;

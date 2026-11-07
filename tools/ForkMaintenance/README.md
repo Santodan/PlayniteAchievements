@@ -1,5 +1,25 @@
 # Fork maintenance bundle
 
+## Local refresh completion and automatic capstones - 2026-11-07
+
+Preserve Local's completed-game reporting for normal refreshes as well as custom
+polling. `RecordSantodanPollingRefresh` must record every successful write without
+checking `SantodanPollingScope.IsActive`, and `LocalSavesProvider.RefreshAsync`
+must return that summary in its `RebuildPayload` in both modes. Keep recording
+after `onAchievementsUpdated` succeeds. Previously normal refreshes saved data
+but reported zero refreshed games, leaving automatic capstone generation and
+maintenance with no game IDs after clearing and refreshing achievements.
+
+The required Release rebuild passed with zero errors and two existing warnings.
+Live clear/refresh verification in Playnite remains pending. Preserve the existing
+one-time generation markers and intentional capstone deletion behavior.
+
+Bundle verification passed clean three-way preflight and actual replay onto a
+temporary v4.2.1 checkout: 220 overlays, three localization recipes, component
+hashes and protected-file checks passed. Both changed Local provider files
+matched the working fork after newline normalization. The export also reflects
+the existing removal of `UPSTREAM_V4.0.1_CONFLICT_REVIEW.md`.
+
 ## Experimental Performance controls and restore defaults - 2026-11-07
 
 Santodan-Fork > Performance now has an Experimental badge and a fixed notice

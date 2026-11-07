@@ -1,5 +1,17 @@
 # Santodan fork feature checklist
 
+## Local refresh completion and automatic capstones - 2026-11-07
+
+- With automatic capstones enabled, clear a Local game's achievement data and
+  refresh it. Verify its capstone is present without toggling settings or pressing
+  the Editor's Auto Capstone button.
+- Verify normal Local refresh logs report the successfully written game's ID and
+  nonzero refreshed/with-achievements counts. Custom polling must still report
+  completed writes; failed writes must not count as refreshed.
+- Preserve one-time generation markers, intentional deletion behavior, existing
+  capstone edits, and the setting's disabled behavior. Live checks remain pending;
+  the Release rebuild passed with zero errors and two existing warnings.
+
 ## Experimental Performance tab - 2026-11-07
 
 - Verify the Experimental badge and as-is notice. Scroll the options: the notice

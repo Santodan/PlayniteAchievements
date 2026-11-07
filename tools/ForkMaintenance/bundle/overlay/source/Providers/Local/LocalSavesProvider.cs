@@ -915,8 +915,7 @@ namespace PlayniteAchievements.Providers.Local
                 
                 if (games?.Count > 0) onGameProcessed(game);
             }
-            return PlayniteAchievements.Services.InGameMonitoring.SantodanPollingScope.IsActive
-                ? new RebuildPayload { Summary = summary } : new RebuildPayload();
+            return new RebuildPayload { Summary = summary };
         }
 
         internal bool TryGetActiveMonitorSourceFingerprint(Game game, out string fingerprint)
