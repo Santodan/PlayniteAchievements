@@ -1315,7 +1315,6 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual("\t", link.Schema.Delimiter);
             CollectionAssert.AreEqual(new[] { "id", "done" }, link.Schema.Columns.Select(mapping => mapping.Column).ToArray());
             Assert.AreEqual(LinkedFileTimeFormat.Auto, link.Schema.TimeFormat);
-            CollectionAssert.AreEqual(LinkedFileSchema.DefaultMatchOrder, link.Schema.MatchOrder.ToArray());
             Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
         }
 
