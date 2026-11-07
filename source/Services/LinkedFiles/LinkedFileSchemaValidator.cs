@@ -6,11 +6,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
 {
     public enum LinkedFileSchemaProblem
     {
-        /// <summary>No column feeds unlock state, time or progress, and rows do not mean unlocked.</summary>
-        NoUnlockSource,
-
-        /// <summary>No API name or name column is mapped and row order is not in the match order.</summary>
-        NoMatchPath,
+        /// <summary>No column is mapped to any field.</summary>
+        NoColumns,
 
         /// <summary>Creating achievements for unmatched rows needs an API name or a name column.</summary>
         CreateUnmatchedNeedsNameOrApiName,
@@ -27,27 +24,17 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var problems = new List<LinkedFileSchemaProblem>();
             if (schema == null)
             {
-                problems.Add(LinkedFileSchemaProblem.NoUnlockSource);
-                problems.Add(LinkedFileSchemaProblem.NoMatchPath);
+                problems.Add(LinkedFileSchemaProblem.NoColumns);
                 return problems;
             }
 
+            // Unlock state and matching need no setting of their own: a row means unlocked when
+            // no column says otherwise, and rows pair by order when no name column is mapped.
             var hasApiName = schema.HasColumn(LinkedFileField.ApiName);
             var hasName = schema.HasColumn(LinkedFileField.DisplayName);
-            var hasUnlockSource =
-                schema.HasColumn(LinkedFileField.Unlocked) ||
-                schema.HasColumn(LinkedFileField.UnlockTime) ||
-                schema.HasColumn(LinkedFileField.ProgressNum) ||
-                schema.RowPresenceMeansUnlocked ||
-                (schema.CreateUnmatchedRows && hasName);
-            if (!hasUnlockSource)
+            if (schema.Columns == null || schema.Columns.All(mapping => mapping == null || mapping.Field == LinkedFileField.Ignore))
             {
-                problems.Add(LinkedFileSchemaProblem.NoUnlockSource);
-            }
-
-            if (!hasApiName && !hasName && !schema.EffectiveMatchOrder.Contains(LinkedFileMatchKey.RowOrder))
-            {
-                problems.Add(LinkedFileSchemaProblem.NoMatchPath);
+                problems.Add(LinkedFileSchemaProblem.NoColumns);
             }
 
             if (schema.CreateUnmatchedRows && !hasApiName && !hasName)
