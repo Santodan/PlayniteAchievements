@@ -11,7 +11,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
     /// <c>$section</c> and its keys as columns. Otherwise every key is one row with its name in
     /// <c>$key</c> and one column per section holding its value there, so a file with
     /// <c>[unlocked]</c> and <c>[progress]</c> sections reads both for each achievement; keys
-    /// before any section header fill a <c>$value</c> column. Comment lines start with ';' or
+    /// before any section header fill a <c>$value</c> column. A mapping that already uses
+    /// <c>$section</c> or <c>$key</c> keeps that shape. Comment lines start with ';' or
     /// '#'; a value keeps everything after the first '=' apart from one pair of surrounding quotes.
     /// </summary>
     internal static class IniTableReader
@@ -110,7 +111,12 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return LinkedFileReadResult.Ok(LinkedFileTable.Empty);
             }
 
-            if (!sawHeader || !SectionsAreRecords(sections))
+            // A mapping that names $section or $key keeps its shape, so a file that holds one
+            // section today, such as one written at the first unlock, still reads the same way.
+            var mapsSection = schema.Columns?.Any(mapping => string.Equals(mapping?.Column, SectionColumn, StringComparison.OrdinalIgnoreCase)) == true;
+            var mapsKey = schema.Columns?.Any(mapping => string.Equals(mapping?.Column, KeyColumn, StringComparison.OrdinalIgnoreCase)) == true;
+            var sectionsAreRecords = mapsSection || (!mapsKey && sawHeader && SectionsAreRecords(sections));
+            if (!sectionsAreRecords)
             {
                 return LinkedFileReadResult.Ok(KeysAsRows(sections));
             }
