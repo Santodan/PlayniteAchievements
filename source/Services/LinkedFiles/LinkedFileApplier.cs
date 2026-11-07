@@ -274,6 +274,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
         public List<CustomAchievementDefinition> CustomDefinitions { get; } = new List<CustomAchievementDefinition>();
 
+        /// <summary>Indexes of the rows that become new custom achievements.</summary>
+        public HashSet<int> CreatedRows { get; } = new HashSet<int>();
+
         public LinkedFileApplyReport Report { get; } = new LinkedFileApplyReport();
     }
 
@@ -625,6 +628,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 plan.CustomDefinitions.Add(definition);
                 customByApiName[CustomAchievementProjectionService.BuildApiName(id)] = definition;
                 report.Created++;
+                plan.CreatedRows.Add(rowIndex);
             }
         }
 
