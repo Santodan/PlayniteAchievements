@@ -1479,16 +1479,20 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
-        /// A linked file only has meaning while the game is custom-tracked or has custom
-        /// achievements, so it is dropped otherwise and never keeps an empty row alive. The mapping
-        /// is normalized like any package model; the path and read status are local state.
+        /// A link to a file is kept on any game, since reading it can create the game's custom
+        /// achievements. A mapping without a file only has meaning while the game is
+        /// custom-tracked or has custom achievements, so it is dropped otherwise and never keeps
+        /// an empty row alive. The mapping is normalized like any package model; the path and
+        /// read status are local state.
         /// </summary>
         private static LinkedFileLink NormalizeLinkedFile(
             LinkedFileLink link,
             bool hasManualLink,
             IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
         {
-            var schema = NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
+            var schema = link?.HasFilePath == true && link.Schema != null
+                ? LinkedFileSchema.Normalize(link.Schema)
+                : NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
             if (schema == null)
             {
                 return null;
@@ -1499,8 +1503,30 @@ namespace PlayniteAchievements.Services.GameCustomData
                 FilePath = NormalizeString(link.FilePath),
                 Schema = schema,
                 LastReadUtc = link.LastReadUtc,
-                LastReadStatus = NormalizeString(link.LastReadStatus)
+                LastReadStatus = NormalizeString(link.LastReadStatus),
+                Pairings = NormalizeLinkedFilePairings(link.Pairings)
             };
+        }
+
+        /// <summary>Keys trimmed and blank keys dropped; "" stays as a row paired with nothing.</summary>
+        private static Dictionary<string, string> NormalizeLinkedFilePairings(Dictionary<string, string> pairings)
+        {
+            if (pairings == null || pairings.Count == 0)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in pairings)
+            {
+                var key = pair.Key?.Trim();
+                if (!string.IsNullOrEmpty(key))
+                {
+                    normalized[key] = pair.Value?.Trim() ?? string.Empty;
+                }
+            }
+
+            return normalized.Count == 0 ? null : normalized;
         }
 
         private static LinkedFileSchema NormalizeLinkedFileSchema(

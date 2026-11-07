@@ -561,6 +561,7 @@
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaStore.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaStore.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFilePassScope.cs" Link="Source\Services\LinkedFiles\LinkedFilePassScope.cs" />
     <Compile Include="..\..\source\ViewModels\Items\LinkedFileItems.cs" Link="Source\ViewModels\Items\LinkedFileItems.cs" />
+    <Compile Include="..\..\source\ViewModels\ManageAchievements\MatchPickerItem.cs" Link="Source\ViewModels\ManageAchievements\MatchPickerItem.cs" />
     <Compile Include="..\..\source\ViewModels\LinkedFileStatusText.cs" Link="Source\ViewModels\LinkedFileStatusText.cs" />
     <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />

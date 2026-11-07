@@ -129,6 +129,53 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Pairings_ComeFirstAndANoneRowIsSkipped()
+        {
+            var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
+            var table = Table(new[] { "id" }, new[] { "x" }, new[] { "a" }, new[] { "y" }, new[] { "c" });
+            var pairings = new Dictionary<string, string> { ["id:x"] = "C", ["id:y"] = "" };
+
+            var result = LinkedFileMatcher.Match(table, Schema(("id", LinkedFileField.ApiName)), achievements, pairings);
+
+            Assert.AreEqual(2, result.Matches.Count);
+            Assert.AreEqual("c", result.Matches[0].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.Paired, result.Matches[0].MatchedBy);
+            Assert.AreEqual("a", result.Matches[1].Achievement.ApiName);
+            CollectionAssert.AreEqual(new[] { 2 }, result.SkippedRows.ToArray());
+            CollectionAssert.AreEqual(new[] { 3 }, result.UnmatchedRows.ToArray(), "The row's own id is taken by the hand pairing.");
+            Assert.AreEqual("b", result.UnmatchedAchievements.Single().ApiName);
+        }
+
+        [TestMethod]
+        public void Pairings_KeepRowOrderForTheOtherRowsAndIgnoreMissingAchievements()
+        {
+            var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
+            var table = Table(new[] { "done" }, new[] { "1" }, new[] { "0" }, new[] { "1" });
+            var pairings = new Dictionary<string, string> { ["row:1"] = "c", ["row:2"] = "gone" };
+
+            var result = LinkedFileMatcher.Match(table, Schema(("done", LinkedFileField.Unlocked)), achievements, pairings);
+
+            Assert.AreEqual(2, result.Matches.Count);
+            Assert.AreEqual("c", result.Matches[0].Achievement.ApiName);
+            Assert.AreEqual("b", result.Matches[1].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.RowOrder, result.Matches[1].MatchedBy);
+            CollectionAssert.AreEqual(new[] { 2 }, result.UnmatchedRows.ToArray(), "Row 3's achievement was paired by hand to row 1.");
+            Assert.IsTrue(result.Diagnostics.Any(line => line.Contains("'gone'")));
+        }
+
+        [TestMethod]
+        public void RowKey_UsesTheApiNameThenTheNameThenThePosition()
+        {
+            var table = Table(new[] { "id", "name" }, new[] { " x ", "Ex" }, new[] { "", "Why" }, new[] { "", "" });
+            var both = Schema(("id", LinkedFileField.ApiName), ("name", LinkedFileField.DisplayName));
+
+            Assert.AreEqual("id:x", LinkedFileMatcher.RowKey(table, both, 0));
+            Assert.AreEqual("name:Why", LinkedFileMatcher.RowKey(table, both, 1));
+            Assert.AreEqual("row:3", LinkedFileMatcher.RowKey(table, both, 2));
+            Assert.AreEqual("row:1", LinkedFileMatcher.RowKey(table, Schema(), 0));
+        }
+
+        [TestMethod]
         public void MissingColumnsAndBlankCellsMatchNothing()
         {
             var achievements = new[] { Achievement("a", "A") };

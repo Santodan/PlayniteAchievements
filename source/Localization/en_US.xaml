@@ -542,7 +542,7 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_PreviewRowsFormat">{0} of {1} rows</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_PreviewRowsFormat">{0} rows</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">No match</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">New</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">Add new achievements</sys:String>

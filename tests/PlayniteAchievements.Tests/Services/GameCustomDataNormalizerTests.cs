@@ -1343,7 +1343,37 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_LinkedFile_WithoutCustomTrackingOrCustomAchievements_IsDropped()
+        public void NormalizeInternal_LinkedFile_KeepsHandPairings()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
+                        FilePath = "progress.csv",
+                        Schema = new LinkedFileSchema { Name = "Progress" },
+                        Pairings = new Dictionary<string, string>
+                        {
+                            [" id:x "] = " custom:c1 ",
+                            ["row:2"] = null,
+                            ["  "] = "ignored"
+                        }
+                    }
+                },
+                gameId);
+
+            var pairings = normalized.LinkedFile.Pairings;
+            Assert.AreEqual(2, pairings.Count);
+            Assert.AreEqual("custom:c1", pairings["id:x"]);
+            Assert.AreEqual(string.Empty, pairings["row:2"], "A row paired with nothing stays paired with nothing.");
+            Assert.AreEqual(2, normalized.LinkedFile.Clone().Pairings.Count);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_WithAFileIsKeptOnAGameWithNoAchievements()
         {
             var gameId = Guid.NewGuid();
 
@@ -1354,6 +1384,26 @@ namespace PlayniteAchievements.Services.Tests
                     LinkedFile = new LinkedFileLink
                     {
                         FilePath = @"C:\games\progress.csv",
+                        Schema = new LinkedFileSchema { Name = "Progress" }
+                    }
+                },
+                gameId);
+
+            Assert.AreEqual(@"C:\games\progress.csv", normalized.LinkedFile?.FilePath);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_WithoutAFileCustomTrackingOrCustomAchievements_IsDropped()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
                         Schema = new LinkedFileSchema { Name = "Progress" }
                     }
                 },

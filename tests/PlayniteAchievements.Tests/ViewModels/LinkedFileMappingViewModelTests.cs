@@ -345,6 +345,55 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void PairingRowsByHand_IsStagedUntilApplyAndStoredWithTheLink()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                var vm = new LinkedFileMappingViewModel(harness.Services());
+                vm.FilePath = CreateFile(folder);
+
+                var rowA = vm.PreviewRows[0];
+                var rowZ = vm.PreviewRows[2];
+                Assert.IsTrue(rowZ.CanPick);
+                Assert.AreEqual("LOCPlayAch_LinkedFile_NoMatch", rowZ.Match);
+                Assert.AreEqual("id:zzz", rowZ.RowKey);
+
+                rowZ.IsPickerOpen = true;
+                rowZ.Search = "bet";
+                var beta = rowZ.Options.Single(option => !option.IsSpecial);
+                Assert.AreEqual("a", rowA.RowKey.Substring(3));
+                StringAssert.Contains(beta.PairedWith, "b", "Beta is matched to the file's own b row.");
+                rowZ.Pick(beta);
+
+                Assert.IsFalse(rowZ.IsPickerOpen);
+                Assert.AreSame(rowZ, vm.PreviewRows[2], "A pick updates the rows in place.");
+                Assert.AreEqual("Beta", rowZ.Match);
+                Assert.IsTrue(rowZ.IsUserSet);
+                Assert.AreEqual("LOCPlayAch_LinkedFile_NoMatch", vm.PreviewRows[1].Match, "The b row lost Beta to the hand pairing.");
+
+                rowA.IsPickerOpen = true;
+                rowA.Pick(rowA.Options.First(option => option.IsSpecial && option.Key == string.Empty));
+                Assert.AreEqual("LOCPlayAch_Common_None", rowA.Match);
+                Assert.AreEqual(0, harness.Writes, "Pairings are staged until Apply.");
+
+                vm.ApplyNowCommand.Execute(null);
+                var stored = harness.Record.LinkedFile.Pairings;
+                Assert.AreEqual(2, stored.Count);
+                Assert.AreEqual("b", stored["id:zzz"]);
+                Assert.AreEqual(string.Empty, stored["id:a"]);
+
+                var reopened = new LinkedFileMappingViewModel(harness.Services());
+                Assert.AreEqual("Beta", reopened.PreviewRows[2].Match);
+                var back = reopened.PreviewRows[0];
+                back.IsPickerOpen = true;
+                Assert.IsNull(back.Options[0].Key, "A hand-paired row offers Automatic first.");
+                back.Pick(back.Options[0]);
+                Assert.AreEqual("Alpha", back.Match);
+            });
+        }
+
+        [TestMethod]
         public void StatusText_SummarizesALink()
         {
             Func<string, string> key = name => name;
