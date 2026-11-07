@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.LinkedFiles;
 using System;
@@ -419,6 +420,46 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime" }, result.Table.Columns.ToArray());
             CollectionAssert.AreEqual(new[] { "ach_1", "1", "1700000000" }, Row(result.Table, 0));
             CollectionAssert.AreEqual(new[] { "ach_2", "0", "" }, Row(result.Table, 1));
+        }
+
+        [TestMethod]
+        public void Ini_RowsPathPicksOneSection()
+        {
+            const string text = "; achievements earned\n[notice]\nshown=1\n[unlocked]\nach_one=2026-11-06 21:57:15\nach_two=2026-11-06 21:57:42\n[progress]\nach_three=21\n";
+
+            var unlocked = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini, RootPath = "Unlocked" });
+            Assert.IsTrue(unlocked.Success, unlocked.Message);
+            CollectionAssert.AreEqual(new[] { "$key", "$value" }, unlocked.Table.Columns.ToArray());
+            Assert.AreEqual(2, unlocked.Table.Rows.Count, "Only the picked section's keys are rows.");
+            CollectionAssert.AreEqual(new[] { "ach_one", "2026-11-06 21:57:15" }, Row(unlocked.Table, 0));
+            CollectionAssert.AreEqual(new[] { "notice", "unlocked", "progress" }, unlocked.RowPaths.ToArray());
+
+            var missing = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini, RootPath = "nope" });
+            Assert.AreEqual(LinkedFileReadStatus.SchemaInvalid, missing.Status);
+            Assert.AreEqual(3, missing.RowPaths.Count, "The sections are still offered when the path is wrong.");
+
+            var schema = new LinkedFileSchema
+            {
+                Format = LinkedFileFormat.Ini,
+                RootPath = "unlocked",
+                Columns = new List<LinkedFileColumnMapping>
+                {
+                    new LinkedFileColumnMapping { Column = "$key", Field = LinkedFileField.ApiName },
+                    new LinkedFileColumnMapping { Column = "$value", Field = LinkedFileField.UnlockTime }
+                }
+            };
+            var plan = LinkedFileApplier.Build(
+                unlocked.Table, schema, null,
+                new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_one", IsCustom = false }, new AchievementDetail { ApiName = "ach_two" }, new AchievementDetail { ApiName = "ach_three" } },
+                new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "1" },
+                null,
+                new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc));
+            Assert.AreEqual(0, plan.Report.ParseErrors, string.Join(" ", plan.Report.Messages));
+            Assert.AreEqual(2, plan.Report.Unlocked);
+            Assert.AreEqual(
+                new DateTime(2026, 11, 6, 21, 57, 15, DateTimeKind.Local).ToUniversalTime(),
+                plan.ManualUnlocks["ach_one"]);
+            Assert.IsFalse(plan.ManualUnlocks.ContainsKey("ach_three"), "Keys of other sections are not read.");
         }
 
         [TestMethod]
