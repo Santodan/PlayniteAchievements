@@ -546,6 +546,11 @@ namespace PlayniteAchievements.ViewModels
             _ = Reread();
         }
 
+        private bool HasAchievements()
+        {
+            return _services.LoadAchievements?.Invoke()?.Any(achievement => achievement != null) == true;
+        }
+
         private void ApplySchemaToSettings(LinkedFileSchema schema)
         {
             var wasLoading = _isLoading;
@@ -559,7 +564,8 @@ namespace PlayniteAchievements.ViewModels
                 _rootPath = schema?.RootPath;
                 _sheetName = schema?.SheetName;
                 _rowElementPath = schema?.RowElementPath;
-                _createUnmatched = schema?.CreateUnmatchedRows ?? false;
+                // A new link on a game with no achievements adds the file's rows as new ones.
+                _createUnmatched = schema?.CreateUnmatchedRows ?? !HasAchievements();
                 _selectedTimeFormat = TimeFormatOptions.FirstOrDefault(option => option.Value == (schema?.TimeFormat ?? LinkedFileTimeFormat.Auto)) ?? TimeFormatOptions[0];
                 _customTimeFormat = schema?.CustomTimeFormat;
                 _timesAreLocal = schema?.AssumeLocalTime ?? true;
