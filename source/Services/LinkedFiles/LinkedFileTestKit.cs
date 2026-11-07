@@ -233,7 +233,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
             });
 
             var flat = Mapping(LinkedFileFormat.Ini, ("$key", LinkedFileField.ApiName), ("$value", LinkedFileField.UnlockTime));
-            flat.RowPresenceMeansUnlocked = false;
             files.Add(new SampleFile
             {
                 Label = "INI flat",
@@ -243,7 +242,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
             });
 
             var xlsx = Mapping(LinkedFileFormat.Xlsx, ("Name", LinkedFileField.DisplayName), ("Done", LinkedFileField.Unlocked));
-            xlsx.MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.DisplayName };
             var xlsxPath = Path.Combine(folder, "checklist.xlsx");
             File.WriteAllBytes(xlsxPath, BuildChecklistWorkbook());
             files.Add(new SampleFile
