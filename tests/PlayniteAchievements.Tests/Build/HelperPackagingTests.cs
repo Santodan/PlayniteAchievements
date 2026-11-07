@@ -62,6 +62,30 @@ namespace PlayniteAchievements.Tests.Build
         }
 
         [TestMethod]
+        public void HelperExe_CarriesAFullVersionResourceAndManifest()
+        {
+            // A full version resource and a declared asInvoker manifest lower the score Defender's
+            // machine-learning classifier gives the unsigned exe.
+            var yaml = File.ReadAllText(FindRepoFile("source", "extension.yaml"));
+            var versionLine = yaml.Substring(yaml.IndexOf("Version:", StringComparison.Ordinal));
+            var version = versionLine.Substring(8, versionLine.IndexOfAny(new[] { '\r', '\n' }) - 8).Trim();
+
+            var info = File.ReadAllText(FindRepoFile("source", "Helper", "Properties", "AssemblyInfo.cs"));
+            StringAssert.Contains(info, "[assembly: AssemblyTitle(\"Playnite Achievements\")]");
+            StringAssert.Contains(info, "[assembly: AssemblyCompany(");
+            StringAssert.Contains(info, "[assembly: AssemblyCopyright(");
+            StringAssert.Contains(info, "[assembly: AssemblyVersion(\"" + version + ".0\")]");
+            StringAssert.Contains(info, "[assembly: AssemblyFileVersion(\"" + version + ".0\")]");
+
+            var csproj = File.ReadAllText(FindRepoFile("source", "Helper", "PlayniteAchievements.Helper.csproj"));
+            StringAssert.Contains(csproj, "<ApplicationManifest>app.manifest</ApplicationManifest>");
+
+            var manifest = File.ReadAllText(FindRepoFile("source", "Helper", "app.manifest"));
+            StringAssert.Contains(manifest, "level=\"asInvoker\"");
+            StringAssert.Contains(manifest, "version=\"" + version + ".0\"");
+        }
+
+        [TestMethod]
         public void Plugin_LaunchesTheHelperUnderTheSoundRole()
         {
             // The exe is general; the first argument selects the role, and the plugin's sound host
