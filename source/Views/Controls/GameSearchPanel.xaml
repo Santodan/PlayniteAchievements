@@ -195,6 +195,18 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
+
+                <DataGridTextColumn x:Name="RegionColumn"
+                                    Header="{DynamicResource LOCPlayAch_Common_Region}"
+                                    Binding="{Binding Region, Mode=OneWay}"
+                                    Width="64"
+                                    Visibility="Collapsed">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EllipsisWrappedDataGridTextStyle}">
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
 
