@@ -60,8 +60,6 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public sealed class LinkedFileMappingViewModel : ObservableObject
     {
-        public const int PreviewRowLimit = 50;
-
         private readonly LinkedFileMappingServices _services;
         private readonly Dictionary<LinkedFileField, LinkedFileOption<LinkedFileField>> _fieldOptions;
         private LinkedFileReadResult _lastRead;
@@ -716,10 +714,7 @@ namespace PlayniteAchievements.ViewModels
             _previewTable = table;
             RaiseFieldFlags();
             PreviewRows = BuildPreviewRows(null, null);
-            PreviewCountText = string.Format(
-                L("LOCPlayAch_LinkedFile_PreviewRowsFormat"),
-                PreviewRows.Count,
-                table.Rows.Count);
+            PreviewCountText = string.Format(L("LOCPlayAch_LinkedFile_PreviewRowsFormat"), table.Rows.Count);
             ColumnsRebuilt?.Invoke(this, EventArgs.Empty);
         }
 
@@ -817,7 +812,7 @@ namespace PlayniteAchievements.ViewModels
             _pairing.Achievements = BuildAchievementOptions(achievements, match, table, schema);
             PreviewRows = BuildPreviewRows(match, plan, schema);
 
-            foreach (var achievement in match.UnmatchedAchievements.Take(PreviewRowLimit))
+            foreach (var achievement in match.UnmatchedAchievements)
             {
                 UnmatchedAchievements.Add(new LinkedFileMatchItem(
                     string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName));
@@ -841,7 +836,7 @@ namespace PlayniteAchievements.ViewModels
             var matched = match?.Matches.ToDictionary(row => row.RowIndex, row => row.Achievement) ??
                           new Dictionary<int, AchievementDetail>();
             var skipped = new HashSet<int>(match?.SkippedRows ?? new List<int>());
-            var count = Math.Min(PreviewRowLimit, _previewTable.Rows.Count);
+            var count = _previewTable.Rows.Count;
             var reuse = ReferenceEquals(_previewRowsTable, _previewTable) && _previewRows.Count == count;
             var rows = new List<LinkedFilePreviewRow>(count);
             for (var i = 0; i < count; i++)
