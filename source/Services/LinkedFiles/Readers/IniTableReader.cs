@@ -6,11 +6,13 @@ using System.Linq;
 namespace PlayniteAchievements.Services.LinkedFiles
 {
     /// <summary>
-    /// INI text as a table. Section mode: every section is one row with its name in
-    /// <c>$section</c> and its keys as columns. Flat mode, chosen by the schema or when the
-    /// file has no section headers: every key is one row with <c>$section</c>, <c>$key</c> and
-    /// <c>$value</c> columns. Comment lines start with ';' or '#'; a value keeps everything
-    /// after the first '=' apart from one pair of surrounding quotes.
+    /// INI text as a table. A rows path names one section, and every key of that section is one
+    /// row with <c>$key</c> and <c>$value</c> columns. Without one, section mode makes every
+    /// section one row with its name in <c>$section</c> and its keys as columns; flat mode,
+    /// chosen by the schema or when the file has no section headers, makes every key one row
+    /// with <c>$section</c>, <c>$key</c> and <c>$value</c> columns. Section names are offered as
+    /// rows paths. Comment lines start with ';' or '#'; a value keeps everything after the first
+    /// '=' apart from one pair of surrounding quotes.
     /// </summary>
     internal static class IniTableReader
     {
@@ -103,6 +105,19 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
+            var rowPaths = sections.Where(section => section.Name.Length > 0).Select(section => section.Name).ToList();
+            var rowsPath = (schema.RootPath ?? string.Empty).Trim();
+            if (rowsPath.Length > 0)
+            {
+                if (!byName.TryGetValue(rowsPath, out var selected))
+                {
+                    return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
+                }
+
+                var sectionRows = selected.Entries.Select(entry => new[] { entry.Key, entry.Value });
+                return LinkedFileReadResult.Ok(LinkedFileTable.Build(new[] { KeyColumn, ValueColumn }, sectionRows), rowPaths: rowPaths);
+            }
+
             if (sections.Count == 0)
             {
                 return LinkedFileReadResult.Ok(LinkedFileTable.Empty);
@@ -111,7 +126,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             if (schema.IniFlatMode || !sawHeader)
             {
                 var flatRows = sections.SelectMany(section => section.Entries.Select(entry => new[] { section.Name, entry.Key, entry.Value }));
-                return LinkedFileReadResult.Ok(LinkedFileTable.Build(new[] { SectionColumn, KeyColumn, ValueColumn }, flatRows));
+                return LinkedFileReadResult.Ok(LinkedFileTable.Build(new[] { SectionColumn, KeyColumn, ValueColumn }, flatRows), rowPaths: rowPaths);
             }
 
             var columns = new List<string> { SectionColumn };
@@ -131,7 +146,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     column == SectionColumn ? section.Name : lookup.TryGetValue(column, out var value) ? value : string.Empty);
             });
 
-            return LinkedFileReadResult.Ok(LinkedFileTable.Build(columns, rows));
+            return LinkedFileReadResult.Ok(LinkedFileTable.Build(columns, rows), rowPaths: rowPaths);
         }
 
         private static string Unquote(string value)
