@@ -1343,7 +1343,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_LinkedFile_WithoutCustomTrackingOrCustomAchievements_IsDropped()
+        public void NormalizeInternal_LinkedFile_WithAFileIsKeptOnAGameWithNoAchievements()
         {
             var gameId = Guid.NewGuid();
 
@@ -1354,6 +1354,26 @@ namespace PlayniteAchievements.Services.Tests
                     LinkedFile = new LinkedFileLink
                     {
                         FilePath = @"C:\games\progress.csv",
+                        Schema = new LinkedFileSchema { Name = "Progress" }
+                    }
+                },
+                gameId);
+
+            Assert.AreEqual(@"C:\games\progress.csv", normalized.LinkedFile?.FilePath);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_WithoutAFileCustomTrackingOrCustomAchievements_IsDropped()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
                         Schema = new LinkedFileSchema { Name = "Progress" }
                     }
                 },
