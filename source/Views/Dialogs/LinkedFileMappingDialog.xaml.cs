@@ -77,6 +77,9 @@ namespace PlayniteAchievements.Views.Dialogs
             {
                 Header = ResourceProvider.GetString("LOCPlayAch_Column_Achievement"),
                 Binding = new Binding("Match"),
+                // A template of its own: the grid's header style hosts the field picker, which
+                // belongs on the file's columns only.
+                HeaderTemplate = (DataTemplate)FindResource("MatchColumnHeaderTemplate"),
                 HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
                 ElementStyle = (Style)FindResource("MatchCellTextStyle"),
                 MaxWidth = 300
