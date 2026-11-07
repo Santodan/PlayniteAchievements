@@ -1503,8 +1503,30 @@ namespace PlayniteAchievements.Services.GameCustomData
                 FilePath = NormalizeString(link.FilePath),
                 Schema = schema,
                 LastReadUtc = link.LastReadUtc,
-                LastReadStatus = NormalizeString(link.LastReadStatus)
+                LastReadStatus = NormalizeString(link.LastReadStatus),
+                Pairings = NormalizeLinkedFilePairings(link.Pairings)
             };
+        }
+
+        /// <summary>Keys trimmed and blank keys dropped; "" stays as a row paired with nothing.</summary>
+        private static Dictionary<string, string> NormalizeLinkedFilePairings(Dictionary<string, string> pairings)
+        {
+            if (pairings == null || pairings.Count == 0)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in pairings)
+            {
+                var key = pair.Key?.Trim();
+                if (!string.IsNullOrEmpty(key))
+                {
+                    normalized[key] = pair.Value?.Trim() ?? string.Empty;
+                }
+            }
+
+            return normalized.Count == 0 ? null : normalized;
         }
 
         private static LinkedFileSchema NormalizeLinkedFileSchema(
