@@ -129,7 +129,10 @@ namespace PlayniteAchievements.ViewModels
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.Hidden, L("LOCPlayAch_Filter_Hidden")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.UnlockedIconPath, L("LOCPlayAch_ManageAchievements_Custom_UnlockedIcon")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.LockedIconPath, L("LOCPlayAch_ManageAchievements_Custom_LockedIcon")),
-                new LinkedFileOption<LinkedFileField>(LinkedFileField.Points, L("LOCPlayAch_Column_Points"))
+                new LinkedFileOption<LinkedFileField>(LinkedFileField.Points, L("LOCPlayAch_Column_Points")),
+                new LinkedFileOption<LinkedFileField>(LinkedFileField.TrophyType, L("LOCPlayAch_Column_Trophy")),
+                new LinkedFileOption<LinkedFileField>(LinkedFileField.Rarity, L("LOCPlayAch_Column_Rarity")),
+                new LinkedFileOption<LinkedFileField>(LinkedFileField.Category, L("LOCPlayAch_Common_Category"))
             };
             _fieldOptions = FieldOptions.ToDictionary(option => option.Value);
 
@@ -663,6 +666,12 @@ namespace PlayniteAchievements.ViewModels
                     .Where(column => column.IsMapped)
                     .Select(column => new LinkedFileColumnMapping { Column = column.ColumnName, Field = column.Field })
                     .ToList();
+            }
+
+            // Nothing mapped yet, as for a newly chosen file: start from a guess the user edits.
+            if ((_pendingMappings == null || _pendingMappings.Count == 0) && table.Columns.Count > 0)
+            {
+                _pendingMappings = LinkedFileColumnGuesser.Guess(table);
             }
 
             foreach (var column in Columns)
