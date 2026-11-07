@@ -464,6 +464,23 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Ini_MappingKeepsItsShapeWhenOneSectionIsLeft()
+        {
+            const string text = "[ach_one]\nAchieved=1\nUnlockTime=1700000000\n";
+
+            var guessed = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini });
+            CollectionAssert.AreEqual(new[] { "$key", "ach_one" }, guessed.Table.Columns.ToArray(), "One section alone reads as a list of keys.");
+
+            var mapped = ParseText(text, new LinkedFileSchema
+            {
+                Format = LinkedFileFormat.Ini,
+                Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "$section", Field = LinkedFileField.ApiName } }
+            });
+            CollectionAssert.AreEqual(new[] { "$section", "Achieved", "UnlockTime" }, mapped.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "ach_one", "1", "1700000000" }, Row(mapped.Table, 0));
+        }
+
+        [TestMethod]
         public void Ini_WithoutSections_KeysAreRows()
         {
             var flat = ParseText("# earned: id=time\n101 = 1700000000\n102=1700000500\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini });
