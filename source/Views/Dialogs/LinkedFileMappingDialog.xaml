@@ -27,7 +27,7 @@
             <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Margin" Value="0,12,0,6" />
+                <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
             <Style x:Key="HintTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -45,6 +45,21 @@
                 <Setter Property="Margin" Value="4,0,0,0" />
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
+
+            <!-- The match column's header is plain text; the file columns' headers host a field picker. -->
+            <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                <Setter Property="VerticalContentAlignment" Value="Bottom" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMatched}" Value="False">
+                        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -52,120 +67,106 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- File and format -->
-            <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{DynamicResource LOCPlayAch_LinkedFile_File}" Style="{StaticResource FieldLabelStyle}" />
-                <TextBox x:Name="PathTextBox"
-                         Grid.Column="1"
-                         VerticalContentAlignment="Center"
-                         MinHeight="{StaticResource PlayAch.Size.Control.Height}"
-                         Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                         KeyDown="CommitOnEnter_KeyDown" />
-                <Button Grid.Column="2"
-                        Margin="8,0,0,0"
-                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                        Command="{Binding BrowseCommand}" />
-                <TextBlock Grid.Column="3" Margin="16,0,8,0" Text="{DynamicResource LOCPlayAch_LinkedFile_Format}" Style="{StaticResource FieldLabelStyle}" />
-                <ComboBox Grid.Column="4"
-                          Width="170"
-                          ItemsSource="{Binding FormatOptions}"
-                          SelectedItem="{Binding SelectedFormat, Mode=TwoWay}"
-                          DisplayMemberPath="Name" />
-            </Grid>
-
-            <!-- Format options: one panel per format -->
-            <WrapPanel Grid.Row="1" Margin="0,10,0,0">
-                <StackPanel Orientation="Horizontal" Visibility="{Binding IsDelimited, Converter={StaticResource BoolToVis}}" Margin="0,0,16,0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Delimiter}" Style="{StaticResource FieldLabelStyle}" />
-                    <ComboBox Width="140"
-                              IsEditable="True"
-                              ItemsSource="{Binding DelimiterOptions}"
-                              Text="{Binding DelimiterText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                              SelectionChanged="CommitOnSelection_SelectionChanged"
-                              KeyDown="CommitOnEnter_KeyDown" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}" Margin="0,0,16,0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Sheet}" Style="{StaticResource FieldLabelStyle}" />
-                    <ComboBox Width="200"
-                              IsEditable="True"
-                              ItemsSource="{Binding SheetNames}"
-                              Text="{Binding SheetName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                              SelectionChanged="CommitOnSelection_SelectionChanged"
-                              KeyDown="CommitOnEnter_KeyDown" />
-                </StackPanel>
-                <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_HasHeader}"
-                          IsChecked="{Binding HasHeader, Mode=TwoWay}"
-                          Style="{StaticResource OptionCheckBoxStyle}"
-                          Visibility="{Binding UsesHeaderRow, Converter={StaticResource BoolToVis}}" />
-                <StackPanel Orientation="Horizontal" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RootPath}" Style="{StaticResource FieldLabelStyle}" />
-                    <ComboBox Width="280"
-                              IsEditable="True"
-                              ItemsSource="{Binding RowPaths}"
-                              Text="{Binding RootPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RootPathHint}"
-                              SelectionChanged="CommitOnSelection_SelectionChanged"
-                              KeyDown="CommitOnEnter_KeyDown" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RowElementPath}" Style="{StaticResource FieldLabelStyle}" />
-                    <TextBox Width="280"
+            <!-- Source: the file, its format and the options its format needs, and presets -->
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Source}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="PathTextBox"
+                             Grid.Column="0"
                              VerticalContentAlignment="Center"
-                             Text="{Binding RowElementPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowElementPathHint}"
+                             MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                             Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             AutomationProperties.Name="{DynamicResource LOCPlayAch_LinkedFile_File}"
                              KeyDown="CommitOnEnter_KeyDown" />
-                </StackPanel>
-                <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_IniFlat}"
-                          IsChecked="{Binding IniFlatMode, Mode=TwoWay}"
-                          Style="{StaticResource OptionCheckBoxStyle}"
-                          Visibility="{Binding IsIni, Converter={StaticResource BoolToVis}}" />
-            </WrapPanel>
+                    <Button Grid.Column="1"
+                            Margin="8,0,0,0"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Command="{Binding BrowseCommand}" />
+                    <TextBlock Grid.Column="2" Margin="16,0,8,0" Text="{DynamicResource LOCPlayAch_LinkedFile_Format}" Style="{StaticResource FieldLabelStyle}" />
+                    <ComboBox Grid.Column="3"
+                              Width="170"
+                              ItemsSource="{Binding FormatOptions}"
+                              SelectedItem="{Binding SelectedFormat, Mode=TwoWay}"
+                              DisplayMemberPath="Name" />
+                </Grid>
 
-            <!-- Saved mappings -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
-                <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_SavedMappings}" Style="{StaticResource FieldLabelStyle}" />
-                <ComboBox Width="260"
-                          ItemsSource="{Binding SavedNames}"
-                          SelectedItem="{Binding SelectedSavedName, Mode=TwoWay}" />
-                <Button Content="&#xEF08;"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="{DynamicResource LOCPlayAch_CustomRefresh_Presets_Load}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_Presets_Load}"
-                        Command="{Binding ApplySavedCommand}" />
-                <Button Content="&#xEE00;"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="{DynamicResource LOCPlayAch_CustomRefresh_Presets_SaveAs}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_Presets_SaveAs}"
-                        Command="{Binding SaveAsCommand}" />
-                <Button Content="&#xEC55;"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="{DynamicResource LOCPlayAch_Common_Rename}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Rename}"
-                        Command="{Binding RenameSavedCommand}" />
-                <Button Content="&#xEE09;"
-                        Style="{StaticResource IconButtonStyle}"
-                        ToolTip="{DynamicResource LOCPlayAch_Common_Delete}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Delete}"
-                        Command="{Binding DeleteSavedCommand}" />
+                <DockPanel Margin="0,8,0,0" LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}" Style="{StaticResource FieldLabelStyle}" />
+                        <ComboBox Width="200"
+                                  ItemsSource="{Binding SavedNames}"
+                                  SelectedItem="{Binding SelectedSavedName, Mode=TwoWay}" />
+                        <Button x:Name="PresetActionsButton"
+                                Content="&#xEFA2;"
+                                Style="{StaticResource IconButtonStyle}"
+                                ToolTip="{DynamicResource LOCPlayAch_Presets_Header}"
+                                AutomationProperties.Name="{DynamicResource LOCPlayAch_Presets_Header}"
+                                Click="PresetActionsButton_Click" />
+                    </StackPanel>
+
+                    <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsDelimited, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Delimiter}" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Width="120"
+                                      IsEditable="True"
+                                      ItemsSource="{Binding DelimiterOptions}"
+                                      Text="{Binding DelimiterText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                      SelectionChanged="CommitOnSelection_SelectionChanged"
+                                      KeyDown="CommitOnEnter_KeyDown" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Sheet}" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Width="200"
+                                      IsEditable="True"
+                                      ItemsSource="{Binding SheetNames}"
+                                      Text="{Binding SheetName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                      SelectionChanged="CommitOnSelection_SelectionChanged"
+                                      KeyDown="CommitOnEnter_KeyDown" />
+                        </StackPanel>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_HasHeader}"
+                                  IsChecked="{Binding HasHeader, Mode=TwoWay}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  Visibility="{Binding UsesHeaderRow, Converter={StaticResource BoolToVis}}" />
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RootPath}" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox Width="260"
+                                      IsEditable="True"
+                                      ItemsSource="{Binding RowPaths}"
+                                      Text="{Binding RootPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                      ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RootPathHint}"
+                                      SelectionChanged="CommitOnSelection_SelectionChanged"
+                                      KeyDown="CommitOnEnter_KeyDown" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RowElementPath}" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBox Width="260"
+                                     VerticalContentAlignment="Center"
+                                     Text="{Binding RowElementPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                     ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowElementPathHint}"
+                                     KeyDown="CommitOnEnter_KeyDown" />
+                        </StackPanel>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_IniFlat}"
+                                  IsChecked="{Binding IniFlatMode, Mode=TwoWay}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  Visibility="{Binding IsIni, Converter={StaticResource BoolToVis}}" />
+                    </WrapPanel>
+                </DockPanel>
             </StackPanel>
 
-            <!-- Preview: each column header picks the field the column feeds -->
-            <DockPanel Grid.Row="3" Margin="0,12,0,0">
+            <!-- Columns: each file column's header picks the field it feeds; the first column shows the match -->
+            <DockPanel Grid.Row="1" Margin="0,10,0,0">
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
                     <Button DockPanel.Dock="Right"
                             Content="&#xEFD1;"
@@ -173,7 +174,12 @@
                             ToolTip="{DynamicResource LOCPlayAch_Button_Refresh}"
                             AutomationProperties.Name="{DynamicResource LOCPlayAch_Button_Refresh}"
                             Command="{Binding RereadCommand}" />
-                    <TextBlock Text="{Binding PreviewCountText}" Style="{StaticResource HintTextStyle}" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Right"
+                               Margin="0,0,4,0"
+                               Text="{Binding PreviewCountText}"
+                               Style="{StaticResource HintTextStyle}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Columns}" Style="{StaticResource SectionHeaderStyle}" />
                 </DockPanel>
                 <TextBlock DockPanel.Dock="Top"
                            Margin="0,0,0,6"
@@ -189,6 +195,7 @@
                           CanUserAddRows="False"
                           HeadersVisibility="Column"
                           SelectionUnit="FullRow"
+                          FrozenColumnCount="1"
                           EnableColumnVirtualization="True"
                           EnableRowVirtualization="True"
                           MinColumnWidth="140"
@@ -219,78 +226,67 @@
                 </DataGrid>
             </DockPanel>
 
-            <!-- Matching and values -->
-            <StackPanel Grid.Row="4">
-                <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_MatchBy}" Style="{StaticResource SectionHeaderStyle}" />
+            <!-- Settings that only matter for some mappings show only then -->
+            <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Settings}" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,6" />
                 <WrapPanel>
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Column_ApiName}" IsChecked="{Binding MatchByApiName, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
-                    <CheckBox Content="{DynamicResource LOCPlayAch_Common_Name}" IsChecked="{Binding MatchByName, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
-                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_RowOrder}" IsChecked="{Binding MatchByRowOrder, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
-                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_RowPresence}"
-                              IsChecked="{Binding RowPresenceMeansUnlocked, Mode=TwoWay}"
-                              IsEnabled="{Binding CanUseRowPresence}"
-                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowPresenceHint}"
-                              ToolTipService.ShowOnDisabled="True"
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding UsesTimeOptions, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_TimeFormat}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,8,6" />
+                        <ComboBox Width="170"
+                                  Margin="0,0,8,6"
+                                  ItemsSource="{Binding TimeFormatOptions}"
+                                  SelectedItem="{Binding SelectedTimeFormat, Mode=TwoWay}"
+                                  DisplayMemberPath="Name" />
+                        <TextBox Width="160"
+                                 Margin="0,0,8,6"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding CustomTimeFormat, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Visibility="{Binding IsCustomTimeFormat, Converter={StaticResource BoolToVis}}"
+                                 KeyDown="CommitOnEnter_KeyDown" />
+                        <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_TimesAreLocal}" IsChecked="{Binding TimesAreLocal, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding UsesUnlockedValues, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValues}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,8,6" />
+                        <TextBox Width="160"
+                                 Margin="0,0,16,6"
+                                 VerticalContentAlignment="Center"
+                                 Text="{Binding UnlockedValues, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 ToolTip="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValuesHint}"
+                                 KeyDown="CommitOnEnter_KeyDown" />
+                    </StackPanel>
+                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatched}"
+                              IsChecked="{Binding CreateUnmatched, Mode=TwoWay}"
+                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatchedHint}"
                               Style="{StaticResource OptionCheckBoxStyle}" />
-                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatched}" IsChecked="{Binding CreateUnmatched, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
-                </WrapPanel>
-                <WrapPanel Margin="0,4,0,0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_TimeFormat}" Style="{StaticResource FieldLabelStyle}" />
-                    <ComboBox Width="190"
-                              Margin="0,0,8,6"
-                              ItemsSource="{Binding TimeFormatOptions}"
-                              SelectedItem="{Binding SelectedTimeFormat, Mode=TwoWay}"
-                              DisplayMemberPath="Name" />
-                    <TextBox Width="170"
-                             Margin="0,0,16,6"
-                             VerticalContentAlignment="Center"
-                             Text="{Binding CustomTimeFormat, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             Visibility="{Binding IsCustomTimeFormat, Converter={StaticResource BoolToVis}}"
-                             KeyDown="CommitOnEnter_KeyDown" />
-                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_TimesAreLocal}" IsChecked="{Binding TimesAreLocal, Mode=TwoWay}" Style="{StaticResource OptionCheckBoxStyle}" />
-                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValues}" Style="{StaticResource FieldLabelStyle}" Margin="0,0,8,6" />
-                    <TextBox Width="220"
-                             Margin="0,0,0,6"
-                             VerticalContentAlignment="Center"
-                             Text="{Binding UnlockedValues, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             ToolTip="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValuesHint}"
-                             KeyDown="CommitOnEnter_KeyDown" />
                 </WrapPanel>
             </StackPanel>
 
             <!-- What applying would do -->
-            <StackPanel Grid.Row="5" Margin="0,6,0,0">
+            <StackPanel Grid.Row="3" Margin="0,4,0,0">
                 <TextBlock Text="{Binding ProblemText}"
                            Foreground="{DynamicResource PlayAch.Brush.AuthError}"
                            TextWrapping="Wrap"
                            Margin="0,0,0,4"
                            Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
                 <TextBlock Text="{Binding ResultText}" Style="{StaticResource HintTextStyle}" />
-                <Grid Margin="0,6,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Expander Grid.Column="0" Header="{DynamicResource LOCPlayAch_LinkedFile_UnmatchedRowsHeader}">
-                        <ListBox ItemsSource="{Binding UnmatchedRows}" MaxHeight="120" />
-                    </Expander>
-                    <Expander Grid.Column="2" Header="{DynamicResource LOCPlayAch_LinkedFile_UnmatchedAchievementsHeader}">
-                        <ListBox ItemsSource="{Binding UnmatchedAchievements}" MaxHeight="120" />
-                    </Expander>
-                </Grid>
+                <Expander Margin="0,6,0,0"
+                          Header="{Binding UnmatchedAchievementsHeader}"
+                          Visibility="{Binding HasUnmatchedAchievements, Converter={StaticResource BoolToVis}}">
+                    <ListBox ItemsSource="{Binding UnmatchedAchievements}" MaxHeight="120" />
+                </Expander>
             </StackPanel>
 
             <!-- Footer -->
-            <DockPanel Grid.Row="6" Margin="0,14,0,0">
-                <TextBlock DockPanel.Dock="Left"
-                           MaxWidth="520"
-                           VerticalAlignment="Center"
-                           Text="{DynamicResource LOCPlayAch_LinkedFile_OverwriteHint}"
-                           Style="{StaticResource HintTextStyle}" />
+            <DockPanel Grid.Row="4" Margin="0,14,0,0">
+                <Button DockPanel.Dock="Left"
+                        Content="{DynamicResource LOCPlayAch_LinkedFile_Unlink}"
+                        Command="{Binding UnlinkCommand}"
+                        Visibility="{Binding HasStoredLink, Converter={StaticResource BoolToVis}}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="{DynamicResource LOCPlayAch_Button_Apply}" Command="{Binding ApplyNowCommand}" Margin="0,0,8,0" />
-                    <Button Content="{DynamicResource LOCPlayAch_LinkedFile_Unlink}" Command="{Binding UnlinkCommand}" Margin="0,0,8,0" />
+                    <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyNowCommand}"
+                            ToolTip="{DynamicResource LOCPlayAch_LinkedFile_OverwriteHint}"
+                            Margin="0,0,8,0" />
                     <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}" Click="Cancel_Click" />
                 </StackPanel>
             </DockPanel>
