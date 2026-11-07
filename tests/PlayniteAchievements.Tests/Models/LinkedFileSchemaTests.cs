@@ -76,24 +76,23 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void Normalize_MatchOrderDedupesAndDefaults()
+        public void PresenceAndRowOrder_FollowTheMappedColumns()
         {
-            var normalized = LinkedFileSchema.Normalize(new LinkedFileSchema
+            LinkedFileSchema With(params LinkedFileField[] fields) => new LinkedFileSchema
             {
-                MatchOrder = new List<LinkedFileMatchKey>
-                {
-                    LinkedFileMatchKey.RowOrder,
-                    LinkedFileMatchKey.ApiName,
-                    LinkedFileMatchKey.RowOrder
-                }
-            });
+                Columns = fields.Select((field, i) => new LinkedFileColumnMapping { Column = "c" + i, Field = field }).ToList()
+            };
 
-            CollectionAssert.AreEqual(
-                new[] { LinkedFileMatchKey.RowOrder, LinkedFileMatchKey.ApiName },
-                normalized.MatchOrder.ToArray());
-            CollectionAssert.AreEqual(
-                LinkedFileSchema.DefaultMatchOrder,
-                LinkedFileSchema.Normalize(new LinkedFileSchema()).MatchOrder.ToArray());
+            Assert.IsTrue(With(LinkedFileField.ApiName).RowPresenceMeansUnlocked, "A list of ids means each listed one is unlocked.");
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.UnlockTime).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.ProgressNum).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.DisplayName, LinkedFileField.Description).RowPresenceMeansUnlocked, "A list of definitions says nothing about unlocks.");
+            Assert.IsFalse(new LinkedFileSchema().RowPresenceMeansUnlocked);
+
+            Assert.IsTrue(With(LinkedFileField.Unlocked).MatchesByRowOrder, "Without a name column rows pair by order.");
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.Unlocked).MatchesByRowOrder);
+            Assert.IsFalse(With(LinkedFileField.DisplayName).MatchesByRowOrder);
         }
 
         [TestMethod]
@@ -117,8 +116,7 @@ namespace PlayniteAchievements.Models.Tests
                 SheetName = " Sheet 2 ",
                 RootPath = " data.items ",
                 RowElementPath = "",
-                AssumeLocalTime = false,
-                RowPresenceMeansUnlocked = true
+                AssumeLocalTime = false
             });
 
             Assert.AreEqual(LinkedFileSchema.MaxNameLength, normalized.Name.Length);
@@ -126,7 +124,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("data.items", normalized.RootPath);
             Assert.IsNull(normalized.RowElementPath);
             Assert.IsFalse(normalized.AssumeLocalTime);
-            Assert.IsTrue(normalized.RowPresenceMeansUnlocked);
             Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema { Name = "  " }).Name);
             Assert.IsNull(LinkedFileSchema.Normalize(null));
         }
@@ -138,17 +135,14 @@ namespace PlayniteAchievements.Models.Tests
             {
                 Name = "a",
                 Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName } },
-                MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.DisplayName },
                 UnlockedTrueValues = new List<string> { "x" }
             };
 
             var clone = schema.Clone();
             clone.Columns[0].Column = "changed";
-            clone.MatchOrder.Add(LinkedFileMatchKey.RowOrder);
             clone.UnlockedTrueValues.Add("y");
 
             Assert.AreEqual("id", schema.Columns[0].Column);
-            Assert.AreEqual(1, schema.MatchOrder.Count);
             Assert.AreEqual(1, schema.UnlockedTrueValues.Count);
 
             var link = new LinkedFileLink { FilePath = "p", Schema = schema };
