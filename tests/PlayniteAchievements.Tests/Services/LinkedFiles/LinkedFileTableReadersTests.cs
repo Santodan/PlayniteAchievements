@@ -423,34 +423,30 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
-        public void Ini_RowsPathPicksOneSection()
+        public void Ini_KeysBecomeRowsWithAColumnPerSection()
         {
-            const string text = "; achievements earned\n[notice]\nshown=1\n[unlocked]\nach_one=2026-11-06 21:57:15\nach_two=2026-11-06 21:57:42\n[progress]\nach_three=21\n";
+            const string text = "; achievements earned\n[notice]\nshown=1\n[unlocked]\nach_one=2026-11-06 21:57:15\nach_two=2026-11-06 21:57:42\n[progress]\nach_three=21\nach_one=5\n";
 
-            var unlocked = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini, RootPath = "Unlocked" });
-            Assert.IsTrue(unlocked.Success, unlocked.Message);
-            CollectionAssert.AreEqual(new[] { "$key", "$value" }, unlocked.Table.Columns.ToArray());
-            Assert.AreEqual(2, unlocked.Table.Rows.Count, "Only the picked section's keys are rows.");
-            CollectionAssert.AreEqual(new[] { "ach_one", "2026-11-06 21:57:15" }, Row(unlocked.Table, 0));
-            CollectionAssert.AreEqual(new[] { "notice", "unlocked", "progress" }, unlocked.RowPaths.ToArray());
-
-            var missing = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini, RootPath = "nope" });
-            Assert.AreEqual(LinkedFileReadStatus.SchemaInvalid, missing.Status);
-            Assert.AreEqual(3, missing.RowPaths.Count, "The sections are still offered when the path is wrong.");
+            var result = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini });
+            Assert.IsTrue(result.Success, result.Message);
+            CollectionAssert.AreEqual(new[] { "$key", "notice", "unlocked", "progress" }, result.Table.Columns.ToArray());
+            Assert.AreEqual(4, result.Table.Rows.Count);
+            CollectionAssert.AreEqual(new[] { "ach_one", "", "2026-11-06 21:57:15", "5" }, Row(result.Table, 1), "A key in two sections is one row.");
+            CollectionAssert.AreEqual(new[] { "ach_three", "", "", "21" }, Row(result.Table, 3));
 
             var schema = new LinkedFileSchema
             {
                 Format = LinkedFileFormat.Ini,
-                RootPath = "unlocked",
                 Columns = new List<LinkedFileColumnMapping>
                 {
                     new LinkedFileColumnMapping { Column = "$key", Field = LinkedFileField.ApiName },
-                    new LinkedFileColumnMapping { Column = "$value", Field = LinkedFileField.UnlockTime }
+                    new LinkedFileColumnMapping { Column = "unlocked", Field = LinkedFileField.UnlockTime },
+                    new LinkedFileColumnMapping { Column = "progress", Field = LinkedFileField.ProgressNum }
                 }
             };
             var plan = LinkedFileApplier.Build(
-                unlocked.Table, schema, null,
-                new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_one", IsCustom = false }, new AchievementDetail { ApiName = "ach_two" }, new AchievementDetail { ApiName = "ach_three" } },
+                result.Table, schema, null,
+                new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_one" }, new AchievementDetail { ApiName = "ach_two" }, new AchievementDetail { ApiName = "ach_three" } },
                 new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "1" },
                 null,
                 new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc));
@@ -459,20 +455,21 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual(
                 new DateTime(2026, 11, 6, 21, 57, 15, DateTimeKind.Local).ToUniversalTime(),
                 plan.ManualUnlocks["ach_one"]);
-            Assert.IsFalse(plan.ManualUnlocks.ContainsKey("ach_three"), "Keys of other sections are not read.");
+            Assert.IsFalse(plan.ManualUnlocks.ContainsKey("ach_three"), "A key without an unlock time stays locked.");
+            Assert.AreEqual(21, plan.ManualProgress.Single(update => update.ApiName == "ach_three").ProgressNum);
+
+            var single = ParseText("[unlocked]\na=1\nb=2\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini });
+            CollectionAssert.AreEqual(new[] { "$key", "unlocked" }, single.Table.Columns.ToArray());
+            Assert.AreEqual(2, single.Table.Rows.Count, "One section lists its keys as rows.");
         }
 
         [TestMethod]
-        public void Ini_FlatMode_ByFlagOrWhenThereAreNoSections()
+        public void Ini_WithoutSections_KeysAreRows()
         {
             var flat = ParseText("# earned: id=time\n101 = 1700000000\n102=1700000500\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini });
-            CollectionAssert.AreEqual(new[] { "$section", "$key", "$value" }, flat.Table.Columns.ToArray());
-            CollectionAssert.AreEqual(new[] { "", "101", "1700000000" }, Row(flat.Table, 0));
-            CollectionAssert.AreEqual(new[] { "", "102", "1700000500" }, Row(flat.Table, 1));
-
-            var forced = ParseText("[s]\na=1\nb=2\n", new LinkedFileSchema { Format = LinkedFileFormat.Ini, IniFlatMode = true });
-            Assert.AreEqual(2, forced.Table.Rows.Count);
-            CollectionAssert.AreEqual(new[] { "s", "b", "2" }, Row(forced.Table, 1));
+            CollectionAssert.AreEqual(new[] { "$key", "$value" }, flat.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "101", "1700000000" }, Row(flat.Table, 0));
+            CollectionAssert.AreEqual(new[] { "102", "1700000500" }, Row(flat.Table, 1));
         }
 
         // ---------------------------------------------------------------- files
