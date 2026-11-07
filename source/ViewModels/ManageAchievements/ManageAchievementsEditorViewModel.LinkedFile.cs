@@ -14,6 +14,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private RelayCommand _openLinkedFileCommand;
         private LinkedFileLink _linkedFile;
         private bool _canLinkFile;
+        private bool _hasCachedAchievements = true;
 
         /// <summary>Opens the Link File window; true when the link changed. Set by the host.</summary>
         internal Func<bool> ShowLinkedFileDialog
@@ -29,7 +30,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand OpenLinkedFileCommand =>
             _openLinkedFileCommand ??= new RelayCommand(_ => OpenLinkedFileDialog(), _ => CanLinkFile && _showLinkedFileDialog != null);
 
-        /// <summary>A file can be linked to a custom-tracked game or one with custom achievements.</summary>
+        /// <summary>
+        /// A file can be linked to a custom-tracked game, one with custom achievements, or one
+        /// with no achievements yet, where the file's rows become custom achievements.
+        /// </summary>
         public bool CanLinkFile
         {
             get => _canLinkFile;
@@ -60,7 +64,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var record = _gameCustomDataStore?.LoadOrDefault(_gameId);
             _linkedFile = record?.LinkedFile;
-            CanLinkFile = LinkedFileSyncService.IsEligible(record);
+            CanLinkFile = LinkedFileSyncService.IsEligible(record) || !_hasCachedAchievements;
             OnPropertyChanged(nameof(HasLinkedFile));
             OnPropertyChanged(nameof(ShowLinkFileButton));
             OnPropertyChanged(nameof(LinkedFileChipText));
