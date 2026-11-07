@@ -139,7 +139,9 @@ namespace PlayniteAchievements.Tests.ViewModels
 
                 Assert.IsTrue(vm.ProblemText == null, vm.ProblemText);
                 StringAssert.Contains(vm.ResultText, "LOCPlayAch_LinkedFile_Count_Matched");
-                Assert.AreEqual(1, vm.UnmatchedRows.Count, "The zzz row matches nothing.");
+                Assert.AreEqual("Alpha", vm.PreviewRows[0].Match);
+                Assert.AreEqual("LOCPlayAch_LinkedFile_NoMatch", vm.PreviewRows[2].Match, "The zzz row matches nothing.");
+                Assert.IsFalse(vm.PreviewRows[2].IsMatched);
                 Assert.AreEqual(0, vm.UnmatchedAchievements.Count);
 
                 vm.Columns[1].SelectedField = apiName;
@@ -186,8 +188,6 @@ namespace PlayniteAchievements.Tests.ViewModels
                         Format = LinkedFileFormat.Delimited,
                         Delimiter = "\t",
                         HasHeader = true,
-                        RowPresenceMeansUnlocked = false,
-                        MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.DisplayName },
                         TimeFormat = LinkedFileTimeFormat.WindowsFileTime,
                         Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "done", Field = LinkedFileField.Unlocked } }
                     }
@@ -197,8 +197,8 @@ namespace PlayniteAchievements.Tests.ViewModels
 
                 Assert.AreEqual(0, harness.Writes, "Opening the window writes nothing.");
                 Assert.AreEqual("Tab", vm.DelimiterText);
-                Assert.IsFalse(vm.MatchByApiName);
-                Assert.IsTrue(vm.MatchByName);
+                Assert.IsTrue(vm.UsesUnlockedValues);
+                Assert.IsFalse(vm.UsesTimeOptions);
                 Assert.AreEqual(LinkedFileTimeFormat.WindowsFileTime, vm.SelectedTimeFormat.Value);
                 Assert.AreEqual(LinkedFileField.Unlocked, vm.Columns.Single(column => column.ColumnName == "done").Field);
                 Assert.IsTrue(vm.HasStoredLink);
@@ -206,21 +206,26 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void RowPresence_IsOnlyOfferedWithoutAnUnlockColumn()
+        public void Settings_ShowOnlyForTheColumnsTheyRead()
         {
             WithFolder(folder =>
             {
                 var harness = new Harness();
                 var vm = new LinkedFileMappingViewModel(harness.Services());
                 vm.FilePath = CreateFile(folder);
-                vm.RowPresenceMeansUnlocked = true;
-                Assert.IsTrue(vm.CanUseRowPresence);
-                Assert.IsTrue(vm.BuildSchema().RowPresenceMeansUnlocked);
+                Assert.IsFalse(vm.UsesTimeOptions);
+                Assert.IsFalse(vm.UsesUnlockedValues);
+
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
+                StringAssert.Contains(vm.ResultText, "LOCPlayAch_LinkedFile_Count_Unlocked", "Listed rows read as unlocked without a setting.");
+                Assert.IsTrue(vm.ApplyNowCommand.CanExecute(null));
 
                 vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Unlocked);
+                Assert.IsTrue(vm.UsesUnlockedValues);
 
-                Assert.IsFalse(vm.CanUseRowPresence);
-                Assert.IsFalse(vm.BuildSchema().RowPresenceMeansUnlocked);
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.UnlockTime);
+                Assert.IsTrue(vm.UsesTimeOptions);
+                Assert.IsFalse(vm.UsesUnlockedValues);
             });
         }
 
@@ -243,8 +248,9 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.IsNull(harness.Record.LinkedFile, "Saving a mapping to the list does not link the game.");
 
                 vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
-                vm.ApplySavedCommand.Execute(null);
-                Assert.AreEqual(LinkedFileField.ApiName, vm.Columns[0].Field, "Applying a saved mapping fills the columns.");
+                vm.SelectedSavedName = null;
+                vm.SelectedSavedName = "My mapping";
+                Assert.AreEqual(LinkedFileField.ApiName, vm.Columns[0].Field, "Picking a preset fills the columns.");
 
                 harness.NameAnswer = "Renamed";
                 vm.RenameSavedCommand.Execute(null);
@@ -327,7 +333,6 @@ namespace PlayniteAchievements.Tests.ViewModels
 
                 vm.FilePath = Path.Combine(folder, "not-yet", "achievements.ini");
                 vm.SelectedSavedName = "Section per achievement";
-                vm.ApplySavedCommand.Execute(null);
 
                 Assert.IsTrue(vm.ApplyNowCommand.CanExecute(null), "A file written only at the first unlock can be linked before it exists.");
                 vm.ApplyNowCommand.Execute(null);
