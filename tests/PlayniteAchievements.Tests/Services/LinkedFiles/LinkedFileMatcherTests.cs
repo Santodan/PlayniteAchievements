@@ -100,10 +100,10 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
-        public void RowOrder_AppliesOnlyWhenNothingElseMatchedAndRowsFit()
+        public void RowOrder_AppliesOnlyWithoutANameColumnAndWhenRowsFit()
         {
             var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
-            var schema = new LinkedFileSchema { MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.RowOrder } };
+            var schema = Schema(("done", LinkedFileField.Unlocked));
 
             var fits = LinkedFileMatcher.Match(Table(new[] { "done" }, new[] { "1" }, new[] { "0" }), schema, achievements);
             Assert.AreEqual(2, fits.Matches.Count);
@@ -121,12 +121,11 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                 Table(new[] { "id" }, new[] { "b" }, new[] { "nope" }),
                 new LinkedFileSchema
                 {
-                    Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName } },
-                    MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.ApiName, LinkedFileMatchKey.RowOrder }
+                    Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName } }
                 },
                 achievements);
             Assert.AreEqual(1, afterApiName.Matches.Count);
-            Assert.IsTrue(afterApiName.Diagnostics.Single().Contains("already matched"));
+            CollectionAssert.AreEqual(new[] { 1 }, afterApiName.UnmatchedRows.ToArray(), "With an API name column, rows never pair by order.");
         }
 
         [TestMethod]
