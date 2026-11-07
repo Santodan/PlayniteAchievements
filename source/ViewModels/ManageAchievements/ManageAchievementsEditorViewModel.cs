@@ -2458,6 +2458,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshManualTrackingState(rawData);
             RebuildCustomProviderOptions();
+
+            _hasCachedAchievements = rawData?.Achievements?.Count > 0;
+            RefreshLinkedFileState();
         }
 
         private void RebuildCustomProviderOptions()
