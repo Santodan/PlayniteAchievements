@@ -1147,6 +1147,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ProgressCountIsKeptWithoutATotal()
+        {
+            var gameId = Guid.NewGuid();
+            var data = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition { Id = "count", DisplayName = "Count", ProgressNum = 20 },
+                    new CustomAchievementDefinition { Id = "negative", DisplayName = "Negative", ProgressNum = -1 },
+                    new CustomAchievementDefinition { Id = "over", DisplayName = "Over", ProgressNum = 12, ProgressDenom = 10 }
+                }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(data, gameId).CustomAchievements;
+
+            var count = normalized.Single(definition => definition.Id == "count");
+            Assert.AreEqual(20, count.ProgressNum);
+            Assert.IsNull(count.ProgressDenom);
+            Assert.IsNull(normalized.Single(definition => definition.Id == "negative").ProgressNum);
+            Assert.IsNull(normalized.Single(definition => definition.Id == "over").ProgressNum, "A count above the total is dropped.");
+        }
+
+        [TestMethod]
         public void CustomProviderId_RoundTripsAndIsClearedWithoutCustomAchievements()
         {
             var gameId = Guid.NewGuid();
