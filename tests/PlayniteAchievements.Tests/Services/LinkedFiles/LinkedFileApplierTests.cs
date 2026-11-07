@@ -157,15 +157,17 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var presence = Table(new[] { "id" }, new[] { "ach_two" });
             var presenceSchema = Schema(("id", LinkedFileField.ApiName));
-            presenceSchema.RowPresenceMeansUnlocked = true;
             var presencePlan = LinkedFileApplier.Build(presence, presenceSchema, null, Achievements(), Link(), Definitions(), Now);
             Assert.AreEqual(Now, presencePlan.ManualUnlocks["ach_two"]);
             Assert.AreEqual(Earlier, presencePlan.ManualUnlocks["ach_one"], "Achievements with no row keep their state.");
             Assert.AreEqual(1, presencePlan.Report.Unlocked);
             Assert.AreEqual(0, presencePlan.Report.Relocked);
 
-            var noUnlockInfo = LinkedFileApplier.Build(presence, Schema(("id", LinkedFileField.ApiName)), null, Achievements(), Link(), Definitions(), Now);
-            Assert.IsFalse(noUnlockInfo.ManualChanged, "Without any unlock column or the presence rule a row says nothing about unlock state.");
+            var progressOnly = LinkedFileApplier.Build(
+                Table(new[] { "id", "num" }, new[] { "ach_two", "3" }),
+                Schema(("id", LinkedFileField.ApiName), ("num", LinkedFileField.ProgressNum)),
+                null, Achievements(), Link(), Definitions(), Now);
+            Assert.IsFalse(progressOnly.ManualChanged, "A progress column says the row is not simply unlocked.");
         }
 
         [TestMethod]
@@ -244,8 +246,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                 new LinkedFileSchema
                 {
                     Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "name", Field = LinkedFileField.DisplayName } },
-                    CreateUnmatchedRows = true,
-                    RowPresenceMeansUnlocked = true
+                    CreateUnmatchedRows = true
                 },
                 null, new List<AchievementDetail>(), null, null, Now);
             Assert.AreEqual(1, emptyGame.Report.Created, "A game with no achievements yet can still be seeded from the file.");
@@ -289,23 +290,19 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         [TestMethod]
         public void Validator_NamesWhatAMappingLacks()
         {
-            CollectionAssert.AreEquivalent(
-                new[] { LinkedFileSchemaProblem.NoUnlockSource, LinkedFileSchemaProblem.NoMatchPath },
+            CollectionAssert.AreEqual(
+                new[] { LinkedFileSchemaProblem.NoColumns },
                 LinkedFileSchemaValidator.Validate(new LinkedFileSchema()).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { LinkedFileSchemaProblem.NoColumns },
+                LinkedFileSchemaValidator.Validate(null).ToArray());
 
             Assert.AreEqual(0, LinkedFileSchemaValidator.Validate(Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked))).Count);
-
-            var presence = Schema(("name", LinkedFileField.DisplayName));
-            presence.RowPresenceMeansUnlocked = true;
-            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(presence));
-
-            var rowOrder = Schema(("done", LinkedFileField.Unlocked));
-            rowOrder.MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.RowOrder };
-            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(rowOrder));
+            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("name", LinkedFileField.DisplayName))), "A listed row means unlocked.");
+            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("done", LinkedFileField.Unlocked))), "Rows pair by order.");
 
             var create = Schema(("done", LinkedFileField.Unlocked));
             create.CreateUnmatchedRows = true;
-            create.MatchOrder = new List<LinkedFileMatchKey> { LinkedFileMatchKey.RowOrder };
             CollectionAssert.AreEqual(
                 new[] { LinkedFileSchemaProblem.CreateUnmatchedNeedsNameOrApiName },
                 LinkedFileSchemaValidator.Validate(create).ToArray());
