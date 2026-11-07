@@ -32,10 +32,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
     }
 
     /// <summary>
-    /// Pairs file rows with achievements. Each key in the schema's match order runs over the
-    /// rows and achievements still unmatched: API names exactly (a custom achievement also
-    /// answers to its bare id), display names by their normalized text, and finally row order
-    /// when nothing else matched and the file has no more rows than the game has achievements.
+    /// Pairs file rows with achievements. API names match first, exactly (a custom achievement
+    /// also answers to its bare id), then display names by their normalized text, each over the
+    /// rows and achievements still unmatched. With neither column mapped, rows pair by order
+    /// when the file has no more rows than the game has achievements.
     /// A row matches at most one achievement and an achievement at most one row; anything
     /// ambiguous stays unmatched and is reported.
     /// </summary>
@@ -51,24 +51,18 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var rowTaken = new bool[table.Rows.Count];
             var achievementTaken = new HashSet<AchievementDetail>();
 
-            foreach (var key in schema.EffectiveMatchOrder)
+            if (schema.MatchesByRowOrder)
             {
-                switch (key)
-                {
-                    case LinkedFileMatchKey.ApiName:
-                        MatchByColumn(
-                            table, schema, LinkedFileField.ApiName, candidates, rowTaken, achievementTaken, result,
-                            LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
-                        break;
-                    case LinkedFileMatchKey.DisplayName:
-                        MatchByColumn(
-                            table, schema, LinkedFileField.DisplayName, candidates, rowTaken, achievementTaken, result,
-                            LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
-                        break;
-                    case LinkedFileMatchKey.RowOrder:
-                        MatchByRowOrder(table, candidates, rowTaken, achievementTaken, result);
-                        break;
-                }
+                MatchByRowOrder(table, candidates, rowTaken, achievementTaken, result);
+            }
+            else
+            {
+                MatchByColumn(
+                    table, schema, LinkedFileField.ApiName, candidates, rowTaken, achievementTaken, result,
+                    LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
+                MatchByColumn(
+                    table, schema, LinkedFileField.DisplayName, candidates, rowTaken, achievementTaken, result,
+                    LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
             }
 
             for (var row = 0; row < rowTaken.Length; row++)
@@ -211,12 +205,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
         {
             if (table.Rows.Count == 0)
             {
-                return;
-            }
-
-            if (result.Matches.Count > 0)
-            {
-                result.Diagnostics.Add("Row order was not used because other keys already matched rows.");
                 return;
             }
 
