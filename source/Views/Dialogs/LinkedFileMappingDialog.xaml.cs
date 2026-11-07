@@ -4,6 +4,7 @@ using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 
@@ -69,6 +70,18 @@ namespace PlayniteAchievements.Views.Dialogs
         private void RebuildPreviewColumns()
         {
             PreviewGrid.Columns.Clear();
+
+            // The first column shows the achievement each row pairs with and stays in view
+            // while the file's columns scroll.
+            PreviewGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Column_Achievement"),
+                Binding = new Binding("Match"),
+                HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
+                ElementStyle = (Style)FindResource("MatchCellTextStyle"),
+                MaxWidth = 300
+            });
+
             foreach (var column in _viewModel.Columns)
             {
                 PreviewGrid.Columns.Add(new DataGridTextColumn
@@ -78,6 +91,19 @@ namespace PlayniteAchievements.Views.Dialogs
                     MaxWidth = 420
                 });
             }
+        }
+
+        private void PresetActionsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var menu = new ContextMenu
+            {
+                PlacementTarget = PresetActionsButton,
+                Placement = PlacementMode.Bottom
+            };
+            menu.Items.Add(new MenuItem { Header = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_Presets_SaveAs"), Command = _viewModel.SaveAsCommand });
+            menu.Items.Add(new MenuItem { Header = ResourceProvider.GetString("LOCPlayAch_Common_Rename"), Command = _viewModel.RenameSavedCommand });
+            menu.Items.Add(new MenuItem { Header = ResourceProvider.GetString("LOCPlayAch_Common_Delete"), Command = _viewModel.DeleteSavedCommand });
+            menu.IsOpen = true;
         }
 
         private void CommitOnEnter_KeyDown(object sender, KeyEventArgs e)
