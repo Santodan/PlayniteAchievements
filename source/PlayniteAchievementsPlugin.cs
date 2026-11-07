@@ -76,6 +76,8 @@ namespace PlayniteAchievements
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementMarkerToggle _achievementMarkerToggle;
         private readonly AchievementDataService _achievementDataService;
+        private readonly Services.LinkedFiles.LinkedFileSchemaStore _linkedFileSchemaStore;
+        private Services.LinkedFiles.LinkedFileSyncService _linkedFileSyncService;
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCacheManager;
@@ -215,6 +217,8 @@ namespace PlayniteAchievements
         public AutoCapstoneAuthoring AutoCapstoneAuthoring => _autoCapstoneAuthoring;
         public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
+        public Services.LinkedFiles.LinkedFileSchemaStore LinkedFileSchemaStore => _linkedFileSchemaStore;
+        public Services.LinkedFiles.LinkedFileSyncService LinkedFileSyncService => _linkedFileSyncService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
         public RayTrackService RayTrackService => _rayTrackService;
@@ -940,6 +944,7 @@ namespace PlayniteAchievements
                 // User-defined custom providers resolve through static hooks so the registry and
                 // the icon converter stay free of the store type (both are linked into the tests).
                 _customProviderStore = new Services.CustomProviders.CustomProviderStore(pluginUserDataPath, _logger);
+                _linkedFileSchemaStore = new Services.LinkedFiles.LinkedFileSchemaStore(pluginUserDataPath, _logger);
                 ProviderRegistry.CustomProviderResolver = ResolveCustomProviderVisuals;
                 Views.Converters.ProviderIconConverter.CustomGeometryResolver = id => _customProviderStore?.GetGeometry(id);
                 Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
@@ -1114,6 +1119,18 @@ namespace PlayniteAchievements
                         hasActiveSnapshotPublisher: () => _startPageDataCoordinator?.HasActivePublisher == true);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
 
+                    // Linked files are read after each refresh's provider work, for the games it covers.
+                    _linkedFileSyncService = new Services.LinkedFiles.LinkedFileSyncService(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        _achievementDataService,
+                        _cacheManager,
+                        _manualSourceRegistry,
+                        _settingsViewModel.Settings,
+                        _logger,
+                        _managedCustomIconService);
+                    _refreshService.LinkedFilePass = (scope, cancel) => _linkedFileSyncService.RunPassAsync(scope, cancel);
+
                     // Reconcile the cache DB's AchievementFilters mirror against custom data
                     // before any summary read (theme wiring, projection warm). Synchronous and
                     // cheap when unchanged; also covers legacy custom-data migrations that
@@ -1268,6 +1285,14 @@ namespace PlayniteAchievements
                     _autoCapstoneMaintainer.DefersAnnouncements = gameId => _inGameMonitor?.IsMonitoring(gameId) == true;
                     _inGameMonitor.MaintainCapstones = gameId => _autoCapstoneMaintainer?.Maintain(gameId);
                     _inGameMonitor.TakeCapstoneAnnouncements = _autoCapstoneMaintainer.TakePendingAnnouncements;
+                    _inGameMonitor.LinkedFileSource = new Services.LinkedFiles.LinkedFileProgressSource(
+                        _gameCustomDataStore,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                        _logger);
+                    _inGameMonitor.ApplyUserOwnedObservations = (gameId, observations) =>
+                        _achievementOverridesService?.ApplyUserOwnedObservations(gameId, observations) ?? (IReadOnlyList<string>)Array.Empty<string>();
+                    _inGameMonitor.LoadGameDataWithCustomAchievements = gameId =>
+                        _achievementDataService?.GetRawGameAchievementDataWithCustomAchievements(gameId);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -1653,6 +1678,21 @@ namespace PlayniteAchievements
 
             if (!AnyProviderCapable(game))
             {
+                // A game tracked only by you still gets its game-close refresh when it has a
+                // linked file: with no provider work the refresh reads the file and runs what
+                // follows every refresh, the same as for any other game.
+                if (_gameCustomDataStore?.LoadOrDefault(game.Id)?.LinkedFile != null)
+                {
+                    _logger.Info($"Game stopped: {game.Name}. Reading its linked file.");
+                    await _refreshCoordinator.ExecuteAsync(new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = game.Id
+                    }).ConfigureAwait(false);
+                    _libraryProjectionService?.Warm();
+                    return;
+                }
+
                 _logger.Info($"Game stopped: {game.Name}; no enabled provider is capable, skipping refresh.");
                 // No refresh delta will arrive to rebuild the projection after the session's
                 // suppressed warms; schedule it explicitly (no-op while other games still run).
@@ -2569,8 +2609,10 @@ namespace PlayniteAchievements
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChangedForTags;
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
                     _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForCaptures;
+                    _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForLinkedFile;
                     _eventSubscriptions.Add(() =>
                     {
+                        _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForLinkedFile;
                         _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForCaptures;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChangedForTags;
@@ -2654,6 +2696,28 @@ namespace PlayniteAchievements
                     StringComparison.OrdinalIgnoreCase))
             {
                 _captureLibraryService?.RefreshGameDirectories();
+            }
+        }
+
+        private void GameCustomDataStore_CustomDataWrittenForLinkedFile(object sender, GameCustomDataWrittenEventArgs e)
+        {
+            // A running game picks up a linked, moved or remapped file at once. Read status is
+            // written after every read, so only the path and the mapping count as a change.
+            if (e == null || _inGameMonitor?.IsMonitoring(e.PlayniteGameId) != true)
+            {
+                return;
+            }
+
+            var before = e.Previous?.LinkedFile;
+            var after = e.Persisted?.LinkedFile;
+            var samePath = string.Equals(before?.FilePath, after?.FilePath, StringComparison.OrdinalIgnoreCase);
+            var sameMapping = string.Equals(
+                Newtonsoft.Json.JsonConvert.SerializeObject(before?.Schema),
+                Newtonsoft.Json.JsonConvert.SerializeObject(after?.Schema),
+                StringComparison.Ordinal);
+            if (!samePath || !sameMapping)
+            {
+                _inGameMonitor.Reconfigure();
             }
         }
 

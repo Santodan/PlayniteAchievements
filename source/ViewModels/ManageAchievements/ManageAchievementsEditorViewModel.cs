@@ -398,6 +398,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case nameof(AchievementEditorRow.ProgressDenomText):
                     return "Progress";
 
+                // The API Name cell writes the id; both names are one edit.
+                case nameof(AchievementEditorRow.ApiNameText):
+                case nameof(AchievementEditorRow.Id):
+                    return nameof(AchievementEditorRow.Id);
+
                 default:
                     return propertyName;
             }
@@ -456,6 +461,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 nameof(AchievementEditorRow.DisplayName),
                 nameof(AchievementEditorRow.Description),
+                nameof(AchievementEditorRow.ApiNameText),
                 nameof(AchievementEditorRow.PointsText),
                 nameof(AchievementEditorRow.TrophyType),
                 nameof(AchievementEditorRow.Hidden),
@@ -494,7 +500,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 nameof(AchievementEditorRow.UnlockedIconPath),
                 nameof(AchievementEditorRow.LockedIconPath),
                 nameof(AchievementEditorRow.Unlocked),
-                nameof(AchievementEditorRow.UnlockTime)
+                nameof(AchievementEditorRow.UnlockTime),
+                // An authored row's id, edited through the API Name cell.
+                nameof(AchievementEditorRow.Id)
             }
             .ToDictionary(
                 name => name,
@@ -554,6 +562,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 dispatcher.BeginInvoke(new Action(() => GameCustomDataStore_CustomDataWritten(sender, e)));
                 return;
+            }
+
+            // A read of the linked file writes its status here; the header chip follows it.
+            if (!ReferenceEquals(e.Previous?.LinkedFile, e.Persisted?.LinkedFile))
+            {
+                RefreshLinkedFileState();
             }
 
             if (_isApplyingUndo)
@@ -916,10 +930,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     foreach (var change in entry.RowValues)
                     {
-                        if (!byApiName.TryGetValue(change.ApiName, out var row) ||
+                        var isIdChange = change.PropertyName == nameof(AchievementEditorRow.Id);
+
+                        // The step was recorded under the row's key before the edit, but an id
+                        // edit moves the key once it saves: undoing finds the row under the id it
+                        // was given, redoing under the id it had.
+                        var lookupKey = isIdChange
+                            ? CustomAchievementProjectionService.BuildApiName((reverse ? change.NewValue : change.OldValue) as string) ?? change.ApiName
+                            : change.ApiName;
+                        if (lookupKey == null ||
+                            !byApiName.TryGetValue(lookupKey, out var row) ||
                             !UndoableRowFields.TryGetValue(change.PropertyName, out var property) ||
                             property == null)
                         {
+                            continue;
+                        }
+
+                        if (isIdChange)
+                        {
+                            // Through the cell's own setter, so the grid and the details pane
+                            // show the id it puts back.
+                            row.ApiNameText = (reverse ? change.OldValue : change.NewValue) as string;
+                            touchedAuthoredRow = true;
                             continue;
                         }
 
@@ -6069,6 +6101,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshSourceHeading(rawData, link);
             UnlinkManualTrackingCommand.RaiseCanExecuteChanged();
+            RefreshLinkedFileState();
         }
 
         /// <summary>
@@ -7025,9 +7058,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// description: the key is often the spoiler.
         /// </summary>
         public string ApiNameResolved =>
-            IsProviderRow && !IsBulkRow && !IsBlank && !IsDescriptionHidden
-                ? OriginalApiName
+            !IsBulkRow && !IsBlank && !IsDescriptionHidden
+                ? ApiNameText
                 : string.Empty;
+
+        /// <summary>
+        /// The key a linked file matches this achievement by: the provider's own key for a
+        /// provider row, the bare id for an authored one. Editing it renames an authored row's id;
+        /// the "custom:" prefix is accepted and dropped, since matching takes either form.
+        /// </summary>
+        public string ApiNameText
+        {
+            get => IsBulkRow ? string.Empty : IsProviderRow ? OriginalApiName : NormalizedId;
+            set
+            {
+                if (CanEditApiName)
+                {
+                    var id = CustomAchievementProjectionService.NormalizeId(value);
+                    if (!string.Equals(id, NormalizedId, StringComparison.Ordinal))
+                    {
+                        Id = id;
+                    }
+                }
+
+                // Raised even when refused, so the cell shows what is stored.
+                OnPropertyChanged(nameof(ApiNameText));
+                OnPropertyChanged(nameof(NormalizedId));
+                OnPropertyChanged(nameof(ApiNameResolved));
+                OnPropertyChanged(nameof(HasApiName));
+            }
+        }
+
+        /// <summary>Only an authored row's key is the user's to change.</summary>
+        public bool CanEditApiName => !IsProviderRow && !IsBulkRow && !IsBlank;
 
         public bool HasApiName => !string.IsNullOrWhiteSpace(ApiNameResolved);
 
@@ -7855,6 +7918,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(CanEditRarity));
                     OnPropertyChanged(nameof(CanEditUnlocked));
                     OnPropertyChanged(nameof(CanEditProgress));
+                    OnPropertyChanged(nameof(CanEditApiName));
+                    OnPropertyChanged(nameof(ApiNameText));
                 }
             }
         }

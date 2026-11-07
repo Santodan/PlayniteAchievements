@@ -874,6 +874,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 RefreshCustomDataState();
                 RefreshWorkshopSource();
+                RefreshLinkedFile();
                 RebuildSidebarStats();
 
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
@@ -1381,6 +1382,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 importResult.HasIgnoredPackageImages
                     ? MessageBoxImage.Warning
                     : MessageBoxImage.Information);
+            PromptAttachLinkedFileIfMappingOnly();
         }
 
         /// <summary>

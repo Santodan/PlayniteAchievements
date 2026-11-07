@@ -905,6 +905,43 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Developer-only, hidden unless the hardcoded LinkedFileTestKit.Enabled flag is on.
+            // Deliberately not localized.
+            if (Services.LinkedFiles.LinkedFileTestKit.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Linked files: set up test game",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        try
+                        {
+                            var reportPath = Services.LinkedFiles.LinkedFileTestKit.Run(
+                                PlayniteApi,
+                                _gameCustomDataStore,
+                                _achievementOverridesService,
+                                _linkedFileSyncService,
+                                _linkedFileSchemaStore,
+                                System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "linked-files"),
+                                _logger);
+                            PlayniteApi.Dialogs.ShowMessage(
+                                "The test game \"" + Services.LinkedFiles.LinkedFileTestKit.GameName + "\" is ready, with its CSV linked and applied.\n\n" +
+                                "Report: " + reportPath + "\n\n" +
+                                "Next: open Manage Achievements on the test game. Use Link File to load the other saved mappings (Test JSON, Test TOML, Test XML, Test INI, Test INI flat, Test Excel). " +
+                                "Press Play to watch the file live: edit and save a file, then click the test game's window, because notifications wait until the game is in front. Click OK in that window to stop the game.",
+                                "Linked file test");
+                            System.Diagnostics.Process.Start("explorer.exe", "\"" + System.IO.Path.GetDirectoryName(reportPath) + "\"");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Warn(ex, "Linked file test kit failed.");
+                            PlayniteApi.Dialogs.ShowErrorMessage(ex.ToString(), "Linked file test");
+                        }
+                    }
+                };
+            }
+
             // Developer-only, hidden unless the hardcoded TrueGamingProbe.Enabled flag is on.
             // Deliberately not localized.
             if (global::PlayniteAchievements.Providers.Metadata.TrueGaming.TrueGamingProbe.Enabled)

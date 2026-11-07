@@ -211,6 +211,7 @@
     <sys:String x:Key="LOCPlayAch_Column_PrestigeLevel">Prestige Level</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_AchievementName">Achievement Name</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_ApiName">API Name</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_RarityTier">Rarity Tier</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_RarityPercent">Rarity Percent</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Total">Total</sys:String>
@@ -257,7 +258,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Hoyoverse">HoYoverse</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Hypixel">Hypixel</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Manual">Custom</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Meta">Meta Quest</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Minecraft">Minecraft</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
@@ -279,11 +280,11 @@
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame">Map to Playnite Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame_PlatformMismatch">The selected Playnite game is not on the same platform as the Exophase friend game ({0}).</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This deletes their cached achievements, icons, and any manual links and unlock times.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for &quot;{0}&quot;?&#10;&#10;This deletes its cached achievements, icons, and any manual link and unlock times.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This deletes their cached achievements, icons, and any chosen achievement lists and unlock times.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for &quot;{0}&quot;?&#10;&#10;This deletes its cached achievements, icons, and any chosen achievement list and unlock times.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_DisplaySettings">Display Settings…</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear their data?&#10;&#10;This hides them from the achievements view and deletes their cached data and manual links.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude &quot;{0}&quot; and clear its data?&#10;&#10;This hides the game from the achievements view and deletes its cached data and manual link.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear their data?&#10;&#10;This hides them from the achievements view and deletes their cached data and custom tracking.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude &quot;{0}&quot; and clear its data?&#10;&#10;This hides the game from the achievements view and deletes its cached data and custom tracking.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">Exclude from Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">Exclude from Refreshes and Clear Data</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Filters">Filters</sys:String>
@@ -302,7 +303,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetGoal">Set as Goal</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for &quot;{0}&quot;?&#10;&#10;This removes the manual link and deletes its unlock times and this game's cached data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for &quot;{0}&quot;?&#10;&#10;This removes the chosen achievement list and deletes its unlock times and this game's cached data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
 
     <!-- ================================================================= -->
@@ -380,10 +381,10 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_WithNotes">With Notes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_WithoutNotes">Without Notes</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary">{0} ({1})</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary_None">No manual link configured.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning">Enable manual tracking?&#10;&#10;Manual tracking can replace this game's cached achievement data from {0}.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Source">Manual Source</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Unlink">Unlink Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary_None">No list chosen.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning">Enable custom tracking?&#10;&#10;Custom tracking can replace this game's cached achievement data from {0}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Source">Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Unlink">Remove List</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">Drag rows to set the default order. Changes save immediately.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Reset">Reset Custom Order</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_Customize">Style this game's notifications separately</sys:String>
@@ -394,7 +395,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_CaptureFolderHint">This game's screenshots and clips are saved straight into this folder. Leave it blank to use the shared folders.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?&#10;&#10;Cached achievement data is kept.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This also deletes the manual link and the achievements it produced. This cannot be undone.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?&#10;&#10;This also removes the chosen achievement list and the achievements it produced. This cannot be undone.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader">Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">Export or import this game's custom data as a .PA file, including custom images, or clear it. Refresh and summary exclusions are not included.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">Game Exclusion</sys:String>
@@ -477,7 +478,8 @@
     <!-- Editor_UndoFormat / Editor_RedoFormat: {0} is the name of the edit that would be undone or redone -->
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_UndoFormat">Undo: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RedoFormat">Redo: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">Custom Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_LinkDefinitions">Choose List</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_WindowTitle">Manage Achievements - {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_Bold">Bold</sys:String>
@@ -490,19 +492,19 @@
     <sys:String x:Key="LOCPlayAch_NotesDialog_ViewTitle">View Note</sys:String>
 
     <!-- ================================================================= -->
-    <!-- 08 Manual Tracking and Linking -->
+    <!-- 08 Custom Tracking and Linked Files -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_Header">Check off achievements you've unlocked and set unlock times. Changes are saved when you click OK.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">Unable to verify Exophase authentication for manual linking. Retry, or re-authenticate with Exophase in plugin settings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">Unable to verify Exophase authentication for choosing an achievement list. Retry, or re-authenticate with Exophase in plugin settings.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_SignInRequired">Sign in to {0} in plugin settings first.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">Found {0} game(s)</sys:String>
     <sys:String x:Key="LOCPlayAch_GameSearch_LinkOrId">Page link or ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Import manual links from SuccessStory (Legacy). Import is add-only and never overwrites existing manual links or cached platform data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Legacy Manual Import</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Import Legacy Manual Links</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Import SuccessStory (Legacy) manual links as custom tracking. Import is add-only and never overwrites existing achievement lists or cached platform data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Legacy Import</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Import Legacy Links</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">Default: Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Legacy folder</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryHeader">Legacy import complete.</sys:String>
@@ -510,8 +512,63 @@
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">Parse failures: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">Scanned: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipped">Skipped: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow manual tracking for games which already have official achievement support.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Manual Tracking Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow custom tracking for games which already have official achievement support.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Custom Tracking Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Title">Linked file</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">Link File</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">Read unlock status for this game's achievements from a file on this PC.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Mapping">Mapping</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_AttachFile">Attach file</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MappingOnly">Mapping only, no file attached</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_NotReadYet">Not read yet</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_ReadFormat">Read {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_FileMissing">File not found</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_Unstable">The file was changing while it was read.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">The mapping is incomplete.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">This game has no achievements to match.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">The file could not be read.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">Unlock status is read from the linked file on refresh and while the game runs; edits made here are replaced by the next read.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_File">File</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format">Format</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Delimited">Delimited text</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Xlsx">Excel workbook</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Binary">Binary save</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_SupportedFiles">Supported files</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Delimiter">Delimiter</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">First row is a header</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">Rows path</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Sheet">Sheet</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_PreviewRowsFormat">{0} of {1} rows</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">No match</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">New</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">Add new achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatchedHint">Rows that match no achievement become new custom achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat">Time format</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixSeconds">Unix seconds</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixMilliseconds">Unix milliseconds</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows file time</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">Times are local</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValues">Values meaning unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">Separated by commas; any other value means locked. Empty uses true, yes, 1, unlocked, earned and achieved.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Matched">{0} matched</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Unlocked">{0} unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Relocked">{0} relocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Created">{0} new</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedRows">{0} unmatched</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedAchievements">{0} achievements without a row</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnmatchedAchievementsHeader">Achievements without a row</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">Enter a custom time format.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_ApplyReportTitle">The linked file was applied.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Unlink">Unlink File</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlinkConfirm">Unlink the file from this game?&#10;&#10;The mapping is removed from this game. Saved mappings and recorded unlocks are kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_ImportedSchemaPrompt">The imported data includes a file mapping but no file. Attach a file now?</sys:String>
 
     <!-- ================================================================= -->
     <!-- 09 Refresh and Execution -->
@@ -842,7 +899,7 @@
 
     <!-- Provider: Exophase -->
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authenticate with Exophase to refresh tracked data and use Exophase manual links.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authenticate with Exophase to refresh tracked data and choose achievement lists from Exophase.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on checked platforms use Exophase instead of native support. Include games on other platforms individually in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Exophase_SelectPlatforms">Select platforms</sys:String>
@@ -933,7 +990,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_StoresLaunchers">Stores &amp; Launchers</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ConsoleMobile">Console &amp; Mobile</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_EmulatorsRetro">Emulators &amp; Retro</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Manual &amp; Aggregators</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Custom &amp; Aggregators</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">Uses {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Friends">Friends</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_AutoDiscover">Auto-discover friends</sys:String>
@@ -1289,7 +1346,7 @@
     <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">Has Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_PlatformAchievements">Platform Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_CustomAchievements">Custom Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_ManualAchievements">Manual Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_ManualAchievements">Custom Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">No Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Customized">Customized</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NotCustomized">Not Customized</sys:String>
@@ -1342,7 +1399,7 @@
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_NoFilters">No Filtered Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomNotifications">Custom Notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomSource">Source Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Linked Source</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllFeaturesConfirm">Remove all Playnite Achievements features from all games?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>

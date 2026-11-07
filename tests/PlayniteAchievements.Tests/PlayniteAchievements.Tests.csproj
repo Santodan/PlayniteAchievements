@@ -540,6 +540,28 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.Metadata.cs" Link="Source\Models\Settings\PersistedSettings.Metadata.cs" />
     <Compile Include="..\..\source\Models\Settings\MetadataConsoleVersion.cs" Link="Source\Models\Settings\MetadataConsoleVersion.cs" />
     <Compile Include="..\..\source\Models\Settings\MetadataLinkData.cs" Link="Source\Models\Settings\MetadataLinkData.cs" />
+    <Compile Include="..\..\source\Models\Settings\LinkedFileSchema.cs" Link="Source\Models\Settings\LinkedFileSchema.cs" />
+    <Compile Include="..\..\source\Models\Settings\LinkedFileLink.cs" Link="Source\Models\Settings\LinkedFileLink.cs" />
+    <Compile Include="..\..\source\Services\DelimitedTextReader.cs" Link="Source\Services\DelimitedTextReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileTable.cs" Link="Source\Services\LinkedFiles\LinkedFileTable.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileTextDecoder.cs" Link="Source\Services\LinkedFiles\LinkedFileTextDecoder.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileTableReaders.cs" Link="Source\Services\LinkedFiles\LinkedFileTableReaders.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\DelimitedTableReader.cs" Link="Source\Services\LinkedFiles\Readers\DelimitedTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\JsonTableReader.cs" Link="Source\Services\LinkedFiles\Readers\JsonTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\TomlTableReader.cs" Link="Source\Services\LinkedFiles\Readers\TomlTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\XlsxTableReader.cs" Link="Source\Services\LinkedFiles\Readers\XlsxTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\XmlTableReader.cs" Link="Source\Services\LinkedFiles\Readers\XmlTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\IniTableReader.cs" Link="Source\Services\LinkedFiles\Readers\IniTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\Readers\BinaryTableReader.cs" Link="Source\Services\LinkedFiles\Readers\BinaryTableReader.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileValueParser.cs" Link="Source\Services\LinkedFiles\LinkedFileValueParser.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileMatcher.cs" Link="Source\Services\LinkedFiles\LinkedFileMatcher.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileApplier.cs" Link="Source\Services\LinkedFiles\LinkedFileApplier.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaStore.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaStore.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFilePassScope.cs" Link="Source\Services\LinkedFiles\LinkedFilePassScope.cs" />
+    <Compile Include="..\..\source\ViewModels\Items\LinkedFileItems.cs" Link="Source\ViewModels\Items\LinkedFileItems.cs" />
+    <Compile Include="..\..\source\ViewModels\LinkedFileStatusText.cs" Link="Source\ViewModels\LinkedFileStatusText.cs" />
+    <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataStateStore.cs" Link="Source\Services\Metadata\MetadataStateStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourcePageStore.cs" Link="Source\Services\Metadata\MetadataSourcePageStore.cs" />

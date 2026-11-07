@@ -189,8 +189,15 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (!string.IsNullOrWhiteSpace(seed.Key) && seed.Value?.Count > 0)
                 {
-                    priorSelections[seed.Key.Trim()] =
-                        new HashSet<string>(seed.Value.Where(name => !string.IsNullOrWhiteSpace(name)), StringComparer.OrdinalIgnoreCase);
+                    // A selection saved under the Manual key belongs to the Custom group now.
+                    var key = PlayniteAchievements.Services.CustomProviders.CustomProviderKeys.ToDisplayKey(seed.Key.Trim());
+                    if (!priorSelections.TryGetValue(key, out var names))
+                    {
+                        names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        priorSelections[key] = names;
+                    }
+
+                    names.UnionWith(seed.Value.Where(name => !string.IsNullOrWhiteSpace(name)));
                 }
             }
 

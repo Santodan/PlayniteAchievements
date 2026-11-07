@@ -143,6 +143,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             if (data.ManualLink != null ||
+                data.LinkedFile != null ||
                 HasText(data.CustomProviderId) ||
                 data.CustomAchievements?.Any(item => item != null && !item.IsAutoCapstone) == true)
             {

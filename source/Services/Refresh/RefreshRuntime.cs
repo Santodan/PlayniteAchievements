@@ -81,6 +81,14 @@ namespace PlayniteAchievements.Services.Refresh
         /// Null leaves provider data as fetched.
         /// </summary>
         internal Metadata.MetadataOverlay MetadataOverlay { get; set; }
+
+        /// <summary>
+        /// Reads the linked files of the games a refresh covers, after its provider work. Runs
+        /// for every current-user refresh request, including one no provider had work for, so a
+        /// game tracked only by you is read by the refreshes that name it. Null skips it.
+        /// </summary>
+        internal Func<LinkedFiles.LinkedFilePassScope, CancellationToken, Task<IReadOnlyList<Guid>>> LinkedFilePass { get; set; }
+
         private int _savedGamesInCurrentRun;
 
         // A refresh that saves many games or scrapes many friend rows fetches many provider web
@@ -2176,6 +2184,8 @@ namespace PlayniteAchievements.Services.Refresh
                     }
                 }
 
+                var linkedOnly = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+                RaiseRequestCompleted(linkedOnly);
                 return;
             }
 
@@ -2186,6 +2196,64 @@ namespace PlayniteAchievements.Services.Refresh
                     targetSelectionCache,
                     externalToken)
                 .ConfigureAwait(false);
+            var linkedChanged = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+            RaiseRequestCompleted((LastRefreshedGameIds ?? new List<Guid>()).Concat(linkedChanged));
+        }
+
+        /// <summary>
+        /// Raised once every refresh request has run, whoever started it and whether or not a
+        /// provider had work: the games the refresh saved plus the games their linked files
+        /// changed. What has to follow a refresh (capstones, tags) keys off this one event.
+        /// </summary>
+        public event Action<List<Guid>> RequestCompleted;
+
+        private void RaiseRequestCompleted(IEnumerable<Guid> gameIds)
+        {
+            try
+            {
+                RequestCompleted?.Invoke((gameIds ?? Enumerable.Empty<Guid>()).Where(id => id != Guid.Empty).Distinct().ToList());
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "RequestCompleted handler failed.");
+            }
+        }
+
+        /// <summary>Reads the linked files the request covers; returns the games whose data they changed.</summary>
+        private async Task<IReadOnlyList<Guid>> RunLinkedFilePassAsync(
+            RefreshRequest request,
+            RefreshRequestPlanner.ResolvedRequest resolved,
+            CancellationToken externalToken)
+        {
+            var pass = LinkedFilePass;
+            if (pass == null || resolved == null || externalToken.IsCancellationRequested)
+            {
+                return Array.Empty<Guid>();
+            }
+
+            var scope = LinkedFiles.LinkedFilePassScope.FromRequest(
+                resolved.Mode,
+                resolved.SingleGameId ?? request?.SingleGameId,
+                resolved.Options ?? request?.Options,
+                request?.GameIds);
+            if (scope == null)
+            {
+                return Array.Empty<Guid>();
+            }
+
+            try
+            {
+                return await pass(scope, externalToken).ConfigureAwait(false) ?? Array.Empty<Guid>();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[LinkedFile] The refresh pass failed.");
+            }
+
+            return Array.Empty<Guid>();
         }
 
         public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds, CancellationToken externalToken = default)

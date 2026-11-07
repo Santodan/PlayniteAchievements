@@ -2106,7 +2106,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 return effectiveGameKey;
             }
 
-            return achievement.ProviderKey ?? effectiveGameKey ?? gameData?.ProviderKey;
+            return Services.CustomProviders.CustomProviderKeys.ToDisplayKey(
+                achievement.ProviderKey ?? effectiveGameKey ?? gameData?.ProviderKey);
         }
 
         private static AchievementDisplayItem CreateBaseItem(

@@ -252,6 +252,13 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public string CustomProviderId { get; set; }
 
+        /// <summary>
+        /// The file this game's unlock status is read from, with the mapping that reads it. The
+        /// mapping travels in the portable package; the path and read status are this machine's
+        /// own, like <see cref="UnlockSounds"/>.
+        /// </summary>
+        public LinkedFileLink LinkedFile { get; set; }
+
         public GameCustomDataFile Clone()
         {
             return new GameCustomDataFile
@@ -323,7 +330,8 @@ namespace PlayniteAchievements.Models.Settings
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
-                CustomProviderId = CustomProviderId
+                CustomProviderId = CustomProviderId,
+                LinkedFile = LinkedFile?.Clone()
             };
         }
 
@@ -391,7 +399,9 @@ namespace PlayniteAchievements.Models.Settings
                     : null,
                 // The provider snapshot is filled by the store at export time; the model has no
                 // access to the custom provider catalog.
-                CustomProviderId = CustomProviderId
+                CustomProviderId = CustomProviderId,
+                // The mapping travels; the file path and read status never do.
+                LinkedFileSchema = LinkedFile?.Schema?.Clone()
             };
         }
 
@@ -463,7 +473,10 @@ namespace PlayniteAchievements.Models.Settings
                 CustomAchievements = portable?.CustomAchievements != null
                     ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
-                CustomProviderId = portable?.CustomProviderId
+                CustomProviderId = portable?.CustomProviderId,
+                LinkedFile = portable?.LinkedFileSchema != null
+                    ? new LinkedFileLink { Schema = portable.LinkedFileSchema.Clone() }
+                    : null
             };
         }
 

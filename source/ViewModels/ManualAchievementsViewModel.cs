@@ -613,10 +613,26 @@ namespace PlayniteAchievements.ViewModels
                 throw new InvalidOperationException("Manual provider is not available.");
             }
 
-            await _refreshService.ExecuteRefreshAsync(
+            // Through the same entry point as every refresh, so linking runs what follows any
+            // refresh (metadata, the linked file, capstones, tags). Scoped to the Manual provider
+            // so only the linked definitions are fetched.
+            var entryPoint = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (entryPoint == null)
+            {
+                await _refreshService.ExecuteRefreshAsync(request, new[] { manualProvider }, cancellationToken);
+                return;
+            }
+
+            await entryPoint.ExecuteAsync(
                 request,
-                new[] { manualProvider },
-                cancellationToken);
+                new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = false,
+                    UseProgressWindow = false,
+                    SwallowExceptions = false,
+                    ExternalCancellationToken = cancellationToken,
+                    AuthContext = RefreshAuthContext.FromAuthenticatedProviders(new[] { manualProvider })
+                });
         }
 
         private RefreshRequest BuildManualProviderRefreshRequest()

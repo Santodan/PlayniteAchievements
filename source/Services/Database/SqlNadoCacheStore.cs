@@ -3131,7 +3131,7 @@ namespace PlayniteAchievements.Services.Database
             var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
                 ? providerPlatformKey
                 : providerKey;
-            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : resolved.Trim();
+            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : Services.CustomProviders.CustomProviderKeys.ToDisplayKey(resolved.Trim());
         }
 
         private string ResolveFriendGameIconPath(GamePresentation presentation, string cachedIconPath)
