@@ -340,7 +340,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
             ManualAchievementLink manualLink,
             IReadOnlyList<CustomAchievementDefinition> customDefinitions,
             DateTime nowUtc,
-            Func<string, string, bool> isSameIcon = null)
+            Func<string, string, bool> isSameIcon = null,
+            IReadOnlyDictionary<string, string> pairings = null)
         {
             var plan = new LinkedFileApplyPlan();
             var report = plan.Report;
@@ -366,7 +367,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
-            var match = LinkedFileMatcher.Match(table, schema, candidates);
+            var match = LinkedFileMatcher.Match(table, schema, candidates, pairings);
             report.MatchedRows = match.Matches.Count;
             report.UnmatchedRows = match.UnmatchedRows.Count;
             report.UnmatchedAchievements = match.UnmatchedAchievements.Count;
