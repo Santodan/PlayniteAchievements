@@ -1479,16 +1479,20 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
-        /// A linked file only has meaning while the game is custom-tracked or has custom
-        /// achievements, so it is dropped otherwise and never keeps an empty row alive. The mapping
-        /// is normalized like any package model; the path and read status are local state.
+        /// A link to a file is kept on any game, since reading it can create the game's custom
+        /// achievements. A mapping without a file only has meaning while the game is
+        /// custom-tracked or has custom achievements, so it is dropped otherwise and never keeps
+        /// an empty row alive. The mapping is normalized like any package model; the path and
+        /// read status are local state.
         /// </summary>
         private static LinkedFileLink NormalizeLinkedFile(
             LinkedFileLink link,
             bool hasManualLink,
             IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
         {
-            var schema = NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
+            var schema = link?.HasFilePath == true && link.Schema != null
+                ? LinkedFileSchema.Normalize(link.Schema)
+                : NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
             if (schema == null)
             {
                 return null;
