@@ -111,9 +111,6 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>XML: dotted element names from the root to the element that is one row.</summary>
         public string RowElementPath { get; set; }
 
-        /// <summary>INI: every key is one row rather than every section.</summary>
-        public bool IniFlatMode { get; set; }
-
         public List<LinkedFileColumnMapping> Columns { get; set; }
 
         /// <summary>Rows that match no achievement become new custom achievements.</summary>
@@ -165,7 +162,6 @@ namespace PlayniteAchievements.Models.Settings
                 SheetName = Trim(schema.SheetName),
                 RootPath = Trim(schema.RootPath),
                 RowElementPath = Trim(schema.RowElementPath),
-                IniFlatMode = schema.IniFlatMode,
                 Columns = NormalizeColumns(schema.Columns),
                 CreateUnmatchedRows = schema.CreateUnmatchedRows,
                 UnlockedTrueValues = NormalizeValues(schema.UnlockedTrueValues),
@@ -190,7 +186,6 @@ namespace PlayniteAchievements.Models.Settings
                 SheetName = SheetName,
                 RootPath = RootPath,
                 RowElementPath = RowElementPath,
-                IniFlatMode = IniFlatMode,
                 Columns = Columns?.Where(mapping => mapping != null).Select(mapping => mapping.Clone()).ToList(),
                 CreateUnmatchedRows = CreateUnmatchedRows,
                 UnlockedTrueValues = UnlockedTrueValues?.ToList(),
