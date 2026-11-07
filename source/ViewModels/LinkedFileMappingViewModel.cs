@@ -75,11 +75,7 @@ namespace PlayniteAchievements.ViewModels
         private string _sheetName;
         private string _rowElementPath;
         private bool _iniFlatMode;
-        private bool _matchByApiName = true;
-        private bool _matchByName = true;
-        private bool _matchByRowOrder;
         private bool _createUnmatched;
-        private bool _rowPresenceMeansUnlocked;
         private LinkedFileOption<LinkedFileTimeFormat> _selectedTimeFormat;
         private string _customTimeFormat;
         private bool _timesAreLocal = true;
@@ -90,8 +86,11 @@ namespace PlayniteAchievements.ViewModels
         private string _resultText;
         private string _problemText;
         private bool _isReading;
-        private IReadOnlyList<string[]> _previewRows = Array.Empty<string[]>();
+        private IReadOnlyList<LinkedFilePreviewRow> _previewRows = Array.Empty<LinkedFilePreviewRow>();
+        private LinkedFileTable _previewTable = LinkedFileTable.Empty;
         private string _previewCountText;
+        private string _unmatchedAchievementsHeader;
+        private bool _isReloadingNames;
 
         public LinkedFileMappingViewModel(LinkedFileMappingServices services)
         {
@@ -142,7 +141,6 @@ namespace PlayniteAchievements.ViewModels
             _delimiterText = DelimiterOptions[0];
 
             BrowseCommand = new RelayCommand(_ => Browse());
-            ApplySavedCommand = new RelayCommand(_ => ApplySaved(), _ => !string.IsNullOrWhiteSpace(SelectedSavedName));
             SaveAsCommand = new RelayCommand(_ => SaveAs());
             RenameSavedCommand = new RelayCommand(_ => RenameSaved(), _ => !string.IsNullOrWhiteSpace(SelectedSavedName));
             DeleteSavedCommand = new RelayCommand(_ => DeleteSaved(), _ => !string.IsNullOrWhiteSpace(SelectedSavedName));
@@ -168,8 +166,6 @@ namespace PlayniteAchievements.ViewModels
 
         public ObservableCollection<LinkedFileColumnItem> Columns { get; } = new ObservableCollection<LinkedFileColumnItem>();
 
-        public ObservableCollection<LinkedFileMatchItem> UnmatchedRows { get; } = new ObservableCollection<LinkedFileMatchItem>();
-
         public ObservableCollection<LinkedFileMatchItem> UnmatchedAchievements { get; } = new ObservableCollection<LinkedFileMatchItem>();
 
         public ObservableCollection<string> SheetNames { get; } = new ObservableCollection<string>();
@@ -183,8 +179,6 @@ namespace PlayniteAchievements.ViewModels
         // ---------------------------------------------------------------- commands
 
         public RelayCommand BrowseCommand { get; }
-
-        public RelayCommand ApplySavedCommand { get; }
 
         public RelayCommand SaveAsCommand { get; }
 
@@ -330,39 +324,17 @@ namespace PlayniteAchievements.ViewModels
 
         // ---------------------------------------------------------------- matching and values
 
-        public bool MatchByApiName
-        {
-            get => _matchByApiName;
-            set => SetSetting(ref _matchByApiName, value, reread: false);
-        }
-
-        public bool MatchByName
-        {
-            get => _matchByName;
-            set => SetSetting(ref _matchByName, value, reread: false);
-        }
-
-        public bool MatchByRowOrder
-        {
-            get => _matchByRowOrder;
-            set => SetSetting(ref _matchByRowOrder, value, reread: false);
-        }
-
         public bool CreateUnmatched
         {
             get => _createUnmatched;
             set => SetSetting(ref _createUnmatched, value, reread: false);
         }
 
-        public bool RowPresenceMeansUnlocked
-        {
-            get => _rowPresenceMeansUnlocked;
-            set => SetSetting(ref _rowPresenceMeansUnlocked, value, reread: false);
-        }
+        /// <summary>Time options matter only while a column feeds the unlock time.</summary>
+        public bool UsesTimeOptions => Columns.Any(column => column.Field == LinkedFileField.UnlockTime);
 
-        /// <summary>The presence rule only applies when no column says the unlock state.</summary>
-        public bool CanUseRowPresence =>
-            !Columns.Any(column => column.Field == LinkedFileField.Unlocked || column.Field == LinkedFileField.UnlockTime);
+        /// <summary>Unlocked values matter only while a column feeds the unlocked state.</summary>
+        public bool UsesUnlockedValues => Columns.Any(column => column.Field == LinkedFileField.Unlocked);
 
         public LinkedFileOption<LinkedFileTimeFormat> SelectedTimeFormat
         {
@@ -415,15 +387,20 @@ namespace PlayniteAchievements.ViewModels
 
                 _selectedSavedName = value;
                 OnPropertyChanged();
-                ApplySavedCommand.RaiseCanExecuteChanged();
                 RenameSavedCommand.RaiseCanExecuteChanged();
                 DeleteSavedCommand.RaiseCanExecuteChanged();
+
+                // Picking a preset loads it; refreshing the list only reselects.
+                if (!_isReloadingNames && !string.IsNullOrWhiteSpace(value))
+                {
+                    ApplySaved();
+                }
             }
         }
 
         // ---------------------------------------------------------------- preview and result
 
-        public IReadOnlyList<string[]> PreviewRows
+        public IReadOnlyList<LinkedFilePreviewRow> PreviewRows
         {
             get => _previewRows;
             private set => SetValue(ref _previewRows, value);
@@ -454,7 +431,20 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasReadMessage => !string.IsNullOrWhiteSpace(_readMessage);
 
-        /// <summary>What applying the file would do, as one line of counts.</summary>
+        /// <summary>The header of the list of achievements no row pairs with; null when there are none.</summary>
+        public string UnmatchedAchievementsHeader
+        {
+            get => _unmatchedAchievementsHeader;
+            private set
+            {
+                SetValue(ref _unmatchedAchievementsHeader, value);
+                OnPropertyChanged(nameof(HasUnmatchedAchievements));
+            }
+        }
+
+        public bool HasUnmatchedAchievements => !string.IsNullOrWhiteSpace(_unmatchedAchievementsHeader);
+
+        /// <summary>What applying the file would do, as one line of the counts that are not zero.</summary>
         public string ResultText
         {
             get => _resultText;
@@ -490,22 +480,6 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The mapping the window's settings describe.</summary>
         public LinkedFileSchema BuildSchema()
         {
-            var matchOrder = new List<LinkedFileMatchKey>();
-            if (_matchByApiName)
-            {
-                matchOrder.Add(LinkedFileMatchKey.ApiName);
-            }
-
-            if (_matchByName)
-            {
-                matchOrder.Add(LinkedFileMatchKey.DisplayName);
-            }
-
-            if (_matchByRowOrder)
-            {
-                matchOrder.Add(LinkedFileMatchKey.RowOrder);
-            }
-
             var schema = new LinkedFileSchema
             {
                 Name = _mappingName,
@@ -523,10 +497,7 @@ namespace PlayniteAchievements.ViewModels
                         .Where(column => column.IsMapped)
                         .Select(column => new LinkedFileColumnMapping { Column = column.ColumnName, Field = column.Field })
                         .ToList(),
-                // An empty order would fall back to the default; matching nothing is not a choice.
-                MatchOrder = matchOrder.Count > 0 ? matchOrder : new List<LinkedFileMatchKey> { LinkedFileMatchKey.RowOrder },
                 CreateUnmatchedRows = _createUnmatched,
-                RowPresenceMeansUnlocked = _rowPresenceMeansUnlocked && CanUseRowPresence,
                 UnlockedTrueValues = (_unlockedValues ?? string.Empty)
                     .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(value => value.Trim())
@@ -594,12 +565,7 @@ namespace PlayniteAchievements.ViewModels
                 _sheetName = schema?.SheetName;
                 _rowElementPath = schema?.RowElementPath;
                 _iniFlatMode = schema?.IniFlatMode ?? false;
-                var order = schema?.EffectiveMatchOrder ?? LinkedFileSchema.DefaultMatchOrder;
-                _matchByApiName = order.Contains(LinkedFileMatchKey.ApiName);
-                _matchByName = order.Contains(LinkedFileMatchKey.DisplayName);
-                _matchByRowOrder = order.Contains(LinkedFileMatchKey.RowOrder);
                 _createUnmatched = schema?.CreateUnmatchedRows ?? false;
-                _rowPresenceMeansUnlocked = schema?.RowPresenceMeansUnlocked ?? false;
                 _selectedTimeFormat = TimeFormatOptions.FirstOrDefault(option => option.Value == (schema?.TimeFormat ?? LinkedFileTimeFormat.Auto)) ?? TimeFormatOptions[0];
                 _customTimeFormat = schema?.CustomTimeFormat;
                 _timesAreLocal = schema?.AssumeLocalTime ?? true;
@@ -614,8 +580,7 @@ namespace PlayniteAchievements.ViewModels
             foreach (var name in new[]
             {
                 nameof(DelimiterText), nameof(HasHeader), nameof(RootPath), nameof(SheetName), nameof(RowElementPath),
-                nameof(IniFlatMode), nameof(MatchByApiName), nameof(MatchByName), nameof(MatchByRowOrder),
-                nameof(CreateUnmatched), nameof(RowPresenceMeansUnlocked), nameof(SelectedTimeFormat),
+                nameof(IniFlatMode), nameof(CreateUnmatched), nameof(SelectedTimeFormat),
                 nameof(IsCustomTimeFormat), nameof(CustomTimeFormat), nameof(TimesAreLocal), nameof(UnlockedValues)
             })
             {
@@ -653,7 +618,13 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _pendingMappings = null;
-            OnPropertyChanged(nameof(CanUseRowPresence));
+            RaiseFieldFlags();
+        }
+
+        private void RaiseFieldFlags()
+        {
+            OnPropertyChanged(nameof(UsesTimeOptions));
+            OnPropertyChanged(nameof(UsesUnlockedValues));
         }
 
         private void ApplyRead(int generation, LinkedFileReadResult read)
@@ -721,7 +692,9 @@ namespace PlayniteAchievements.ViewModels
                 ApplyPendingMappings();
             }
 
-            PreviewRows = table.Rows.Take(PreviewRowLimit).Select(row => row.ToArray()).ToList();
+            _previewTable = table;
+            RaiseFieldFlags();
+            PreviewRows = BuildPreviewRows(null, null);
             PreviewCountText = string.Format(
                 L("LOCPlayAch_LinkedFile_PreviewRowsFormat"),
                 PreviewRows.Count,
@@ -740,7 +713,7 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            OnPropertyChanged(nameof(CanUseRowPresence));
+            RaiseFieldFlags();
             OnSettingChanged(reread: false);
         }
 
@@ -794,11 +767,11 @@ namespace PlayniteAchievements.ViewModels
             var problems = LinkedFileSchemaValidator.Validate(schema);
             ProblemText = problems.Count == 0 ? null : string.Join(" ", problems.Select(DescribeProblem));
 
-            UnmatchedRows.Clear();
             UnmatchedAchievements.Clear();
             if (_lastRead?.Success != true)
             {
                 ResultText = null;
+                UnmatchedAchievementsHeader = null;
                 ApplyNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(CanApplyNow));
                 return;
@@ -818,11 +791,7 @@ namespace PlayniteAchievements.ViewModels
                 DateTime.UtcNow);
             var report = plan.Report;
 
-            foreach (var row in match.UnmatchedRows.Take(PreviewRowLimit))
-            {
-                var preview = string.Join(" | ", table.Rows[row].Where(cell => !string.IsNullOrWhiteSpace(cell)).Take(4));
-                UnmatchedRows.Add(new LinkedFileMatchItem(string.Format(L("LOCPlayAch_LinkedFile_RowFormat"), row + 1, preview)));
-            }
+            PreviewRows = BuildPreviewRows(match, plan);
 
             foreach (var achievement in match.UnmatchedAchievements.Take(PreviewRowLimit))
             {
@@ -830,19 +799,62 @@ namespace PlayniteAchievements.ViewModels
                     string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName));
             }
 
-            ResultText = string.Join("   ", new[]
-            {
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Matched"), report.MatchedRows),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Unlocked"), report.Unlocked),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Relocked"), report.Relocked),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Created"), report.Created),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_UnmatchedRows"), match.UnmatchedRows.Count),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_UnmatchedAchievements"), match.UnmatchedAchievements.Count),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Errors"), report.ParseErrors)
-            });
+            UnmatchedAchievementsHeader = match.UnmatchedAchievements.Count == 0
+                ? null
+                : string.Format(L("LOCPlayAch_LinkedFile_Count_UnmatchedAchievements"), match.UnmatchedAchievements.Count);
+            ResultText = Summarize(report, match.UnmatchedRows.Count);
 
             ApplyNowCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanApplyNow));
+        }
+
+        /// <summary>The preview rows, each with the achievement it pairs with once a match ran.</summary>
+        private IReadOnlyList<LinkedFilePreviewRow> BuildPreviewRows(LinkedFileMatchResult match, LinkedFileApplyPlan plan)
+        {
+            var matched = match?.Matches.ToDictionary(row => row.RowIndex, row => row.Achievement) ??
+                          new Dictionary<int, AchievementDetail>();
+            var rows = new List<LinkedFilePreviewRow>();
+            var count = Math.Min(PreviewRowLimit, _previewTable.Rows.Count);
+            for (var i = 0; i < count; i++)
+            {
+                var cells = _previewTable.Rows[i].ToArray();
+                if (matched.TryGetValue(i, out var achievement))
+                {
+                    var name = string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName;
+                    rows.Add(new LinkedFilePreviewRow(cells, name, isMatched: true));
+                }
+                else if (plan?.CreatedRows.Contains(i) == true)
+                {
+                    rows.Add(new LinkedFilePreviewRow(cells, L("LOCPlayAch_LinkedFile_NewRow"), isMatched: true));
+                }
+                else
+                {
+                    rows.Add(new LinkedFilePreviewRow(cells, match == null ? null : L("LOCPlayAch_LinkedFile_NoMatch"), isMatched: false));
+                }
+            }
+
+            return rows;
+        }
+
+        /// <summary>The matched count, then each other count that is not zero.</summary>
+        private string Summarize(LinkedFileApplyReport report, int unmatchedRows)
+        {
+            var parts = new List<string> { string.Format(L("LOCPlayAch_LinkedFile_Count_Matched"), report.MatchedRows) };
+
+            void Add(string key, int count)
+            {
+                if (count > 0)
+                {
+                    parts.Add(string.Format(L(key), count));
+                }
+            }
+
+            Add("LOCPlayAch_LinkedFile_Count_Unlocked", report.Unlocked);
+            Add("LOCPlayAch_LinkedFile_Count_Relocked", report.Relocked);
+            Add("LOCPlayAch_LinkedFile_Count_Created", report.Created);
+            Add("LOCPlayAch_LinkedFile_Count_UnmatchedRows", Math.Max(0, unmatchedRows - report.Created));
+            Add("LOCPlayAch_LinkedFile_Count_Errors", report.ParseErrors);
+            return string.Join(" \u00B7 ", parts);
         }
 
         private void Browse()
@@ -869,11 +881,7 @@ namespace PlayniteAchievements.ViewModels
                 report.Status == LinkedFileReadStatus.Ok
                     ? L("LOCPlayAch_LinkedFile_ApplyReportTitle")
                     : DescribeStatus(report.Status),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Matched"), report.MatchedRows),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Unlocked"), report.Unlocked),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Relocked"), report.Relocked),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Created"), report.Created),
-                string.Format(L("LOCPlayAch_LinkedFile_Count_Errors"), report.ParseErrors)
+                Summarize(report, report.UnmatchedRows)
             };
             _services.ShowMessage?.Invoke(string.Join(Environment.NewLine, lines));
             RequestClose?.Invoke(this, EventArgs.Empty);
@@ -894,14 +902,22 @@ namespace PlayniteAchievements.ViewModels
         private void ReloadSavedNames()
         {
             var keep = _selectedSavedName;
-            SavedNames.Clear();
-            foreach (var schema in _services.SchemaStore?.GetAll() ?? Array.Empty<LinkedFileSchema>())
+            _isReloadingNames = true;
+            try
             {
-                SavedNames.Add(schema.Name);
-            }
+                SavedNames.Clear();
+                foreach (var schema in _services.SchemaStore?.GetAll() ?? Array.Empty<LinkedFileSchema>())
+                {
+                    SavedNames.Add(schema.Name);
+                }
 
-            SelectedSavedName = SavedNames.FirstOrDefault(name => string.Equals(name, keep, StringComparison.OrdinalIgnoreCase))
-                                ?? SavedNames.FirstOrDefault(name => string.Equals(name, _mappingName, StringComparison.OrdinalIgnoreCase));
+                SelectedSavedName = SavedNames.FirstOrDefault(name => string.Equals(name, keep, StringComparison.OrdinalIgnoreCase))
+                                    ?? SavedNames.FirstOrDefault(name => string.Equals(name, _mappingName, StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                _isReloadingNames = false;
+            }
         }
 
         private void ApplySaved()
@@ -938,8 +954,8 @@ namespace PlayniteAchievements.ViewModels
 
             _mappingName = name;
             store.Save(BuildSchema());
+            _selectedSavedName = name;
             ReloadSavedNames();
-            SelectedSavedName = SavedNames.FirstOrDefault(saved => string.Equals(saved, name, StringComparison.OrdinalIgnoreCase));
         }
 
         private void RenameSaved()
@@ -1075,10 +1091,8 @@ namespace PlayniteAchievements.ViewModels
         {
             switch (problem)
             {
-                case LinkedFileSchemaProblem.NoUnlockSource:
-                    return L("LOCPlayAch_LinkedFile_Problem_NoUnlockSource");
-                case LinkedFileSchemaProblem.NoMatchPath:
-                    return L("LOCPlayAch_LinkedFile_Problem_NoMatchPath");
+                case LinkedFileSchemaProblem.NoColumns:
+                    return L("LOCPlayAch_LinkedFile_Problem_NoColumns");
                 case LinkedFileSchemaProblem.CreateUnmatchedNeedsNameOrApiName:
                     return L("LOCPlayAch_LinkedFile_Problem_CreateNeedsName");
                 default:
