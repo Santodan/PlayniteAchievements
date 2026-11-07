@@ -537,11 +537,10 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_Delimiter">Delimiter</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">First row is a header</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">Rows path</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are: a list, an object or an INI section, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Sheet">Sheet</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_IniFlat">Each key is one achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_PreviewRowsFormat">{0} of {1} rows</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">No match</sys:String>
