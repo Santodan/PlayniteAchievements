@@ -115,6 +115,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-11-07 - v4.2.1.1
+
 - v4.2.1 merge
 - Fixed the `Memories` wildcards fetching the incorrect values
 - Fixed missing local achievement icons and hidden flags on new Steam Community pages
@@ -160,6 +162,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - v4.1.0 merge
 - Fixed `PS5-Experience` theme not showing the trophy for 100% games
 
+## Old Changelogs
+<details>
+
 ## 2026-10-14 - v4.0.1.2
 
 - `PS5-Experience` theme now available in the `Theme Migration`
@@ -167,9 +172,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Clicking the `New Theme Migrated` popup will restart playnite automatically
 - Fixed achievement notification replay after cache relocks and update fork bundle
 - Added some log management buttons in the `General`--> `Maintenance` window
-
-## Old Changelogs
-<details>
 
 ## 2026-10-05 - v4.0.1.1
 

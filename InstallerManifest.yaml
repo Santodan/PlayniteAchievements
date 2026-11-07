@@ -1,5 +1,17 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 4.2.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-09-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.2.1.1/PlayniteAchievementsSantodan_4_2_1_1.pext
+    Changelog:
+    - "v4.2.1 merge"
+    - "Fixed the `Memories` wildcards fetching the incorrect values"
+    - "Fixed missing local achievement icons and hidden flags on new Steam Community pages"
+    - "Added `Debug` mode in `Santodan-Fork` --> `General`"
+    - "Added a `Performance Tab` as a better performance polling mechanism with settings"
+    - "Fixed account-free SteamHunters fetching for Local achievements"
+
   - Version: 4.1.1.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-09-09
