@@ -1,5 +1,41 @@
 # Santodan fork feature checklist
 
+## Experimental Performance tab - 2026-11-07
+
+- Verify the Experimental badge and as-is notice. Scroll the options: the notice
+  and Restore defaults button must stay visible. Check narrow settings windows.
+- Change all Performance options, restore defaults, and Save/reopen: verify the
+  original defaults. Repeat with Cancel: saved choices must survive. Unrelated
+  notification styles, provider overrides and General Debug mode must be preserved.
+- Keep all 24 bindings covered by `ForkPerformanceDefaults`; new options need an
+  explicit reset assignment. No immediate disk write from the reset button.
+- Compare browser startup choices after restarting. Verify authenticated Steam
+  requests/direct token resolution and first WPF/SAN notification/preview use.
+- With overview on-demand enabled, background warm-up must skip both scheduling
+  and delayed completion; opening a consumer still builds fresh data. Compare
+  Steam-user menu preload off/on, allowing asynchronous discovery to complete.
+- With capture watching off, extension-created captures still update and viewer
+  reopening rescans externally changed files. Restart between watcher comparisons.
+- With gameplay scheduler deferral enabled, test multiple running games, last-game
+  exit, disabling the option while waiting and shutdown cancellation. Current-user
+  and friend jobs reassess staleness; live polling and manual refresh stay active.
+- Test static WPF GIF/WebP artwork, including grayscale and still-image fallback.
+  HTML templates can animate their own images independently. Compare 8/32/128 MB
+  animation cache budgets after restart; do not interpret this as a process RAM cap.
+- Manual previews must not auto-rebuild or loop, including previously queued timer
+  callbacks; explicit Preview/Test buttons must work. Leaving the page always stops
+  the inline loop timer. With release enabled, hidden edits must not recreate it.
+- Compare reduced effects off/on in WPF and generated SAN notifications, including
+  custom templates, notification timing, positioning, screenshots and recordings.
+  Saved template/effect choices must remain intact.
+- Compare sound cache 0/10/60 seconds after restart, including first/repeated sound,
+  preload, playback duration and helper relaunch. At zero, do not retain decoded
+  clips or decode them for preload; playback must still work. Package the new helper.
+- Follow the expanded Local troubleshooting guide. Preserve optional defaults and
+  avoid adding controls that disable required migrations or alter upstream tabs.
+- Automated validation: the targeted test runs and Release builds in the matching
+  maintenance README entry passed. New runtime UI/RAM comparisons remain pending.
+
 ## Account-free SteamHunters definitions for Local - 2026-11-05
 
 - Without a Steam or SteamHunters login, refresh a Local game linked to Steam

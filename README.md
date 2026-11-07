@@ -120,6 +120,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed missing local achievement icons and hidden flags on new Steam Community pages
 - Added `Debug` mode in `Santodan-Fork` --> `General`
 - Added a `Performance Tab` as a better performance polling mechanism with settings
+- Fixed account-free SteamHunters fetching for Local achievements
 
 ## 2026-10-25 - v4.1.1.1
 

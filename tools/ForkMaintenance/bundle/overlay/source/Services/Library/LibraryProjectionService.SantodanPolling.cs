@@ -6,6 +6,13 @@ namespace PlayniteAchievements.Services.Library
 {
     internal sealed partial class LibraryProjectionService
     {
+        private bool SkipSantodanEagerWarm()
+        {
+            if (ProviderRegistry.Settings<LocalSettings>()?.BuildOverviewOnDemand != true) return false;
+            Interlocked.Increment(ref _warmGeneration);
+            return true;
+        }
+
         private static bool CustomWarmSuppressionEnabled =>
             ProviderRegistry.Settings<LocalSettings>()?.UseCustomLocalPolling == true &&
             ProviderRegistry.Settings<LocalSettings>()?.SuppressCustomPollingOverviewWarm == true;
@@ -19,6 +26,8 @@ namespace PlayniteAchievements.Services.Library
 
         private bool ShouldSkipSantodanWarm(int generation)
         {
+            if (SkipSantodanEagerWarm()) return true;
+
             if (!CustomWarmSuppressionEnabled)
                 return false;
 

@@ -20,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    public sealed class SteamHttpClient : IDisposable
+    public sealed partial class SteamHttpClient : IDisposable
     {
         internal sealed class OwnedGamesResolutionResult
         {
@@ -92,7 +92,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             BuildHttpClientsOnce();
 
-            LoadCookiesFromCefIntoJar();
+            InitializeSantodanSteamCookies();
         }
 
         public void Dispose()
@@ -179,6 +179,7 @@ namespace PlayniteAchievements.Providers.Steam
                 lock (_cookieLock)
                 {
                     _sessionManager.LoadCefCookiesIntoJar(_cookieJar);
+                    _santodanCookiesDeferred = false;
                 }
             }
         }
@@ -216,6 +217,8 @@ namespace PlayniteAchievements.Providers.Steam
 
             try
             {
+                ct.ThrowIfCancellationRequested();
+                EnsureSantodanDeferredCookiesLoaded();
                 return await SteamAsyncConfigTokenHelper.ResolveTokenAsync(
                     RequestStoreAsyncConfigAsync,
                     WarmStoreSessionAsync,

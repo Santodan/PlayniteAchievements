@@ -96,6 +96,7 @@
     <Compile Include="..\..\source\Providers\GOG\Local\GogGalaxyDbReader.cs" Link="Source\Providers\GOG\Local\GogGalaxyDbReader.cs" />
 
     <Compile Include="..\..\source\Services\Settings\DebouncedSettingsPersist.cs" Link="Source\Services\Settings\DebouncedSettingsPersist.cs" />
+    <Compile Include="..\..\source\Services\Settings\ForkPerformanceDefaults.cs" Link="Source\Services\Settings\ForkPerformanceDefaults.cs" />
     <Compile Include="..\..\source\Services\Database\SqlNadoCacheBehavior.cs" Link="Source\Services\Database\SqlNadoCacheBehavior.cs" />
     <Compile Include="..\..\source\Services\Database\InGameProgressSqlWriter.cs" Link="Source\Services\Database\InGameProgressSqlWriter.cs" />
     <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
@@ -186,6 +187,8 @@
     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureAchievementIndex.cs" Link="Source\Services\Captures\CaptureAchievementIndex.cs" />
     <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.cs" Link="Source\Services\Captures\CaptureLibraryService.cs" />
+    <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.SantodanPerformance.cs" Link="Source\Services\Captures\CaptureLibraryService.SantodanPerformance.cs" />
+    <Compile Include="..\..\source\Services\GameplayRefreshDeferral.cs" Link="Source\Services\GameplayRefreshDeferral.cs" />
     <Compile Include="..\..\source\Services\Captures\AchievementCapturePathResolver.cs" Link="Source\Services\Captures\AchievementCapturePathResolver.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
     <Compile Include="..\..\source\Services\Images\CategoryArtChainResolver.cs" Link="Source\Services\Images\CategoryArtChainResolver.cs" />
@@ -213,6 +216,7 @@
     <Compile Include="..\..\source\Services\Images\RayTrackBuilder.cs" Link="Source\Services\Images\RayTrackBuilder.cs" />
     <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
+    <Compile Include="..\..\source\Views\Helpers\ForkUiPerformance.cs" Link="Source\Views\Helpers\ForkUiPerformance.cs" />
     <Compile Include="..\..\source\Views\Helpers\AsyncImage.cs" Link="Source\Views\Helpers\AsyncImage.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimationFrameRate.cs" Link="Source\Views\Helpers\AnimationFrameRate.cs" />
     <Compile Include="..\..\source\Views\Helpers\RarityGlowPulse.cs" Link="Source\Views\Helpers\RarityGlowPulse.cs" />

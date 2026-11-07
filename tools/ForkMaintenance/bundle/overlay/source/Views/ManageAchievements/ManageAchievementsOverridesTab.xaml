@@ -660,7 +660,7 @@
                                            Opacity="{StaticResource PlayAch.Opacity.Hint}"
                                            TextWrapping="Wrap"
                                            Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
-                                <TextBlock Text="{Binding ProviderOverrideStatusText}"
+                                <TextBlock Text="{Binding RaStatusText}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            TextWrapping="Wrap"
                                            Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />

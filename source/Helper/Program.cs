@@ -49,13 +49,21 @@ namespace PlayniteAchievements.Helper
                 switch (role)
                 {
                     case SoundRole.Name:
-                        return SoundRole.Run(emit, stdin);
+                        return SoundRole.Run(emit, stdin, ParseSoundCacheSeconds(args));
                     default:
                         Console.Error.WriteLine(
                             "usage: PlayniteAchievementsHelper.exe <role> [--parent <pid>]  roles: " + SoundRole.Name);
                         return UsageExitCode;
                 }
             }
+        }
+
+        private static int ParseSoundCacheSeconds(string[] args)
+        {
+            for (var i = 0; i + 1 < args.Length; i++)
+                if (args[i] == "--sound-cache-seconds" && int.TryParse(args[i + 1], out var seconds))
+                    return Math.Max(0, Math.Min(60, seconds));
+            return 60;
         }
 
         private static int? ParseParentPid(string[] args)

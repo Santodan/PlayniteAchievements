@@ -448,6 +448,18 @@ namespace PlayniteAchievements.Providers.Local
         private bool _enableOverlayDebugLogging;
         private bool _enablePollingDebugLogging;
         private bool _useCustomLocalPolling;
+        private bool _useStaticWpfArtwork;
+        private int _animationCacheBudgetMb = 128;
+        private bool _manualNotificationPreviews;
+        private bool _releaseNotificationPreviewsOnLeave;
+        private bool _reduceForkNotificationEffects;
+        private int _decodedSoundCacheSeconds = 60;
+        private bool _buildOverviewOnDemand;
+        private bool _preloadSteamUserMenu = true;
+        private bool _watchExternalCaptureChanges = true;
+        private bool _deferScheduledRefreshesDuringGameplay;
+        private bool _deferSteamCefCookieLoading;
+        private bool _preloadForkNotificationBrowser = true;
         private bool _restrictCustomPollingAuthentication;
         private bool _checkCustomPollingSourcesWhileWaiting;
         private bool _reuseCustomPollingDiscoveryWithinPoll;
@@ -950,6 +962,78 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _enablePollingDebugLogging;
             set => SetValue(ref _enablePollingDebugLogging, value);
+        }
+
+        public bool UseStaticWpfArtwork
+        {
+            get => _useStaticWpfArtwork;
+            set => SetValue(ref _useStaticWpfArtwork, value);
+        }
+
+        public bool ManualNotificationPreviews
+        {
+            get => _manualNotificationPreviews;
+            set => SetValue(ref _manualNotificationPreviews, value);
+        }
+
+        public bool ReleaseNotificationPreviewsOnLeave
+        {
+            get => _releaseNotificationPreviewsOnLeave;
+            set => SetValue(ref _releaseNotificationPreviewsOnLeave, value);
+        }
+
+        public bool ReduceForkNotificationEffects
+        {
+            get => _reduceForkNotificationEffects;
+            set => SetValue(ref _reduceForkNotificationEffects, value);
+        }
+
+        public int AnimationCacheBudgetMb
+        {
+            get => _animationCacheBudgetMb;
+            set => SetValue(ref _animationCacheBudgetMb, Math.Max(8, Math.Min(128, value)));
+        }
+
+        public int DecodedSoundCacheSeconds
+        {
+            get => _decodedSoundCacheSeconds;
+            set => SetValue(ref _decodedSoundCacheSeconds, Math.Max(0, Math.Min(60, value)));
+        }
+
+        public bool BuildOverviewOnDemand
+        {
+            get => _buildOverviewOnDemand;
+            set => SetValue(ref _buildOverviewOnDemand, value);
+        }
+
+        public bool PreloadSteamUserMenu
+        {
+            get => _preloadSteamUserMenu;
+            set => SetValue(ref _preloadSteamUserMenu, value);
+        }
+
+        public bool WatchExternalCaptureChanges
+        {
+            get => _watchExternalCaptureChanges;
+            set => SetValue(ref _watchExternalCaptureChanges, value);
+        }
+
+        public bool DeferScheduledRefreshesDuringGameplay
+        {
+            get => _deferScheduledRefreshesDuringGameplay;
+            set => SetValue(ref _deferScheduledRefreshesDuringGameplay, value);
+        }
+
+        public bool DeferSteamCefCookieLoading
+        {
+            get => _deferSteamCefCookieLoading;
+            set => SetValue(ref _deferSteamCefCookieLoading, value);
+        }
+
+        public bool PreloadForkNotificationBrowser
+        {
+            get => _preloadForkNotificationBrowser;
+            set => SetValue(ref _preloadForkNotificationBrowser, value);
         }
 
         public bool UseCustomLocalPolling

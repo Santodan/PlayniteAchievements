@@ -93,7 +93,8 @@ namespace PlayniteAchievements.Services.Sound
                         StartInfo = new ProcessStartInfo
                         {
                             FileName = _executablePath,
-                            Arguments = SoundHostProtocol.RoleArgument + " --parent " + Process.GetCurrentProcess().Id,
+                            Arguments = SoundHostProtocol.RoleArgument + " --parent " + Process.GetCurrentProcess().Id +
+                                " --sound-cache-seconds " + PlayniteAchievements.Providers.ProviderRegistry.Settings<PlayniteAchievements.Providers.Local.LocalSettings>().DecodedSoundCacheSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardInput = true,

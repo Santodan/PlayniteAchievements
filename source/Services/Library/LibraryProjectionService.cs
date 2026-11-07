@@ -508,6 +508,8 @@ namespace PlayniteAchievements.Services.Library
 
         private void ScheduleWarm(TimeSpan minimumDelay)
         {
+            if (SkipSantodanEagerWarm()) return;
+
             lock (_sync)
             {
                 if (_warmSuppressed)

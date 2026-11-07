@@ -302,6 +302,92 @@ index 188c6e62829ed948503c485cd25f60d520480e2a..e016debd8ad689c3ab6986ea8fb5cec1
              var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
  
              void OnLoadingChanged(object sender, WebViewLoadingChangedEventArgs e)
+diff --git a/source/Helper/Program.cs b/source/Helper/Program.cs
+index a9455301a23acf2fdfd58d9e8ed173ecbb82b1c8..70c2a6b1321e18f9b322efa5a01ba1b64cc17c56 100644
+--- a/source/Helper/Program.cs
++++ b/source/Helper/Program.cs
+@@ -49,7 +49,7 @@ private static int Main(string[] args)
+                 switch (role)
+                 {
+                     case SoundRole.Name:
+-                        return SoundRole.Run(emit, stdin);
++                        return SoundRole.Run(emit, stdin, ParseSoundCacheSeconds(args));
+                     default:
+                         Console.Error.WriteLine(
+                             "usage: PlayniteAchievementsHelper.exe <role> [--parent <pid>]  roles: " + SoundRole.Name);
+@@ -58,6 +58,14 @@ private static int Main(string[] args)
+             }
+         }
+ 
++        private static int ParseSoundCacheSeconds(string[] args)
++        {
++            for (var i = 0; i + 1 < args.Length; i++)
++                if (args[i] == "--sound-cache-seconds" && int.TryParse(args[i + 1], out var seconds))
++                    return Math.Max(0, Math.Min(60, seconds));
++            return 60;
++        }
++
+         private static int? ParseParentPid(string[] args)
+         {
+             for (var i = 0; i + 1 < args.Length; i++)
+diff --git a/source/Helper/SoundEngine.cs b/source/Helper/SoundEngine.cs
+index 223ace381cb094742499e18eb4a20000470486ea..8544edd7bea37caf098190dd678b9f5a27bb7cdd 100644
+--- a/source/Helper/SoundEngine.cs
++++ b/source/Helper/SoundEngine.cs
+@@ -47,7 +47,7 @@ internal sealed class SoundEngine : IDisposable
+ 
+         private const int IdlePollMs = 250;
+ 
+-        private const int MaxCachedSeconds = 60;
++        private readonly int MaxCachedSeconds;
+ 
+         /// <summary>Declick ramp at the end of a decoded clip. See <see cref="ApplyEndFade"/>.</summary>
+         private const int EndFadeMs = 8;
+@@ -79,8 +79,9 @@ internal sealed class SoundEngine : IDisposable
+         private long _lastActivityTicks = Stopwatch.GetTimestamp();
+         private bool _disposed;
+ 
+-        public SoundEngine(Action<string> emit)
++        public SoundEngine(Action<string> emit, int cacheSeconds = 60)
+         {
++            MaxCachedSeconds = Math.Max(0, Math.Min(60, cacheSeconds));
+             _emit = emit;
+             _voice.Started = OnVoiceStarted;
+             _thread = new Thread(Run) { IsBackground = true, Name = "SoundEngine" };
+@@ -457,6 +458,7 @@ private static AudioClient TryGetAudioClient(WasapiOut output)
+ 
+         private void PreloadCurrentSet()
+         {
++            if (MaxCachedSeconds == 0) { _cache.Clear(); return; }
+             var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+             foreach (var path in _preloadSet)
+             {
+@@ -509,7 +511,7 @@ private Clip GetOrDecode(string path, int id)
+             {
+                 var samples = Decode(path, _voiceFormat);
+                 var clip = new Clip(key, path, samples, _voiceFormat.Channels);
+-                if (CachedSeconds() + clip.Seconds(_voiceFormat.SampleRate) <= MaxCachedSeconds)
++                if (MaxCachedSeconds > 0 && CachedSeconds() + clip.Seconds(_voiceFormat.SampleRate) <= MaxCachedSeconds)
+                 {
+                     _cache[key] = clip;
+                 }
+diff --git a/source/Helper/SoundRole.cs b/source/Helper/SoundRole.cs
+index d4533ff3cf41a411b5d3790691732f756cf8b744..71cb5c943f3ab02044918d0c19223e3a1288443b 100644
+--- a/source/Helper/SoundRole.cs
++++ b/source/Helper/SoundRole.cs
+@@ -14,10 +14,10 @@ internal static class SoundRole
+     {
+         public const string Name = SoundHostProtocol.RoleArgument;
+ 
+-        public static int Run(Action<string> emit, TextReader stdin)
++        public static int Run(Action<string> emit, TextReader stdin, int cacheSeconds = 60)
+         {
+             MediaFoundationApi.Startup();
+-            using (var engine = new SoundEngine(emit))
++            using (var engine = new SoundEngine(emit, cacheSeconds))
+             {
+                 emit(SoundHostProtocol.EncodeReady(Process.GetCurrentProcess().Id));
+                 string line;
 diff --git a/source/Models/AchievementUnlockedEventArgs.cs b/source/Models/AchievementUnlockedEventArgs.cs
 index 8776195fe88789152964fc6880f2076fa20a98a7..031625f9e8187713877f2789c29089f2b89b48be 100644
 --- a/source/Models/AchievementUnlockedEventArgs.cs
@@ -1319,7 +1405,7 @@ index 1f9cddd7060d1664c1694d9a03184635e52c3d2c..6dcfaa2280881fcb3952313fd43ca0aa
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d559472467246 100644
+index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de86f103dd4 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -1,4 +1,5 @@
@@ -1530,21 +1616,22 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -980,6 +1103,13 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -980,6 +1103,14 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      Services.Achievements.AutoCapstoneTemplate.MetadataTextAccessor = _metadataLinkStore.GetCapstoneText;
                  }
  
 +                // Steam-user discovery probes the filesystem and can take seconds on cold or
 +                // unavailable drives. Warm the menu snapshot in the background so Playnite's
 +                // UI-thread context-menu callback never has to perform that work.
-+                providers.OfType<Providers.Local.LocalSavesProvider>()
-+                    .FirstOrDefault()
-+                    ?.GetAvailableSteamAppCacheUsersForMenu();
++                if (ShouldPreloadSantodanSteamUserMenu())
++                    providers.OfType<Providers.Local.LocalSavesProvider>()
++                        .FirstOrDefault()
++                        ?.GetAvailableSteamAppCacheUsersForMenu();
 +
                  // Phase 3: Wire core services, refresh pipeline, and tagging.
                  using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                  {
-@@ -1222,6 +1352,7 @@ servicing is IEnglishTitleSource englishSource
+@@ -1222,6 +1353,7 @@ servicing is IEnglishTitleSource englishSource
                          // the field is assigned.
                          e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                          (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
@@ -1552,7 +1639,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
                          _unlockSounds);
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
-@@ -1256,7 +1387,7 @@ servicing is IEnglishTitleSource englishSource
+@@ -1256,7 +1388,7 @@ servicing is IEnglishTitleSource englishSource
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1561,7 +1648,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
  
                      // A running game's unlocks are announced by the monitor once its write or
                      // refresh returns, so a capstone that write finished is held for the monitor
-@@ -1725,6 +1856,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+@@ -1725,6 +1857,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
              using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
              {
                  _applicationStarted = true;
@@ -1570,7 +1657,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
  
                  // Measures the symptom rather than a suspected cause: every other timing here is
                  // a scope around code someone already suspected, and a reported freeze was
-@@ -2354,9 +2487,42 @@ private void ReconfigureInGameMonitor()
+@@ -2354,9 +2488,42 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1613,7 +1700,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
              _applicationStarted = false;
              // A control bar edit in the last second before exit is still waiting on its save.
              Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();
-@@ -2400,6 +2566,8 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -2400,6 +2567,8 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1622,7 +1709,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..c498cd51ba7db874c3ba6682dd4d5594
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -3055,6 +3223,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -3055,6 +3224,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  
@@ -2649,7 +2736,7 @@ index 94498842b1b0217224b2107e57691f08493b254e..54914e871ef6ec57c46d9cf3c1ee8c3d
          }
  
 diff --git a/source/Providers/Steam/SteamHTTPClient.cs b/source/Providers/Steam/SteamHTTPClient.cs
-index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa094bf48b63 100644
+index f10cbdcdee8a09894def6a14d625fe2455909cd2..007aa5a4537d23eed55ec57620904819d71ebebb 100644
 --- a/source/Providers/Steam/SteamHTTPClient.cs
 +++ b/source/Providers/Steam/SteamHTTPClient.cs
 @@ -1,4 +1,7 @@
@@ -2660,9 +2747,12 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
  using PlayniteAchievements.Common;
  using PlayniteAchievements.Providers.Steam.Models;
  using Playnite.SDK;
-@@ -19,10 +22,30 @@ namespace PlayniteAchievements.Providers.Steam
+@@ -17,12 +20,32 @@
+ 
+ namespace PlayniteAchievements.Providers.Steam
  {
-     public sealed class SteamHttpClient : IDisposable
+-    public sealed class SteamHttpClient : IDisposable
++    public sealed partial class SteamHttpClient : IDisposable
      {
 +        internal sealed class OwnedGamesResolutionResult
 +        {
@@ -2691,6 +2781,15 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
  
          private readonly IPlayniteAPI _api;
          private readonly ILogger _logger;
+@@ -69,7 +92,7 @@ public SteamHttpClient(IPlayniteAPI api, ILogger logger, SteamSessionManager ses
+ 
+             BuildHttpClientsOnce();
+ 
+-            LoadCookiesFromCefIntoJar();
++            InitializeSantodanSteamCookies();
+         }
+ 
+         public void Dispose()
 @@ -82,15 +105,7 @@ public void Dispose()
  
          public void ClearInMemoryAuthState()
@@ -2722,7 +2821,15 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
              SyncCookieJarFromCefIfNeeded(force: true);
              lock (_cookieLock)
              {
-@@ -174,6 +196,256 @@ bool Has(CookieCollection cc) =>
+@@ -157,6 +179,7 @@ private void LoadCookiesFromCefIntoJar()
+                 lock (_cookieLock)
+                 {
+                     _sessionManager.LoadCefCookiesIntoJar(_cookieJar);
++                    _santodanCookiesDeferred = false;
+                 }
+             }
+         }
+@@ -174,6 +197,258 @@ bool Has(CookieCollection cc) =>
              catch { return false; }
          }
  
@@ -2746,6 +2853,8 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
 +
 +            try
 +            {
++                ct.ThrowIfCancellationRequested();
++                EnsureSantodanDeferredCookiesLoaded();
 +                return await SteamAsyncConfigTokenHelper.ResolveTokenAsync(
 +                    RequestStoreAsyncConfigAsync,
 +                    WarmStoreSessionAsync,
@@ -2979,7 +3088,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
          // ---------------------------------------------------------------------
          // Profile / Achievements
          // ---------------------------------------------------------------------
-@@ -213,47 +485,31 @@ public async Task<SteamPageResult> GetAchievementsSsrPageViaBrowserAsync(string
+@@ -213,47 +488,31 @@ public async Task<SteamPageResult> GetAchievementsSsrPageViaBrowserAsync(string
              }
  
              var url = BuildAchievementsSsrPageUrl(steamId64, appId, language);
@@ -3040,7 +3149,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
          }
  
          public Task<SteamPageResult> GetAchievementsPageByKeyAsync(string steamId64, string statsKey, string language, CancellationToken ct)
-@@ -301,6 +557,316 @@ public List<ScrapedAchievement> ParseAchievements(string html, bool includeLocke
+@@ -301,6 +560,316 @@ public List<ScrapedAchievement> ParseAchievements(string html, bool includeLocke
              return new List<ScrapedAchievement>();
          }
  
@@ -3357,7 +3466,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
          private List<ScrapedAchievement> ParseAchievementRows(
              HtmlDocument doc,
              HtmlNodeCollection nodes,
-@@ -542,7 +1108,7 @@ private static bool TryParseUnlockedAndTotalFromText(string text, out int unlock
+@@ -542,7 +1111,7 @@ private static bool TryParseUnlockedAndTotalFromText(string text, out int unlock
  
              // Find first two numbers - they represent (unlocked, total) regardless of language
              // English: "12 of 15 (80%) achievements earned"
@@ -3366,7 +3475,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
              // German: "12 von 15 (80%) Errungenschaften freigeschaltet"
              var numberMatches = Regex.Matches(text, @"\b(\d+)\b");
              if (numberMatches.Count >= 2 &&
-@@ -630,14 +1196,43 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -630,14 +1199,43 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
  
                              if (requiresCookies && isSteamAuth && attempt == 1)
                              {
@@ -3413,7 +3522,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
                                      }
  
                                      await EnsureSessionAsync(ct, forceRefresh: true).ConfigureAwait(false);
-@@ -648,14 +1243,10 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -648,14 +1246,10 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
                              var responseHtml = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
  
                              if (requiresCookies && isSteamAuth && attempt == 1 &&
@@ -3431,7 +3540,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
                                  await EnsureSessionAsync(ct, forceRefresh: true).ConfigureAwait(false);
                                  continue;
                              }
-@@ -675,64 +1266,27 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
+@@ -675,64 +1269,27 @@ private async Task<SteamPageResult> GetSteamPageAsync(string url, bool requiresC
              return result;
          }
  
@@ -3508,7 +3617,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
  
              _handler = new HttpClientHandler
              {
-@@ -742,14 +1296,20 @@ private void BuildHttpClientsOnce()
+@@ -742,14 +1299,20 @@ private void BuildHttpClientsOnce()
                  UseCookies = true
              };
              _http = new HttpClient(_handler) { Timeout = TimeSpan.FromSeconds(30) };
@@ -3535,7 +3644,7 @@ index f10cbdcdee8a09894def6a14d625fe2455909cd2..05a1a4e628f85601aec279cb3cfbaa09
          }
  
          // ---------------------------------------------------------------------
-@@ -781,40 +1341,23 @@ public static bool LooksLoggedOutHeader(string html)
+@@ -781,40 +1344,23 @@ public static bool LooksLoggedOutHeader(string html)
              return SteamStatsPageClassifier.LooksLoggedOutHeader(html);
          }
  
@@ -5455,6 +5564,101 @@ index 3d85c11154bd3f1da88d1cc756f7a2863da261f8..59b6a05cb8c7d755508204da3db39afa
                  "ProgressPercent" => ApplyDirection(
                      (a, b) => a.ProgressPercent.CompareTo(b.ProgressPercent),
                      direction),
+diff --git a/source/Services/Achievements/AutoCapstoneText.cs b/source/Services/Achievements/AutoCapstoneText.cs
+index 606c9ede902b1d3cc618ddbe8df2b1988da13479..57c79021f2f27295f48924ac40bebf1b93851dd6 100644
+--- a/source/Services/Achievements/AutoCapstoneText.cs
++++ b/source/Services/Achievements/AutoCapstoneText.cs
+@@ -89,11 +89,11 @@ public static string GetDefault(AutoCapstoneTextField field)
+                 case AutoCapstoneTextField.GameName:
+                     return DefaultGameNameTemplate;
+                 case AutoCapstoneTextField.GameDescription:
+-                    return ResourceProvider.GetString(AutoCapstoneTemplate.DescriptionKey) ?? string.Empty;
++                    return SantodanAutoCapstoneTextRecovery.DefaultText(AutoCapstoneTemplate.DescriptionKey, "Obtain every base game achievement.");
+                 case AutoCapstoneTextField.CategoryName:
+                     return DefaultCategoryNameTemplate;
+                 default:
+-                    return ToCategoryTemplate(ResourceProvider.GetString(CategoryDescriptionKey)) ?? string.Empty;
++                    return ToCategoryTemplate(SantodanAutoCapstoneTextRecovery.DefaultText(CategoryDescriptionKey, "Obtain every achievement in {0}.")) ?? string.Empty;
+             }
+         }
+ 
+@@ -166,7 +166,7 @@ public static AutoCapstoneTemplates Resolve(PersistedSettings settings)
+             string ResolveField(AutoCapstoneTextField field)
+             {
+                 var stored = GetStored(settings, field);
+-                return IsValidTemplate(stored) ? stored.Trim() : GetDefault(field);
++                return !SantodanAutoCapstoneTextRecovery.IsBrokenDefault(stored) && IsValidTemplate(stored) ? stored.Trim() : GetDefault(field);
+             }
+ 
+             return new AutoCapstoneTemplates(
+diff --git a/source/Services/Achievements/AutoCapstoneTextRewriter.cs b/source/Services/Achievements/AutoCapstoneTextRewriter.cs
+index 39a37d64f9dcca3f5052c3bb90d9195396315a54..36e7d3104fb93caf8afee748be2317689ce67800 100644
+--- a/source/Services/Achievements/AutoCapstoneTextRewriter.cs
++++ b/source/Services/Achievements/AutoCapstoneTextRewriter.cs
+@@ -123,6 +123,10 @@ private static bool RendersFromKnown(
+             }
+ 
+             stored = stored.Trim();
++            if (SantodanAutoCapstoneTextRecovery.IsBrokenDefault(stored))
++            {
++                return true;
++            }
+             foreach (var template in templates)
+             {
+                 foreach (var gameName in gameNames)
+diff --git a/source/Services/Achievements/AutoCapstoneTextService.cs b/source/Services/Achievements/AutoCapstoneTextService.cs
+index 6ca09ab521f8dccb6a26cbfd697217818678128d..f34d6b75f192a8db30a9036e2d4d3aee276d7613 100644
+--- a/source/Services/Achievements/AutoCapstoneTextService.cs
++++ b/source/Services/Achievements/AutoCapstoneTextService.cs
+@@ -48,7 +48,7 @@ public static bool NeedsApply(PersistedSettings settings)
+         {
+             return settings != null &&
+                 !string.Equals(
+-                    AutoCapstoneText.Resolve(settings).Signature,
++                    SantodanAutoCapstoneTextRecovery.AppliedSignature(AutoCapstoneText.Resolve(settings).Signature),
+                     settings.AutoCapstoneAppliedTemplates,
+                     StringComparison.Ordinal);
+         }
+@@ -85,7 +85,7 @@ public static bool NeedsApply(PersistedSettings settings)
+                 }
+ 
+                 _logger?.Info($"Auto capstone text applied: {rewritten} of {gameIds.Count} games rewritten.");
+-                return current.Signature;
++                return SantodanAutoCapstoneTextRecovery.AppliedSignature(current.Signature);
+             }
+         }
+ 
+diff --git a/source/Services/BackgroundUpdater.cs b/source/Services/BackgroundUpdater.cs
+index 800c78555b0081312fb38e09571f760d20f99f0b..ce5b9585c8633d5ead122a0449f74f87caff049e 100644
+--- a/source/Services/BackgroundUpdater.cs
++++ b/source/Services/BackgroundUpdater.cs
+@@ -10,7 +10,7 @@
+ 
+ namespace PlayniteAchievements.Services
+ {
+-    public class BackgroundUpdater
++    public partial class BackgroundUpdater
+     {
+         private readonly RefreshEntryPoint _refreshCoordinator;
+         private readonly RefreshRuntime _refreshService;
+@@ -154,6 +154,8 @@ private bool IsFriendsUpdateConfigured()
+ 
+         private async Task PerformUpdateIfNeeded(TimeSpan interval, TimeSpan friendsInterval, CancellationToken token)
+         {
++            await WaitForSantodanGameplayAsync(token).ConfigureAwait(false);
++
+             if (ShouldPerformUpdate(interval))
+             {
+                 await ExecuteUpdate(token).ConfigureAwait(false);
+@@ -163,6 +165,8 @@ private async Task PerformUpdateIfNeeded(TimeSpan interval, TimeSpan friendsInte
+                 _logger.Debug("[PeriodicUpdate] Cache is recent; skipping update.");
+             }
+ 
++            await WaitForSantodanGameplayAsync(token).ConfigureAwait(false);
++
+             if (ShouldPerformFriendsUpdate(friendsInterval))
+             {
+                 await ExecuteFriendsUpdate(token).ConfigureAwait(false);
 diff --git a/source/Services/Cache/CacheManager.cs b/source/Services/Cache/CacheManager.cs
 index cd667e73e869ecea25231527df92ffa79a948b69..76c3b5451b0d603af96e8f77de8c9bcc97a39ac6 100644
 --- a/source/Services/Cache/CacheManager.cs
@@ -5569,7 +5773,7 @@ index 0ea6cc6925d356c8d341c2a660c15d557d3317a7..243ae720ad420d6d8884e81eed148f23
          public bool AlignBottom { get; set; }
  
 diff --git a/source/Services/Captures/CaptureLibraryService.cs b/source/Services/Captures/CaptureLibraryService.cs
-index 3ef75868e741c3cae3c980c09e054775c21d30e2..3e18cc67e33bfa5a228beb454bb3c8685e2c5eaa 100644
+index 3ef75868e741c3cae3c980c09e054775c21d30e2..d0d209169ac950e618e45a3a90aa3293c9421f0c 100644
 --- a/source/Services/Captures/CaptureLibraryService.cs
 +++ b/source/Services/Captures/CaptureLibraryService.cs
 @@ -1,3 +1,4 @@
@@ -5577,6 +5781,24 @@ index 3ef75868e741c3cae3c980c09e054775c21d30e2..3e18cc67e33bfa5a228beb454bb3c868
  using System;
  using System.Collections.Generic;
  using System.IO;
+@@ -22,7 +23,7 @@ namespace PlayniteAchievements.Services.Captures
+     /// waiting for a rebuild. The gallery viewer re-scans fresh on open via <see cref="RefreshGame"/>,
+     /// which stays silent because it is a read path.
+     /// </summary>
+-    internal sealed class CaptureLibraryService : IDisposable
++    internal sealed partial class CaptureLibraryService : IDisposable
+     {
+         private readonly Func<PersistedSettings> _settingsAccessor;
+         private readonly ILogger _logger;
+@@ -62,7 +63,7 @@ public CaptureLibraryService(
+         {
+             _settingsAccessor = settingsAccessor;
+             _logger = logger;
+-            _watchForChanges = watchForChanges;
++            _watchForChanges = watchForChanges && ShouldWatchSantodanExternalCaptures();
+             _gameDirectoriesAccessor = gameDirectoriesAccessor;
+         }
+ 
 @@ -154,9 +155,18 @@ private static bool SameDirectories(
          /// </summary>
          private IReadOnlyList<string> ResolveGameFolders(string sanitizedFolder)
@@ -6639,7 +6861,7 @@ index f8a4e39444a0d490da23725a8ca69ba01c97f5c2..9215aace4412c01e65b528e2cb40b74d
          }
  
 diff --git a/source/Services/Library/LibraryProjectionService.cs b/source/Services/Library/LibraryProjectionService.cs
-index f09f1a85d3294feb9a8e553b28eb2e4cc6acbf05..8a9e4803d5b12edcfa72a060b90b36698b043d59 100644
+index f09f1a85d3294feb9a8e553b28eb2e4cc6acbf05..f7a03703dc2530fef7c7f2f509b3e3ce110fb48e 100644
 --- a/source/Services/Library/LibraryProjectionService.cs
 +++ b/source/Services/Library/LibraryProjectionService.cs
 @@ -18,7 +18,7 @@
@@ -6702,7 +6924,16 @@ index f09f1a85d3294feb9a8e553b28eb2e4cc6acbf05..8a9e4803d5b12edcfa72a060b90b3669
          private LibraryProjectionSnapshot BuildThemeLight(int recentUnlockLimit, CancellationToken token)
          {
              token.ThrowIfCancellationRequested();
-@@ -545,6 +575,7 @@ private async Task WarmAfterDelayAsync(int generation, TimeSpan minimumDelay)
+@@ -478,6 +508,8 @@ private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs
+ 
+         private void ScheduleWarm(TimeSpan minimumDelay)
+         {
++            if (SkipSantodanEagerWarm()) return;
++
+             lock (_sync)
+             {
+                 if (_warmSuppressed)
+@@ -545,6 +577,7 @@ private async Task WarmAfterDelayAsync(int generation, TimeSpan minimumDelay)
                      return;
                  }
  
@@ -6745,7 +6976,7 @@ index 7b369bfa892da989d430520fb04a2f9ca1a93ca6..37ce96991a75fb5eca6cc4dbeac4692a
          {
              _innerLogger.Debug($"[{_loggerName}] {message}");
 diff --git a/source/Services/NotificationPublisher.cs b/source/Services/NotificationPublisher.cs
-index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd43862977d6d5e88 100644
+index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..c827c6d60625cdee88a741b67b92c45e71de2944 100644
 --- a/source/Services/NotificationPublisher.cs
 +++ b/source/Services/NotificationPublisher.cs
 @@ -1,23 +1,84 @@
@@ -7717,7 +7948,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
          private static string AuthNotificationId(string providerKey) => $"PlayAch-AuthFailed-{providerKey}";
  
          public void ShowProviderAuthFailed(List<string> providerKeys)
-@@ -163,5 +1091,8037 @@ private void OpenPluginSettingsForProvider(string providerKey)
+@@ -163,5 +1091,8042 @@ private void OpenPluginSettingsForProvider(string providerKey)
                  _logger?.Debug(ex, "Failed to open plugin settings from notification click.");
              }
          }
@@ -9246,6 +9477,8 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
 +
 +        private void WarmUpSanWebView2()
 +        {
++            if (!ShouldPreloadSantodanNotificationBrowser()) return;
++
 +            if (_sanWebViewWarmupStarted)
 +            {
 +                return;
@@ -10289,6 +10522,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
 +<style>{manualCss}</style>
 +<style>{coverWidthCss}</style>
 +<style>{coverCenterCss}</style>
++<style>{SantodanReducedEffectsCss(settings)}</style>
 +</head>
 +<body {bodyAttrs} style=""background-color: transparent;"">
 +<audio src=""""></audio>
@@ -11576,6 +11810,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
 +
 +        private static void ApplyOverlayEnterAnimation(Window overlayWindow, double targetOpacity, int fadeInMs, LocalUnlockOverlayTransitionStyle transitionStyle, int slideDistance)
 +        {
++            if (ReducedSantodanNotificationEffects) { overlayWindow.Opacity = targetOpacity; return; }
 +            try
 +            {
 +                var duration = new Duration(TimeSpan.FromMilliseconds(Math.Max(0, fadeInMs)));
@@ -11623,6 +11858,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
 +
 +        private static void ApplyOverlayExitAnimation(Window overlayWindow, double startOpacity, int fadeOutMs, LocalUnlockOverlayTransitionStyle transitionStyle, int slideDistance, Action onComplete)
 +        {
++            if (ReducedSantodanNotificationEffects) { onComplete?.Invoke(); return; }
 +            try
 +            {
 +                var duration = new Duration(TimeSpan.FromMilliseconds(Math.Max(0, fadeOutMs)));
@@ -11732,7 +11968,7 @@ index 039e45a5d992d54a3a2b30cd8ee6160f95c7b703..2107942d9d6e5773c5ebb3dcd4386297
 +            return settings.OverlaySteamScale;
 +        }
 +
-+        private FrameworkElement BuildOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale, Game game = null, string achievementDescription = null, int? achievementPoints = null, string achievementRarity = null, string achievementTrophy = null)
++        private FrameworkElement BuildOverlayContentCore(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale, Game game = null, string achievementDescription = null, int? achievementPoints = null, string achievementRarity = null, string achievementTrophy = null)
 +        {
 +            if (string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
 +            {
@@ -16387,6 +16623,20 @@ index f010cbd31d3b0d9a4d97164584a800fa53b47481..1a33a9e918b455a3bbc70f125bb9096f
  
              return targets;
          }
+diff --git a/source/Services/Sound/UnlockSoundHost.cs b/source/Services/Sound/UnlockSoundHost.cs
+index f68280f3ba5961fa58eb918b8e28822149f37b9e..bebef8b0b202343a02b0ac1766277e4facb66798 100644
+--- a/source/Services/Sound/UnlockSoundHost.cs
++++ b/source/Services/Sound/UnlockSoundHost.cs
+@@ -93,7 +93,8 @@ public bool TryStart()
+                         StartInfo = new ProcessStartInfo
+                         {
+                             FileName = _executablePath,
+-                            Arguments = SoundHostProtocol.RoleArgument + " --parent " + Process.GetCurrentProcess().Id,
++                            Arguments = SoundHostProtocol.RoleArgument + " --parent " + Process.GetCurrentProcess().Id +
++                                " --sound-cache-seconds " + PlayniteAchievements.Providers.ProviderRegistry.Settings<PlayniteAchievements.Providers.Local.LocalSettings>().DecodedSoundCacheSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                             UseShellExecute = false,
+                             CreateNoWindow = true,
+                             RedirectStandardInput = true,
 diff --git a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs b/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
 index 00a1f490397201267b9df342e83db0e00dc64a5a..24b45e6f6b4d7546f85c268d639cd4dd19fa6d2b 100644
 --- a/source/Services/ThemeIntegration/LibraryRuntimeStateBuilder.cs
@@ -20521,8 +20771,47 @@ index 9263a93e435768d246a8bee2ca0e8aea5185d433..2914af7fcc9f468e80ca6fda262b67ed
              }
          }
  
+diff --git a/source/Views/Helpers/AnimatedImageHelper.cs b/source/Views/Helpers/AnimatedImageHelper.cs
+index 972d7ed2e4ad49d87d40266faf7206e7c2d6805d..276438f1c2b604a820927d47a6236438bf4cdf47 100644
+--- a/source/Views/Helpers/AnimatedImageHelper.cs
++++ b/source/Views/Helpers/AnimatedImageHelper.cs
+@@ -35,11 +35,11 @@ internal static class AnimatedImageHelper
+         // This budget bounds the product: 32 Mpx is a 128 MB ceiling per animation. Animated
+         // sources are reduced to their requested display width before this budget is applied, so
+         // the ceiling removes temporal frames only after spatial resolution has been made useful.
+-        private const long MaxRetainedPixels = 32L * 1024 * 1024;
++        private static long MaxRetainedPixels => ForkUiPerformance.AnimationCacheBytes / BytesPerCompositedPixel;
+ 
+         // Aggregate ceiling across every cached animation (~128 MB of BGRA). The entry count alone
+         // let a handful of large animations dominate the process.
+-        private const long MaxCachedBytes = 128L * 1024 * 1024;
++        private static long MaxCachedBytes => ForkUiPerformance.AnimationCacheBytes;
+ 
+         private const int BytesPerCompositedPixel = 4;
+ 
+@@ -178,6 +178,12 @@ private static bool TryResolveFrames(
+         {
+             normalizedSource = NormalizeSourceUri(uri);
+             frames = default((List<BitmapSource> Frames, List<int> Delays));
++            if (ForkUiPerformance.StaticArtwork)
++            {
++                lock (CacheSync) FrameCache.Clear();
++                return false;
++            }
++
+ 
+             // Some preview paths encode grayscale intent directly in the source string (gray:...)
+             // instead of the AsyncImage.Gray attached property.
+@@ -567,6 +573,7 @@ private static void SetCachedAnimation(string cacheKey, (List<BitmapSource> Fram
+ 
+             lock (CacheSync)
+             {
++                if (EstimateRetainedBytes(cached) > MaxCachedBytes) return;
+                 FrameCache[cacheKey] = cached;
+                 TrimCache(cacheKey);
+             }
 diff --git a/source/Views/Helpers/AsyncImage.cs b/source/Views/Helpers/AsyncImage.cs
-index 0165caf3ae05d6eca457cbb555774e1789d98341..f3da7b85fa12b9b6781a6c12e0e8d7cfdcaec544 100644
+index 0165caf3ae05d6eca457cbb555774e1789d98341..e4e0417d9a266fbf73e22c399b400520ece4ed81 100644
 --- a/source/Views/Helpers/AsyncImage.cs
 +++ b/source/Views/Helpers/AsyncImage.cs
 @@ -625,7 +625,9 @@ await TryStartNativeGifAsync(image, uriString, fallback: null, applyGray, cts.To
@@ -20536,6 +20825,14 @@ index 0165caf3ae05d6eca457cbb555774e1789d98341..f3da7b85fa12b9b6781a6c12e0e8d7cf
                      {
                          LogGifPath(uriString, "native");
                          return;
+@@ -721,6 +723,7 @@ private static async Task<bool> TryStartNativeGifAsync(
+             bool applyGray,
+             CancellationToken cancellationToken)
+         {
++            if (ForkUiPerformance.StaticArtwork) return false;
+             var localPath = AnimatedImageHelper.NormalizeSourceUri(uriString);
+             if (string.IsNullOrWhiteSpace(localPath) ||
+                 !Services.Images.ImageFormats.UsesNativePlayer(localPath) ||
 diff --git a/source/Views/Helpers/DataGridSortingHelper.cs b/source/Views/Helpers/DataGridSortingHelper.cs
 index a258bbc06e14de0f533bba2e2b6de2d7861b7dde..1b7a306964afc2a30cc31c6c0e442d31e369b548 100644
 --- a/source/Views/Helpers/DataGridSortingHelper.cs
@@ -21826,10 +22123,10 @@ index 6fde728cfbeb9419043e6f34d923c21e0ffc71d9..f7dbf49b403ad818de0549b4a840f5d8
                                  <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
                                          Click="ResetHotkey_Click"
 diff --git a/source/Views/SettingsControl.xaml b/source/Views/SettingsControl.xaml
-index bcaed07d53c60237c1a8221aead701f758dbce1f..21bdc8e28e37c7b61adb5f92d502b938de3a2fa5 100644
+index bcaed07d53c60237c1a8221aead701f758dbce1f..2df6be74af66e0ce23cc6aacb76cd00c19551a9c 100644
 --- a/source/Views/SettingsControl.xaml
 +++ b/source/Views/SettingsControl.xaml
-@@ -29,6 +29,72 @@
+@@ -29,6 +29,75 @@
  
      <Grid Margin="24,20,24,24">
          <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
@@ -21874,11 +22171,14 @@ index bcaed07d53c60237c1a8221aead701f758dbce1f..21bdc8e28e37c7b61adb5f92d502b938
 +                        <ContentControl x:Name="AchievementNotificationsContent"/>
 +                    </TabItem>
 +
-+                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance">
++                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance (Experimental)">
 +                        <TabItem.Header>
 +                            <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
 +                                <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEF3A;"/>
 +                                <TextBlock Text="Performance" VerticalAlignment="Center"/>
++                                <Border Background="#80551A" CornerRadius="3" Padding="5,2" Margin="6,0,0,0">
++                                    <TextBlock Text="Experimental" Foreground="White" FontSize="10"/>
++                                </Border>
 +                            </StackPanel>
 +                        </TabItem.Header>
 +                        <ContentControl x:Name="ForkPerformanceSettingsContent"/>
@@ -22886,6 +23186,137 @@ index 65f5e6b6b1294d3d14608a7739f834a46ee84470..2eecc7fdaff24e918a04238308b19b07
          }
  
          [TestMethod]
+diff --git a/tests/PlayniteAchievements.Tests/Localization/EnglishLocalizationTests.cs b/tests/PlayniteAchievements.Tests/Localization/EnglishLocalizationTests.cs
+index 428c8304e8ceb1ed567f663e7ad8fd917d0e76ec..445bf7e087113b9cf531aac0f81cf56826dd8d72 100644
+--- a/tests/PlayniteAchievements.Tests/Localization/EnglishLocalizationTests.cs
++++ b/tests/PlayniteAchievements.Tests/Localization/EnglishLocalizationTests.cs
+@@ -11,6 +11,117 @@ namespace PlayniteAchievements.Tests.Localization
+     [TestClass]
+     public class EnglishLocalizationTests
+     {
++        [TestMethod]
++        public void EveryLocalizationDictionaryLoadsInWpfAndHasNonEmptyLabels()
++        {
++            Exception failure = null;
++            var thread = new System.Threading.Thread(() =>
++            {
++                try
++                {
++                    var directory = Path.GetDirectoryName(FindRepoFile("source", "Localization", "en_US.xaml"));
++                    foreach (var path in Directory.EnumerateFiles(directory, "*.xaml"))
++                    {
++                        using (var stream = File.OpenRead(path))
++                        {
++                            var dictionary = (System.Windows.ResourceDictionary)System.Windows.Markup.XamlReader.Load(stream);
++                            foreach (var key in dictionary.Keys)
++                            {
++                                var label = dictionary[key] as string;
++                                Assert.IsFalse(string.IsNullOrWhiteSpace(label), Path.GetFileName(path) + " :: " + key);
++                                Assert.IsFalse(label.StartsWith("<!LOC", StringComparison.Ordinal), Path.GetFileName(path) + " :: " + key);
++                            }
++                        }
++                    }
++                }
++                catch (Exception exception) { failure = exception; }
++            });
++            thread.SetApartmentState(System.Threading.ApartmentState.STA);
++            thread.Start();
++            Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(30)), "WPF localization loading timed out.");
++            if (failure != null) Assert.Fail(failure.ToString());
++        }
++
++        [TestMethod]
++        public void RuntimeGeneratedKeysResolveInEnglish()
++        {
++            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
++            var keys = new HashSet<string>(XDocument.Load(FindRepoFile("source", "Localization", "en_US.xaml"))
++                .Root.Elements().Select(element => (string)element.Attribute(xaml + "Key")), StringComparer.Ordinal);
++            var required = new List<string>();
++            foreach (PlayniteAchievements.Models.RefreshModeType mode in Enum.GetValues(typeof(PlayniteAchievements.Models.RefreshModeType)))
++            {
++                required.Add(PlayniteAchievements.Models.RefreshModeExtensions.GetResourceKey(mode));
++                required.Add(PlayniteAchievements.Models.RefreshModeExtensions.GetShortResourceKey(mode));
++            }
++            foreach (var area in PlayniteAchievements.Models.Tagging.CustomizationTagAreas.All)
++                foreach (var type in area.TagTypes)
++                    required.Add(PlayniteAchievements.Models.Tagging.CustomizationTagAreas.NameResourceKey(type));
++            required.AddRange(PlayniteAchievements.Services.Tagging.DefaultTagNameCatalog.StatusResourceKeys.Values);
++            required.AddRange(PlayniteAchievements.Services.Achievements.AchievementTagHelper.BuiltInTagKeys
++                .Select(tag => "LOCPlayAch_AchievementTag_" + tag));
++            required.AddRange(PlayniteAchievements.Services.Achievements.CategoryKindHelper.AssignableKinds
++                .Select(kind => "LOCPlayAch_CategoryKind_" + kind));
++            var showcaseFamilies = new (Type Type, string Prefix, string[] Shared)[]
++            {
++                (Type: typeof(PlayniteAchievements.Models.Settings.ShowcaseScoreCardArt), Prefix: "ScoreCardArt", Shared: new[] { "GameCover" }),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseProfileMedalMode), "ProfileMedalMode", new[] { "Both", "None" }),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcasePointsGrouping), "PointsGrouping", new[] { "Game" }),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseMosaicSource), "MosaicSource", new[] { "All" }),
++                (typeof(PlayniteAchievements.Models.Settings.UnlockNextCriterion), "UnlockNextCriterion", Array.Empty<string>()),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseAchievementGridSource), "AchievementGridSource", new[] { "UnlockNext" }),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseGameMosaicSource), "GameMosaicSource", Array.Empty<string>()),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseImageFitMode), "ImageFit", Array.Empty<string>()),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcaseTextSize), "TextSize", Array.Empty<string>()),
++                (typeof(PlayniteAchievements.Models.Settings.ShowcasePageTemplate), "Template", new[] { "Showcase", "Collection" })
++            };
++            foreach (var family in showcaseFamilies)
++                required.AddRange(Enum.GetNames(family.Type).Except(family.Shared)
++                    .Select(name => "LOCPlayAch_Showcase_" + family.Prefix + "_" + name));
++            var providersDirectory = FindRepoFile("source", "Providers");
++            foreach (var path in Directory.EnumerateFiles(providersDirectory, "*Settings.cs", SearchOption.AllDirectories))
++                required.AddRange(Regex.Matches(File.ReadAllText(path), "ProviderKey\\s*=>\\s*\"([A-Za-z0-9]+)\"")
++                    .Cast<Match>().Select(match => "LOCPlayAch_Provider_" + match.Groups[1].Value));
++            foreach (var key in required.Distinct()) Assert.IsTrue(keys.Contains(key), "Missing runtime label: " + key);
++        }
++
++        [TestMethod]
++        public void TranslatedFormatLabelsKeepTheEnglishArgumentIndexes()
++        {
++            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
++            var englishPath = FindRepoFile("source", "Localization", "en_US.xaml");
++            var english = XDocument.Load(englishPath).Root.Elements()
++                .ToDictionary(element => (string)element.Attribute(xaml + "Key"), element => element.Value);
++            foreach (var path in Directory.EnumerateFiles(Path.GetDirectoryName(englishPath), "*.xaml"))
++                foreach (var element in XDocument.Load(path).Root.Elements())
++                {
++                    var key = (string)element.Attribute(xaml + "Key");
++                    if (key == null || !english.TryGetValue(key, out var baseline)) continue;
++                    Func<string, string[]> arguments = value => Regex.Matches(value, @"(?<!\{)\{(\d+)[^{}]*\}(?!\})")
++                        .Cast<Match>().Select(match => match.Groups[1].Value).Distinct().OrderBy(index => index).ToArray();
++                    CollectionAssert.AreEqual(arguments(baseline), arguments(element.Value), Path.GetFileName(path) + " :: " + key);
++                }
++        }
++
++        [TestMethod]
++        public void LocalizationDictionariesContainNoDuplicateKeys()
++        {
++            var directory = Path.GetDirectoryName(FindRepoFile("source", "Localization", "en_US.xaml"));
++            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
++            foreach (var path in Directory.EnumerateFiles(directory, "*.xaml"))
++            {
++                var duplicates = XDocument.Load(path).Root.Elements()
++                    .Select(element => (string)element.Attribute(xaml + "Key"))
++                    .Where(key => !string.IsNullOrWhiteSpace(key))
++                    .GroupBy(key => key, StringComparer.Ordinal)
++                    .Where(group => group.Count() > 1)
++                    .Select(group => group.Key)
++                    .ToArray();
++                CollectionAssert.AreEqual(Array.Empty<string>(), duplicates,
++                    Path.GetFileName(path) + ": duplicate keys prevent WPF from loading the dictionary.");
++            }
++        }
++
+         [TestMethod]
+         public void EnUsContainsHoyoverseSettingsViewResourceKeys()
+         {
+@@ -146,7 +257,7 @@ private static string FindRepoFile(params string[] parts)
+             while (directory != null)
+             {
+                 var path = Path.Combine(new[] { directory.FullName }.Concat(parts).ToArray());
+-                if (File.Exists(path))
++                if (File.Exists(path) || Directory.Exists(path))
+                 {
+                     return path;
+                 }
 diff --git a/tests/PlayniteAchievements.Tests/Manual/ManualAchievementEditItemTests.cs b/tests/PlayniteAchievements.Tests/Manual/ManualAchievementEditItemTests.cs
 index f0a5dd4f46ff0e42193b1e03ffe64757c09a66c8..b0e42b8950419b89cb7fef5e3a03ac9b930cc6d6 100644
 --- a/tests/PlayniteAchievements.Tests/Manual/ManualAchievementEditItemTests.cs
@@ -22987,7 +23418,7 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39ee972ebc 100644
+index e4e570f07961d2ebbf1def33e1b683b08e50efd7..8f767e180169bf3421a6fa53fead2316c8d84338 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -8,6 +8,17 @@
@@ -23008,7 +23439,13 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
      <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
      <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
-@@ -90,6 +101,7 @@
+@@ -85,11 +96,13 @@
+     <Compile Include="..\..\source\Providers\GOG\Local\GogGalaxyDbReader.cs" Link="Source\Providers\GOG\Local\GogGalaxyDbReader.cs" />
+ 
+     <Compile Include="..\..\source\Services\Settings\DebouncedSettingsPersist.cs" Link="Source\Services\Settings\DebouncedSettingsPersist.cs" />
++    <Compile Include="..\..\source\Services\Settings\ForkPerformanceDefaults.cs" Link="Source\Services\Settings\ForkPerformanceDefaults.cs" />
+     <Compile Include="..\..\source\Services\Database\SqlNadoCacheBehavior.cs" Link="Source\Services\Database\SqlNadoCacheBehavior.cs" />
+     <Compile Include="..\..\source\Services\Database\InGameProgressSqlWriter.cs" Link="Source\Services\Database\InGameProgressSqlWriter.cs" />
      <Compile Include="..\..\source\Services\Cache\IInGameProgressCacheWriter.cs" Link="Source\Services\Cache\IInGameProgressCacheWriter.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameReadSchedule.cs" Link="Source\Services\InGameMonitoring\InGameReadSchedule.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionPolicy.cs" />
@@ -23016,7 +23453,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" Link="Source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
-@@ -105,7 +117,9 @@
+@@ -105,7 +118,9 @@
      <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
      <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
      <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" />
@@ -23026,7 +23463,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
      <Compile Include="..\..\source\Providers\IInGameProgressSource.cs" Link="Source\Providers\IInGameProgressSource.cs" />
-@@ -113,6 +127,7 @@
+@@ -113,6 +128,7 @@
      <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
      <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
@@ -23034,7 +23471,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
-@@ -128,6 +143,7 @@
+@@ -128,6 +144,7 @@
      <Compile Include="..\..\source\Services\Achievements\RecentUnlockOrder.cs" Link="Source\Services\Achievements\RecentUnlockOrder.cs" />
      <Compile Include="..\..\source\Common\ObservableStateCopier.cs" Link="Source\Common\ObservableStateCopier.cs" />
      <Compile Include="..\..\source\Services\Achievements\OverviewSummaryPatcher.cs" Link="Source\Services\Achievements\OverviewSummaryPatcher.cs" />
@@ -23042,7 +23479,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
      <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
      <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
-@@ -161,6 +177,7 @@
+@@ -161,6 +178,7 @@
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneScope.cs" Link="Source\Services\Achievements\AutoCapstoneScope.cs" />
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTemplate.cs" Link="Source\Services\Achievements\AutoCapstoneTemplate.cs" />
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneText.cs" Link="Source\Services\Achievements\AutoCapstoneText.cs" />
@@ -23050,7 +23487,24 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTextRewriter.cs" Link="Source\Services\Achievements\AutoCapstoneTextRewriter.cs" />
      <Compile Include="..\..\source\Services\Achievements\CapstoneResolver.cs" Link="Source\Services\Achievements\CapstoneResolver.cs" />
      <Compile Include="..\..\source\Services\Achievements\CapstoneCompletion.cs" Link="Source\Services\Achievements\CapstoneCompletion.cs" />
-@@ -243,6 +260,7 @@
+@@ -169,6 +187,8 @@
+     <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
+     <Compile Include="..\..\source\Services\Captures\CaptureAchievementIndex.cs" Link="Source\Services\Captures\CaptureAchievementIndex.cs" />
+     <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.cs" Link="Source\Services\Captures\CaptureLibraryService.cs" />
++    <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.SantodanPerformance.cs" Link="Source\Services\Captures\CaptureLibraryService.SantodanPerformance.cs" />
++    <Compile Include="..\..\source\Services\GameplayRefreshDeferral.cs" Link="Source\Services\GameplayRefreshDeferral.cs" />
+     <Compile Include="..\..\source\Services\Captures\AchievementCapturePathResolver.cs" Link="Source\Services\Captures\AchievementCapturePathResolver.cs" />
+     <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
+     <Compile Include="..\..\source\Services\Images\CategoryArtChainResolver.cs" Link="Source\Services\Images\CategoryArtChainResolver.cs" />
+@@ -196,6 +216,7 @@
+     <Compile Include="..\..\source\Services\Images\RayTrackBuilder.cs" Link="Source\Services\Images\RayTrackBuilder.cs" />
+     <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
+     <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
++    <Compile Include="..\..\source\Views\Helpers\ForkUiPerformance.cs" Link="Source\Views\Helpers\ForkUiPerformance.cs" />
+     <Compile Include="..\..\source\Views\Helpers\AsyncImage.cs" Link="Source\Views\Helpers\AsyncImage.cs" />
+     <Compile Include="..\..\source\Views\Helpers\AnimationFrameRate.cs" Link="Source\Views\Helpers\AnimationFrameRate.cs" />
+     <Compile Include="..\..\source\Views\Helpers\RarityGlowPulse.cs" Link="Source\Views\Helpers\RarityGlowPulse.cs" />
+@@ -243,6 +264,7 @@
      <Compile Include="..\..\source\Services\GameSummariesSortHelper.cs" Link="Source\Services\GameSummariesSortHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -23058,7 +23512,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -556,6 +574,7 @@
+@@ -556,6 +578,7 @@
      <Compile Include="..\..\source\Services\Metadata\MetadataLookupHealth.cs" Link="Source\Services\Metadata\MetadataLookupHealth.cs" />
      <Compile Include="..\..\source\Services\Metadata\MetadataLinkResolver.cs" Link="Source\Services\Metadata\MetadataLinkResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
@@ -23066,7 +23520,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Models\Settings\ProgressBadgeSource.cs" Link="Source\Models\Settings\ProgressBadgeSource.cs" />
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\GameNotificationOverrides.cs" Link="Source\Models\Settings\GameNotificationOverrides.cs" />
-@@ -566,6 +585,7 @@
+@@ -566,6 +589,7 @@
      <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
      <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
      <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
@@ -23074,7 +23528,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\UnlockSoundSettings.cs" Link="Source\Models\Settings\UnlockSoundSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
-@@ -592,6 +612,7 @@
+@@ -592,6 +616,7 @@
      <Compile Include="..\..\source\Models\Settings\AchievementTagDisplay.cs" Link="Source\Models\Settings\AchievementTagDisplay.cs" />
      <Compile Include="..\..\source\Models\Settings\AchievementStatusColorMode.cs" Link="Source\Models\Settings\AchievementStatusColorMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
@@ -23082,7 +23536,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
      <Compile Include="..\..\source\Views\Settings\Controls\GridDisplaySurfaces.cs" Link="Source\Views\Settings\Controls\GridDisplaySurfaces.cs" />
-@@ -670,6 +691,8 @@
+@@ -670,6 +695,8 @@
      <Compile Include="..\..\source\Services\Tagging\DefaultTagNameCatalog.cs" Link="Source\Services\Tagging\DefaultTagNameCatalog.cs" />
      <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
      <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
@@ -23091,7 +23545,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\UI\NotificationStyleResolver.cs" Link="Source\Services\UI\NotificationStyleResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\ThemeMigrationCacheEntry.cs" Link="Source\Models\Settings\ThemeMigrationCacheEntry.cs" />
      <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
-@@ -738,10 +761,12 @@
+@@ -738,10 +765,12 @@
      <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
@@ -23104,7 +23558,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -754,6 +779,7 @@
+@@ -754,6 +783,7 @@
      <Compile Include="..\..\source\Services\ThemeMigration\ControlMappings.cs" Link="Source\Services\ThemeMigration\ControlMappings.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
@@ -23112,7 +23566,7 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..c8c38be9e10cbac6325ba27fea580f39
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
-@@ -853,6 +879,10 @@
+@@ -853,6 +883,10 @@
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
@@ -23256,6 +23710,49 @@ index c5be0320e74da644ed7303cb4403cd9defaa7476..f22af6fb4c66c361a886680b5d3982df
              public void RemoveGameData(Guid playniteGameId) { }
              public void RemoveGameCache(Guid playniteGameId) { }
              public void NotifyCacheInvalidated() { }
+diff --git a/tests/PlayniteAchievements.Tests/Services/AutoCapstoneTextTests.cs b/tests/PlayniteAchievements.Tests/Services/AutoCapstoneTextTests.cs
+index 8794733c63a3167f364be3468fca5f511f5662f5..1202fa48e0960e75c2c068df04e1abe683f18cb0 100644
+--- a/tests/PlayniteAchievements.Tests/Services/AutoCapstoneTextTests.cs
++++ b/tests/PlayniteAchievements.Tests/Services/AutoCapstoneTextTests.cs
+@@ -15,6 +15,38 @@ public class AutoCapstoneTextTests
+     {
+         private const string GermanCategoryDescription = "Schalte jeden Erfolg in {0} frei.";
+ 
++        [TestMethod]
++        public void Resolve_RepairsSavedMissingDefaultMarkersWithoutChangingCustomText()
++        {
++            var settings = new PersistedSettings
++            {
++                AutoCapstoneGameDescriptionTemplate = "<!" + AutoCapstoneTemplate.DescriptionKey + "!>",
++                AutoCapstoneCategoryDescriptionTemplate = "<!" + AutoCapstoneText.CategoryDescriptionKey + "!>",
++                AutoCapstoneGameNameTemplate = "My {0} mastery"
++            };
++            var templates = AutoCapstoneText.Resolve(settings);
++            Assert.AreEqual("Obtain every base game achievement.", templates.GameDescription);
++            Assert.AreEqual("Obtain every achievement in {1}.", templates.CategoryDescription);
++            Assert.AreEqual("My {0} mastery", templates.GameName);
++        }
++
++        [TestMethod]
++        public void Rewrite_RepairsPersistedCapstoneMarkersAndKeepsCustomDescriptions()
++        {
++            var current = AutoCapstoneText.Defaults();
++            foreach (var wholeGame in new[] { true, false })
++            {
++                var key = wholeGame ? AutoCapstoneTemplate.DescriptionKey : AutoCapstoneText.CategoryDescriptionKey;
++                var definition = AutoCapstone("Custom title", "<!" + key + "!>", wholeGame);
++                Assert.IsTrue(AutoCapstoneTextRewriter.Rewrite(definition, wholeGame ? null : "DLC", Names("Halo"), current, Known(current)));
++                Assert.AreEqual(wholeGame ? "Obtain every base game achievement." : "Obtain every achievement in DLC.", definition.Description);
++                Assert.AreEqual("Custom title", definition.DisplayName);
++            }
++            var custom = AutoCapstone("My title", "My own description mentioning LOCPlayAch", true);
++            Assert.IsFalse(AutoCapstoneTextRewriter.Rewrite(custom, null, Names("Halo"), current, Known(current)));
++            Assert.AreEqual("My own description mentioning LOCPlayAch", custom.Description);
++        }
++
+         [TestMethod]
+         public void Defaults_MatchTheTextCapstonesWereAuthoredWithBefore()
+         {
 diff --git a/tests/PlayniteAchievements.Tests/Services/Capture/OverlaySplicePlanTests.cs b/tests/PlayniteAchievements.Tests/Services/Capture/OverlaySplicePlanTests.cs
 index 02af08bf0f67ea500ceef3e2518228ab7ba2d90d..66c9ea0186be7d58bdd94f2c0b65b34ae6780222 100644
 --- a/tests/PlayniteAchievements.Tests/Services/Capture/OverlaySplicePlanTests.cs

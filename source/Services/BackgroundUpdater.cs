@@ -10,7 +10,7 @@ using PlayniteAchievements.Services.Refresh;
 
 namespace PlayniteAchievements.Services
 {
-    public class BackgroundUpdater
+    public partial class BackgroundUpdater
     {
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly RefreshRuntime _refreshService;
@@ -154,6 +154,8 @@ namespace PlayniteAchievements.Services
 
         private async Task PerformUpdateIfNeeded(TimeSpan interval, TimeSpan friendsInterval, CancellationToken token)
         {
+            await WaitForSantodanGameplayAsync(token).ConfigureAwait(false);
+
             if (ShouldPerformUpdate(interval))
             {
                 await ExecuteUpdate(token).ConfigureAwait(false);
@@ -162,6 +164,8 @@ namespace PlayniteAchievements.Services
             {
                 _logger.Debug("[PeriodicUpdate] Cache is recent; skipping update.");
             }
+
+            await WaitForSantodanGameplayAsync(token).ConfigureAwait(false);
 
             if (ShouldPerformFriendsUpdate(friendsInterval))
             {

@@ -35,11 +35,11 @@ namespace PlayniteAchievements.Views.Helpers
         // This budget bounds the product: 32 Mpx is a 128 MB ceiling per animation. Animated
         // sources are reduced to their requested display width before this budget is applied, so
         // the ceiling removes temporal frames only after spatial resolution has been made useful.
-        private const long MaxRetainedPixels = 32L * 1024 * 1024;
+        private static long MaxRetainedPixels => ForkUiPerformance.AnimationCacheBytes / BytesPerCompositedPixel;
 
         // Aggregate ceiling across every cached animation (~128 MB of BGRA). The entry count alone
         // let a handful of large animations dominate the process.
-        private const long MaxCachedBytes = 128L * 1024 * 1024;
+        private static long MaxCachedBytes => ForkUiPerformance.AnimationCacheBytes;
 
         private const int BytesPerCompositedPixel = 4;
 
@@ -178,6 +178,12 @@ namespace PlayniteAchievements.Views.Helpers
         {
             normalizedSource = NormalizeSourceUri(uri);
             frames = default((List<BitmapSource> Frames, List<int> Delays));
+            if (ForkUiPerformance.StaticArtwork)
+            {
+                lock (CacheSync) FrameCache.Clear();
+                return false;
+            }
+
 
             // Some preview paths encode grayscale intent directly in the source string (gray:...)
             // instead of the AsyncImage.Gray attached property.
@@ -567,6 +573,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             lock (CacheSync)
             {
+                if (EstimateRetainedBytes(cached) > MaxCachedBytes) return;
                 FrameCache[cacheKey] = cached;
                 TrimCache(cacheKey);
             }

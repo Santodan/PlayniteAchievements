@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Helper
 
         private const int IdlePollMs = 250;
 
-        private const int MaxCachedSeconds = 60;
+        private readonly int MaxCachedSeconds;
 
         /// <summary>Declick ramp at the end of a decoded clip. See <see cref="ApplyEndFade"/>.</summary>
         private const int EndFadeMs = 8;
@@ -79,8 +79,9 @@ namespace PlayniteAchievements.Helper
         private long _lastActivityTicks = Stopwatch.GetTimestamp();
         private bool _disposed;
 
-        public SoundEngine(Action<string> emit)
+        public SoundEngine(Action<string> emit, int cacheSeconds = 60)
         {
+            MaxCachedSeconds = Math.Max(0, Math.Min(60, cacheSeconds));
             _emit = emit;
             _voice.Started = OnVoiceStarted;
             _thread = new Thread(Run) { IsBackground = true, Name = "SoundEngine" };
@@ -457,6 +458,7 @@ namespace PlayniteAchievements.Helper
 
         private void PreloadCurrentSet()
         {
+            if (MaxCachedSeconds == 0) { _cache.Clear(); return; }
             var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var path in _preloadSet)
             {
@@ -509,7 +511,7 @@ namespace PlayniteAchievements.Helper
             {
                 var samples = Decode(path, _voiceFormat);
                 var clip = new Clip(key, path, samples, _voiceFormat.Channels);
-                if (CachedSeconds() + clip.Seconds(_voiceFormat.SampleRate) <= MaxCachedSeconds)
+                if (MaxCachedSeconds > 0 && CachedSeconds() + clip.Seconds(_voiceFormat.SampleRate) <= MaxCachedSeconds)
                 {
                     _cache[key] = clip;
                 }

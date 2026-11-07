@@ -14,10 +14,10 @@ namespace PlayniteAchievements.Helper
     {
         public const string Name = SoundHostProtocol.RoleArgument;
 
-        public static int Run(Action<string> emit, TextReader stdin)
+        public static int Run(Action<string> emit, TextReader stdin, int cacheSeconds = 60)
         {
             MediaFoundationApi.Startup();
-            using (var engine = new SoundEngine(emit))
+            using (var engine = new SoundEngine(emit, cacheSeconds))
             {
                 emit(SoundHostProtocol.EncodeReady(Process.GetCurrentProcess().Id));
                 string line;

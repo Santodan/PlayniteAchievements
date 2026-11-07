@@ -723,6 +723,7 @@ namespace PlayniteAchievements.Views.Helpers
             bool applyGray,
             CancellationToken cancellationToken)
         {
+            if (ForkUiPerformance.StaticArtwork) return false;
             var localPath = AnimatedImageHelper.NormalizeSourceUri(uriString);
             if (string.IsNullOrWhiteSpace(localPath) ||
                 !Services.Images.ImageFormats.UsesNativePlayer(localPath) ||

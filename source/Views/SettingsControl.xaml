@@ -70,11 +70,14 @@
                         <ContentControl x:Name="AchievementNotificationsContent"/>
                     </TabItem>
 
-                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance">
+                    <TabItem x:Name="ForkPerformanceTab" AutomationProperties.Name="Performance (Experimental)">
                         <TabItem.Header>
                             <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
                                 <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xEF3A;"/>
                                 <TextBlock Text="Performance" VerticalAlignment="Center"/>
+                                <Border Background="#80551A" CornerRadius="3" Padding="5,2" Margin="6,0,0,0">
+                                    <TextBlock Text="Experimental" Foreground="White" FontSize="10"/>
+                                </Border>
                             </StackPanel>
                         </TabItem.Header>
                         <ContentControl x:Name="ForkPerformanceSettingsContent"/>

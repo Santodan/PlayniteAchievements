@@ -1,4 +1,4 @@
-﻿// LegacyNotificationSettingsControl.xaml.cs
+// LegacyNotificationSettingsControl.xaml.cs
 using ForkLog = PlayniteAchievements.Services.Logging.ForkLogger;
 using System;
 using System.IO;
@@ -858,6 +858,8 @@ namespace PlayniteAchievements.Views
 
         private void LegacyNotificationSettingsControl_Unloaded(object sender, RoutedEventArgs e)
         {
+            _notificationInlinePreviewLoopTimer?.Stop();
+            ReleaseSantodanInlinePreviewOnLeave();
             _notificationAutoPopupPreviewTimer?.Stop();
             _sanViewPreviewLoopTimer?.Stop();
             _sanViewPreviewCloseTimer?.Stop();
@@ -1612,6 +1614,7 @@ namespace PlayniteAchievements.Views
         private void NotificationAutoPopupPreviewTimer_Tick(object sender, EventArgs e)
         {
             _notificationAutoPopupPreviewTimer.Stop();
+            if (ManualSantodanPreviewsEnabled) return;
             if (_activeSanPreviewView.HasValue)
             {
                 ShowCustomPopupPreview(forceStatusMessage: true, forcedSanView: _activeSanPreviewView.Value);
@@ -1625,6 +1628,7 @@ namespace PlayniteAchievements.Views
         private void SanViewPreviewLoopTimer_Tick(object sender, EventArgs e)
         {
             _sanViewPreviewLoopTimer.Stop();
+            if (ManualSantodanPreviewsEnabled) return;
             if (!_activeSanPreviewView.HasValue)
             {
                 return;
@@ -1660,13 +1664,14 @@ namespace PlayniteAchievements.Views
             _sanViewPreviewCloseTimer.Stop();
             _sanViewPreviewCloseTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(500, duration));
             _sanViewPreviewCloseTimer.Start();
+            if (ManualSantodanPreviewsEnabled) return;
             _sanViewPreviewLoopTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(500, duration) + 2000);
             _sanViewPreviewLoopTimer.Start();
         }
 
         private void NotificationInlinePreviewLoopTimer_Tick(object sender, EventArgs e)
         {
-            if (_notificationPreviewSettings == null || NotificationsCustomInlinePreviewHost == null || !IsVisible)
+            if (_notificationPreviewSettings == null || NotificationsCustomInlinePreviewHost == null || !IsLoaded || !IsVisible)
             {
                 _notificationInlinePreviewLoopTimer.Stop();
                 return;
@@ -1677,6 +1682,7 @@ namespace PlayniteAchievements.Views
 
         private void ScheduleAutoPopupPreview()
         {
+            if (ManualSantodanPreviewsEnabled) return;
             _notificationAutoPopupPreviewTimer.Stop();
             _notificationAutoPopupPreviewTimer.Start();
         }
@@ -4011,6 +4017,7 @@ namespace PlayniteAchievements.Views
 
         private void ShowCustomPopupPreview(bool forceStatusMessage, int? forcedSanView = null)
         {
+            if (!forceStatusMessage && ManualSantodanPreviewsEnabled) return;
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
             if (localSettings == null)
             {
@@ -6455,6 +6462,19 @@ namespace PlayniteAchievements.Views
 
         private void UpdateCustomStyleInlinePreview(Providers.Local.LocalSettings localSettings)
         {
+            if (localSettings?.ReleaseNotificationPreviewsOnLeave == true && !IsLoaded) return;
+            if (localSettings?.ManualNotificationPreviews == true)
+            {
+                _notificationInlinePreviewLoopTimer?.Stop();
+                if (NotificationsCustomInlinePreviewHost != null)
+                    NotificationsCustomInlinePreviewHost.Content = new TextBlock
+                    {
+                        Text = "Automatic previews are disabled. Use the Preview / Test notification buttons.",
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(8)
+                    };
+                return;
+            }
             if (localSettings == null || NotificationsCustomInlinePreviewHost == null)
             {
                 return;

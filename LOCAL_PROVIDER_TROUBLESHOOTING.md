@@ -152,6 +152,77 @@ These optional settings reduce repeated Local-provider work while a game is runn
 They do not change your configured polling interval. Brief activity at game start
 or when processing an unlocked achievement can still occur.
 
+### Browser startup choices (CEF and WebView2)
+
+The **Browser startup** group is independent of custom Local polling:
+
+- **Defer Steam CEF cookie loading**: enable to skip the cookie-browser read at
+  extension startup. The first authenticated Steam request loads cookies when
+  needed. Steam login and browser fallbacks remain available. Default: off.
+- **Preload fork notification browser (WebView2)**: disable to avoid keeping the
+  hidden notification warm-up browser. Browser notifications and previews still
+  initialize on demand, so their first use can take longer. Default: on.
+
+For less eager startup work, enable deferred Steam cookie loading and disable
+notification browser preload. Save and restart Playnite when changing these
+options; disabling preload does not dispose a browser already initialized in
+that session. CEF (Playnite's embedded browser) and WebView2 (the fork notification
+browser) are separate engines. Account authentication and metadata features can
+still create browser views when needed; these switches do not disable them.
+
+### Background work choices
+
+These settings also work without custom Local polling:
+
+| Setting | Meaning and tradeoff | Default |
+| --- | --- | --- |
+| **Build overview data only when needed** | Skips automatic overview precomputation at startup and after changes. The overview and other consumers still build fresh data when needed, so their first load can be slower. This goes beyond the existing option that defers overview warm-up only during gameplay. | Off |
+| **Preload Steam-user menu choices** | Disable to skip the startup discovery scan. Local menu choices are discovered asynchronously when first requested; reopen the menu after discovery to see them. Save and restart to compare startup behavior. | On |
+| **Watch capture folders for external changes** | Disable to remove recursive screenshot/video filesystem watchers. Extension-created captures still invalidate their game data. Reopen the capture viewer to rescan external additions/removals; other cached indicators may remain unchanged until a refresh. Save and restart to apply. | On |
+| **Defer scheduled refreshes during gameplay** | Holds scheduled current-user and friend refresh checks while any Playnite game is running. Checks resume within about 15 seconds after gameplay ends and reassess whether a refresh is still due. It does not stop a refresh already running or change live polling, manual refreshes, or game-close refreshes. | Off |
+
+For less background work, enable **Build overview data only when needed** and
+**Defer scheduled refreshes during gameplay**, disable **Preload Steam-user menu
+choices**, and disable **Watch capture folders for external changes** if automatic
+updates for externally managed captures are not needed. Save and restart Playnite.
+Keep the last option enabled if you regularly add or delete captures externally
+and want the open UI to notice those changes automatically.
+
+Existing scheduled-update frequencies, friends features, capture/recording options,
+and notification appearance remain in their own settings pages. Disabling unused
+features there can avoid their work entirely; these Performance controls manage
+preparation, caching, and scheduling without duplicating those feature switches.
+
+### Experimental artwork, previews and memory options
+
+The Experimental notice and **Restore defaults** button stay visible above the
+scrolling options. Restore defaults resets only the Performance tab settings;
+click **Save** to apply or **Cancel** to discard. Restart Playnite afterward to
+fully apply startup, cache, and artwork changes. Other provider and notification
+settings, including General Debug mode, are preserved.
+
+The Performance tab is marked **Experimental**. These controls are provided as-is,
+without guarantees. Enable them at your own risk and restore defaults when
+troubleshooting. They can change appearance and first-use latency; they do not
+promise a fixed total RAM or CPU limit.
+
+| Setting | Meaning and tradeoff | Default |
+| --- | --- | --- |
+| **Use static WPF artwork** | Shows still artwork instead of GIF/WebP animation handled by the extension's WPF image controls. It does not change images animated inside custom HTML/WebView2 templates. Restart to release already running artwork. | Off |
+| **Animated WebP cache budget (MB)** | Limits retained decoded WebP cache entries to 8?128 MB. Smaller values may reduce resolution/frame retention and require decoding again. Visible controls can retain frames separately, so this is not a total animation-memory limit. | 128 MB |
+| **Manual notification previews** | Disables automatic fork inline preview rebuilding, automatic popup previews and preview loops. Use the existing Preview/Test buttons for an explicit notification preview. | Off |
+| **Release notification previews when leaving the tab** | Drops the fork's inline preview content on unload. The settings overlay closes too, as before. Returning can rebuild the preview if automatic previews are enabled. Live notifications and the separate browser startup preload are unaffected. | Off |
+| **Reduce fork notification effects** | Removes WPF notification shadow/outline effects and window entrance/exit transitions, and simplifies CSS effects and animation timing in generated SAN notifications. Saved styles remain unchanged. Custom scripts can still perform their own work. | Off |
+| **Decoded sound cache (seconds)** | Retains up to 0?60 seconds of decoded audio clips in the helper process. Zero disables decoded-clip caching and preload decoding; active playback still needs memory. Smaller limits can increase decoding at playback. Save and restart to apply. | 60 seconds |
+
+For a conservative memory comparison, try a **32 MB** animation cache and **10
+seconds** of decoded sound. For fewer animations, also enable static WPF artwork,
+manual previews, preview release, and reduced effects. Save and restart, compare
+idle use, then test opening the notification settings, explicit WPF/SAN previews,
+live unlocks, sounds, and an animated artwork example. If first-use delays or
+appearance changes are undesirable, restore the corresponding default. Cache
+reductions do not guarantee lower CPU: decoding the same assets again costs work.
+
 ### Recommended starting configuration
 
 Enable **Use custom Local polling mechanism**, then enable all the options in its

@@ -2616,6 +2616,8 @@ steamImage +
 
         private void WarmUpSanWebView2()
         {
+            if (!ShouldPreloadSantodanNotificationBrowser()) return;
+
             if (_sanWebViewWarmupStarted)
             {
                 return;
@@ -3659,6 +3661,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
 <style>{manualCss}</style>
 <style>{coverWidthCss}</style>
 <style>{coverCenterCss}</style>
+<style>{SantodanReducedEffectsCss(settings)}</style>
 </head>
 <body {bodyAttrs} style=""background-color: transparent;"">
 <audio src=""""></audio>
@@ -4946,6 +4949,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
 
         private static void ApplyOverlayEnterAnimation(Window overlayWindow, double targetOpacity, int fadeInMs, LocalUnlockOverlayTransitionStyle transitionStyle, int slideDistance)
         {
+            if (ReducedSantodanNotificationEffects) { overlayWindow.Opacity = targetOpacity; return; }
             try
             {
                 var duration = new Duration(TimeSpan.FromMilliseconds(Math.Max(0, fadeInMs)));
@@ -4993,6 +4997,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
 
         private static void ApplyOverlayExitAnimation(Window overlayWindow, double startOpacity, int fadeOutMs, LocalUnlockOverlayTransitionStyle transitionStyle, int slideDistance, Action onComplete)
         {
+            if (ReducedSantodanNotificationEffects) { onComplete?.Invoke(); return; }
             try
             {
                 var duration = new Duration(TimeSpan.FromMilliseconds(Math.Max(0, fadeOutMs)));
@@ -5102,7 +5107,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)} && !sanProgress
             return settings.OverlaySteamScale;
         }
 
-        private FrameworkElement BuildOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale, Game game = null, string achievementDescription = null, int? achievementPoints = null, string achievementRarity = null, string achievementTrophy = null)
+        private FrameworkElement BuildOverlayContentCore(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale, Game game = null, string achievementDescription = null, int? achievementPoints = null, string achievementRarity = null, string achievementTrophy = null)
         {
             if (string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
             {

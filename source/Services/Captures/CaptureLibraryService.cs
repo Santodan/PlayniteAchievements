@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Services.Captures
     /// waiting for a rebuild. The gallery viewer re-scans fresh on open via <see cref="RefreshGame"/>,
     /// which stays silent because it is a read path.
     /// </summary>
-    internal sealed class CaptureLibraryService : IDisposable
+    internal sealed partial class CaptureLibraryService : IDisposable
     {
         private readonly Func<PersistedSettings> _settingsAccessor;
         private readonly ILogger _logger;
@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Services.Captures
         {
             _settingsAccessor = settingsAccessor;
             _logger = logger;
-            _watchForChanges = watchForChanges;
+            _watchForChanges = watchForChanges && ShouldWatchSantodanExternalCaptures();
             _gameDirectoriesAccessor = gameDirectoriesAccessor;
         }
 

@@ -9,8 +9,83 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+            <Border Grid.Row="0" Margin="20,20,20,0" Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Right" Content="Restore defaults" Click="RestoreDefaults_Click" Margin="12,0,0,8" Padding="12,4"
+                                ToolTip="Reset only this tab's settings. Save to apply, or Cancel to discard. Restart Playnite to fully apply startup and cache changes."/>
+                        <TextBlock Text="Experimental performance options" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    </DockPanel>
+                    <TextBlock Text="These options are provided as-is. Enable at your own risk: they can change appearance, preview behavior, and first-use loading times. Restore defaults when troubleshooting. Cache budgets limit retained cache entries, not total process RAM. Restart Playnite after changing artwork, cache, or startup options for a clean comparison."
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="20,12,20,20">
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Artwork, previews and memory" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Use static WPF artwork" Hint="Show still images instead of playing GIF/WebP artwork handled by the extension's WPF image controls. Custom HTML/WebView2 templates can still animate their own images. Restart to stop already active artwork.">
+                        <CheckBox IsChecked="{Binding UseStaticWpfArtwork, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Animated WebP cache budget (MB)" Hint="8-128 MB; default 128. Smaller budgets retain fewer decoded animation frames and can increase decoding on reuse. Visible animations can retain their own frames beyond this cache budget. Restart for a clean comparison.">
+                        <StackPanel><Slider Width="180" Minimum="8" Maximum="128" TickFrequency="8" IsSnapToTickEnabled="True" Value="{Binding AnimationCacheBudgetMb, Mode=TwoWay}"/><TextBlock Text="{Binding AnimationCacheBudgetMb}"/></StackPanel>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Manual notification previews" Hint="Disable automatic inline mockup rebuilding, automatic popup previews and preview loops in the fork notification settings. Use the existing Preview/Test buttons to show a notification explicitly.">
+                        <CheckBox IsChecked="{Binding ManualNotificationPreviews, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Release notification previews when leaving the tab" Hint="Clear the fork's inline notification preview and close its settings overlay when the page unloads. Returning rebuilds it when automatic previews are enabled. Does not stop live achievement notifications or the separate startup preload.">
+                        <CheckBox IsChecked="{Binding ReleaseNotificationPreviewsOnLeave, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Reduce fork notification effects" Hint="Remove WPF notification shadows and outline effects, skip window entrance/exit transitions, and simplify CSS animation and effects in generated SAN browser notifications. Saved appearance settings are preserved. Custom template scripts can still perform their own work.">
+                        <CheckBox IsChecked="{Binding ReduceForkNotificationEffects, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Decoded sound cache (seconds)" Hint="0-60 seconds of decoded clips; default 60. Lower values reduce retained audio in the sound helper but can require decoding again. Zero disables decoded-clip caching and preloading. Playing audio still uses memory. Save and restart Playnite to apply.">
+                        <StackPanel><Slider Width="180" Minimum="0" Maximum="60" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding DecodedSoundCacheSeconds, Mode=TwoWay}"/><TextBlock Text="{Binding DecodedSoundCacheSeconds}"/></StackPanel>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Browser startup" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Defer Steam CEF cookie loading"
+                                         Hint="Skip the Steam browser cookie read when the extension starts. Cookies load when an authenticated Steam request needs them. This reduces eager startup work; Steam authentication and browser fallbacks remain available. Save and restart Playnite to compare.">
+                        <CheckBox IsChecked="{Binding DeferSteamCefCookieLoading, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Preload fork notification browser (WebView2)"
+                                         Hint="Initialize the fork notification's browser in advance for faster first use. Disable to avoid the hidden warm-up browser and initialize on demand instead; the first browser notification or preview can take longer. WebView2 is separate from CEF. Save and restart Playnite to release an existing preload.">
+                        <CheckBox IsChecked="{Binding PreloadForkNotificationBrowser, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <TextBlock Text="For less startup work: enable deferred Steam cookie loading and disable notification browser preload. These controls do not require custom Local polling. Required account and metadata browser requests can still run when those features are used."
+                               TextWrapping="Wrap" Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingGroupCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="Background work" Style="{StaticResource SubSectionHeaderStyle}"/>
+                    <controls:SettingRow Label="Build overview data only when needed"
+                                         Hint="Skip background overview precomputation at startup and after changes. Opening the overview or another consumer builds fresh data on demand and may take longer. This works independently of custom Local polling.">
+                        <CheckBox IsChecked="{Binding BuildOverviewOnDemand, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Preload Steam-user menu choices"
+                                         Hint="Prepare detected Steam users in the background at startup. Disable to discover them when the Local game menu first needs them; choices may appear on a later menu opening after discovery completes. Save and restart Playnite to compare startup work.">
+                        <CheckBox IsChecked="{Binding PreloadSteamUserMenu, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Watch capture folders for external changes"
+                                         Hint="Watch screenshot and video folders recursively for files added or removed outside the extension. Disable to remove those filesystem watchers. Plugin-created captures still update; reopen the capture viewer to rescan external changes. Save and restart Playnite to apply.">
+                        <CheckBox IsChecked="{Binding WatchExternalCaptureChanges, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="Defer scheduled refreshes during gameplay"
+                                         Hint="Wait while any Playnite game is running before starting scheduled library or friend refreshes. Resume checks within about 15 seconds after gameplay ends, then recheck whether a refresh is still due. Live achievement polling and manual or game-close refreshes stay active. Already running refreshes are not cancelled.">
+                        <CheckBox IsChecked="{Binding DeferScheduledRefreshesDuringGameplay, Mode=TwoWay}"/>
+                    </controls:SettingRow>
+                </StackPanel>
+            </Border>
             <Border Style="{StaticResource SettingGroupCardStyle}">
                 <StackPanel>
                     <TextBlock Text="Custom Local polling" Style="{StaticResource SubSectionHeaderStyle}"/>
@@ -81,6 +156,8 @@
                     </controls:SettingRow>
                 </StackPanel>
             </Border>
-        </StackPanel>
-    </ScrollViewer>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </UserControl>

@@ -1,5 +1,80 @@
 # Fork maintenance bundle
 
+## Experimental Performance controls and restore defaults - 2026-11-07
+
+Santodan-Fork > Performance now has an Experimental badge and a fixed notice
+above the scrolling settings. Preserve the two-row Grid: notice/reset controls
+in the Auto row, options in the star-sized ScrollViewer row. The notice describes
+as-is use, appearance/loading tradeoffs and restoring defaults when troubleshooting.
+
+The Restore defaults button resets exactly the 24 settings on this tab, through
+`Services/Settings/ForkPerformanceDefaults.cs`, using the Local provider edit copy.
+It must not persist immediately: Save applies and Cancel discards. Other Local
+settings and General Debug mode remain intact. Startup/artwork/cache changes need
+a Playnite restart for a clean comparison. Keep reset coverage synchronized with
+all checkbox and slider bindings when adding options.
+
+Additional controls preserve existing behavior by default:
+
+- Browser startup: defer Steam CEF cookie loading (off) and preload the fork
+  WebView2 notification browser (on). Cookie deferral preserves authenticated
+  requests, including direct token resolution without a session probe. CEF and
+  WebView2 are separate engines; these switches do not disable required browser
+  authentication or metadata requests.
+- Background work: build overview data on demand (off); preload Steam-user menu
+  choices (on); watch capture folders for external changes (on); defer scheduled
+  refreshes during gameplay (off). Deferred scheduler checks resume within about
+  15 seconds, re-evaluate staleness, and are cancellable on shutdown. Live polling,
+  manual/game-close refreshes and already-running refreshes are unaffected.
+  Disabling capture watchers requires restart; extension writers still invalidate
+  their game data, and reopening the viewer rescans external changes.
+- Artwork/previews: static WPF artwork (off), manual fork notification previews
+  (off), release inline previews when leaving the page (off), and reduced fork
+  notification effects (off). Static WPF artwork does not suppress animated images
+  embedded in custom HTML templates. Reduced effects simplify WPF window
+  transitions/shadows/outlines and CSS effects in generated SAN documents; custom
+  scripts may still run. Saved appearance settings must not be overwritten.
+- Memory: animated WebP cache budget 8-128 MB (default 128), and decoded-sound cache
+  0-60 seconds (default 60). Cache budgets do not bound total process RAM: visible
+  animation frames and active sound playback retain their own data. Smaller
+  caches can trade memory for repeated decoding. Zero sound cache skips decoded
+  clip retention and preload decoding. Preserve the helper process launch argument
+  `--sound-cache-seconds`, its bounded parsing and the updated helper EXE in the
+  package; the helper does not load Playnite provider settings itself.
+
+The inline preview-loop timer now stops unconditionally on page unload. Optional
+preview release also prevents hidden property changes from rebuilding inline
+content. Manual mode suppresses queued automatic popups and replay loops while
+retaining explicit Preview/Test actions.
+
+Fork behavior is in Santodan partial/helper files; shared files contain routing
+hooks. Preserve `ForkUiPerformance` for WPF image choices, the notification
+browser/effects and legacy preview partials, Steam HTTP performance partial,
+plugin startup partial, capture watcher partial, background updater partial,
+`GameplayRefreshDeferral`, and the overview warm-up helper. Default-off behavior
+must retain upstream behavior; do not disable schema upgrades or data migrations.
+All controls remain under Santodan-Fork rather than upstream settings tabs.
+
+The user-facing meanings, defaults, suggested configurations and reset/restart
+instructions are in `LOCAL_PROVIDER_TROUBLESHOOTING.md`, below Collecting useful
+diagnostics. README links are protected from bundle replay and stay manually
+maintained. Version/release manifests are also protected.
+
+Validation already completed for the implementation: 41 targeted background/cache
+and settings tests passed; 66 targeted image, sound protocol, preview-resource
+and settings tests passed; five reset/settings tests passed. These runs overlap
+and must not be added together. Release rebuilds succeeded with zero errors and
+two existing warnings. The package ZIP passed integrity checking and contains the
+sound helper's cache argument. All 24 setting bindings and reset assignments match;
+header/scroll row placement and XML were checked. Live layout, notification,
+artwork, sound and memory comparisons for the newest options remain pending.
+
+Bundle verification passed clean three-way preflight and actual replay onto the
+existing v4.2.1 baseline (`4b2f60f29`): 221 overlays, three localization recipes,
+component hashes and protected-file checks passed. All 377 compared working-fork
+paths matched after newline normalization, including previously untracked helper
+and test files. Validation used a temporary worktree; no snapshot is bundled.
+
 ## Account-free SteamHunters definitions for Local - 2026-11-05
 
 Preserve the public SteamHunters schema path introduced after the v4.2.1
