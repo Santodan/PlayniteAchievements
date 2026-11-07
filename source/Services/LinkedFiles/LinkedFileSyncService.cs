@@ -83,8 +83,12 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>A file can be linked to a custom-tracked game or one with custom achievements.</summary>
         public static bool IsEligible(GameCustomDataFile data)
         {
+            // A stored link stays eligible on its own, so a file linked to a game with no
+            // achievements yet can create them.
             return data != null &&
-                   (data.ManualLink != null || CustomAchievementProjectionService.HasCustomAchievements(data));
+                   (data.ManualLink != null ||
+                    data.LinkedFile != null ||
+                    CustomAchievementProjectionService.HasCustomAchievements(data));
         }
 
         public IReadOnlyList<Guid> FindLinkedGameIds()
