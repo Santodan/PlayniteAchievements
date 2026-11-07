@@ -213,10 +213,13 @@ namespace PlayniteAchievements.Tests.ViewModels
                 var harness = new Harness();
                 var vm = new LinkedFileMappingViewModel(harness.Services());
                 vm.FilePath = CreateFile(folder);
+                Assert.AreEqual(LinkedFileField.ApiName, vm.Columns[0].Field, "A new file starts from a guess.");
+                Assert.AreEqual(LinkedFileField.Unlocked, vm.Columns[1].Field);
+                Assert.IsTrue(vm.UsesUnlockedValues);
+
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
                 Assert.IsFalse(vm.UsesTimeOptions);
                 Assert.IsFalse(vm.UsesUnlockedValues);
-
-                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
                 StringAssert.Contains(vm.ResultText, "LOCPlayAch_LinkedFile_Count_Unlocked", "Listed rows read as unlocked without a setting.");
                 Assert.IsTrue(vm.ApplyNowCommand.CanExecute(null));
 
@@ -238,7 +241,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 var store = new LinkedFileSchemaStore(folder);
                 var vm = new LinkedFileMappingViewModel(harness.Services(store));
                 vm.FilePath = CreateFile(folder);
-                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
 
                 vm.SaveAsCommand.Execute(null);
                 Assert.IsTrue(store.TryGet("My mapping", out var saved));

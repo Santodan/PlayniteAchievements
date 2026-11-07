@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.LinkedFiles;
 using System;
 using System.Collections.Generic;
@@ -56,6 +57,50 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                 new AchievementDetail { ApiName = "custom:c1", DisplayName = "Custom One", IsCustom = true },
                 new AchievementDetail { ApiName = "custom:c2", DisplayName = "Custom Two", IsCustom = true, Unlocked = true, UnlockTimeUtc = Earlier }
             };
+        }
+
+        [TestMethod]
+        public void TrophyRarityAndCategorySetCustomDefinitions()
+        {
+            var table = Table(
+                new[] { "id", "trophy", "rarity", "category" },
+                new[] { "c1", "Gold", "12.5%", "Story > Act 1" },
+                new[] { "c2", "bronze", "Ultra Rare", "" },
+                new[] { "c3", "silver", "Common", "Side" });
+            var schema = Schema(
+                ("id", LinkedFileField.ApiName), ("trophy", LinkedFileField.TrophyType),
+                ("rarity", LinkedFileField.Rarity), ("category", LinkedFileField.Category));
+            schema.CreateUnmatchedRows = true;
+
+            var plan = LinkedFileApplier.Build(table, schema, null, Achievements(), Link(), Definitions(), Now);
+
+            Assert.AreEqual(0, plan.Report.ParseErrors);
+            var c1 = plan.CustomDefinitions.Single(definition => definition.Id == "c1");
+            Assert.AreEqual("gold", c1.TrophyType);
+            Assert.AreEqual(12.5, c1.GlobalPercentUnlocked);
+            Assert.AreEqual(PercentRarityHelper.GetRarityTier(12.5).ToString(), c1.Rarity);
+            Assert.AreEqual(CustomAchievementTextImportService.ParseCategoryPath("Story > Act 1"), c1.Category);
+            var c2 = plan.CustomDefinitions.Single(definition => definition.Id == "c2");
+            Assert.AreEqual("bronze", c2.TrophyType);
+            Assert.AreEqual("UltraRare", c2.Rarity);
+            Assert.IsNull(c2.GlobalPercentUnlocked);
+            Assert.IsNull(c2.Category, "A blank category cell leaves the category unchanged.");
+            var created = plan.CustomDefinitions.Single(definition => definition.Id == "c3");
+            Assert.AreEqual("silver", created.TrophyType);
+            Assert.AreEqual("Common", created.Rarity);
+            Assert.AreEqual("Side", created.Category);
+        }
+
+        [TestMethod]
+        public void BadTrophyOrRarityIsAParseError()
+        {
+            var table = Table(new[] { "id", "trophy", "rarity" }, new[] { "c1", "diamond", "" }, new[] { "c2", "", "150%" });
+            var schema = Schema(("id", LinkedFileField.ApiName), ("trophy", LinkedFileField.TrophyType), ("rarity", LinkedFileField.Rarity));
+
+            var plan = LinkedFileApplier.Build(table, schema, null, Achievements(), Link(), Definitions(), Now);
+
+            Assert.AreEqual(2, plan.Report.ParseErrors);
+            Assert.IsFalse(plan.CustomChanged);
         }
 
         [TestMethod]
