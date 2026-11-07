@@ -160,7 +160,7 @@
                         <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_IniFlat}"
                                   IsChecked="{Binding IniFlatMode, Mode=TwoWay}"
                                   Style="{StaticResource OptionCheckBoxStyle}"
-                                  Visibility="{Binding IsIni, Converter={StaticResource BoolToVis}}" />
+                                  Visibility="{Binding ShowsIniFlatMode, Converter={StaticResource BoolToVis}}" />
                     </WrapPanel>
                 </DockPanel>
             </StackPanel>
