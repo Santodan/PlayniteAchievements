@@ -192,7 +192,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             _store.TryLoad(gameId, out var data);
-            preview.Match = LinkedFileMatcher.Match(preview.Read.Table, candidate.Schema, achievements);
+            preview.Match = LinkedFileMatcher.Match(preview.Read.Table, candidate.Schema, achievements, candidate.Pairings);
             preview.Plan = LinkedFileApplier.Build(
                 preview.Read.Table,
                 candidate.Schema,
@@ -200,7 +200,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 achievements,
                 data?.ManualLink,
                 data?.CustomAchievements,
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                pairings: candidate.Pairings);
             return preview;
         }
 
@@ -241,7 +242,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 data.ManualLink,
                 data.CustomAchievements,
                 nowUtc,
-                _icons == null ? (Func<string, string, bool>)null : (stored, source) => _icons.IsSameIcon(gameId, stored, source));
+                _icons == null ? (Func<string, string, bool>)null : (stored, source) => _icons.IsSameIcon(gameId, stored, source),
+                link.Pairings);
             plan.Report.FilePath = link.FilePath;
             foreach (var warning in read.Warnings)
             {
