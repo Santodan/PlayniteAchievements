@@ -43,7 +43,8 @@ namespace PlayniteAchievements.Models.Settings
     {
         ApiName,
         DisplayName,
-        RowOrder
+        RowOrder,
+        Paired
     }
 
     /// <summary>How unlock time cells are read.</summary>
