@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Models.Settings
         Points
     }
 
-    /// <summary>How a file row is matched to an achievement, in priority order.</summary>
+    /// <summary>How a file row was matched to an achievement.</summary>
     public enum LinkedFileMatchKey
     {
         ApiName,
@@ -88,8 +88,6 @@ namespace PlayniteAchievements.Models.Settings
 
         public static readonly string[] DefaultFalseValues = { "false", "no", "n", "0", "locked" };
 
-        public static readonly LinkedFileMatchKey[] DefaultMatchOrder = { LinkedFileMatchKey.ApiName, LinkedFileMatchKey.DisplayName };
-
         public string Name { get; set; }
 
         [JsonConverter(typeof(StringEnumConverter))]
@@ -118,17 +116,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<LinkedFileColumnMapping> Columns { get; set; }
 
-        [JsonProperty(ItemConverterType = typeof(StringEnumConverter))]
-        public List<LinkedFileMatchKey> MatchOrder { get; set; }
-
         /// <summary>Rows that match no achievement become new custom achievements.</summary>
         public bool CreateUnmatchedRows { get; set; }
-
-        /// <summary>
-        /// A row's presence means the achievement is unlocked, for files that list only earned
-        /// achievements and carry no unlocked column.
-        /// </summary>
-        public bool RowPresenceMeansUnlocked { get; set; }
 
         /// <summary>Cell values that read as unlocked; null uses <see cref="DefaultTrueValues"/>.</summary>
         public List<string> UnlockedTrueValues { get; set; }
@@ -178,9 +167,7 @@ namespace PlayniteAchievements.Models.Settings
                 RowElementPath = Trim(schema.RowElementPath),
                 IniFlatMode = schema.IniFlatMode,
                 Columns = NormalizeColumns(schema.Columns),
-                MatchOrder = NormalizeMatchOrder(schema.MatchOrder),
                 CreateUnmatchedRows = schema.CreateUnmatchedRows,
-                RowPresenceMeansUnlocked = schema.RowPresenceMeansUnlocked,
                 UnlockedTrueValues = NormalizeValues(schema.UnlockedTrueValues),
                 TimeFormat = schema.TimeFormat == LinkedFileTimeFormat.Custom && customTimeFormat == null
                     ? LinkedFileTimeFormat.Auto
@@ -205,9 +192,7 @@ namespace PlayniteAchievements.Models.Settings
                 RowElementPath = RowElementPath,
                 IniFlatMode = IniFlatMode,
                 Columns = Columns?.Where(mapping => mapping != null).Select(mapping => mapping.Clone()).ToList(),
-                MatchOrder = MatchOrder?.ToList(),
                 CreateUnmatchedRows = CreateUnmatchedRows,
-                RowPresenceMeansUnlocked = RowPresenceMeansUnlocked,
                 UnlockedTrueValues = UnlockedTrueValues?.ToList(),
                 TimeFormat = TimeFormat,
                 CustomTimeFormat = CustomTimeFormat,
@@ -229,10 +214,27 @@ namespace PlayniteAchievements.Models.Settings
             return TryGetColumn(field, out _);
         }
 
-        /// <summary>The match keys to try, in order, falling back to the default order.</summary>
+        /// <summary>
+        /// A listed row means unlocked when the mapping names achievements and nothing else, as
+        /// in files that list only earned achievements. Any other mapped column, such as an
+        /// unlock state, a time, progress or a description, leaves unlock state to the columns.
+        /// </summary>
         [JsonIgnore]
-        public IReadOnlyList<LinkedFileMatchKey> EffectiveMatchOrder =>
-            MatchOrder != null && MatchOrder.Count > 0 ? (IReadOnlyList<LinkedFileMatchKey>)MatchOrder : DefaultMatchOrder;
+        public bool RowPresenceMeansUnlocked =>
+            Columns != null &&
+            Columns.Any(mapping => mapping != null && (mapping.Field == LinkedFileField.ApiName || mapping.Field == LinkedFileField.DisplayName)) &&
+            Columns.All(mapping => mapping == null ||
+                                   mapping.Field == LinkedFileField.Ignore ||
+                                   mapping.Field == LinkedFileField.ApiName ||
+                                   mapping.Field == LinkedFileField.DisplayName);
+
+        /// <summary>
+        /// Rows pair with achievements by row order only when no column is mapped to API Name or
+        /// Name to match them by.
+        /// </summary>
+        [JsonIgnore]
+        public bool MatchesByRowOrder =>
+            !HasColumn(LinkedFileField.ApiName) && !HasColumn(LinkedFileField.DisplayName);
 
         /// <summary>The values that read as unlocked, lowercased, falling back to the defaults.</summary>
         [JsonIgnore]
@@ -307,20 +309,6 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             return normalized.Count > 0 ? normalized : null;
-        }
-
-        private static List<LinkedFileMatchKey> NormalizeMatchOrder(IEnumerable<LinkedFileMatchKey> order)
-        {
-            var normalized = new List<LinkedFileMatchKey>();
-            foreach (var key in order ?? Enumerable.Empty<LinkedFileMatchKey>())
-            {
-                if (!normalized.Contains(key))
-                {
-                    normalized.Add(key);
-                }
-            }
-
-            return normalized.Count > 0 ? normalized : DefaultMatchOrder.ToList();
         }
 
         private static List<string> NormalizeValues(IEnumerable<string> values)
