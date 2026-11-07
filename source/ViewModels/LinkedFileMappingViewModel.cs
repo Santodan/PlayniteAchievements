@@ -74,7 +74,6 @@ namespace PlayniteAchievements.ViewModels
         private string _rootPath;
         private string _sheetName;
         private string _rowElementPath;
-        private bool _iniFlatMode;
         private bool _createUnmatched;
         private LinkedFileOption<LinkedFileTimeFormat> _selectedTimeFormat;
         private string _customTimeFormat;
@@ -278,17 +277,11 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsXlsx => _selectedFormat?.Value == LinkedFileFormat.Xlsx;
 
-        public bool UsesRootPath =>
-            _selectedFormat?.Value == LinkedFileFormat.Json ||
-            _selectedFormat?.Value == LinkedFileFormat.Toml ||
-            _selectedFormat?.Value == LinkedFileFormat.Ini;
+        public bool UsesRootPath => _selectedFormat?.Value == LinkedFileFormat.Json || _selectedFormat?.Value == LinkedFileFormat.Toml;
 
         public bool IsXml => _selectedFormat?.Value == LinkedFileFormat.Xml;
 
         public bool IsIni => _selectedFormat?.Value == LinkedFileFormat.Ini;
-
-        /// <summary>One key per row across every section only matters while no section is picked.</summary>
-        public bool ShowsIniFlatMode => IsIni && string.IsNullOrWhiteSpace(_rootPath);
 
         public bool UsesHeaderRow => IsDelimited || IsXlsx;
 
@@ -307,11 +300,7 @@ namespace PlayniteAchievements.ViewModels
         public string RootPath
         {
             get => _rootPath;
-            set
-            {
-                SetSetting(ref _rootPath, value, reread: true);
-                OnPropertyChanged(nameof(ShowsIniFlatMode));
-            }
+            set => SetSetting(ref _rootPath, value, reread: true);
         }
 
         public string SheetName
@@ -324,12 +313,6 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _rowElementPath;
             set => SetSetting(ref _rowElementPath, value, reread: true);
-        }
-
-        public bool IniFlatMode
-        {
-            get => _iniFlatMode;
-            set => SetSetting(ref _iniFlatMode, value, reread: true);
         }
 
         // ---------------------------------------------------------------- matching and values
@@ -499,7 +482,6 @@ namespace PlayniteAchievements.ViewModels
                 SheetName = _sheetName,
                 RootPath = _rootPath,
                 RowElementPath = _rowElementPath,
-                IniFlatMode = _iniFlatMode,
                 // Without a file there are no columns to show, so a loaded mapping stands as loaded.
                 Columns = Columns.Count == 0 && _pendingMappings != null
                     ? _pendingMappings.Select(mapping => mapping.Clone()).ToList()
@@ -574,7 +556,6 @@ namespace PlayniteAchievements.ViewModels
                 _rootPath = schema?.RootPath;
                 _sheetName = schema?.SheetName;
                 _rowElementPath = schema?.RowElementPath;
-                _iniFlatMode = schema?.IniFlatMode ?? false;
                 _createUnmatched = schema?.CreateUnmatchedRows ?? false;
                 _selectedTimeFormat = TimeFormatOptions.FirstOrDefault(option => option.Value == (schema?.TimeFormat ?? LinkedFileTimeFormat.Auto)) ?? TimeFormatOptions[0];
                 _customTimeFormat = schema?.CustomTimeFormat;
@@ -590,7 +571,7 @@ namespace PlayniteAchievements.ViewModels
             foreach (var name in new[]
             {
                 nameof(DelimiterText), nameof(HasHeader), nameof(RootPath), nameof(SheetName), nameof(RowElementPath),
-                nameof(IniFlatMode), nameof(CreateUnmatched), nameof(SelectedTimeFormat),
+                nameof(CreateUnmatched), nameof(SelectedTimeFormat),
                 nameof(IsCustomTimeFormat), nameof(CustomTimeFormat), nameof(TimesAreLocal), nameof(UnlockedValues)
             })
             {
@@ -1037,7 +1018,6 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(UsesRootPath));
             OnPropertyChanged(nameof(IsXml));
             OnPropertyChanged(nameof(IsIni));
-            OnPropertyChanged(nameof(ShowsIniFlatMode));
             OnPropertyChanged(nameof(UsesHeaderRow));
         }
 
