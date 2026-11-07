@@ -464,6 +464,26 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Ini_MixedLayoutsPickTheirShape()
+        {
+            Func<string, string[]> columns = text =>
+                ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Ini }).Table.Columns.ToArray();
+
+            CollectionAssert.AreEqual(
+                new[] { "$key", "unlocked", "progress" },
+                columns("[unlocked]\na=1\nb=0\nc=0\nd=1\ne=0\n[progress]\na=10\nb=3\nc=0\nd=10\ne=7\n"),
+                "Every achievement in both sections is still one row per achievement.");
+            CollectionAssert.AreEqual(
+                new[] { "$section", "Achieved", "UnlockTime", "Progress", "Max" },
+                columns("[a]\nAchieved=1\nUnlockTime=1\nProgress=1\nMax=1\n[b]\nAchieved=0\nUnlockTime=0\nProgress=0\nMax=1\n[c]\nAchieved=0\nUnlockTime=0\nProgress=0\nMax=1\n"),
+                "A few achievements with several fields each are still one row per section.");
+            CollectionAssert.AreEqual(
+                new[] { "$section", "version", "Achieved" },
+                columns("version=2\n[a]\nAchieved=1\n[b]\nAchieved=0\n[c]\nAchieved=1\n"),
+                "Loose keys before the sections do not change the shape.");
+        }
+
+        [TestMethod]
         public void Ini_MappingKeepsItsShapeWhenOneSectionIsLeft()
         {
             const string text = "[ach_one]\nAchieved=1\nUnlockTime=1700000000\n";
