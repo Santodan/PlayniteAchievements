@@ -6,13 +6,13 @@ using System.Linq;
 namespace PlayniteAchievements.Services.LinkedFiles
 {
     /// <summary>
-    /// INI text as a table. A rows path names one section, and every key of that section is one
-    /// row with <c>$key</c> and <c>$value</c> columns. Without one, section mode makes every
-    /// section one row with its name in <c>$section</c> and its keys as columns; flat mode,
-    /// chosen by the schema or when the file has no section headers, makes every key one row
-    /// with <c>$section</c>, <c>$key</c> and <c>$value</c> columns. Section names are offered as
-    /// rows paths. Comment lines start with ';' or '#'; a value keeps everything after the first
-    /// '=' apart from one pair of surrounding quotes.
+    /// INI text as a table, shaped by the file. When the same keys repeat from section to
+    /// section, as in one section per achievement, every section is one row with its name in
+    /// <c>$section</c> and its keys as columns. Otherwise every key is one row with its name in
+    /// <c>$key</c> and one column per section holding its value there, so a file with
+    /// <c>[unlocked]</c> and <c>[progress]</c> sections reads both for each achievement; keys
+    /// before any section header fill a <c>$value</c> column. Comment lines start with ';' or
+    /// '#'; a value keeps everything after the first '=' apart from one pair of surrounding quotes.
     /// </summary>
     internal static class IniTableReader
     {
@@ -105,28 +105,14 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
-            var rowPaths = sections.Where(section => section.Name.Length > 0).Select(section => section.Name).ToList();
-            var rowsPath = (schema.RootPath ?? string.Empty).Trim();
-            if (rowsPath.Length > 0)
-            {
-                if (!byName.TryGetValue(rowsPath, out var selected))
-                {
-                    return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
-                }
-
-                var sectionRows = selected.Entries.Select(entry => new[] { entry.Key, entry.Value });
-                return LinkedFileReadResult.Ok(LinkedFileTable.Build(new[] { KeyColumn, ValueColumn }, sectionRows), rowPaths: rowPaths);
-            }
-
             if (sections.Count == 0)
             {
                 return LinkedFileReadResult.Ok(LinkedFileTable.Empty);
             }
 
-            if (schema.IniFlatMode || !sawHeader)
+            if (!sawHeader || !SectionsAreRecords(sections))
             {
-                var flatRows = sections.SelectMany(section => section.Entries.Select(entry => new[] { section.Name, entry.Key, entry.Value }));
-                return LinkedFileReadResult.Ok(LinkedFileTable.Build(new[] { SectionColumn, KeyColumn, ValueColumn }, flatRows), rowPaths: rowPaths);
+                return LinkedFileReadResult.Ok(KeysAsRows(sections));
             }
 
             var columns = new List<string> { SectionColumn };
@@ -146,7 +132,56 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     column == SectionColumn ? section.Name : lookup.TryGetValue(column, out var value) ? value : string.Empty);
             });
 
-            return LinkedFileReadResult.Ok(LinkedFileTable.Build(columns, rows), rowPaths: rowPaths);
+            return LinkedFileReadResult.Ok(LinkedFileTable.Build(columns, rows));
+        }
+
+        /// <summary>
+        /// Whether sections are the records: there are at least two, and at least half of the
+        /// distinct keys appear in more than one section.
+        /// </summary>
+        private static bool SectionsAreRecords(IReadOnlyList<Section> sections)
+        {
+            if (sections.Count < 2)
+            {
+                return false;
+            }
+
+            var sectionsByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in sections.SelectMany(section => section.Entries))
+            {
+                sectionsByKey.TryGetValue(entry.Key, out var count);
+                sectionsByKey[entry.Key] = count + 1;
+            }
+
+            var shared = sectionsByKey.Values.Count(count => count > 1);
+            return sectionsByKey.Count > 0 && shared * 2 >= sectionsByKey.Count;
+        }
+
+        /// <summary>One row per distinct key, in file order, with one column per section.</summary>
+        private static LinkedFileTable KeysAsRows(IReadOnlyList<Section> sections)
+        {
+            var columns = new List<string> { KeyColumn };
+            columns.AddRange(sections.Select(section => section.Name.Length == 0 ? ValueColumn : section.Name));
+
+            var rows = new List<string[]>();
+            var rowByKey = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < sections.Count; i++)
+            {
+                foreach (var entry in sections[i].Entries)
+                {
+                    if (!rowByKey.TryGetValue(entry.Key, out var row))
+                    {
+                        row = Enumerable.Repeat(string.Empty, columns.Count).ToArray();
+                        row[0] = entry.Key;
+                        rowByKey[entry.Key] = row;
+                        rows.Add(row);
+                    }
+
+                    row[i + 1] = entry.Value;
+                }
+            }
+
+            return LinkedFileTable.Build(columns, rows);
         }
 
         private static string Unquote(string value)
