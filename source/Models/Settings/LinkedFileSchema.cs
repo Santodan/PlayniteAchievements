@@ -32,7 +32,10 @@ namespace PlayniteAchievements.Models.Settings
         Hidden,
         UnlockedIconPath,
         LockedIconPath,
-        Points
+        Points,
+        TrophyType,
+        Rarity,
+        Category
     }
 
     /// <summary>How a file row was matched to an achievement.</summary>
