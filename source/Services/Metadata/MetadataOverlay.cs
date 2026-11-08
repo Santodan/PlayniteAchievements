@@ -236,18 +236,17 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
-        /// source changed since the last overlay, so cached icon files must be overwritten.
+        /// Builds the game's metadata layer and resolves the payload over it.
         /// <paramref name="forceIcons"/> overwrites the sources' saved row icons as well.
         /// <paramref name="keepStored"/>, or a run that <see cref="KeepsStored"/>, asks no source:
         /// every planned source is treated as failed, so the game keeps what was last saved.
         /// </summary>
-        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false, bool keepStored = false)
+        public async Task ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false, bool keepStored = false)
         {
             var gameId = data?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
             if (gameId == Guid.Empty || data?.Achievements == null || data.Achievements.Count == 0)
             {
-                return false;
+                return;
             }
 
             // Each overlay starts from the platform's own values; the sources' go to a layer of their own.
@@ -264,7 +263,8 @@ namespace PlayniteAchievements.Services.Metadata
             var plan = BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
             if (plan.IsEmpty)
             {
-                return _links?.RecordApplied(gameId, null, null) ?? false;
+                _links?.RecordApplied(gameId, null, null);
+                return;
             }
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
@@ -295,10 +295,9 @@ namespace PlayniteAchievements.Services.Metadata
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
             _timings.Add("icons", step);
             step = Stopwatch.GetTimestamp();
-            var iconsChanged = await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, ct).ConfigureAwait(false);
+            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, ct).ConfigureAwait(false);
             _timings.Add("apply", step);
             _timings.Add("total", started);
-            return iconsChanged;
         }
 
         /// <summary>
@@ -358,9 +357,9 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// Builds each achievement's metadata layer from the loaded sources, resolves the payload
         /// over it, and records what was applied. A failed source's fields keep the metadata layer
-        /// last saved. Returns whether the icon source changed.
+        /// last saved.
         /// </summary>
-        private async Task<bool> ApplySetsAsync(
+        private async Task ApplySetsAsync(
             Guid gameId,
             GameAchievementData data,
             Dictionary<AchievementDetail, LayerDraft> drafts,
@@ -508,7 +507,7 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            return _links?.RecordApplied(
+            _links?.RecordApplied(
                 gameId,
                 iconSource,
                 capstoneArt,
@@ -517,7 +516,7 @@ namespace PlayniteAchievements.Services.Metadata
                 capstoneTitle,
                 capstoneDescription,
                 capstoneMatch,
-                categoryCapstones) ?? false;
+                categoryCapstones);
         }
 
         public void Dispose()
