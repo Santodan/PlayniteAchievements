@@ -14,7 +14,7 @@ namespace PlayniteAchievements.Services.GameSearch
             Name = string.IsNullOrWhiteSpace(name) ? id : name.Trim();
             IconUrl = string.IsNullOrWhiteSpace(iconUrl) ? null : iconUrl;
             Platforms = string.IsNullOrWhiteSpace(platforms) ? null : platforms;
-            Region = string.IsNullOrWhiteSpace(region) ? null : region.Trim().ToUpperInvariant();
+            Region = string.IsNullOrWhiteSpace(region) ? null : region.Trim();
         }
 
         /// <summary>What the source stores for the game (an appId, a page slug); never shown.</summary>
@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.GameSearch
         /// <summary>The platforms the source lists the game on ("Steam, PS4"); null when it lists none.</summary>
         public string Platforms { get; }
 
-        /// <summary>The regional release the source lists the game as ("EU", "NA"); null when it lists none.</summary>
+        /// <summary>The release region the source lists the game under ("Europe"); null when it lists none.</summary>
         public string Region { get; }
 
         /// <summary>True for the game named by an id or address typed into the search box.</summary>
