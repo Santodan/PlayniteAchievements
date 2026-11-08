@@ -53,7 +53,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     GameId,
                     (long)AchievementField.Description);
 
-                var row = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.ViewName + ";").Single();
+                var row = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.LayerViewName + ";").Single();
 
                 Assert.AreEqual("Mine", row.DisplayName);
                 Assert.IsNull(row.Description, "a cleared custom description hides the platform's");
@@ -77,7 +77,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Metadata(db, "borrowed", displayName: "Borrowed", points: 50, tags: "Collectable", percent: 2.0, rarity: "UltraRare", order: 3,
                     cleared: AchievementField.Category | AchievementField.CategoryKind | AchievementField.Description);
 
-                var rows = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.ViewName + " ORDER BY Id;").ToList();
+                var rows = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.LayerViewName + " ORDER BY Id;").ToList();
 
                 var plain = rows.Single(row => row.ApiName == "plain");
                 Assert.AreEqual("Own", plain.DisplayName);
@@ -121,11 +121,59 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Definition(db, "gone", "Own", null, null, "Default", null, null, null, "Common");
                 Metadata(db, "gone", displayName: "Borrowed");
 
-                db.ExecuteNonQuery("DELETE FROM AchievementDefinitions WHERE ApiName = 'gone';");
+                db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE ApiName = 'gone';");
 
                 var left = db.Load<CountRow>("SELECT COUNT(*) AS Count FROM AchievementMetadataLayer;").Single();
                 Assert.AreEqual(0, left.Count);
             });
+        }
+
+        private sealed class SqlRow
+        {
+            public string Sql { get; set; }
+        }
+
+        [TestMethod]
+        public void RenamingTheOldDefinitionsTable_CarriesForeignKeysAndTriggers()
+        {
+            var path = Path.Combine(Path.GetTempPath(), "playach-rename-" + Guid.NewGuid().ToString("N") + ".db");
+            try
+            {
+                using (var db = new SQLiteDatabase(
+                    path,
+                    SQLiteOpenOptions.SQLITE_OPEN_READWRITE | SQLiteOpenOptions.SQLITE_OPEN_CREATE | SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                {
+                    // The v21 shape: the definitions table, an unlock table pointing at it, and the
+                    // metadata layer with its delete trigger.
+                    db.ExecuteNonQuery("CREATE TABLE AchievementDefinitions (Id INTEGER PRIMARY KEY AUTOINCREMENT, ApiName TEXT NOT NULL);");
+                    db.ExecuteNonQuery(@"CREATE TABLE UserAchievements (Id INTEGER PRIMARY KEY, AchievementDefinitionId INTEGER NOT NULL,
+                        FOREIGN KEY (AchievementDefinitionId) REFERENCES AchievementDefinitions(Id) ON DELETE CASCADE);");
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql.Replace("PlatformDefinitions", "AchievementDefinitions"));
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql.Replace("PlatformDefinitions", "AchievementDefinitions"));
+                    db.ExecuteNonQuery("INSERT INTO AchievementDefinitions (Id, ApiName) VALUES (1, 'a');");
+                    db.ExecuteNonQuery(AchievementLayerSql.InsertSql, 1L, "Borrowed", null, null, null, null, null, null, null, null, null, null, null, 0L);
+
+                    // The schema manager's rename.
+                    db.ExecuteNonQuery("PRAGMA legacy_alter_table = OFF;");
+                    db.ExecuteNonQuery("ALTER TABLE AchievementDefinitions RENAME TO PlatformDefinitions;");
+
+                    string SqlOf(string name) =>
+                        db.Load<SqlRow>("SELECT sql AS Sql FROM sqlite_master WHERE name = ?;", name).Single().Sql;
+                    StringAssert.Contains(SqlOf("UserAchievements"), "PlatformDefinitions");
+                    StringAssert.Contains(SqlOf("AchievementMetadataLayer"), "PlatformDefinitions");
+                    StringAssert.Contains(SqlOf("TR_AchievementDefinitions_DeleteMetadataLayer"), "PlatformDefinitions");
+
+                    db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE Id = 1;");
+                    Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementMetadataLayer;"), "the trigger follows the table");
+                }
+            }
+            finally
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
         }
 
         private static void Definition(
@@ -133,7 +181,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             string category, string kind, string tags, double? percent, string rarity)
         {
             db.ExecuteNonQuery(
-                @"INSERT INTO AchievementDefinitions
+                @"INSERT INTO PlatformDefinitions
                     (GameId, ApiName, DisplayName, Description, Points, Category, CategoryKind, Tags, GlobalPercentUnlocked, Rarity, CreatedUtc, UpdatedUtc)
                   VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '');",
                 apiName, name, description, points, category, kind, tags, percent, rarity);
@@ -143,7 +191,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             SQLiteDatabase db, string apiName, string displayName = null, int? points = null, string tags = null,
             double? percent = null, string rarity = null, int? order = null, AchievementField cleared = AchievementField.None)
         {
-            var id = db.ExecuteScalar<long>("SELECT Id FROM AchievementDefinitions WHERE ApiName = ?;", apiName);
+            var id = db.ExecuteScalar<long>("SELECT Id FROM PlatformDefinitions WHERE ApiName = ?;", apiName);
             db.ExecuteNonQuery(
                 AchievementLayerSql.InsertSql,
                 id, displayName, null, null, null, points, null, null, null, tags, percent, rarity, order, (long)cleared);
@@ -160,7 +208,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     SQLiteOpenOptions.SQLITE_OPEN_CREATE |
                     SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
                 {
-                    db.ExecuteNonQuery(@"CREATE TABLE AchievementDefinitions (
+                    db.ExecuteNonQuery(@"CREATE TABLE PlatformDefinitions (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         GameId INTEGER NOT NULL,
                         ApiName TEXT NOT NULL COLLATE NOCASE,
