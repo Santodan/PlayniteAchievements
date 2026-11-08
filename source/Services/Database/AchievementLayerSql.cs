@@ -13,14 +13,11 @@ namespace PlayniteAchievements.Services.Database
     /// <remarks>
     /// <see cref="ViewName"/> keeps the name and columns the definitions table had before the
     /// layers, so other add-ons that read the database keep their queries and see resolved
-    /// values; it only ever gains columns. <see cref="LayerViewName"/> adds each layer's raw
-    /// values for the plugin's own loader. Writes and identity checks use the tables.
+    /// values; it only ever gains columns. The plugin's loader and writers use the tables.
     /// </remarks>
     internal static class AchievementLayerSql
     {
         public const string ViewName = "AchievementDefinitions";
-
-        public const string LayerViewName = "AchievementDefinitionLayers";
 
         /// <summary>
         /// The current user's achievements with their unlock state: one row per achievement of each
@@ -30,7 +27,7 @@ namespace PlayniteAchievements.Services.Database
         public const string UserViewName = "ResolvedAchievements";
 
         /// <summary>Every view this class creates, including names retired since.</summary>
-        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, ViewName, LayerViewName, "ResolvedDefinitions" };
+        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, ViewName, "AchievementDefinitionLayers", "ResolvedDefinitions" };
 
         /// <summary>The metadata layer columns, in insert order, after AchievementDefinitionId.</summary>
         public static readonly IReadOnlyList<string> MetadataColumns = new[]
@@ -113,7 +110,6 @@ namespace PlayniteAchievements.Services.Database
             }
 
             yield return "CREATE VIEW " + ViewName + " AS SELECT\n" + PublicColumns() + FromClause + ";";
-            yield return "CREATE VIEW " + LayerViewName + " AS SELECT\n" + PublicColumns() + ",\n" + RawLayerColumns() + FromClause + ";";
             yield return UserViewSql();
         }
 
@@ -151,38 +147,23 @@ namespace PlayniteAchievements.Services.Database
                 c.GoalOrder IS NOT NULL AS IsGoal,
                 c.GoalOrder AS GoalOrder,
                 c.CustomOrder AS CustomOrder,
-                " + CategoryValue("SortIndex", "g.PlayniteGameId", ResolvedCategory) + @" AS CategoryOrder,
-                " + CategoryValue("ImagePath", "g.PlayniteGameId", ResolvedCategory) + @" AS CategoryArtPath";
+                k.SortIndex AS CategoryOrder,
+                k.ImagePath AS CategoryArtPath";
 
-        private static string RawLayerColumns() => @"                ad.DisplayName AS P_DisplayName,
-                ad.Description AS P_Description,
-                ad.UnlockedIconPath AS P_UnlockedIconPath,
-                ad.LockedIconPath AS P_LockedIconPath,
-                ad.Points AS P_Points,
-                ad.Category AS P_Category,
-                ad.Tags AS P_Tags,
-                ad.CategoryKind AS P_CategoryKind,
-                ad.TrophyType AS P_TrophyType,
-                ad.GlobalPercentUnlocked AS P_GlobalPercentUnlocked,
-                ad.Rarity AS P_Rarity,
-                ad.MetadataOrder AS P_MetadataOrder,
-                m.AchievementDefinitionId IS NOT NULL AS HasMetadata,
-                " + string.Join(",\n                ", MetadataColumns.Select(column => "m." + column + " AS M_" + column)) + @"
-";
-
-        private const string FromClause = @"
+        private static readonly string FromClause = @"
               FROM PlatformDefinitions ad
               LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
               LEFT JOIN Games g ON g.Id = ad.GameId
               LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId";
+              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN AchievementCategories k ON k.PlayniteGameId = g.PlayniteGameId AND k.Category = " + ResolvedCategory;
 
         private const string CaptureColumns =
             "cap.CleanPath AS CleanCapturePath, cap.NotificationPath AS NotificationCapturePath, " +
             "cap.FramedPath AS FramedCapturePath, cap.VideoPath AS VideoCapturePath";
 
         /// <summary>The kind the user stored for the achievement's resolved category, if any.</summary>
-        private static string StoredKind => CategoryValue("Kind", "g.PlayniteGameId", ResolvedCategory);
+        private const string StoredKind = "k.Kind";
 
         private static string ResolvedCategory => "COALESCE(" + Value("Category", AchievementField.Category, custom: true) + ", 'Default')";
 
