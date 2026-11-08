@@ -231,7 +231,7 @@ namespace PlayniteAchievements.Services.Database
                         INNER JOIN UserAchievements ua
                             ON ua.UserGameProgressId = lp.UserGameProgressId
                            AND ua.Unlocked = 1
-                        INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                        INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId
                         WHERE lp.RowNum = 1
                           AND ad.ApiName IN (" + placeholders + ");",
                         chunk.Cast<object>().ToArray()).ToList();
@@ -551,7 +551,7 @@ namespace PlayniteAchievements.Services.Database
                     GROUP_CONCAT(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
                                  THEN ad.ApiName END, '~|~') AS PlatinumApiNames
                 FROM LatestProgress lp
-                LEFT JOIN AchievementDefinitions ad
+                LEFT JOIN " + AchievementLayerSql.ViewName + @" ad
                     ON ad.GameId = lp.GameId
                    AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                    WHERE ao.PlayniteGameId = lp.PlayniteGameId
@@ -648,7 +648,7 @@ namespace PlayniteAchievements.Services.Database
                     SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS Unlocked,
                     COUNT(ad.Id) AS Total
                 FROM LatestProgress lp
-                INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
                 LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
@@ -839,7 +839,7 @@ namespace PlayniteAchievements.Services.Database
                             CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
                             CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END AS Unlocked
                         FROM LatestProgress lp
-                        INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                        INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
                         LEFT JOIN UserAchievements ua
                             ON ua.AchievementDefinitionId = ad.Id
                            AND ua.UserGameProgressId = lp.UserGameProgressId
@@ -895,7 +895,7 @@ namespace PlayniteAchievements.Services.Database
                     CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'
                          THEN 1 ELSE 0 END AS IsSoftcore
                 FROM LatestProgress lp
-                INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
                 LEFT JOIN AchievementOverrides aov
                     ON aov.PlayniteGameId = lp.PlayniteGameId
                    AND aov.ApiName = ad.ApiName
@@ -961,7 +961,7 @@ namespace PlayniteAchievements.Services.Database
                     ON ua.UserGameProgressId = lp.UserGameProgressId
                    AND ua.Unlocked = 1
                    AND ua.UnlockTimeUtc IS NOT NULL
-                INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId
                 WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
@@ -1047,7 +1047,7 @@ namespace PlayniteAchievements.Services.Database
             }
 
             sql.Append(@"
-                INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId
                 WHERE lp.RowNum = 1");
             sql.Append(ScopeSql(scopeGameId));
             sql.Append(@"
