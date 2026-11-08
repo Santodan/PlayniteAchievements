@@ -87,13 +87,13 @@
                                Margin="4,0"
                                VerticalAlignment="Center"
                                Visibility="{Binding CanPick, Converter={StaticResource InverseBoolToVis}}" />
-                    <!-- Opens the window's one pairing dropdown under itself. The press is taken
-                         before the grid sees it, so the grid neither selects the row nor pulls
-                         focus away from the dropdown as it opens. -->
+                    <!-- Opens the window's one pairing dropdown under itself, on release, once the
+                         grid has finished handling the press. -->
                     <ToggleButton Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
                                   IsChecked="{Binding IsPickerOpen, Mode=OneWay}"
                                   Focusable="False"
                                   PreviewMouseLeftButtonDown="PickerButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="PickerButton_PreviewMouseLeftButtonUp"
                                   Visibility="{Binding CanPick, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding Match}" Style="{StaticResource MatchCellTextStyle}" />
                     </ToggleButton>
