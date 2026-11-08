@@ -28,7 +28,8 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
-    internal sealed class FriendsOverviewViewModel : ObservableObject, IDisposable, IOverviewRefreshHeaderViewModel
+    internal sealed class FriendsOverviewViewModel :
+        ObservableObject, IDisposable, IOverviewRefreshHeaderViewModel, IFriendSummariesFilterSource
     {
         private readonly IFriendCacheManager _friendCache;
         private readonly RefreshEntryPoint _refreshCoordinator;
@@ -336,11 +337,10 @@ namespace PlayniteAchievements.ViewModels
                 return Array.Empty<FriendSummaryItem>();
             }
 
-            return _allFriends
-                .Where(friend => friend != null &&
-                    !IsSameFriend(friend, SelectedFriend) &&
-                    HasFriendGamePairData(friend, SelectedGame))
-                .ToList();
+            return FriendSurfaceControlBars.GetCompareFriendOptions(
+                _allFriends,
+                SelectedFriend,
+                friend => HasFriendGamePairData(friend, SelectedGame));
         }
         public string AchievementColumnSettingsKey
         {
@@ -606,46 +606,21 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
         {
-            var controlBar = new GridControlBarViewModel
-            {
-                Search = new GridSearchControl(
+            return FriendSurfaceControlBars.CreateFriendSummariesControlBar(
+                this,
+                new GridMultiSelectFilter(
                     this,
-                    nameof(FriendSearchText),
-                    () => FriendSearchText,
-                    value => FriendSearchText = value,
-                    GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
-                    ClearFriendSearch)
+                    nameof(SelectedFriendProviderFilterText),
+                    () => SelectedFriendProviderFilterText,
+                    () => FriendProviderFilterOptions,
+                    IsFriendProviderFilterSelected,
+                    SetFriendProviderFilterSelected,
+                    PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
                 {
-                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
-                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
-                }
-            };
-            controlBar.Items.Add(new GridToggleFilter(
-                this,
-                nameof(FavoritesOnly),
-                ResourceProvider.GetString("LOCPlayAch_RefreshModeShort_Favorites"),
-                () => FavoritesOnly,
-                value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite)
-            {
-                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
-                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
-                ClearedValue = false
-            });
-            controlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedFriendProviderFilterText),
-                () => SelectedFriendProviderFilterText,
-                () => FriendProviderFilterOptions,
-                IsFriendProviderFilterSelected,
-                SetFriendProviderFilterSelected,
-                PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName)
-            {
-                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
-                LabelKey = "LOCPlayAch_Common_Platform",
-                Width = 118
-            });
-            return controlBar;
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Platform,
+                    LabelKey = "LOCPlayAch_Common_Platform",
+                    Width = 118
+                });
         }
 
         private GridControlBarViewModel CreateGameSummariesControlBar()
