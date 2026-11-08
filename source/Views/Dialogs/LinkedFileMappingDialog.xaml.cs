@@ -144,16 +144,23 @@ namespace PlayniteAchievements.Views.Dialogs
                 comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource()));
         }
 
-        // The row whose dropdown just closed, and when: the press that closes the dropdown by
-        // landing on the row's own cell must not open it again.
+        // The row whose dropdown a press outside it just closed, and when: a press on the row's
+        // own cell closes the dropdown, and its release must not open it again.
         private LinkedFilePreviewRow _closedRow;
         private int _closedAt;
 
-        /// <summary>
-        /// Opens the pairing dropdown under the cell. Handled here so the grid neither selects the
-        /// row nor takes focus from the dropdown as it opens.
-        /// </summary>
+        /// <summary>Keeps the press from toggling the button; the dropdown opens on release.</summary>
         private void PickerButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Opens the pairing dropdown under the cell. Opened on release rather than on press: the
+        /// grid's cell handles every press, handled or not, by taking focus, and a dropdown opened
+        /// during the press closes as soon as the cell does.
+        /// </summary>
+        private void PickerButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             if (!(sender is FrameworkElement cell) || !(cell.DataContext is LinkedFilePreviewRow row) || !row.CanPick)
@@ -161,21 +168,27 @@ namespace PlayniteAchievements.Views.Dialogs
                 return;
             }
 
-            if (ReferenceEquals(row, _closedRow) && unchecked(Environment.TickCount - _closedAt) < 300)
+            var closedByThisClick = ReferenceEquals(row, _closedRow) && unchecked(Environment.TickCount - _closedAt) < 1000;
+            _closedRow = null;
+            if (closedByThisClick)
             {
-                _closedRow = null;
                 return;
             }
 
-            PairingPopup.PlacementTarget = cell;
-            PairingPopup.MinWidth = Math.Max(320, cell.ActualWidth);
-            PairingPopup.DataContext = row;
-            row.IsPickerOpen = true;
+            // Queued past the release, so nothing still handling this click sees the dropdown open.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                PairingPopup.PlacementTarget = cell;
+                PairingPopup.MinWidth = Math.Max(320, cell.ActualWidth);
+                PairingPopup.DataContext = row;
+                row.IsPickerOpen = true;
+            }), System.Windows.Threading.DispatcherPriority.Input);
         }
 
         private void PairingPopup_Closed(object sender, EventArgs e)
         {
-            _closedRow = PairingPopup.DataContext as LinkedFilePreviewRow;
+            // Only a press outside the dropdown closes it with the button down; a pick happens on release.
+            _closedRow = Mouse.LeftButton == MouseButtonState.Pressed ? PairingPopup.DataContext as LinkedFilePreviewRow : null;
             _closedAt = Environment.TickCount;
         }
 
