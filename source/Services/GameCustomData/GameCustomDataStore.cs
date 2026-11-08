@@ -398,11 +398,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.GoalAchievementApiNames, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementCategoryOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementCategoryTypeOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementLockedIconOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementNotes, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementOverrides, renamedApiNames);
 
             return changed;
@@ -1944,11 +1939,11 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return !StringMapEquals(
-                       previousData.AchievementUnlockedIconOverrides,
-                       currentData?.AchievementUnlockedIconOverrides) ||
+                       AchievementOverride.Project(previousData.AchievementOverrides, o => o.UnlockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.UnlockedIconPath)) ||
                    !StringMapEquals(
-                       previousData.AchievementLockedIconOverrides,
-                       currentData?.AchievementLockedIconOverrides) ||
+                       AchievementOverride.Project(previousData.AchievementOverrides, o => o.LockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.LockedIconPath)) ||
                    !CategoryImageMapEquals(
                        previousData.AchievementCategoryImageOverrides,
                        currentData?.AchievementCategoryImageOverrides);
@@ -2033,7 +2028,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var retainedPath in EnumerateManagedCustomIconPaths(
                 gameIdText,
-                data.AchievementUnlockedIconOverrides,
+                AchievementOverride.Project(data.AchievementOverrides, o => o.UnlockedIconPath),
                 fileStems,
                 AchievementIconVariant.Unlocked))
             {
@@ -2042,7 +2037,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var retainedPath in EnumerateManagedCustomIconPaths(
                 gameIdText,
-                data.AchievementLockedIconOverrides,
+                AchievementOverride.Project(data.AchievementOverrides, o => o.LockedIconPath),
                 fileStems,
                 AchievementIconVariant.Locked))
             {
