@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Services.Tests
                 // And the authorship is actually still there, at its post-fold home.
                 Assert.AreEqual("ach_final", after.Capstones.Single().ApiName);
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, after.AchievementOrder.ToList());
-                Assert.AreEqual("a note", after.AchievementNotes["ach_one"]);
+                Assert.AreEqual("a note", AchievementOverride.Project(after.AchievementOverrides, o => o.Note)["ach_one"]);
             }
             finally
             {
@@ -174,7 +174,7 @@ namespace PlayniteAchievements.Services.Tests
                 CollectionAssert.AreEqual(
                     new[] { "ach_one", "ach_two" },
                     reloaded.AchievementOrder.ToArray());
-                Assert.AreEqual("a note", reloaded.AchievementNotes["ach_one"]);
+                Assert.AreEqual("a note", AchievementOverride.Project(reloaded.AchievementOverrides, o => o.Note)["ach_one"]);
             }
             finally
             {
