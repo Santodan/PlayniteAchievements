@@ -69,6 +69,13 @@ namespace PlayniteAchievements.Services.Images
             return _current?.Root ?? DefaultRoot(pluginDataRoot);
         }
 
+        /// <summary>
+        /// False while the current icon cache folder takes no writes: its custom folder was missing
+        /// at startup. Code that writes into the cache itself rather than through the disk image
+        /// service checks this first.
+        /// </summary>
+        public static bool CurrentAcceptsWrites => _current?.IsAvailable ?? true;
+
         public event EventHandler<IconCacheRootChangedEventArgs> RootChanged;
 
         public string PluginDataRoot { get; }
