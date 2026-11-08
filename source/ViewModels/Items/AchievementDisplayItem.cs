@@ -1856,7 +1856,6 @@ namespace PlayniteAchievements.ViewModels.Items
                 case nameof(PersistedSettings.ShowLockedIcon):
                 case nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable):
                 case nameof(PersistedSettings.ShowFriendSpoilers):
-                case nameof(PersistedSettings.SeparateLockedIconEnabledGameIds):
                 case nameof(PersistedSettings.UseUniformRarityBadges):
                 case nameof(PersistedSettings.RarityColors):
                 case nameof(PersistedSettings.LockedFallbackIconPath):
