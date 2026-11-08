@@ -130,9 +130,13 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.ProviderTags = AchievementTagHelper.Normalize(below.Tags) ?? string.Empty;
                 detail.ProviderCategoryKind = CategoryKindHelper.Normalize(below.CategoryKind) ?? string.Empty;
 
-                detail.CustomLayer = userOverride?.ToLayer();
-                AchievementLayers.Resolve(detail);
-                AchievementOverrideApplier.ApplyUnlockTime(detail, userOverride, customData.HasManualLink);
+                if (userOverride != null)
+                {
+                    detail.CustomLayer = userOverride.ToLayer();
+                    AchievementLayers.Resolve(detail);
+                }
+
+                userOverride?.ApplyUnlockTimeTo(detail, customData.HasManualLink);
 
                 // NormalizePath applies the depth cap and empty-segment rules to every label, the
                 // provider's and the user's alike.
