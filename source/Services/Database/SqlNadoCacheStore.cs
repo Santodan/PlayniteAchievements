@@ -20,6 +20,7 @@ using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
 using SqlNado;
+using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -7912,43 +7913,17 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         private string MakeRelativePath(string absolutePath)
         {
-            if (string.IsNullOrWhiteSpace(absolutePath))
-            {
-                return absolutePath;
-            }
+            return StoredPathMapping.ToStored(
+                absolutePath,
+                _pluginUserDataPath,
+                CurrentIconCacheRoot());
+        }
 
-            // Already relative or URL - pass through unchanged
-            if (!Path.IsPathRooted(absolutePath))
-            {
-                return absolutePath;
-            }
-
-            if (absolutePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                return absolutePath;
-            }
-
-            if (string.IsNullOrWhiteSpace(_pluginUserDataPath))
-            {
-                return absolutePath;
-            }
-
-            try
-            {
-                var fullBasePath = Path.GetFullPath(_pluginUserDataPath).TrimEnd(Path.DirectorySeparatorChar);
-                var fullPath = Path.GetFullPath(absolutePath);
-
-                if (fullPath.StartsWith(fullBasePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                {
-                    return fullPath.Substring(fullBasePath.Length + 1);
-                }
-            }
-            catch
-            {
-                // Path operations can fail with invalid characters - return original
-            }
-
-            return absolutePath;
+        private string CurrentIconCacheRoot()
+        {
+            return string.IsNullOrWhiteSpace(_pluginUserDataPath)
+                ? IconCacheLocation.Current?.Root
+                : IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath);
         }
 
         /// <summary>
@@ -7957,37 +7932,10 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         internal string MakeAbsolutePath(string relativeOrAbsolutePath)
         {
-            if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
-            {
-                return relativeOrAbsolutePath;
-            }
-
-            // Already absolute - pass through unchanged
-            if (Path.IsPathRooted(relativeOrAbsolutePath))
-            {
-                return relativeOrAbsolutePath;
-            }
-
-            // URL - pass through unchanged
-            if (relativeOrAbsolutePath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            {
-                return relativeOrAbsolutePath;
-            }
-
-            if (string.IsNullOrWhiteSpace(_pluginUserDataPath))
-            {
-                return relativeOrAbsolutePath;
-            }
-
-            try
-            {
-                return Path.Combine(_pluginUserDataPath, relativeOrAbsolutePath);
-            }
-            catch
-            {
-                // Path operations can fail with invalid characters - return original
-                return relativeOrAbsolutePath;
-            }
+            return StoredPathMapping.FromStored(
+                relativeOrAbsolutePath,
+                _pluginUserDataPath,
+                CurrentIconCacheRoot());
         }
 
         /// <summary>
