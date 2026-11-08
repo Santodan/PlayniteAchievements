@@ -113,7 +113,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _providerOverrideKey = ProviderOverrideNoneKey;
         private string _providerOverrideValue;
         private bool _canExportCustomJson;
-        private const string ManualProviderKey = "Manual";
 
         private bool _canClearCustomData;
         private int _customDataRevision;
@@ -1337,7 +1336,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var previousData = TryLoadStoredCustomData(store);
             _achievementOverridesService.MergeCustomAchievements(_gameId, parsed.Definitions, out var added, out var updated);
-            var transitionEffects = AnalyzeCustomDataTransition(previousData, TryLoadStoredCustomData(store));
+            var transitionEffects = CustomDataTransition.Analyze(previousData, TryLoadStoredCustomData(store));
             NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
             _playniteApi?.Dialogs?.ShowMessage(
@@ -1364,7 +1363,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The file replaced what the Workshop item put there: the game no longer follows it.
             RemoveWorkshopSource();
 
-            var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
+            var transitionEffects = CustomDataTransition.Analyze(previousData, currentData);
             NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
             var successMessage = L("LOCPlayAch_Status_Succeeded");
@@ -1429,9 +1428,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             try
             {
-                _plugin.ClearGameCustomData(_gameId, GameName);
+                _plugin.ClearGameCustomData(_gameId, GameName, currentData);
                 RefreshWorkshopSource();
-                var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
+                var transitionEffects = CustomDataTransition.Analyze(currentData, null);
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
                 _playniteApi?.Dialogs?.ShowMessage(
@@ -2153,13 +2152,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         // Shared with the Workshop installer, which writes custom data through the same stores.
-        private static CustomDataTransitionEffects AnalyzeCustomDataTransition(
-            GameCustomDataFile previousData,
-            GameCustomDataFile currentData)
-        {
-            return CustomDataTransition.Analyze(previousData, currentData);
-        }
-
         private GameCustomDataFile TryLoadStoredCustomData(GameCustomDataStore store)
         {
             if (store == null)
