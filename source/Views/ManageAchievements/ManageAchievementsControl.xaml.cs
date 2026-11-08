@@ -914,11 +914,6 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
                     return dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK ? dialog.FileName : null;
                 },
-                // Owned by the Link File window, which is the active one while it is open.
-                EditPairings = pairings => MetadataMatchesWindow.Show(
-                    Application.Current?.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive),
-                    pairings,
-                    L("LOCPlayAch_LinkedFile_Title")),
                 Confirm = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes,
                 ShowMessage = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.OK, MessageBoxImage.Information),
                 AskName = defaultName => PresetNamePrompt.TryAsk(
