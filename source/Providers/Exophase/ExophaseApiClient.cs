@@ -1847,12 +1847,30 @@ namespace PlayniteAchievements.Providers.Exophase
         [DataMember(Name = "images")]
         public ExophaseImages Images { get; set; }
 
-        // Regional release marker Exophase renders after same-title entries
-        // (NA/EU/JP/AS). Optional: absent for single-release games and for
-        // endpoints that omit the field, in which case region preference in
-        // matching silently degrades to the base-region tie-break.
-        [DataMember(Name = "region", IsRequired = false, EmitDefaultValue = false)]
-        public string Region { get; set; }
+        // The release regions of one of several same-title entries, e.g.
+        // [{ "name": "Europe", "slug": "europe" }]; null for single-release games.
+        [DataMember(Name = "regions", IsRequired = false, EmitDefaultValue = false)]
+        public List<ExophaseRegion> Regions { get; set; }
+
+        /// <summary>The region names joined for display ("Europe"); null when the entry lists none.</summary>
+        public string GetRegionNames()
+        {
+            var names = (Regions ?? new List<ExophaseRegion>())
+                .Select(region => region?.Name?.Trim())
+                .Where(name => !string.IsNullOrEmpty(name))
+                .ToList();
+            return names.Count == 0 ? null : string.Join(", ", names);
+        }
+    }
+
+    [DataContract]
+    public sealed class ExophaseRegion
+    {
+        [DataMember(Name = "name")]
+        public string Name { get; set; }
+
+        [DataMember(Name = "slug")]
+        public string Slug { get; set; }
     }
 
     [DataContract]
