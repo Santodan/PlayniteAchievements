@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.Minecraft
 {
@@ -32,7 +33,7 @@ namespace PlayniteAchievements.Providers.Minecraft
         {
             _cacheFolder = string.IsNullOrWhiteSpace(pluginUserDataPath)
                 ? null
-                : Path.Combine(pluginUserDataPath, "icon_cache", "minecraft");
+                : Path.Combine(IconCacheLocation.CurrentRootOrDefault(pluginUserDataPath), "minecraft");
             _logger = logger;
         }
 
