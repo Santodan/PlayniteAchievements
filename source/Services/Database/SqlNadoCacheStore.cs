@@ -6268,8 +6268,14 @@ namespace PlayniteAchievements.Services.Database
         {
             public string PlayniteGameId { get; set; }
             public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
             public long? Points { get; set; }
             public string TrophyType { get; set; }
+            public string Category { get; set; }
+            public string Tags { get; set; }
+            public long? Hidden { get; set; }
+            public long Cleared { get; set; }
             public long IsFiltered { get; set; }
             public long IsSummaryFiltered { get; set; }
 
@@ -6278,8 +6284,14 @@ namespace PlayniteAchievements.Services.Database
                 return new AchievementOverrideMirrorEntry
                 {
                     ApiName = ApiName,
+                    DisplayName = DisplayName,
+                    Description = Description,
                     Points = Points.HasValue ? (int)Points.Value : (int?)null,
                     TrophyType = TrophyType,
+                    Category = Category,
+                    Tags = Tags,
+                    Hidden = Hidden.HasValue ? Hidden.Value != 0 : (bool?)null,
+                    Cleared = Cleared,
                     IsFiltered = IsFiltered != 0,
                     IsSummaryFiltered = IsSummaryFiltered != 0
                 };
@@ -6349,7 +6361,7 @@ namespace PlayniteAchievements.Services.Database
                 // customized the game is.
                 var existingByApiName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var row in db.Load<AchievementOverrideRow>(
-                    @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
+                    @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered
                       FROM AchievementOverrides
                       WHERE PlayniteGameId = ?;",
                     gameIdText))
@@ -6450,7 +6462,7 @@ namespace PlayniteAchievements.Services.Database
             return WithDb(db =>
             {
                 var existingByGameText = db.Load<AchievementOverrideRow>(
-                        @"SELECT PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered
+                        @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered
                           FROM AchievementOverrides;")
                     .GroupBy(row => row.PlayniteGameId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
@@ -6533,12 +6545,18 @@ namespace PlayniteAchievements.Services.Database
 
                 db.ExecuteNonQuery(
                     @"INSERT OR IGNORE INTO AchievementOverrides
-                          (PlayniteGameId, ApiName, Points, TrophyType, IsFiltered, IsSummaryFiltered, UpdatedUtc)
-                      VALUES (?, ?, ?, ?, ?, ?, ?);",
+                          (PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                     gameIdText,
                     entry.ApiName.Trim(),
+                    DbValue(entry.DisplayName),
+                    DbValue(entry.Description),
                     entry.Points.HasValue ? (object)entry.Points.Value : null,
-                    string.IsNullOrWhiteSpace(entry.TrophyType) ? null : entry.TrophyType.Trim(),
+                    DbValue(entry.TrophyType),
+                    DbValue(entry.Category),
+                    DbValue(entry.Tags),
+                    entry.Hidden.HasValue ? (object)(entry.Hidden.Value ? 1 : 0) : null,
+                    entry.Cleared,
                     entry.IsFiltered ? 1 : 0,
                     entry.IsSummaryFiltered ? 1 : 0,
                     nowIso);
