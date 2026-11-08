@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Services.Tests
                 var loaded = store.Load(path);
                 Assert.IsNotNull(loaded);
                 Assert.AreEqual(gameId, loaded.PlayniteGameId);
-                Assert.AreEqual("a note", loaded.AchievementNotes["ach_one"]);
+                Assert.AreEqual("a note", AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note)["ach_one"]);
             });
         }
 
