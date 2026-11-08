@@ -135,6 +135,7 @@ namespace PlayniteAchievements
         private readonly ToastNotificationService _toastNotifications;
         private readonly Services.Recording.UnlockRecordingService _unlockRecordings;
         private readonly Services.Captures.CaptureLibraryService _captureLibraryService;
+        private Services.Captures.CaptureIndexSync _captureIndexSync;
 
         /// <summary>
         /// Started process ids of currently running games (from OnGameStarted), used to identify
@@ -2600,6 +2601,37 @@ namespace PlayniteAchievements
 
             _refreshService.GameRefreshed += OnAchievementGameRefreshed;
             _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
+
+            // The database's capture index follows the capture folders, each game's refreshes and
+            // its custom data (a renamed achievement matches other files), so the resolved views
+            // carry capture paths.
+            if (_captureLibraryService != null && _cacheManager is Services.Cache.CacheManager captureCache)
+            {
+                _captureIndexSync = new Services.Captures.CaptureIndexSync(
+                    _captureLibraryService,
+                    captureCache,
+                    gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                    _logger);
+                Action<Guid> indexGame = _captureIndexSync.QueueGame;
+                _refreshService.GameRefreshed += indexGame;
+                EventHandler<GameCustomDataChangedEventArgs> indexCustomData = (sender, e) => _captureIndexSync.QueueGame(e?.PlayniteGameId ?? Guid.Empty);
+                if (_gameCustomDataStore != null)
+                {
+                    _gameCustomDataStore.CustomDataChanged += indexCustomData;
+                }
+
+                _eventSubscriptions.Add(() =>
+                {
+                    _refreshService.GameRefreshed -= indexGame;
+                    if (_gameCustomDataStore != null)
+                    {
+                        _gameCustomDataStore.CustomDataChanged -= indexCustomData;
+                    }
+
+                    _captureIndexSync.Dispose();
+                });
+                _ = _captureIndexSync.SyncAllAsync();
+            }
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed += CustomProviderStore_Changed;
