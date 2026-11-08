@@ -6,14 +6,24 @@ using System.Linq;
 namespace PlayniteAchievements.Services.Database
 {
     /// <summary>
-    /// The metadata layer table and the <see cref="ViewName"/> view that resolves the custom layer
-    /// mirror (<c>AchievementOverrides</c>) and the metadata layer over the platform's
-    /// <c>AchievementDefinitions</c>, with the same precedence as <see cref="LayerResolver"/>. Reads that show an achievement's values go through the view;
-    /// writes and identity checks use the tables.
+    /// The metadata layer table and the views that resolve the custom layer mirror
+    /// (<c>AchievementOverrides</c>) and the metadata layer over the platform's
+    /// <c>PlatformDefinitions</c>, with the same precedence as <see cref="LayerResolver"/>.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ViewName"/> keeps the name and columns the definitions table had before the
+    /// layers, so other add-ons that read the database keep their queries and see resolved
+    /// values; it only ever gains columns. <see cref="LayerViewName"/> adds each layer's raw
+    /// values for the plugin's own loader. Writes and identity checks use the tables.
+    /// </remarks>
     internal static class AchievementLayerSql
     {
-        public const string ViewName = "ResolvedDefinitions";
+        public const string ViewName = "AchievementDefinitions";
+
+        public const string LayerViewName = "AchievementDefinitionLayers";
+
+        /// <summary>Every view this class creates, including names retired since.</summary>
+        public static readonly IReadOnlyList<string> AllViewNames = new[] { ViewName, LayerViewName, "ResolvedDefinitions" };
 
         /// <summary>The metadata layer columns, in insert order, after AchievementDefinitionId.</summary>
         public static readonly IReadOnlyList<string> MetadataColumns = new[]
@@ -37,12 +47,12 @@ namespace PlayniteAchievements.Services.Database
                 Rarity TEXT NULL,
                 MetadataOrder INTEGER NULL,
                 Cleared INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (AchievementDefinitionId) REFERENCES AchievementDefinitions(Id) ON DELETE CASCADE
+                FOREIGN KEY (AchievementDefinitionId) REFERENCES PlatformDefinitions(Id) ON DELETE CASCADE
             );";
 
         // Definition deletes do not always run with foreign keys on, so a trigger drops the layer rows.
         public const string CreateTriggerSql = @"CREATE TRIGGER IF NOT EXISTS TR_AchievementDefinitions_DeleteMetadataLayer
-                AFTER DELETE ON AchievementDefinitions
+                AFTER DELETE ON PlatformDefinitions
                 BEGIN
                     DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = OLD.Id;
                 END;";
@@ -53,12 +63,19 @@ namespace PlayniteAchievements.Services.Database
 
         public const string DeleteSql = "DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = ?;";
 
-        /// <summary>Dropped and recreated on every start, so it always matches this code.</summary>
+        /// <summary>Dropped and recreated on every start, so they always match this code.</summary>
         public static IEnumerable<string> RecreateViewSql()
         {
-            yield return "DROP VIEW IF EXISTS " + ViewName + ";";
-            yield return "CREATE VIEW " + ViewName + @" AS SELECT
-                ad.Id AS Id,
+            foreach (var view in AllViewNames)
+            {
+                yield return "DROP VIEW IF EXISTS " + view + ";";
+            }
+
+            yield return "CREATE VIEW " + ViewName + " AS SELECT\n" + PublicColumns() + FromClause + ";";
+            yield return "CREATE VIEW " + LayerViewName + " AS SELECT\n" + PublicColumns() + ",\n" + RawLayerColumns() + FromClause + ";";
+        }
+
+        private static string PublicColumns() => @"                ad.Id AS Id,
                 ad.GameId AS GameId,
                 ad.ApiName AS ApiName,
                 " + Pick("DisplayName", AchievementField.DisplayName, custom: true) + @",
@@ -83,7 +100,10 @@ namespace PlayniteAchievements.Services.Database
                 " + Pick("MetadataOrder", AchievementField.Order) + @",
                 ad.CreatedUtc AS CreatedUtc,
                 ad.UpdatedUtc AS UpdatedUtc,
-                ad.DisplayName AS P_DisplayName,
+                COALESCE(c.IsFiltered, 0) AS IsFiltered,
+                COALESCE(c.IsSummaryFiltered, 0) AS IsSummaryFiltered";
+
+        private static string RawLayerColumns() => @"                ad.DisplayName AS P_DisplayName,
                 ad.Description AS P_Description,
                 ad.UnlockedIconPath AS P_UnlockedIconPath,
                 ad.LockedIconPath AS P_LockedIconPath,
@@ -97,11 +117,13 @@ namespace PlayniteAchievements.Services.Database
                 ad.MetadataOrder AS P_MetadataOrder,
                 m.AchievementDefinitionId IS NOT NULL AS HasMetadata,
                 " + string.Join(",\n                ", MetadataColumns.Select(column => "m." + column + " AS M_" + column)) + @"
-              FROM AchievementDefinitions ad
+";
+
+        private const string FromClause = @"
+              FROM PlatformDefinitions ad
               LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
               LEFT JOIN Games g ON g.Id = ad.GameId
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName;";
-        }
+              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName";
 
         private static string IsCleared(AchievementField field, string layer = "m") =>
             "(COALESCE(" + layer + ".Cleared, 0) & " + (int)field + ") <> 0";
