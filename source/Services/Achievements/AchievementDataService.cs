@@ -25,10 +25,7 @@ namespace PlayniteAchievements.Services.Achievements
             new HashSet<string>(StringComparer.Ordinal)
             {
                 nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
-                nameof(PersistedSettings.SeparateLockedIconEnabledGameIds),
-                nameof(PersistedSettings.ExcludedFromSummariesGameIds),
-                nameof(PersistedSettings.IncludeHiddenGamesInSummaries),
-                nameof(PersistedSettings.ManualCapstones)
+                nameof(PersistedSettings.IncludeHiddenGamesInSummaries)
             };
 
         private sealed class SummaryCustomizationData
@@ -874,9 +871,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         private HashSet<Guid> BuildExcludedSummaryGameIdsFallback(IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
         {
-            var result = Persisted?.ExcludedFromSummariesGameIds != null
-                ? new HashSet<Guid>(Persisted.ExcludedFromSummariesGameIds)
-                : new HashSet<Guid>();
+            var result = new HashSet<Guid>();
 
             if (customDataByGameId == null || customDataByGameId.Count == 0)
             {
