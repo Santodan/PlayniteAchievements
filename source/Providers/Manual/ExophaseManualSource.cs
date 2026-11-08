@@ -83,7 +83,7 @@ namespace PlayniteAchievements.Providers.Manual
                         IconUrl = iconUrl ?? string.Empty,
                         HasAchievements = true, // All Exophase games have achievements
                         Platforms = platformNames,
-                        Region = game.Region
+                        Region = game.GetRegionNames()
                     });
                 }
 
