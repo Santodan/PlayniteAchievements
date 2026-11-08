@@ -448,7 +448,7 @@ namespace PlayniteAchievements.Services.Database
             // Derived state the startup resync rebuilds, so a table from before the custom layer
             // columns is dropped rather than altered.
             var existing = GetColumnNames(db, "AchievementOverrides");
-            if (existing.Count > 0 && !existing.Contains("Cleared"))
+            if (existing.Count > 0 && !existing.Contains("CustomOrder"))
             {
                 ExecuteSafe(db, "DROP TABLE AchievementOverrides;");
             }
@@ -465,6 +465,9 @@ namespace PlayniteAchievements.Services.Database
                 Tags TEXT NULL,
                 Hidden INTEGER NULL,
                 Cleared INTEGER NOT NULL DEFAULT 0,
+                Note TEXT NULL,
+                GoalOrder INTEGER NULL,
+                CustomOrder INTEGER NULL,
                 IsFiltered INTEGER NOT NULL DEFAULT 0,
                 IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                 UpdatedUtc TEXT NOT NULL,
