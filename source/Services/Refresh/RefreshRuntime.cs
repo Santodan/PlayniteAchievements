@@ -466,6 +466,19 @@ namespace PlayniteAchievements.Services.Refresh
                 out cts,
                 out var activeContext))
             {
+                if (_refreshStateManager.IsReservedExclusive)
+                {
+                    _logger.Info("Refresh skipped while the icon cache moves.");
+                    Report(
+                        ResourceProvider.GetString("LOCPlayAch_Settings_IconCache_MoveInProgress"),
+                        0,
+                        1,
+                        operationId: operationId,
+                        mode: mode,
+                        currentGameId: singleGameId);
+                    return false;
+                }
+
                 _logger.Info("Refresh already in progress.");
                 Report(
                     _progressReportingService.GetLastStatus() ?? ResourceProvider.GetString("LOCPlayAch_Status_UpdatingCache"),
@@ -2306,6 +2319,20 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             return FormatRefreshCompletionWithModeAndCount(resolved.Mode, payload?.Summary?.GamesRefreshed ?? 0);
+        }
+
+        /// <summary>
+        /// Holds off every refresh, for an operation that must not run beside one. False while a
+        /// refresh runs.
+        /// </summary>
+        public bool TryReserveExclusive()
+        {
+            return _refreshStateManager.TryReserveExclusive();
+        }
+
+        public void ReleaseExclusive()
+        {
+            _refreshStateManager.ReleaseExclusive();
         }
 
         public void CancelCurrentRebuild()
