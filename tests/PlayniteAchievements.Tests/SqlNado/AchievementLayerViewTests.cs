@@ -169,6 +169,58 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        private sealed class GapRow
+        {
+            public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string UnlockedIconPath { get; set; }
+            public long IsCapstone { get; set; }
+            public string CategoryKind { get; set; }
+            public long Unlocked { get; set; }
+            public string UnlockTimeUtc { get; set; }
+            public long IsAuthored { get; set; }
+            public long ExcludedFromSummaries { get; set; }
+        }
+
+        [TestMethod]
+        public void UserView_AppliesIconsCapstonesKindsUnlockTimes_AndListsAuthoredAchievements()
+        {
+            WithDatabase(db =>
+            {
+                Definition(db, "won", "Won", null, null, "DLC One", "base", null, null, "Common");
+                Definition(db, "plat", "Platinum", null, null, "Default", null, null, null, "Common");
+                db.ExecuteNonQuery("UPDATE PlatformDefinitions SET IsCapstone = 1 WHERE ApiName = 'plat';");
+                var wonId = db.ExecuteScalar<long>("SELECT Id FROM PlatformDefinitions WHERE ApiName = 'won';");
+                db.ExecuteNonQuery(
+                    "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (1, ?, 1, '2025-01-01T00:00:00Z');",
+                    wonId);
+                db.ExecuteNonQuery(
+                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, UnlockedIconPath, UnlockTimeUtc, CapstoneAssigned, UpdatedUtc)
+                      VALUES (?, 'won', 'custom/won.png', '2026-02-02T00:00:00Z', 1, '');",
+                    GameId);
+                db.ExecuteNonQuery(
+                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, Category, UpdatedUtc)
+                      VALUES (?, 'custom:mine', 'Mine', 1, 1, 'Side', '');",
+                    GameId);
+                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
+                db.ExecuteNonQuery("INSERT INTO AchievementCategoryKinds (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
+
+                var rows = db.Load<GapRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + ";").ToList();
+
+                var won = rows.Single(row => row.ApiName == "won");
+                Assert.AreEqual("custom/won.png", won.UnlockedIconPath, "the user's icon");
+                Assert.AreEqual(1, won.IsCapstone, "in the stored capstone set");
+                Assert.AreEqual("DLC", won.CategoryKind, "the kind stored for its category");
+                Assert.AreEqual("2026-02-02T00:00:00Z", won.UnlockTimeUtc, "the user's unlock time on an unlocked row");
+                Assert.AreEqual(1, won.ExcludedFromSummaries);
+                Assert.AreEqual(0, rows.Single(row => row.ApiName == "plat").IsCapstone, "an edited capstone set replaces the provider's flag");
+                var mine = rows.Single(row => row.ApiName == "custom:mine");
+                Assert.AreEqual(1, mine.IsAuthored);
+                Assert.AreEqual("Mine", mine.DisplayName);
+                Assert.AreEqual(1, mine.Unlocked);
+            });
+        }
+
         private sealed class SqlRow
         {
             public string Sql { get; set; }
@@ -299,12 +351,27 @@ namespace PlayniteAchievements.SqlNado.Tests
                         Note TEXT NULL,
                         GoalOrder INTEGER NULL,
                         CustomOrder INTEGER NULL,
+                        UnlockedIconPath TEXT NULL,
+                        LockedIconPath TEXT NULL,
+                        UnlockTimeUtc TEXT NULL,
+                        CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
+                        IsAuthored INTEGER NOT NULL DEFAULT 0,
+                        Unlocked INTEGER NOT NULL DEFAULT 0,
+                        ProgressNum INTEGER NULL,
+                        ProgressDenom INTEGER NULL,
+                        ScaledPoints INTEGER NULL,
+                        CategoryKind TEXT NULL,
+                        GlobalPercentUnlocked REAL NULL,
+                        Rarity TEXT NULL,
+                        IsCapstone INTEGER NOT NULL DEFAULT 0,
                         IsFiltered INTEGER NOT NULL DEFAULT 0,
                         IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                         UpdatedUtc TEXT NOT NULL,
                         UNIQUE (PlayniteGameId, ApiName));");
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateGameStateTableSql);
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateCategoryKindsTableSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
                     {
                         db.ExecuteNonQuery(sql);
