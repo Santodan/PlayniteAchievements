@@ -1,41 +1,68 @@
+using PlayniteAchievements.Models.Achievements;
+using System.Globalization;
+
 namespace PlayniteAchievements.Services.Database.Rows
 {
     /// <summary>
-    /// One achievement's row in the per-achievement override mirror: the SQL-side view of the
-    /// custom-data store's override record, carrying only the fields summary aggregates need to
-    /// resolve in a join.
+    /// One achievement's row in the custom layer mirror: the SQL-side copy of the custom-data
+    /// store's override record and filter flags, so the resolved definitions view and the summary
+    /// queries see the user's customization in a join.
     /// </summary>
     /// <remarks>
-    /// Deliberately narrower than <c>AchievementOverride</c>. Title, description, note and the icon
-    /// paths are never aggregated, so they stay in the blob and are applied during hydration;
-    /// mirroring them would add write churn for values no query reads.
+    /// Notes, icons and unlock times are never read in SQL, so they stay in the custom-data store
+    /// and are applied during hydration.
     /// </remarks>
     internal sealed class AchievementOverrideMirrorEntry
     {
-        /// <summary>
-        /// Stored in <see cref="TrophyType"/> when the user removed the provider's trophy. The
-        /// summary join resolves the tier with <c>COALESCE(override, provider)</c>, so a non-null
-        /// value that matches no tier is what keeps the achievement out of every trophy count.
-        /// </summary>
-        public const string ClearedTrophyType = "none";
-
         public string ApiName { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public string Description { get; set; }
 
         public int? Points { get; set; }
 
         public string TrophyType { get; set; }
 
+        public string Category { get; set; }
+
+        public string Tags { get; set; }
+
+        public bool? Hidden { get; set; }
+
+        /// <summary>The <see cref="AchievementField"/> bits the user cleared.</summary>
+        public long Cleared { get; set; }
+
         public bool IsFiltered { get; set; }
 
         public bool IsSummaryFiltered { get; set; }
+
+        /// <summary>Takes the fields of a custom layer.</summary>
+        public void SetLayer(AchievementLayerValues layer)
+        {
+            DisplayName = layer?.DisplayName;
+            Description = layer?.Description;
+            Points = layer?.Points;
+            TrophyType = layer?.TrophyType;
+            Category = layer?.Category;
+            Tags = layer?.Tags;
+            Hidden = layer?.Hidden;
+            Cleared = (long)(layer?.Cleared ?? AchievementField.None);
+        }
 
         /// <summary>
         /// True when the row carries nothing a query would read, so it can be left out of the
         /// mirror entirely rather than stored as an all-default row.
         /// </summary>
         public bool IsEmpty =>
+            string.IsNullOrWhiteSpace(DisplayName) &&
+            string.IsNullOrWhiteSpace(Description) &&
             !Points.HasValue &&
             string.IsNullOrWhiteSpace(TrophyType) &&
+            string.IsNullOrWhiteSpace(Category) &&
+            string.IsNullOrWhiteSpace(Tags) &&
+            !Hidden.HasValue &&
+            Cleared == 0 &&
             !IsFiltered &&
             !IsSummaryFiltered;
 
@@ -48,8 +75,14 @@ namespace PlayniteAchievements.Services.Database.Rows
             return string.Join(
                 "\n",
                 (ApiName ?? string.Empty).Trim(),
-                Points.HasValue ? Points.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty,
+                (DisplayName ?? string.Empty).Trim(),
+                (Description ?? string.Empty).Trim(),
+                Points.HasValue ? Points.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
                 (TrophyType ?? string.Empty).Trim(),
+                (Category ?? string.Empty).Trim(),
+                (Tags ?? string.Empty).Trim(),
+                Hidden.HasValue ? (Hidden.Value ? "1" : "0") : string.Empty,
+                Cleared.ToString(CultureInfo.InvariantCulture),
                 IsFiltered ? "1" : "0",
                 IsSummaryFiltered ? "1" : "0");
         }
