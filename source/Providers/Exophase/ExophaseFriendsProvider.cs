@@ -1323,15 +1323,10 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             return (platforms ?? Enumerable.Empty<string>())
                 .Where(platform => !string.IsNullOrWhiteSpace(platform))
-                .Select(NormalizePlatformSlug)
+                .Select(ExophaseFriendPlatformMatcher.NormalizePlatformSlug)
                 .Where(platform => !string.Equals(platform, "steam", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-        }
-
-        private static string NormalizePlatformSlug(string platform)
-        {
-            return ExophaseFriendPlatformMatcher.NormalizePlatformSlug(platform);
         }
 
         private sealed class KnownSteamOwnershipIndex
