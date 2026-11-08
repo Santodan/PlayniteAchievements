@@ -2949,22 +2949,39 @@ namespace PlayniteAchievements.Services.Database
                 // presentation is resolved at most once per load.
                 var presentationCache = new Dictionary<Guid, GamePresentation>();
 
-                using (PerfScope.Start(_logger, "Friends.LoadSummaryRows", thresholdMs: 15))
-                data.Friends = MapFriendSummaryRows(LoadFriendSummaryRows(db));
+                LoadFriendOverviewLists(db, data, presentationCache);
 
-                using (PerfScope.Start(_logger, "Friends.LoadGameSummaryRows", thresholdMs: 15))
-                data.Games = MapFriendGameSummaryRows(LoadFriendGameSummaryRows(db), presentationCache);
-
-                using (PerfScope.Start(_logger, "Friends.LoadGameLinkRows", thresholdMs: 15))
-                data.FriendGameLinks = MapFriendGameLinkRows(LoadFriendGameLinkRows(db));
-
+                // Unlocked-only: the overview snapshot's consumers (summaries, recents, projection
+                // derivations, single-selection grids) never read locked rows, and materializing the
+                // full definition-driven set was the dominant load cost (~6x more rows). The friend+game
+                // pair comparison view loads its one game's locked rows on demand via
+                // LoadFriendGameAchievementData instead.
                 using (PerfScope.Start(_logger, "Friends.LoadAchievementRows", thresholdMs: 15))
-                data.AllAchievements = MapFriendAchievementRows(LoadFriendAllAchievementRows(db), presentationCache);
+                data.AllAchievements = MapFriendAchievementRows(
+                    LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true),
+                    presentationCache);
 
                 using (PerfScope.Start(_logger, "Friends.ApplySummaryScores", thresholdMs: 15))
                 FriendsOverviewDerivations.Apply(data, recentLimit);
                 return data;
             });
+        }
+
+        // The three cheap lists shared by the full and patch overview loads: friend summaries,
+        // game summaries and ownership links, each reloaded in full from SQL.
+        private void LoadFriendOverviewLists(
+            SQLiteDatabase db,
+            FriendsOverviewData data,
+            Dictionary<Guid, GamePresentation> presentationCache)
+        {
+            using (PerfScope.Start(_logger, "Friends.LoadSummaryRows", thresholdMs: 15))
+            data.Friends = MapFriendSummaryRows(LoadFriendSummaryRows(db));
+
+            using (PerfScope.Start(_logger, "Friends.LoadGameSummaryRows", thresholdMs: 15))
+            data.Games = MapFriendGameSummaryRows(LoadFriendGameSummaryRows(db), presentationCache);
+
+            using (PerfScope.Start(_logger, "Friends.LoadGameLinkRows", thresholdMs: 15))
+            data.FriendGameLinks = MapFriendGameLinkRows(LoadFriendGameLinkRows(db));
         }
 
         /// <summary>
@@ -3093,19 +3110,12 @@ namespace PlayniteAchievements.Services.Database
                 var data = new FriendsOverviewData();
                 var presentationCache = new Dictionary<Guid, GamePresentation>();
 
-                using (PerfScope.Start(_logger, "Friends.LoadSummaryRows", thresholdMs: 15))
-                data.Friends = MapFriendSummaryRows(LoadFriendSummaryRows(db));
-
-                using (PerfScope.Start(_logger, "Friends.LoadGameSummaryRows", thresholdMs: 15))
-                data.Games = MapFriendGameSummaryRows(LoadFriendGameSummaryRows(db), presentationCache);
-
-                using (PerfScope.Start(_logger, "Friends.LoadGameLinkRows", thresholdMs: 15))
-                data.FriendGameLinks = MapFriendGameLinkRows(LoadFriendGameLinkRows(db));
+                LoadFriendOverviewLists(db, data, presentationCache);
 
                 if (reloadScopes != null && reloadScopes.Count > 0)
                 {
                     // Unlocked-only to match the retained splice base (see
-                    // LoadFriendAllAchievementRows); a locked patch row would otherwise
+                    // LoadFriendsOverviewData); a locked patch row would otherwise
                     // reintroduce rows the base never carries.
                     using (PerfScope.Start(_logger, "Friends.LoadScopedAchievementRows", thresholdMs: 15))
                     data.AllAchievements = MapFriendAchievementRows(
@@ -3134,16 +3144,6 @@ namespace PlayniteAchievements.Services.Database
                 ? providerPlatformKey
                 : providerKey;
             return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : Services.CustomProviders.CustomProviderKeys.ToDisplayKey(resolved.Trim());
-        }
-
-        private string ResolveFriendGameIconPath(GamePresentation presentation, string cachedIconPath)
-        {
-            return presentation?.IconPath ?? MakeAbsolutePath(cachedIconPath);
-        }
-
-        private string ResolveFriendGameCoverPath(GamePresentation presentation, string cachedCoverPath)
-        {
-            return presentation?.CoverPath ?? MakeAbsolutePath(cachedCoverPath);
         }
 
         private static string BuildFriendCacheKey(string providerKey, string externalUserId, GameRow game)
@@ -4774,8 +4774,8 @@ namespace PlayniteAchievements.Services.Database
                         PlayniteGameId = playniteGameId,
                         GameName = presentation.DisplayName ?? row.GameName,
                         SortingName = presentation.SortingName ?? presentation.DisplayName ?? row.GameName,
-                        GameLogo = ResolveFriendGameIconPath(presentation, row.IconPath),
-                        GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath),
+                        GameLogo = presentation.IconPath ?? MakeAbsolutePath(row.IconPath),
+                        GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath),
                         PlatformText = presentation.PlatformText,
                         Platforms = presentation.Platforms,
                         RegionText = presentation.RegionText,
@@ -5112,16 +5112,6 @@ namespace PlayniteAchievements.Services.Database
                 : db.Load<FriendGameLinkRow>(sql.ToString()).ToList();
         }
 
-        // Unlocked-only: the overview snapshot's consumers (summaries, recents, projection
-        // derivations, single-selection grids) never read locked rows, and materializing the
-        // full definition-driven set was the dominant load cost (~6x more rows). The friend+game
-        // pair comparison view loads its one game's locked rows on demand via
-        // LoadFriendGameAchievementData instead.
-        private static List<FriendRecentUnlockRow> LoadFriendAllAchievementRows(SQLiteDatabase db)
-        {
-            return LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true);
-        }
-
         // Rows are driven from the game's full PlatformDefinitions schema with the friend's
         // stored unlock rows LEFT JOINed on the stable definition key, so the friend+game pair
         // view always shows every achievement of the game with the friend's unlock state per
@@ -5329,19 +5319,18 @@ namespace PlayniteAchievements.Services.Database
                     continue;
                 }
 
-                var friendUnlockTimeUtc = ParseUtc(row.UnlockTimeUtc);
-                var isUnlockedByFriend = row.Unlocked.GetValueOrDefault() != 0;
-                var isUnlockedByMe = row.MyUnlocked.GetValueOrDefault() != 0;
-                var detail = new AchievementDetail
+                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category);
+                var playniteGameId = ResolveCachedPlayniteGameId(null, row.PlayniteGameId);
+                var presentation = ResolveGamePresentation(playniteGameId, presentationCache);
+                var item = new FriendAchievementDisplayItem
                 {
                     ApiName = row.ApiName,
                     DisplayName = row.DisplayName,
                     Description = row.Description,
                     UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath),
                     LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
-                    Points = row.Points,
-                    ScaledPoints = row.ScaledPoints,
-                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    PointsValue = row.ScaledPoints ?? row.Points,
+                    CategoryLabel = category,
                     Tags = AchievementTagHelper.Normalize(row.Tags),
                     CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
@@ -5349,45 +5338,21 @@ namespace PlayniteAchievements.Services.Database
                     IsCapstone = row.IsCapstone != 0,
                     GlobalPercentUnlocked = row.GlobalPercentUnlocked,
                     Rarity = ParseStoredRarity(row.Rarity),
-                    UnlockTimeUtc = friendUnlockTimeUtc,
-                    Unlocked = isUnlockedByMe,
-                    ProgressNum = row.ProgressNum,
-                    ProgressDenom = row.ProgressDenom
-                };
-
-                var playniteGameId = ResolveCachedPlayniteGameId(null, row.PlayniteGameId);
-                var presentation = ResolveGamePresentation(playniteGameId, presentationCache);
-                var item = new FriendAchievementDisplayItem
-                {
-                    ApiName = detail.ApiName,
-                    DisplayName = detail.DisplayName,
-                    Description = detail.Description,
-                    UnlockedIconPath = detail.UnlockedIconPath,
-                    LockedIconPath = detail.LockedIconPath,
-                    PointsValue = detail.ScaledPoints ?? detail.Points,
-                    CategoryLabel = detail.Category,
-                    Tags = detail.Tags,
-                    CategoryKind = detail.CategoryKind,
-                    TrophyType = detail.TrophyType,
-                    Hidden = detail.Hidden,
-                    IsCapstone = detail.IsCapstone,
-                    GlobalPercentUnlocked = detail.GlobalPercentUnlocked,
-                    Rarity = detail.Rarity,
-                    UnlockTimeUtc = friendUnlockTimeUtc,
-                    Unlocked = isUnlockedByFriend,
-                    UnlockedBySelf = isUnlockedByMe,
+                    UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
+                    Unlocked = row.Unlocked.GetValueOrDefault() != 0,
+                    UnlockedBySelf = row.MyUnlocked.GetValueOrDefault() != 0,
                     SelfUnlockTimeUtc = ParseUtc(row.MyUnlockTimeUtc),
                     SelfHasGameData = row.MyHasGameData.GetValueOrDefault() != 0,
-                    ProgressNum = detail.ProgressNum,
-                    ProgressDenom = detail.ProgressDenom,
+                    ProgressNum = row.ProgressNum,
+                    ProgressDenom = row.ProgressDenom,
                     ProviderKey = row.ProviderKey,
                     AppId = (int)Math.Max(0, row.ProviderGameId ?? 0),
                     ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
                     GameName = presentation.DisplayName ?? row.GameName,
                     SortingName = presentation.SortingName ?? presentation.DisplayName ?? row.GameName,
                     PlayniteGameId = playniteGameId,
-                    GameIconPath = ResolveFriendGameIconPath(presentation, row.IconPath),
-                    GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath),
+                    GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.IconPath),
+                    GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath),
                     FriendName = row.FriendName,
                     FriendExternalUserId = row.FriendExternalUserId,
                     FriendAvatarPath = !string.IsNullOrWhiteSpace(row.FriendAvatarPath)
@@ -5404,7 +5369,7 @@ namespace PlayniteAchievements.Services.Database
                     customData?.AchievementCategoryOrder,
                     customData?.AchievementCategoryImageOverrides,
                     item.CategoryLabel,
-                    detail.Category,
+                    category,
                     playniteGameId);
                 // Only the per-game flag varies; the rest of the snapshot is shared.
                 item.ApplyAppearanceSettings(
@@ -5427,14 +5392,6 @@ namespace PlayniteAchievements.Services.Database
             if (!playniteGameId.HasValue || playniteGameId.Value == Guid.Empty)
             {
                 return null;
-            }
-
-            if (customDataByGameId == null)
-            {
-                return GameCustomDataLookup.ResolveGameCustomData(
-                    playniteGameId.Value,
-                    _plugin?.Settings?.Persisted,
-                    _plugin?.GameCustomDataStore);
             }
 
             if (!customDataByGameId.TryGetValue(playniteGameId.Value, out var customData))
