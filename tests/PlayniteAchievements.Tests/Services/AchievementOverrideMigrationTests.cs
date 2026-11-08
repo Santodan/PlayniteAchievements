@@ -469,10 +469,9 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Normalize_KeepsLegacyMapsMirroredForNotYetRepointedConsumers()
+        public void Normalize_KeepsOnlyTheRecord()
         {
-            // Until every consumer reads the record, both shapes must agree; a consumer still
-            // reading the legacy map would otherwise see the value disappear.
+            // The record is the only shape a stored record keeps; the legacy maps are dropped.
             var result = Normalize(new GameCustomDataFile
             {
                 SchemaVersion = 8,
@@ -488,10 +487,12 @@ namespace PlayniteAchievements.Services.Tests
                 }
             });
 
-            Assert.AreEqual("Story", result.AchievementCategoryOverrides["ach_one"]);
-            Assert.AreEqual("note", result.AchievementNotes["ach_one"]);
-            Assert.AreEqual("unlocked.png", result.AchievementUnlockedIconOverrides["ach_one"]);
-            Assert.AreEqual("locked.png", result.AchievementLockedIconOverrides["ach_one"]);
+            Assert.AreEqual("Story", result.AchievementOverrides["ach_one"].Category);
+            Assert.AreEqual("unlocked.png", result.AchievementOverrides["ach_one"].UnlockedIconPath);
+            Assert.IsNull(result.AchievementCategoryOverrides);
+            Assert.IsNull(result.AchievementNotes);
+            Assert.IsNull(result.AchievementUnlockedIconOverrides);
+            Assert.IsNull(result.AchievementLockedIconOverrides);
         }
 
         [TestMethod]
