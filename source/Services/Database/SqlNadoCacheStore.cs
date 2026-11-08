@@ -5959,6 +5959,51 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        /// <summary>
+        /// Deletes the metadata layer of the given games, or of every game when
+        /// <paramref name="playniteGameIds"/> is null, and returns the games that had one. The
+        /// platform's definitions are untouched, so the games read their own values again.
+        /// </summary>
+        public List<Guid> ClearMetadataLayers(IReadOnlyCollection<Guid> playniteGameIds)
+        {
+            return WithDb(db =>
+            {
+                var wanted = playniteGameIds == null ? null : new HashSet<Guid>(playniteGameIds);
+                var cleared = db.Load<FriendDataGameIdRow>(
+                        @"SELECT DISTINCT g.PlayniteGameId AS PlayniteGameId
+                          FROM AchievementMetadataLayer m
+                          INNER JOIN AchievementDefinitions ad ON ad.Id = m.AchievementDefinitionId
+                          INNER JOIN Games g ON g.Id = ad.GameId
+                          WHERE g.PlayniteGameId IS NOT NULL;")
+                    .Select(row => Guid.TryParse(row?.PlayniteGameId, out var id) ? id : Guid.Empty)
+                    .Where(id => id != Guid.Empty && (wanted == null || wanted.Contains(id)))
+                    .ToList();
+                if (cleared.Count == 0)
+                {
+                    return cleared;
+                }
+
+                db.RunTransaction(() =>
+                {
+                    foreach (var gameId in cleared)
+                    {
+                        db.ExecuteNonQuery(
+                            @"DELETE FROM AchievementMetadataLayer
+                              WHERE AchievementDefinitionId IN (
+                                  SELECT ad.Id FROM AchievementDefinitions ad
+                                  INNER JOIN Games g ON g.Id = ad.GameId
+                                  WHERE g.PlayniteGameId = ?);",
+                            gameId.ToString());
+                        db.ExecuteNonQuery(
+                            "UPDATE Games SET MetadataFields = 0 WHERE PlayniteGameId = ?;",
+                            gameId.ToString());
+                    }
+                });
+
+                return cleared;
+            });
+        }
+
         public void RemoveGameData(Guid playniteGameId)
         {
             if (playniteGameId == Guid.Empty)
