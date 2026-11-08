@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             row.CustomLayer = userOverride.ToLayer();
             AchievementLayers.Resolve(row);
-            AchievementOverrideApplier.ApplyUnlockTime(row, userOverride, hasManualLink);
+            userOverride?.ApplyUnlockTimeTo(row, hasManualLink);
             return row;
         }
 
