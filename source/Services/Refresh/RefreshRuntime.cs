@@ -1688,8 +1688,6 @@ namespace PlayniteAchievements.Services.Refresh
             // source shows over them.
             await _achievementIconService.PopulateAchievementIconCacheAsync(
                 data,
-                null,
-                null,
                 cancel,
                 (downloaded, total) => _refreshProgressReporter.ReportIconProgress(game, data, downloaded, total, progressScope),
                 forceRefreshExistingTargets: forceRefreshExistingTargets)
@@ -1707,9 +1705,7 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             data.PlatformFields = AchievementLayers.AreasFrom(data.Achievements, DataLayer.Platform) |
-                (data.Achievements?.Any(row => row != null && (row.IsCapstone || string.Equals(row.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase))) == true
-                    ? CustomizationArea.Capstones
-                    : CustomizationArea.None);
+                (Metadata.DataLayers.HasCapstone(data.Achievements) ? CustomizationArea.Capstones : CustomizationArea.None);
             data.MetadataFields = AchievementLayers.AreasFrom(data.Achievements, DataLayer.Metadata) |
                 (metadataRun?.HasBorrowedCapstone(data.PlayniteGameId.Value) == true ? CustomizationArea.Capstones : CustomizationArea.None);
             data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);
@@ -1725,7 +1721,10 @@ namespace PlayniteAchievements.Services.Refresh
                     unlockedIconOverrides,
                     lockedIconOverrides,
                     cancel,
-                    forceRefreshExistingTargets: forceRefreshExistingTargets)
+                    forceRefreshExistingTargets: forceRefreshExistingTargets,
+                    onlyApiNames: new HashSet<string>(
+                        (unlockedIconOverrides?.Keys ?? Enumerable.Empty<string>()).Concat(lockedIconOverrides?.Keys ?? Enumerable.Empty<string>()),
+                        StringComparer.OrdinalIgnoreCase))
                     .ConfigureAwait(false);
             }
 
