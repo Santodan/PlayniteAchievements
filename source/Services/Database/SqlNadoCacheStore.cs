@@ -6738,11 +6738,13 @@ namespace PlayniteAchievements.Services.Database
             public long UseSeparateLockedIcons { get; set; }
         }
 
-        private sealed class CategoryKindRow
+        private sealed class CategoryStateRow
         {
             public string PlayniteGameId { get; set; }
             public string Category { get; set; }
             public string Kind { get; set; }
+            public long? SortIndex { get; set; }
+            public string ImagePath { get; set; }
         }
 
         /// <summary>
@@ -6775,7 +6777,7 @@ namespace PlayniteAchievements.Services.Database
                     }
                 }
 
-                foreach (var row in db.Load<CategoryKindRow>("SELECT * FROM AchievementCategoryKinds" + scope + ";", args))
+                foreach (var row in db.Load<CategoryStateRow>("SELECT * FROM AchievementCategories" + scope + ";", args))
                 {
                     if (Guid.TryParse(row?.PlayniteGameId, out var id))
                     {
@@ -6784,7 +6786,10 @@ namespace PlayniteAchievements.Services.Database
                             stored[id] = entry = new GameCustomStateEntry();
                         }
 
-                        entry.CategoryKinds[row.Category] = row.Kind;
+                        var category = entry.Category(row.Category);
+                        category.Kind = row.Kind;
+                        category.SortIndex = row.SortIndex.HasValue ? (int)row.SortIndex.Value : (int?)null;
+                        category.ImagePath = MakeAbsolutePath(row.ImagePath);
                     }
                 }
 
@@ -6808,7 +6813,7 @@ namespace PlayniteAchievements.Services.Database
                     {
                         var idText = id.ToString();
                         db.ExecuteNonQuery("DELETE FROM GameCustomState WHERE PlayniteGameId = ?;", idText);
-                        db.ExecuteNonQuery("DELETE FROM AchievementCategoryKinds WHERE PlayniteGameId = ?;", idText);
+                        db.ExecuteNonQuery("DELETE FROM AchievementCategories WHERE PlayniteGameId = ?;", idText);
                         if (!desired.TryGetValue(id, out var state))
                         {
                             continue;
@@ -6824,13 +6829,15 @@ namespace PlayniteAchievements.Services.Database
                             state.ExcludedFromSummaries ? 1 : 0,
                             state.ExcludedFromRefreshes ? 1 : 0,
                             state.UseSeparateLockedIcons ? 1 : 0);
-                        foreach (var pair in state.CategoryKinds ?? new Dictionary<string, string>())
+                        foreach (var pair in state.Categories ?? new Dictionary<string, CategoryState>())
                         {
                             db.ExecuteNonQuery(
-                                "INSERT OR REPLACE INTO AchievementCategoryKinds (PlayniteGameId, Category, Kind) VALUES (?, ?, ?);",
+                                "INSERT OR REPLACE INTO AchievementCategories (PlayniteGameId, Category, Kind, SortIndex, ImagePath) VALUES (?, ?, ?, ?, ?);",
                                 idText,
                                 pair.Key,
-                                pair.Value);
+                                DbValue(pair.Value?.Kind),
+                                DbParam(pair.Value?.SortIndex),
+                                DbValue(MakeRelativePath(pair.Value?.ImagePath)));
                         }
                     }
                 });
