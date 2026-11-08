@@ -300,7 +300,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
-                var imagesFolderPath = Path.Combine(pluginDataPath, "icon_cache", _gameIdText);
+                var imagesFolderPath = Path.Combine(IconCacheLocation.CurrentRootOrDefault(pluginDataPath), _gameIdText);
                 Directory.CreateDirectory(imagesFolderPath);
                 Process.Start(new ProcessStartInfo
                 {
