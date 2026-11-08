@@ -1415,31 +1415,17 @@ namespace PlayniteAchievements.Services.Achievements
                     achievement.IsCapstone = resolved.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
                 }
 
-                // Summary rows come straight from SQL, so the per-achievement record is applied
-                // here the way the hydrator applies it to the achievement list. Without this the
-                // overview's recent-unlock entries would show the provider's title and points
-                // while the list showed the user's.
+                // Summary rows read the resolved view, which already carries the user's text,
+                // points, trophy type, category and tags. What stays outside SQL is applied here
+                // as the hydrator applies it: unlock time, note, category kind and icons.
                 var userOverride = ResolveSummaryOverride(resolved, apiName);
-                achievement.ProviderCategory = achievement.ProviderCategory ?? achievement.Category;
+                achievement.Category = CategoryPathHelper.NormalizePath(achievement.Category);
                 if (userOverride != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
-                    {
-                        // NormalizePath, as the hydrator does, so a nested path survives.
-                        achievement.Category = CategoryPathHelper.NormalizePath(userOverride.Category);
-                    }
-
-                    if (userOverride.ClearTags || userOverride.Tags != null)
-                    {
-                        achievement.Tags = AchievementTagHelper.ApplyOverride(
-                            achievement.Tags,
-                            userOverride.ClearTags ? string.Empty : userOverride.Tags);
-                    }
-
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
                         ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
                         : (DateTime?)null;
-                    AchievementOverrideApplier.Apply(achievement, userOverride, resolved.HasManualLink);
+                    AchievementOverrideApplier.ApplyUnlockTime(achievement, userOverride, resolved.HasManualLink);
                     MoveTimelineCount(timeline, achievement, countedDate);
                 }
 
@@ -1740,28 +1726,19 @@ namespace PlayniteAchievements.Services.Achievements
             MarkFilterEntries(entries, customData?.FilteredAchievementApiNames, (entry) => entry.IsFiltered = true);
             MarkFilterEntries(entries, customData?.SummaryFilteredAchievementApiNames, (entry) => entry.IsSummaryFiltered = true);
 
-            // The user-editable fields aggregates read. Everything else on the record is applied
-            // during hydration and deliberately not mirrored.
+            // The custom layer each record supplies; notes, icons and unlock times are applied
+            // during hydration and not mirrored.
             foreach (var pair in customData?.AchievementOverrides ??
                 new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase))
             {
                 var apiName = NormalizeText(pair.Key);
-                if (apiName == null || pair.Value == null)
+                var layer = pair.Value?.ToLayer();
+                if (apiName == null || layer == null || layer.IsEmpty)
                 {
                     continue;
                 }
 
-                if (!pair.Value.Points.HasValue &&
-                    string.IsNullOrWhiteSpace(pair.Value.TrophyType) &&
-                    !pair.Value.ClearTrophyType)
-                {
-                    continue;
-                }
-
-                var entry = ResolveMirrorEntry(entries, apiName);
-                entry.Points = pair.Value.Points;
-                entry.TrophyType = NormalizeText(pair.Value.TrophyType) ??
-                    (pair.Value.ClearTrophyType ? AchievementOverrideMirrorEntry.ClearedTrophyType : null);
+                ResolveMirrorEntry(entries, apiName).SetLayer(layer);
             }
 
             return entries.Values.Where(entry => !entry.IsEmpty).ToList();
