@@ -20,7 +20,8 @@ namespace PlayniteAchievements.Services.Database
         // v21: AchievementDefinitions.MetadataOrder holds each achievement's position in the list
         // of the metadata source chosen for order.
         // v22: AchievementMetadataLayer holds what metadata sources supplied apart from the
-        // platform's definitions, and the ResolvedDefinitions view resolves one over the other.
+        // platform's definitions, AchievementOverrides carries the whole custom layer, and the
+        // ResolvedDefinitions view resolves custom over metadata over platform.
         public const int SchemaVersion = 22;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
@@ -418,12 +419,26 @@ namespace PlayniteAchievements.Services.Database
         /// </remarks>
         private void EnsureAchievementOverridesTable(SQLiteDatabase db)
         {
+            // Derived state the startup resync rebuilds, so a table from before the custom layer
+            // columns is dropped rather than altered.
+            var existing = GetColumnNames(db, "AchievementOverrides");
+            if (existing.Count > 0 && !existing.Contains("Cleared"))
+            {
+                ExecuteSafe(db, "DROP TABLE AchievementOverrides;");
+            }
+
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementOverrides (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 ApiName TEXT NOT NULL COLLATE NOCASE,
+                DisplayName TEXT NULL,
+                Description TEXT NULL,
                 Points INTEGER NULL,
                 TrophyType TEXT NULL COLLATE NOCASE,
+                Category TEXT NULL,
+                Tags TEXT NULL,
+                Hidden INTEGER NULL,
+                Cleared INTEGER NOT NULL DEFAULT 0,
                 IsFiltered INTEGER NOT NULL DEFAULT 0,
                 IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                 UpdatedUtc TEXT NOT NULL,
