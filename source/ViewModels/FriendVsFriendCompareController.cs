@@ -20,7 +20,8 @@ namespace PlayniteAchievements.ViewModels
     /// rows. Selection is session-only; the caller clears it whenever the friend (or game) being
     /// viewed changes.
     /// </summary>
-    public sealed class FriendVsFriendCompareController : ObservableObject, IGridCompareSource
+    public sealed class FriendVsFriendCompareController :
+        FriendCompareControllerBase<FriendAchievementDisplayItem>, IGridCompareSource
     {
         // Friend option keys always contain '|' (FriendOverviewProjection.BuildFriendKey) and the
         // all-friends scope key is "All", so this sentinel cannot collide with either.
@@ -31,8 +32,6 @@ namespace PlayniteAchievements.ViewModels
         private readonly Func<FriendAchievementDisplayItem, bool> _isRowInScope;
         private readonly Func<IReadOnlyList<FriendIdentity>> _loadCurrentUserIdentities;
         private readonly ILogger _logger;
-        private readonly List<FriendAchievementDisplayItem> _appliedItems =
-            new List<FriendAchievementDisplayItem>();
 
         private FriendSummaryItem _compareFriend;
         private bool _selfSelected;
@@ -186,25 +185,10 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            // A friend can carry more than one row per achievement (merged accounts); an unlocked
-            // row wins so the comparison reflects their best state.
-            var compareRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in rowPool)
-            {
-                if (row == null ||
-                    string.IsNullOrWhiteSpace(row.ApiName) ||
-                    !FriendOverviewProjection.IsSameFriend(row, _compareFriend) ||
-                    !IsInScope(row))
-                {
-                    continue;
-                }
-
-                if (!compareRows.TryGetValue(row.ApiName, out var existing) ||
-                    (row.Unlocked && !existing.Unlocked))
-                {
-                    compareRows[row.ApiName] = row;
-                }
-            }
+            var compareFriend = _compareFriend;
+            var compareRows = BuildBestRowsByApiName(
+                rowPool,
+                row => FriendOverviewProjection.IsSameFriend(row, compareFriend) && IsInScope(row));
 
             var compareName = _compareFriend.DisplayName;
             var compareAvatar = _compareFriend.AvatarPath;
@@ -234,7 +218,7 @@ namespace PlayniteAchievements.ViewModels
                     compareRow?.Unlocked == true,
                     ownerName ?? item.FriendName,
                     ownerAvatar ?? item.FriendAvatarPath);
-                _appliedItems.Add(item);
+                AppliedItems.Add(item);
             }
         }
 
@@ -264,7 +248,7 @@ namespace PlayniteAchievements.ViewModels
                     item.UnlockedBySelf,
                     selectedFriend.DisplayName ?? item.FriendName,
                     selectedFriend.AvatarPath ?? item.FriendAvatarPath);
-                _appliedItems.Add(item);
+                AppliedItems.Add(item);
             }
         }
 
@@ -377,21 +361,7 @@ namespace PlayniteAchievements.ViewModels
             var version = Interlocked.Increment(ref _identityLoadVersion);
             SelfIdentityLoadTask = Task.Run(() =>
             {
-                var map = new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
-                try
-                {
-                    foreach (var identity in _loadCurrentUserIdentities() ?? new List<FriendIdentity>())
-                    {
-                        if (identity != null && !string.IsNullOrWhiteSpace(identity.ProviderKey))
-                        {
-                            map[identity.ProviderKey] = identity;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Failed to load current user identities for compare.");
-                }
+                var map = LoadIdentitiesByProvider(_loadCurrentUserIdentities, _logger);
 
                 void Apply()
                 {
@@ -496,27 +466,6 @@ namespace PlayniteAchievements.ViewModels
                 FriendOverviewProjection.GetFriendScopeKey(friend),
                 key,
                 StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void ClearApplied()
-        {
-            if (_appliedItems.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var item in _appliedItems)
-            {
-                item?.ClearComparison();
-            }
-
-            _appliedItems.Clear();
-        }
-
-        private void NotifyCompareStateChanged()
-        {
-            OnPropertyChanged(nameof(CompareSelectionText));
-            OnPropertyChanged(nameof(IsCompareAvailable));
         }
     }
 }
