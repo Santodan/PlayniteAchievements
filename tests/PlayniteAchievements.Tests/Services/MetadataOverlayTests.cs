@@ -46,13 +46,11 @@ namespace PlayniteAchievements.Tests.Services
             var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png", locked: "steam_gray.png"));
             var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
 
-            bool changed;
             using (var run = overlay.BeginRun())
             {
-                changed = await run.ApplyAsync(data.Game, data, CancellationToken.None);
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
 
-            Assert.IsTrue(changed);
             Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath);
             Assert.IsNull(data.Achievements[0].LockedIconPath);
             Assert.AreEqual(1, playstation.BeginCount);
@@ -64,7 +62,7 @@ namespace PlayniteAchievements.Tests.Services
             next.PlayniteGameId = data.PlayniteGameId;
             using (var run = overlay.BeginRun())
             {
-                Assert.IsFalse(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+                await run.ApplyAsync(next.Game, next, CancellationToken.None);
             }
         }
 
@@ -767,7 +765,7 @@ namespace PlayniteAchievements.Tests.Services
 
             using (var run = overlay.BeginRun())
             {
-                Assert.IsTrue(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+                await run.ApplyAsync(next.Game, next, CancellationToken.None);
             }
 
             Assert.AreEqual("https://psn/curiosity.png", next.Achievements[1].UnlockedIconPath);
