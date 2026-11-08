@@ -22,13 +22,24 @@ namespace PlayniteAchievements.Services.Database.Rows
 
         public bool UseSeparateLockedIcons { get; set; }
 
-        /// <summary>Kind per category path; "None" says the category has none.</summary>
-        public Dictionary<string, string> CategoryKinds { get; set; } =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>The user's settings per category path.</summary>
+        public Dictionary<string, CategoryState> Categories { get; set; } =
+            new Dictionary<string, CategoryState>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The entry for <paramref name="category"/>, created when missing.</summary>
+        public CategoryState Category(string category)
+        {
+            if (!Categories.TryGetValue(category, out var state))
+            {
+                Categories[category] = state = new CategoryState();
+            }
+
+            return state;
+        }
 
         public bool IsEmpty =>
             !CapstonesMaterialized && !HasManualLink && !ExcludedFromSummaries && !ExcludedFromRefreshes &&
-            !UseSeparateLockedIcons && (CategoryKinds == null || CategoryKinds.Count == 0);
+            !UseSeparateLockedIcons && (Categories == null || Categories.Count == 0);
 
         public string ToSignature() =>
             string.Join(
@@ -38,8 +49,19 @@ namespace PlayniteAchievements.Services.Database.Rows
                 ExcludedFromSummaries ? "1" : "0",
                 ExcludedFromRefreshes ? "1" : "0",
                 UseSeparateLockedIcons ? "1" : "0",
-                string.Join("|", (CategoryKinds ?? new Dictionary<string, string>())
+                string.Join("|", (Categories ?? new Dictionary<string, CategoryState>())
                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                    .Select(pair => pair.Key + "=" + pair.Value)));
+                    .Select(pair => pair.Key + "=" + pair.Value?.Kind + "," + pair.Value?.SortIndex + "," + pair.Value?.ImagePath)));
+    }
+
+    /// <summary>One category's settings: its kind ("None" for none), position in the custom category order and custom art.</summary>
+    internal sealed class CategoryState
+    {
+        public string Kind { get; set; }
+
+        public int? SortIndex { get; set; }
+
+        /// <summary>The custom art to show, relative to the icon cache like the achievement icons.</summary>
+        public string ImagePath { get; set; }
     }
 }
