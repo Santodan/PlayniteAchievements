@@ -2810,9 +2810,6 @@ namespace PlayniteAchievements.Services.Tests
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
                 new FriendsOverviewData();
 
-            public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
-                new FriendsOverviewData();
-
             public IReadOnlyList<CurrentUserGameLabel> CurrentUserGameLabels { get; set; } =
                 new List<CurrentUserGameLabel>();
 
