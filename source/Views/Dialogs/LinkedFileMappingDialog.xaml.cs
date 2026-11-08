@@ -71,17 +71,17 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             PreviewGrid.Columns.Clear();
 
-            // The first column shows the achievement each row pairs with, as a dropdown that pairs
-            // it by hand, and stays in view while the file's columns scroll.
-            PreviewGrid.Columns.Add(new DataGridTemplateColumn
+            // The first column shows the achievement each row pairs with and stays in view
+            // while the file's columns scroll.
+            PreviewGrid.Columns.Add(new DataGridTextColumn
             {
                 Header = ResourceProvider.GetString("LOCPlayAch_Column_Achievement"),
-                CellTemplate = (DataTemplate)FindResource("MatchCellTemplate"),
+                Binding = new Binding("Match"),
                 // A template of its own: the grid's header style hosts the field picker, which
                 // belongs on the file's columns only.
                 HeaderTemplate = (DataTemplate)FindResource("MatchColumnHeaderTemplate"),
                 HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
-                Width = 240,
+                ElementStyle = (Style)FindResource("MatchCellTextStyle"),
                 MaxWidth = 300
             });
 
@@ -142,13 +142,6 @@ namespace PlayniteAchievements.Views.Dialogs
             Dispatcher.BeginInvoke(new Action(() =>
                 comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource()));
         }
-
-        private void PickerPopup_Opened(object sender, EventArgs e) => MatchPickerHandlers.PopupOpened(sender);
-
-        private void PickerSearch_PreviewKeyDown(object sender, KeyEventArgs e) => MatchPickerHandlers.SearchPreviewKeyDown(sender, e);
-
-        private void PickerList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e) =>
-            MatchPickerHandlers.ListPreviewMouseLeftButtonUp(sender, e);
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
