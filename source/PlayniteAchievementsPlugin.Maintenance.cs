@@ -21,9 +21,9 @@ namespace PlayniteAchievements
         /// <summary>
         /// Clears the metadata layer of <paramref name="gameIds"/>, or of every game when null,
         /// forgets their automatic links and applied state, and refreshes the games that had
-        /// metadata so their sources are searched again. Returns those games.
+        /// metadata so their sources are searched again.
         /// </summary>
-        internal IReadOnlyList<Guid> ClearMetadataAndRefetch(IReadOnlyCollection<Guid> gameIds)
+        internal void ClearMetadataAndRefetch(IReadOnlyCollection<Guid> gameIds)
         {
             var cleared = (_cacheManager as CacheManager)?.ClearMetadataLayers(gameIds) ?? Array.Empty<Guid>();
             var links = _refreshService?.MetadataOverlay?.Links;
@@ -37,8 +37,6 @@ namespace PlayniteAchievements
             {
                 _ = StartMenuRefreshAsync(new RefreshRequest { GameIds = toRefresh });
             }
-
-            return cleared;
         }
 
         /// <summary>
@@ -46,10 +44,10 @@ namespace PlayniteAchievements
         /// when the cache holds achievements it produced, those go with it. Returns whether the
         /// change needs a refresh.
         /// </summary>
-        internal bool ClearGameCustomData(Guid gameId, string gameName)
+        internal bool ClearGameCustomData(Guid gameId, string gameName, Models.Settings.GameCustomDataFile current)
         {
             var store = GameCustomDataStore;
-            if (store == null || !store.TryLoad(gameId, out var current) || current == null)
+            if (store == null || current == null)
             {
                 return false;
             }
@@ -101,20 +99,21 @@ namespace PlayniteAchievements
         {
             var store = GameCustomDataStore;
             var targets = games
-                .Where(game => store != null && store.TryLoad(game.Id, out var data) && data != null)
+                .Select(game => (Game: game, Data: store != null && store.TryLoad(game.Id, out var data) ? data : null))
+                .Where(target => target.Data != null)
                 .ToList();
             if (targets.Count == 0)
             {
                 return;
             }
 
-            var strands = targets.Any(game => store.TryLoad(game.Id, out var data) && WouldStrandManualAchievements(game.Id, data));
+            var strands = targets.Any(target => WouldStrandManualAchievements(target.Game.Id, target.Data));
             var message = targets.Count == 1
                 ? string.Format(
                     ResourceProvider.GetString(strands
                         ? "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual"
                         : "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
-                    targets[0].Name)
+                    targets[0].Game.Name)
                 : string.Format(
                     ResourceProvider.GetString(strands
                         ? "LOCPlayAch_Menu_ClearCustomData_ConfirmSelectedManual"
@@ -127,7 +126,10 @@ namespace PlayniteAchievements
 
             RunMaintenance(() =>
             {
-                var refresh = targets.Where(game => ClearGameCustomData(game.Id, game.Name)).Select(game => game.Id).ToList();
+                var refresh = targets
+                    .Where(target => ClearGameCustomData(target.Game.Id, target.Game.Name, target.Data))
+                    .Select(target => target.Game.Id)
+                    .ToList();
                 if (refresh.Count > 0)
                 {
                     _ = StartMenuRefreshAsync(new RefreshRequest { GameIds = refresh });
@@ -135,7 +137,7 @@ namespace PlayniteAchievements
             }, "clear custom data");
         }
 
-        private bool ConfirmMaintenance(string message)
+        internal bool ConfirmMaintenance(string message)
         {
             return (PlayniteApi?.Dialogs?.ShowMessage(
                 message,
@@ -144,7 +146,7 @@ namespace PlayniteAchievements
                 MessageBoxImage.Warning) ?? MessageBoxResult.None) == MessageBoxResult.Yes;
         }
 
-        private void RunMaintenance(Action action, string what)
+        internal void RunMaintenance(Action action, string what)
         {
             try
             {
