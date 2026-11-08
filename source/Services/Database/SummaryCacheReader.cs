@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
+            public string ProviderCategory { get; set; }
             public string Tags { get; set; }
             public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
@@ -528,14 +529,14 @@ namespace PlayniteAchievements.Services.Database
                     SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'uncommon' THEN 1 ELSE 0 END) AS TotalUncommonPossible,
                     SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'rare' THEN 1 ELSE 0 END) AS TotalRarePossible,
                     SUM(CASE WHEN LOWER(COALESCE(ad.Rarity, '')) = 'ultrarare' THEN 1 ELSE 0 END) AS TotalUltraRarePossible,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyPlatinumCount,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyGoldCount,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'silver' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophySilverCount,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'bronze' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyBronzeCount,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum' THEN 1 ELSE 0 END) AS TrophyPlatinumTotal,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'silver' THEN 1 ELSE 0 END) AS TrophySilverTotal,
-                    SUM(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'bronze' THEN 1 ELSE 0 END) AS TrophyBronzeTotal,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'platinum' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyPlatinumCount,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'gold' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyGoldCount,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'silver' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophySilverCount,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'bronze' AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS TrophyBronzeCount,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'platinum' THEN 1 ELSE 0 END) AS TrophyPlatinumTotal,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'gold' THEN 1 ELSE 0 END) AS TrophyGoldTotal,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'silver' THEN 1 ELSE 0 END) AS TrophySilverTotal,
+                    SUM(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'bronze' THEN 1 ELSE 0 END) AS TrophyBronzeTotal,
                     SUM(CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END) AS CapstoneTotal,
                     SUM(CASE WHEN ad.IsCapstone = 1 AND ua.Unlocked = 1 THEN 1 ELSE 0 END) AS CapstoneUnlocked,
                     -- Whether the capstones are exactly the platinums, by identity rather than by
@@ -543,12 +544,12 @@ namespace PlayniteAchievements.Services.Database
                     -- finish lines, not one. The platinum ApiNames come along so a game whose
                     -- capstones the user has edited can be re-decided against its stored set.
                     SUM(CASE WHEN ad.IsCapstone = 1
-                             AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) <> 'platinum'
+                             AND LOWER(COALESCE(ad.TrophyType, '')) <> 'platinum'
                         THEN 1 ELSE 0 END) AS CapstonesNotPlatinum,
                     SUM(CASE WHEN COALESCE(ad.IsCapstone, 0) <> 1
-                             AND LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                             AND LOWER(COALESCE(ad.TrophyType, '')) = 'platinum'
                         THEN 1 ELSE 0 END) AS PlatinumsNotCapstone,
-                    GROUP_CONCAT(CASE WHEN LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) = 'platinum'
+                    GROUP_CONCAT(CASE WHEN LOWER(COALESCE(ad.TrophyType, '')) = 'platinum'
                                  THEN ad.ApiName END, '~|~') AS PlatinumApiNames
                 FROM LatestProgress lp
                 LEFT JOIN " + AchievementLayerSql.ViewName + @" ad
@@ -562,9 +563,6 @@ namespace PlayniteAchievements.Services.Database
                    AND ua.UserGameProgressId = lp.UserGameProgressId
                 -- The override mirror supplies the user-editable trophy type, so the trophy counts
                 -- above agree with what the achievement list shows.
-                LEFT JOIN AchievementOverrides aov
-                    ON aov.PlayniteGameId = lp.PlayniteGameId
-                   AND aov.ApiName = ad.ApiName
                 WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                 GROUP BY
                     lp.CacheKey,
@@ -643,7 +641,7 @@ namespace PlayniteAchievements.Services.Database
                     lp.CacheKey AS CacheKey,
                     ad.Tags AS Tags,
                     LOWER(COALESCE(ad.Rarity, '')) AS Rarity,
-                    LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) AS Trophy,
+                    LOWER(COALESCE(ad.TrophyType, '')) AS Trophy,
                     CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
                     SUM(CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END) AS Unlocked,
                     COUNT(ad.Id) AS Total
@@ -652,9 +650,6 @@ namespace PlayniteAchievements.Services.Database
                 LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
-                LEFT JOIN AchievementOverrides aov
-                    ON aov.PlayniteGameId = lp.PlayniteGameId
-                   AND aov.ApiName = ad.ApiName
                 WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
                                   WHERE ao.PlayniteGameId = lp.PlayniteGameId
@@ -664,7 +659,7 @@ namespace PlayniteAchievements.Services.Database
                     lp.CacheKey,
                     ad.Tags,
                     LOWER(COALESCE(ad.Rarity, '')),
-                    LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')),
+                    LOWER(COALESCE(ad.TrophyType, '')),
                     CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END;", ScopeArgs(scopeGameId)).ToList();
 
             var builders = new Dictionary<string, AchievementTallyBuilder>(StringComparer.OrdinalIgnoreCase);
@@ -835,7 +830,7 @@ namespace PlayniteAchievements.Services.Database
                             ad.ApiName AS ApiName,
                             ad.Tags AS Tags,
                             LOWER(COALESCE(ad.Rarity, '')) AS Rarity,
-                            LOWER(COALESCE(aov.TrophyType, ad.TrophyType, '')) AS Trophy,
+                            LOWER(COALESCE(ad.TrophyType, '')) AS Trophy,
                             CASE WHEN ad.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
                             CASE WHEN ua.Unlocked = 1 THEN 1 ELSE 0 END AS Unlocked
                         FROM LatestProgress lp
@@ -843,9 +838,6 @@ namespace PlayniteAchievements.Services.Database
                         LEFT JOIN UserAchievements ua
                             ON ua.AchievementDefinitionId = ad.Id
                            AND ua.UserGameProgressId = lp.UserGameProgressId
-                        LEFT JOIN AchievementOverrides aov
-                            ON aov.PlayniteGameId = lp.PlayniteGameId
-                           AND aov.ApiName = ad.ApiName
                         WHERE lp.RowNum = 1
                           AND " + condition + @"
                           AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
@@ -887,18 +879,14 @@ namespace PlayniteAchievements.Services.Database
                     lp.CacheKey AS CacheKey,
                     ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                     ad.Rarity AS Rarity,
-                    -- Points is user-editable, so the score total must read the override first.
-                    -- Rarity above deliberately is not: it stays provider-owned.
-                    COALESCE(aov.Points, ad.Points) AS Points,
+                    -- Points and rarity come resolved from the view: custom over metadata over platform.
+                    ad.Points AS Points,
                     -- RetroAchievements marks softcore unlocks with the derived Softcore tag, which
                     -- only the provider writes (overrides never carry it). Platform scores skip them.
                     CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'
                          THEN 1 ELSE 0 END AS IsSoftcore
                 FROM LatestProgress lp
                 INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
-                LEFT JOIN AchievementOverrides aov
-                    ON aov.PlayniteGameId = lp.PlayniteGameId
-                   AND aov.ApiName = ad.ApiName
                 " + userAchievementJoin + @"
                 WHERE lp.RowNum = 1" + ScopeSql(scopeGameId) + @"
                   AND NOT EXISTS (SELECT 1 FROM AchievementOverrides ao
@@ -1014,6 +1002,7 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
+                    ad.ProviderCategory AS ProviderCategory,
                     ad.Tags AS Tags,
                     ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
@@ -1110,6 +1099,7 @@ namespace PlayniteAchievements.Services.Database
                     Points = row.Points,
                     ScaledPoints = row.ScaledPoints,
                     Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    ProviderCategory = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),
                     Tags = AchievementTagHelper.Normalize(row.Tags),
                     CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
