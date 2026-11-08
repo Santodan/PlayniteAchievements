@@ -68,6 +68,23 @@ namespace PlayniteAchievements.Services.Achievements
                 target.Hidden = userOverride.Hidden.Value;
             }
 
+            ApplyUnlockTime(target, userOverride, hasManualLink);
+        }
+
+        /// <summary>
+        /// The override's unlock time on an unlocked row. Kept apart from the layers because a
+        /// live unlock changes a loaded row's time.
+        /// </summary>
+        public static void ApplyUnlockTime(
+            IAchievementOverrideTarget target,
+            AchievementOverride userOverride,
+            bool hasManualLink)
+        {
+            if (target == null || userOverride == null)
+            {
+                return;
+            }
+
             // A manually tracked game records unlock state and time in its link, which reaches the
             // row through the cache. Layering an override on top would show one timestamp in the
             // editor while every count, summary and theme surface kept the link's, with nothing on
