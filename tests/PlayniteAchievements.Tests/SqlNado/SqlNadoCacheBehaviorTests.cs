@@ -806,7 +806,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "private static void MergeProviderOnlyDefinitionsIntoTarget");
             StringAssert.Contains(store, "AND NOT EXISTS");
             StringAssert.Contains(store, "target.GameId = ?");
-            StringAssert.Contains(store, "target.ApiName = AchievementDefinitions.ApiName");
+            StringAssert.Contains(store, "target.ApiName = PlatformDefinitions.ApiName");
             Assert.IsFalse(
                 store.Contains("MoveProviderOnlyDefinitionsIfTargetIsEmpty"),
                 "Promotion must merge missing definitions instead of skipping or failing when the target already has definitions.");
