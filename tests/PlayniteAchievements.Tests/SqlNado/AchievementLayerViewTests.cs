@@ -204,7 +204,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                       VALUES (?, 'custom:mine', 'Mine', 1, 1, 'Side', '');",
                     GameId);
                 db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
-                db.ExecuteNonQuery("INSERT INTO AchievementCategoryKinds (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
+                db.ExecuteNonQuery("INSERT INTO AchievementCategories (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
                 db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
 
                 var rows = db.Load<GapRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + ";").ToList();
@@ -374,7 +374,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateGameStateTableSql);
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateCategoryKindsTableSql);
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateCategoriesTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateCapturesTableSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
                     {
