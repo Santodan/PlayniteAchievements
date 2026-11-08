@@ -1413,14 +1413,14 @@ namespace PlayniteAchievements.Services.Achievements
                 // Summary rows read the resolved view, which already carries the user's text,
                 // points, trophy type, category and tags. What stays outside SQL is applied here
                 // as the hydrator applies it: unlock time, note, category kind and icons.
-                var userOverride = ResolveSummaryOverride(resolved, apiName);
+                resolved.AchievementOverrides.TryGetValue(apiName, out var userOverride);
                 achievement.Category = CategoryPathHelper.NormalizePath(achievement.Category);
                 if (userOverride != null)
                 {
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
                         ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
                         : (DateTime?)null;
-                    AchievementOverrideApplier.ApplyUnlockTime(achievement, userOverride, resolved.HasManualLink);
+                    userOverride?.ApplyUnlockTimeTo(achievement, resolved.HasManualLink);
                     MoveTimelineCount(timeline, achievement, countedDate);
                 }
 
@@ -1490,17 +1490,6 @@ namespace PlayniteAchievements.Services.Achievements
         /// The per-achievement override record for a summary row, resolving through the legacy
         /// mirror maps when the resolved data predates the record.
         /// </summary>
-        private static AchievementOverride ResolveSummaryOverride(ResolvedGameCustomData resolved, string apiName)
-        {
-            var overrides = resolved?.AchievementOverrides;
-            if (overrides == null || overrides.Count == 0)
-            {
-                return null;
-            }
-
-            return overrides.TryGetValue(apiName, out var entry) ? entry : null;
-        }
-
         private static string ResolveCustomIconOverridePath(string value, Guid playniteGameId)
         {
             var normalized = NormalizeText(value);
@@ -1731,13 +1720,13 @@ namespace PlayniteAchievements.Services.Achievements
             var hasManualLink = customData.ManualLink != null;
             var overrides = customData.AchievementOverrides ??
                 new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
-            MarkFilterEntries(entries, customData.FilteredAchievementApiNames, (entry) => entry.IsFiltered = true);
-            MarkFilterEntries(entries, customData.SummaryFilteredAchievementApiNames, (entry) => entry.IsSummaryFiltered = true);
+            MarkPositions(entries, customData.FilteredAchievementApiNames, (entry, _) => entry.IsFiltered = true);
+            MarkPositions(entries, customData.SummaryFilteredAchievementApiNames, (entry, _) => entry.IsSummaryFiltered = true);
             MarkPositions(entries, customData.GoalAchievementApiNames, (entry, index) => entry.GoalOrder = index);
             MarkPositions(entries, customData.AchievementOrder, (entry, index) => entry.CustomOrder = index);
             if (customData.CapstonesMaterialized)
             {
-                MarkPositions(entries, customData.Capstones?.Select(capstone => capstone?.ApiName).ToList(), (entry, _) => entry.CapstoneAssigned = true);
+                MarkPositions(entries, customData.Capstones?.Select(capstone => capstone?.ApiName), (entry, _) => entry.CapstoneAssigned = true);
             }
 
             foreach (var pair in overrides)
@@ -1762,6 +1751,8 @@ namespace PlayniteAchievements.Services.Achievements
 
                 var entry = ResolveMirrorEntry(entries, apiName);
                 entry.SetLayer(layer);
+                // Derived tags are the platform's; the views add them back, as the resolver does.
+                entry.Tags = AchievementTagHelper.StripDerived(entry.Tags);
                 entry.UnlockedIconPath = unlockedIcon;
                 entry.LockedIconPath = lockedIcon;
                 entry.Note = note;
@@ -1777,11 +1768,13 @@ namespace PlayniteAchievements.Services.Achievements
                 overrides.TryGetValue(row.ApiName, out var userOverride);
                 row.CustomLayer = userOverride?.ToLayer();
                 AchievementLayers.Resolve(row);
-                AchievementOverrideApplier.ApplyUnlockTime(row, userOverride, hasManualLink);
+                userOverride?.ApplyUnlockTimeTo(row, hasManualLink);
                 row.UnlockedIconPath = ResolveCustomIconOverridePath(userOverride?.UnlockedIconPath, gameId) ?? row.UnlockedIconPath;
                 row.LockedIconPath = ResolveCustomIconOverridePath(userOverride?.LockedIconPath, gameId) ?? row.LockedIconPath;
                 row.Category = CategoryPathHelper.NormalizePath(row.Category);
-                row.CategoryKind = CategoryKindHelper.ResolveEffective(StoredCategoryKind(customData, row.Category), row.CategoryKind);
+                row.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    CategoryEditor.ResolveStoredCategoryKind(customData.AchievementCategoryKinds, row.Category),
+                    row.CategoryKind);
                 var entry = ResolveMirrorEntry(entries, row.ApiName);
                 entry.SetAuthored(row);
                 entry.Note = NormalizeText(userOverride?.Note);
@@ -1835,42 +1828,21 @@ namespace PlayniteAchievements.Services.Achievements
             return state;
         }
 
-        private static string StoredCategoryKind(GameCustomDataFile customData, string category)
-        {
-            var key = CategoryPathHelper.NormalizePath(category);
-            return key != null && customData?.AchievementCategoryKinds != null &&
-                   customData.AchievementCategoryKinds.TryGetValue(key, out var kind) && !string.IsNullOrWhiteSpace(kind)
-                ? kind
-                : null;
-        }
-
         private static void MarkPositions(
             Dictionary<string, AchievementOverrideMirrorEntry> entries,
-            IList<string> apiNames,
+            IEnumerable<string> apiNames,
             Action<AchievementOverrideMirrorEntry, int> mark)
         {
-            for (var i = 0; i < (apiNames?.Count ?? 0); i++)
-            {
-                var normalized = NormalizeText(apiNames[i]);
-                if (normalized != null)
-                {
-                    mark(ResolveMirrorEntry(entries, normalized), i);
-                }
-            }
-        }
-
-        private static void MarkFilterEntries(
-            Dictionary<string, AchievementOverrideMirrorEntry> entries,
-            IEnumerable<string> apiNames,
-            Action<AchievementOverrideMirrorEntry> mark)
-        {
+            var index = 0;
             foreach (var apiName in apiNames ?? Enumerable.Empty<string>())
             {
                 var normalized = NormalizeText(apiName);
                 if (normalized != null)
                 {
-                    mark(ResolveMirrorEntry(entries, normalized));
+                    mark(ResolveMirrorEntry(entries, normalized), index);
                 }
+
+                index++;
             }
         }
 
