@@ -29,8 +29,6 @@ namespace PlayniteAchievements.SqlNado.Tests
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }
             public int? MetadataOrder { get; set; }
-            public string P_DisplayName { get; set; }
-            public long HasMetadata { get; set; }
         }
 
         private sealed class CountRow
@@ -53,7 +51,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     GameId,
                     (long)AchievementField.Description);
 
-                var row = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.LayerViewName + ";").Single();
+                var row = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.ViewName + ";").Single();
 
                 Assert.AreEqual("Mine", row.DisplayName);
                 Assert.IsNull(row.Description, "a cleared custom description hides the platform's");
@@ -77,18 +75,16 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Metadata(db, "borrowed", displayName: "Borrowed", points: 50, tags: "Collectable", percent: 2.0, rarity: "UltraRare", order: 3,
                     cleared: AchievementField.Category | AchievementField.CategoryKind | AchievementField.Description);
 
-                var rows = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.LayerViewName + " ORDER BY Id;").ToList();
+                var rows = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.ViewName + " ORDER BY Id;").ToList();
 
                 var plain = rows.Single(row => row.ApiName == "plain");
                 Assert.AreEqual("Own", plain.DisplayName);
                 Assert.AreEqual(10, plain.Points);
                 Assert.AreEqual("Default", plain.Category);
                 Assert.AreEqual("Missable", plain.Tags);
-                Assert.AreEqual(0, plain.HasMetadata);
 
                 var borrowed = rows.Single(row => row.ApiName == "borrowed");
                 Assert.AreEqual("Borrowed", borrowed.DisplayName);
-                Assert.AreEqual("Own", borrowed.P_DisplayName);
                 Assert.IsNull(borrowed.Description);
                 Assert.AreEqual(50, borrowed.Points);
                 Assert.AreEqual("Default", borrowed.Category);
