@@ -116,6 +116,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - Fixed Capstone not been generated automatically when the setting was enabled
+- Fixed the `Local´ provider taking a different ID from the game's description
 
 ## 2026-11-07 - v4.2.1.1
 

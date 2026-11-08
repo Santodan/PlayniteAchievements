@@ -486,7 +486,8 @@ namespace PlayniteAchievements.Providers.Local
             if (appIdInt > 0)
             {
                 steamSchemaAppIdInt = appIdInt;
-                if (TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
+                // Respect user-forced App ID override: don't allow links/notes to override the schema App ID
+                if (!isAppIdOverridden && TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
                 {
                     steamSchemaAppIdInt = resolvedSteamSchemaAppId;
                 }

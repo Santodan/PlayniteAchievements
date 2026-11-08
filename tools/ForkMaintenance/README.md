@@ -1,5 +1,19 @@
 # Fork maintenance bundle
 
+## Explicit Local App ID override takes precedence - 2026-11-08
+
+Preserve the `!isAppIdOverridden` guard in `LocalSavesProvider.GetAchievementsAsync`:
+an explicit user App ID override must also select the Steam schema App ID.
+Steam links and notes may resolve the schema App ID only when no explicit
+override is active.
+
+The bundle was refreshed against the existing upstream v4.2.1 baseline, including
+the Local provider overlay hash. Clean three-way preflight and actual replay
+passed on a temporary v4.2.1 checkout: 220 overlays, three localization recipes,
+component hashes and protected-file checks passed. The replayed Local provider
+matches the working source byte for byte. Live Playnite verification remains
+pending. The existing historical validation snapshot is not used by bundle replay.
+
 ## Local refresh completion and automatic capstones - 2026-11-07
 
 Preserve Local's completed-game reporting for normal refreshes as well as custom
