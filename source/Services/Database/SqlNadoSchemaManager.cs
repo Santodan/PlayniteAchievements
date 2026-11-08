@@ -389,7 +389,8 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
             ExecuteSafe(db, AchievementLayerSql.CreateGameStateTableSql);
-            ExecuteSafe(db, AchievementLayerSql.CreateCategoryKindsTableSql);
+            ExecuteSafe(db, "DROP TABLE IF EXISTS AchievementCategoryKinds;");
+            ExecuteSafe(db, AchievementLayerSql.CreateCategoriesTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateCapturesTableSql);
             foreach (var sql in AchievementLayerSql.RecreateViewSql())
             {
