@@ -83,7 +83,7 @@ namespace PlayniteAchievements.Services.Hydration
             // One record per achievement carries category, category type, note, the icon paths and
             // the user-editable provider fields, so a row needs a single lookup rather than one per
             // facet.
-            var overridesByApiName = customData.ResolveAchievementOverrides();
+            var overridesByApiName = customData.AchievementOverrides;
             var hasOverrides = overridesByApiName != null && overridesByApiName.Count > 0;
 
             var filteredApiNames = customData.FilteredAchievementApiNames ??
