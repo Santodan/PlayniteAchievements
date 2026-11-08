@@ -78,5 +78,30 @@ namespace PlayniteAchievements.Services.Achievements.Tests
             Assert.AreEqual(CustomizationArea.Icons | CustomizationArea.Text, platform);
             Assert.AreEqual(CustomizationArea.Icons, metadata);
         }
+
+        [TestMethod]
+        public void CustomLayer_FromOverride_ResolvesOverMetadataAndPlatform()
+        {
+            var row = new AchievementDetail { ApiName = "A", DisplayName = "Own", Description = "Desc", TrophyType = "gold", Tags = "Hardcore|Missable" };
+            row.PlatformLayer = AchievementLayers.PlatformOf(row);
+            row.MetadataLayer = new AchievementLayerValues(displayName: "Borrowed", category: "Story");
+            row.CustomLayer = new PlayniteAchievements.Models.Settings.AchievementOverride
+            {
+                DisplayName = "Mine",
+                ClearDescription = true,
+                TrophyType = "bronze",
+                ClearTrophyType = true,
+                ClearTags = true,
+                Tags = "Challenge"
+            }.ToLayer();
+
+            AchievementLayers.Resolve(row);
+
+            Assert.AreEqual("Mine", row.DisplayName);
+            Assert.IsNull(row.Description, "a cleared description hides the platform's");
+            Assert.AreEqual("bronze", row.TrophyType, "a value wins over its Clear flag");
+            Assert.AreEqual("Hardcore", row.Tags, "ClearTags removes every assigned tag, the derived ones stay");
+            Assert.AreEqual("Story", row.Category, "metadata shows where the user set nothing");
+        }
     }
 }
