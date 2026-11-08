@@ -249,7 +249,7 @@ namespace PlayniteAchievements.Models.Settings
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
             target.IconScaleMode = source.IconScaleMode;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
-            target.ProgressBadgeSource = source.ProgressBadgeSource;
+            target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;

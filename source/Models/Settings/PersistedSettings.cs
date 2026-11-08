@@ -226,7 +226,7 @@ namespace PlayniteAchievements.Models.Settings
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
-        private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
+        private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -2647,18 +2647,18 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Which badges the progress column footer shows: a game's trophies when it has them, or
-        /// its rarity spread regardless.
+        /// The progress column footer's detail styles in priority order, each enabled or not. A
+        /// game shows the first enabled style it has data for.
         /// </summary>
         /// <remarks>
-        /// Written out even at its zero value, so choosing Rarity cannot round-trip as unset and
-        /// silently revert to the default.
+        /// Always exactly one entry per style (see <see cref="ProgressDetailOrder.Normalize"/>).
+        /// Edits assign a new list rather than changing this one, so listeners see a property change.
         /// </remarks>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
-        public ProgressBadgeSource ProgressBadgeSource
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<ProgressDetailEntry> ProgressDetails
         {
-            get => _progressBadgeSource;
-            set => SetValue(ref _progressBadgeSource, value);
+            get => _progressDetails;
+            set => SetValue(ref _progressDetails, ProgressDetailOrder.Normalize(value));
         }
 
         /// <summary>
@@ -3530,7 +3530,7 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 IconScaleMode = this.IconScaleMode,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
-                ProgressBadgeSource = this.ProgressBadgeSource,
+                ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -3694,7 +3694,7 @@ namespace PlayniteAchievements.Models.Settings
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
-            ProgressBadgeSource = defaults.ProgressBadgeSource;
+            ProgressDetails = defaults.ProgressDetails;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;

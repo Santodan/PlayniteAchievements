@@ -11,14 +11,22 @@ using System.Windows.Media.Effects;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Converters;
 
 namespace PlayniteAchievements.Views.Controls
 {
     /// <summary>
-    /// The rarity (or trophy) badge row under a game's progress bar, drawn as one element.
+    /// The detail row under a game's progress bar (rarity tiers, trophy grades, or points), drawn
+    /// as one element.
     /// </summary>
     /// <remarks>
+    /// <see cref="DetailOrder"/> lists the enabled styles in priority order; the row shows the
+    /// first one the game has data for.
+    ///
     /// The element-per-badge template cost about 45 elements per row: eight StackPanels, eight
     /// Images each carrying its own shadow effect, eight TextBlocks with a per-tier color
     /// trigger, and a tooltip on each. With a dozen rows on screen that was the heaviest part of
@@ -28,7 +36,7 @@ namespace PlayniteAchievements.Views.Controls
     /// keys the old styles used, and serves the per-badge tooltips itself.
     /// The DataContext is the row's <see cref="GameSummaryItem"/>.
     /// </remarks>
-    public sealed class ProgressBadgeStrip : FrameworkElement
+    public sealed class ProgressDetailStrip : FrameworkElement
     {
         // From the retired styles: item margin 4,0; count text margin 3,0,0,0; icon Icon.Tiny.
         private const double ItemSideMargin = 4;
@@ -36,62 +44,86 @@ namespace PlayniteAchievements.Views.Controls
         private const double DefaultIconSize = 18;
         private const double DefaultFontSize = 12;
 
-        private sealed class BadgeSpec
+        // Rarity and trophy entries name resource keys; the points entry resolves its icon,
+        // color and tooltip from the row's points family instead.
+        private sealed class DetailSpec
         {
             public string ImageKey;
             public string BrushKey;
             public string TooltipKey;
+            public Func<GameSummaryItem, ImageSource> Image;
+            public Func<GameSummaryItem, Brush> Brush;
+            public Func<GameSummaryItem, string> Tooltip;
             public Func<GameSummaryItem, int> Count;
             public Func<GameSummaryItem, bool> Hidden;
+            public bool ShowZero;
         }
 
         // Descending rarity, the order the right-aligned footer shows; Reversed flips it.
-        private static readonly BadgeSpec[] RaritySpecs =
+        private static readonly DetailSpec[] RaritySpecs =
         {
-            new BadgeSpec { ImageKey = "BadgeRarityUltraRare", BrushKey = "PlayAch.Brush.Rarity.UltraRare", TooltipKey = "LOCPlayAch_Rarity_UltraRare", Count = item => item.UltraRareCount },
-            new BadgeSpec { ImageKey = "BadgeRarityRare", BrushKey = "PlayAch.Brush.Rarity.Rare", TooltipKey = "LOCPlayAch_Rarity_Rare", Count = item => item.RareCount },
-            new BadgeSpec { ImageKey = "BadgeRarityUncommon", BrushKey = "PlayAch.Brush.Rarity.Uncommon", TooltipKey = "LOCPlayAch_Rarity_Uncommon", Count = item => item.UncommonCount },
-            new BadgeSpec { ImageKey = "BadgeRarityCommon", BrushKey = "PlayAch.Brush.Rarity.Common", TooltipKey = "LOCPlayAch_Rarity_Common", Count = item => item.CommonCount }
+            new DetailSpec { ImageKey = "BadgeRarityUltraRare", BrushKey = "PlayAch.Brush.Rarity.UltraRare", TooltipKey = "LOCPlayAch_Rarity_UltraRare", Count = item => item.UltraRareCount },
+            new DetailSpec { ImageKey = "BadgeRarityRare", BrushKey = "PlayAch.Brush.Rarity.Rare", TooltipKey = "LOCPlayAch_Rarity_Rare", Count = item => item.RareCount },
+            new DetailSpec { ImageKey = "BadgeRarityUncommon", BrushKey = "PlayAch.Brush.Rarity.Uncommon", TooltipKey = "LOCPlayAch_Rarity_Uncommon", Count = item => item.UncommonCount },
+            new DetailSpec { ImageKey = "BadgeRarityCommon", BrushKey = "PlayAch.Brush.Rarity.Common", TooltipKey = "LOCPlayAch_Rarity_Common", Count = item => item.CommonCount }
         };
 
-        private static readonly BadgeSpec[] TrophySpecs =
+        private static readonly DetailSpec[] TrophySpecs =
         {
             // The platinum steps aside when the finish badge is showing it.
-            new BadgeSpec { ImageKey = "TrophyPlatinum", BrushKey = "PlayAch.Brush.Trophy.Platinum", TooltipKey = "LOCPlayAch_Trophy_Platinum", Count = item => item.TrophyPlatinumCount, Hidden = item => item.ShowPlatinumInCompletionSpot },
-            new BadgeSpec { ImageKey = "TrophyGold", BrushKey = "PlayAch.Brush.Trophy.Gold", TooltipKey = "LOCPlayAch_Trophy_Gold", Count = item => item.TrophyGoldCount },
-            new BadgeSpec { ImageKey = "TrophySilver", BrushKey = "PlayAch.Brush.Trophy.Silver", TooltipKey = "LOCPlayAch_Trophy_Silver", Count = item => item.TrophySilverCount },
-            new BadgeSpec { ImageKey = "TrophyBronze", BrushKey = "PlayAch.Brush.Trophy.Bronze", TooltipKey = "LOCPlayAch_Trophy_Bronze", Count = item => item.TrophyBronzeCount }
+            new DetailSpec { ImageKey = "TrophyPlatinum", BrushKey = "PlayAch.Brush.Trophy.Platinum", TooltipKey = "LOCPlayAch_Trophy_Platinum", Count = item => item.TrophyPlatinumCount, Hidden = item => item.ShowPlatinumInCompletionSpot },
+            new DetailSpec { ImageKey = "TrophyGold", BrushKey = "PlayAch.Brush.Trophy.Gold", TooltipKey = "LOCPlayAch_Trophy_Gold", Count = item => item.TrophyGoldCount },
+            new DetailSpec { ImageKey = "TrophySilver", BrushKey = "PlayAch.Brush.Trophy.Silver", TooltipKey = "LOCPlayAch_Trophy_Silver", Count = item => item.TrophySilverCount },
+            new DetailSpec { ImageKey = "TrophyBronze", BrushKey = "PlayAch.Brush.Trophy.Bronze", TooltipKey = "LOCPlayAch_Trophy_Bronze", Count = item => item.TrophyBronzeCount }
         };
 
-        private struct BadgeLayout
+        // Earned points, shown even at zero so a game with points never drops to an empty row
+        // before its first unlock.
+        private static readonly DetailSpec[] PointsSpecs =
         {
-            public BadgeSpec Spec;
+            new DetailSpec
+            {
+                Image = item => BuildPointsIcon(item.PointsFamily),
+                Brush = item => GetPointsBrush(item.PointsFamily),
+                Tooltip = item => PointsFamilyNames.GetLabel(item.PointsFamily),
+                Count = item => item.PlatformScorePoints,
+                ShowZero = true
+            }
+        };
+
+        private static readonly Dictionary<string, Brush> PointsBrushes =
+            new Dictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
+
+        private struct DetailLayout
+        {
+            public DetailSpec Spec;
             public FormattedText Text;
+            public ImageSource Image;
             public double Left;
             public double Width;
         }
 
-        public static readonly DependencyProperty PreferTrophyBadgesProperty =
+        public static readonly DependencyProperty DetailOrderProperty =
             DependencyProperty.Register(
-                nameof(PreferTrophyBadges),
-                typeof(bool),
-                typeof(ProgressBadgeStrip),
+                nameof(DetailOrder),
+                typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(ProgressDetailStrip),
                 new FrameworkPropertyMetadata(
-                    false,
+                    null,
                     FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-        /// <summary>Show PlayStation trophy badges instead of rarity badges when the game has trophies.</summary>
-        public bool PreferTrophyBadges
+        /// <summary>The enabled detail styles in priority order; the first the game has data for is shown.</summary>
+        public IReadOnlyList<ProgressDetailStyle> DetailOrder
         {
-            get => (bool)GetValue(PreferTrophyBadgesProperty);
-            set => SetValue(PreferTrophyBadgesProperty, value);
+            get => (IReadOnlyList<ProgressDetailStyle>)GetValue(DetailOrderProperty);
+            set => SetValue(DetailOrderProperty, value);
         }
 
         public static readonly DependencyProperty ColorByRarityProperty =
             DependencyProperty.Register(
                 nameof(ColorByRarity),
                 typeof(bool),
-                typeof(ProgressBadgeStrip),
+                typeof(ProgressDetailStrip),
                 new FrameworkPropertyMetadata(
                     false,
                     FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
@@ -107,7 +139,7 @@ namespace PlayniteAchievements.Views.Controls
             DependencyProperty.Register(
                 nameof(Reversed),
                 typeof(bool),
-                typeof(ProgressBadgeStrip),
+                typeof(ProgressDetailStrip),
                 new FrameworkPropertyMetadata(
                     false,
                     FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
@@ -122,7 +154,7 @@ namespace PlayniteAchievements.Views.Controls
         // The icons render through this child so one shadow surface covers all of them, the way
         // each Image used to carry its own; the counts draw shadow-free in OnRender as before.
         private readonly DrawingVisual _iconVisual = new DrawingVisual();
-        private readonly List<BadgeLayout> _layout = new List<BadgeLayout>(4);
+        private readonly List<DetailLayout> _layout = new List<DetailLayout>(4);
         private GameSummaryItem _item;
         private bool _appearanceHooked;
         private bool _resourcesResolved;
@@ -134,7 +166,7 @@ namespace PlayniteAchievements.Views.Controls
         private readonly Dictionary<string, Brush> _tierBrushes = new Dictionary<string, Brush>(StringComparer.Ordinal);
         private readonly Dictionary<string, ImageSource> _images = new Dictionary<string, ImageSource>(StringComparer.Ordinal);
 
-        public ProgressBadgeStrip()
+        public ProgressDetailStrip()
         {
             AddVisualChild(_iconVisual);
             DataContextChanged += OnDataContextChanged;
@@ -246,22 +278,64 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private void CacheSpecResources(BadgeSpec spec)
+        private void CacheSpecResources(DetailSpec spec)
         {
             _tierBrushes[spec.BrushKey] = TryFindResource(spec.BrushKey) as Brush;
             _images[spec.ImageKey] = TryFindResource(spec.ImageKey) as ImageSource;
         }
 
-        private IEnumerable<BadgeSpec> VisibleSpecs()
+        // Whether a game has data for a style. Totals, not earned counts, so a game does not
+        // switch styles at its first unlock.
+        private static bool HasData(GameSummaryItem item, ProgressDetailStyle style)
+        {
+            switch (style)
+            {
+                case ProgressDetailStyle.Rarity:
+                    return item.ShowsRarity && item.HasRarityPieChartData;
+                case ProgressDetailStyle.Trophy:
+                    return item.HasTrophyTypes;
+                case ProgressDetailStyle.Points:
+                    return item.PlatformScorePointsTotal > 0 && !string.IsNullOrWhiteSpace(item.PointsFamily);
+                default:
+                    return false;
+            }
+        }
+
+        private static DetailSpec[] SpecsFor(ProgressDetailStyle style)
+        {
+            switch (style)
+            {
+                case ProgressDetailStyle.Rarity:
+                    return RaritySpecs;
+                case ProgressDetailStyle.Trophy:
+                    return TrophySpecs;
+                case ProgressDetailStyle.Points:
+                    return PointsSpecs;
+                default:
+                    return null;
+            }
+        }
+
+        private IEnumerable<DetailSpec> VisibleSpecs()
         {
             var item = _item;
-            if (item == null)
+            var order = DetailOrder;
+            if (item == null || order == null)
             {
                 yield break;
             }
 
-            var specs = item.HasTrophyTypes && PreferTrophyBadges ? TrophySpecs : RaritySpecs;
-            if (specs == RaritySpecs && !item.ShowsRarity)
+            DetailSpec[] specs = null;
+            foreach (var style in order)
+            {
+                if (HasData(item, style))
+                {
+                    specs = SpecsFor(style);
+                    break;
+                }
+            }
+
+            if (specs == null)
             {
                 yield break;
             }
@@ -270,13 +344,74 @@ namespace PlayniteAchievements.Views.Controls
             for (var step = 0; step < count; step++)
             {
                 var spec = specs[Reversed ? count - 1 - step : step];
-                if (spec.Count(item) <= 0 || spec.Hidden?.Invoke(item) == true)
+                var value = spec.Count(item);
+                if (value < 0 || (value == 0 && !spec.ShowZero) || spec.Hidden?.Invoke(item) == true)
                 {
                     continue;
                 }
 
                 yield return spec;
             }
+        }
+
+        private ImageSource ResolveImage(DetailSpec spec, GameSummaryItem item)
+        {
+            if (spec.Image != null)
+            {
+                return spec.Image(item);
+            }
+
+            return _images.TryGetValue(spec.ImageKey, out var image) ? image : null;
+        }
+
+        private Brush ResolveTierBrush(DetailSpec spec, GameSummaryItem item)
+        {
+            if (spec.Brush != null)
+            {
+                return spec.Brush(item);
+            }
+
+            return _tierBrushes.TryGetValue(spec.BrushKey, out var brush) ? brush : null;
+        }
+
+        private static string ResolveTooltip(DetailSpec spec, GameSummaryItem item) =>
+            spec.Tooltip != null ? spec.Tooltip(item) : ResourceProvider.GetString(spec.TooltipKey);
+
+        private static ImageSource BuildPointsIcon(string family)
+        {
+            var visuals = ProviderRegistry.ResolveProviderVisualsOrFallback(family);
+            return ProviderIconConverter.BuildIcon(visuals.iconKey, visuals.colorHex);
+        }
+
+        // The family's platform color, used for the count when counts are colored by tier.
+        private static Brush GetPointsBrush(string family)
+        {
+            var colorHex = ProviderRegistry.ResolveProviderVisualsOrFallback(family).colorHex;
+            if (string.IsNullOrWhiteSpace(colorHex))
+            {
+                return null;
+            }
+
+            if (PointsBrushes.TryGetValue(colorHex, out var cached))
+            {
+                return cached;
+            }
+
+            Brush brush = null;
+            try
+            {
+                if (ColorConverter.ConvertFromString(colorHex) is Color color)
+                {
+                    brush = new SolidColorBrush(color);
+                    brush.Freeze();
+                }
+            }
+            catch (FormatException)
+            {
+            }
+
+            PointsBrushes[colorHex] = brush;
+            return brush;
         }
 
         private void BuildLayout()
@@ -293,9 +428,8 @@ namespace PlayniteAchievements.Views.Controls
             var x = 0d;
             foreach (var spec in VisibleSpecs())
             {
-                var brush = ColorByRarity && _tierBrushes.TryGetValue(spec.BrushKey, out var tier) && tier != null
-                    ? tier
-                    : _textBrush;
+                var tier = ColorByRarity ? ResolveTierBrush(spec, item) : null;
+                var brush = tier ?? _textBrush;
                 var text = new FormattedText(
                     spec.Count(item).ToString("N0", culture),
                     culture,
@@ -305,7 +439,14 @@ namespace PlayniteAchievements.Views.Controls
                     brush,
                     _pixelsPerDip);
                 var width = ItemSideMargin + _iconSize + TextGap + text.WidthIncludingTrailingWhitespace + ItemSideMargin;
-                _layout.Add(new BadgeLayout { Spec = spec, Text = text, Left = x, Width = width });
+                _layout.Add(new DetailLayout
+                {
+                    Spec = spec,
+                    Text = text,
+                    Image = ResolveImage(spec, item),
+                    Left = x,
+                    Width = width
+                });
                 x += width;
             }
         }
@@ -348,7 +489,8 @@ namespace PlayniteAchievements.Views.Controls
             {
                 foreach (var badge in _layout)
                 {
-                    if (_images.TryGetValue(badge.Spec.ImageKey, out var image) && image != null)
+                    var image = badge.Image;
+                    if (image != null)
                     {
                         icons.DrawImage(image, FitUniform(image, badge.Left + ItemSideMargin, iconTop, _iconSize));
                     }
@@ -417,7 +559,7 @@ namespace PlayniteAchievements.Views.Controls
             _hoverIndex = index;
             var badge = _layout[index];
             ShowToolTip(
-                ResourceProvider.GetString(badge.Spec.TooltipKey),
+                _item == null ? null : ResolveTooltip(badge.Spec, _item),
                 new Rect(badge.Left, 0, badge.Width, RenderSize.Height));
         }
 

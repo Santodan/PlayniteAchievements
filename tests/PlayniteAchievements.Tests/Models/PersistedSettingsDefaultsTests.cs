@@ -88,6 +88,94 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void ProgressDetails_DefaultIsRarityTrophyPointsWithOnlyRarityEnabled()
+        {
+            var details = new PersistedSettings().ProgressDetails;
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy, ProgressDetailStyle.Points },
+                details.Select(entry => entry.Style).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { true, false, false },
+                details.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void ProgressDetails_NormalizesPartialAndDuplicateLists()
+        {
+            var settings = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    null,
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = false },
+                    new ProgressDetailEntry { Style = (ProgressDetailStyle)99, Enabled = true }
+                }
+            };
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
+                settings.ProgressDetails.Select(entry => entry.Style).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { true, false, false },
+                settings.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void ProgressDetails_JsonRoundTripReplacesDefaults()
+        {
+            var source = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false }
+                }
+            };
+
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(source);
+            var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<PersistedSettings>(json);
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Trophy, ProgressDetailStyle.Points, ProgressDetailStyle.Rarity },
+                loaded.ProgressDetails.Select(entry => entry.Style).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { true, true, false },
+                loaded.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveProgressDetails()
+        {
+            var source = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true }
+                }
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                CollectionAssert.AreEqual(
+                    new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
+                    copy.ProgressDetails.Select(entry => entry.Style).ToArray());
+                CollectionAssert.AreEqual(
+                    new[] { true, false, true },
+                    copy.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+                Assert.AreNotSame(source.ProgressDetails[0], copy.ProgressDetails[0]);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
         {
             var source = new PersistedSettings
