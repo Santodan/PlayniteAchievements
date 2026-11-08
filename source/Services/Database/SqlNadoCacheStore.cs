@@ -42,19 +42,19 @@ namespace PlayniteAchievements.Services.Database
             "u.IsCurrentUser = 0 AND u.IsActiveFriend = 1 AND u.FriendSource IS NOT NULL";
 
         /// <summary>
-        /// Shared column list for achievement-detail join queries; requires AchievementDefinitions
+        /// Shared column list for achievement-detail join queries; requires PlatformDefinitions
         /// aliased as "ad" and UserAchievements aliased as "ua".
         /// </summary>
         /// <summary>
         /// The order a game's achievement definitions read in: the ones the metadata source chosen
         /// for order placed, by their position in its list, then the rest in the order the platform
-        /// first gave them. Requires AchievementDefinitions aliased as "ad".
+        /// first gave them. Requires PlatformDefinitions aliased as "ad".
         /// </summary>
         private const string DefinitionOrderSql = "ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id";
 
         /// <summary>
-        /// Shared column list for loading achievements with their layers; requires the resolved
-        /// definitions view aliased as "ad" and UserAchievements aliased as "ua". The platform's own
+        /// Shared column list for loading achievements with their layers; requires the layer view
+        /// (AchievementLayerSql.LayerViewName) aliased as "ad" and UserAchievements aliased as "ua". The platform's own
         /// values read under the definition column names and the metadata layer's under M_ names;
         /// <see cref="MapAchievementDetail"/> resolves one over the other.
         /// </summary>
@@ -685,7 +685,7 @@ namespace PlayniteAchievements.Services.Database
                 var details = db.Load<AchievementJoinRow>(
                     @"SELECT
                         " + AchievementDetailColumnsSql + @"
-                      FROM " + AchievementLayerSql.ViewName + @" ad
+                      FROM " + AchievementLayerSql.LayerViewName + @" ad
                       LEFT JOIN UserAchievements ua
                         ON ua.AchievementDefinitionId = ad.Id
                        AND ua.UserGameProgressId = ?
@@ -821,7 +821,7 @@ namespace PlayniteAchievements.Services.Database
                     lp.UserGameProgressId AS UserGameProgressId,
                     " + AchievementDetailColumnsSql + @"
                   FROM LatestProgress lp
-                  INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
+                  INNER JOIN " + AchievementLayerSql.LayerViewName + @" ad ON ad.GameId = lp.GameId
                   LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
@@ -1254,7 +1254,7 @@ namespace PlayniteAchievements.Services.Database
                                     _logger?.Debug($"Skipping definition write for mapped friend game {providerKey}/{definition.ProviderGameKey}; the mapped current-user schema is canonical for its proxy row.");
                                 }
                                 else if (db.ExecuteScalar<long>(
-                                    "SELECT COUNT(1) FROM AchievementDefinitions WHERE GameId = ?;",
+                                    "SELECT COUNT(1) FROM PlatformDefinitions WHERE GameId = ?;",
                                     gameId) == 0)
                                 {
                                     UpsertAchievementDefinitions(
@@ -1431,7 +1431,7 @@ namespace PlayniteAchievements.Services.Database
                         COUNT(ad.Id) AS DefinitionCount,
                         g.LastUpdatedUtc AS LastCheckedUtc
                       FROM Games g
-                      LEFT JOIN AchievementDefinitions ad ON ad.GameId = g.Id
+                      LEFT JOIN PlatformDefinitions ad ON ad.GameId = g.Id
                       WHERE g.ProviderKey = ?
                         AND (" + string.Join(" OR ", ownedClauses) + @")
                         AND g.PlayniteGameId IS NOT NULL
@@ -1515,7 +1515,7 @@ namespace PlayniteAchievements.Services.Database
                         g.ProviderGameId AS ProviderGameId,
                         g.ProviderGameKey AS ProviderGameKey
                       FROM Games g
-                      INNER JOIN AchievementDefinitions d ON d.GameId = g.Id
+                      INNER JOIN PlatformDefinitions d ON d.GameId = g.Id
                       WHERE g.ProviderKey = ?
                         AND d.ApiName LIKE 'exophase\_%' ESCAPE '\'
                         AND (" + string.Join(" OR ", clauses) + ");";
@@ -1659,7 +1659,7 @@ namespace PlayniteAchievements.Services.Database
                                   WHERE PlayniteGameId IS NULL OR TRIM(PlayniteGameId) = ''
                               );");
                         db.ExecuteNonQuery(
-                            @"DELETE FROM AchievementDefinitions
+                            @"DELETE FROM PlatformDefinitions
                               WHERE GameId IN (
                                   SELECT g.Id
                                   FROM Games g
@@ -1753,7 +1753,7 @@ namespace PlayniteAchievements.Services.Database
                                   SELECT g.Id FROM Games g WHERE " + gameFilter + ");",
                             providerKey, appId, DbValue(normalizedGameKey));
                         db.ExecuteNonQuery(
-                            @"DELETE FROM AchievementDefinitions
+                            @"DELETE FROM PlatformDefinitions
                               WHERE GameId IN (
                                   SELECT g.Id
                                   FROM Games g
@@ -1999,15 +1999,15 @@ namespace PlayniteAchievements.Services.Database
             string nowIso)
         {
             db.ExecuteNonQuery(
-                @"UPDATE AchievementDefinitions
+                @"UPDATE PlatformDefinitions
                   SET GameId = ?,
                       UpdatedUtc = ?
                   WHERE GameId = ?
                     AND NOT EXISTS (
                         SELECT 1
-                        FROM AchievementDefinitions target
+                        FROM PlatformDefinitions target
                         WHERE target.GameId = ?
-                          AND target.ApiName = AchievementDefinitions.ApiName
+                          AND target.ApiName = PlatformDefinitions.ApiName
                     );",
                 targetGameId,
                 nowIso,
@@ -2099,8 +2099,8 @@ namespace PlayniteAchievements.Services.Database
                 @"UPDATE UserAchievements
                   SET AchievementDefinitionId = (
                       SELECT target.Id
-                      FROM AchievementDefinitions source
-                      INNER JOIN AchievementDefinitions target
+                      FROM PlatformDefinitions source
+                      INNER JOIN PlatformDefinitions target
                         ON target.GameId = ?
                        AND target.ApiName = source.ApiName
                       WHERE source.Id = UserAchievements.AchievementDefinitionId
@@ -2109,8 +2109,8 @@ namespace PlayniteAchievements.Services.Database
                   WHERE UserGameProgressId = ?
                     AND EXISTS (
                         SELECT 1
-                        FROM AchievementDefinitions source
-                        INNER JOIN AchievementDefinitions target
+                        FROM PlatformDefinitions source
+                        INNER JOIN PlatformDefinitions target
                           ON target.GameId = ?
                          AND target.ApiName = source.ApiName
                         WHERE source.Id = UserAchievements.AchievementDefinitionId
@@ -2140,9 +2140,9 @@ namespace PlayniteAchievements.Services.Database
                     ua.LastUpdatedUtc,
                     ?
                   FROM UserAchievements ua
-                  INNER JOIN AchievementDefinitions source
+                  INNER JOIN PlatformDefinitions source
                     ON source.Id = ua.AchievementDefinitionId
-                  INNER JOIN AchievementDefinitions target
+                  INNER JOIN PlatformDefinitions target
                     ON target.GameId = ?
                    AND target.ApiName = source.ApiName
                   WHERE ua.UserGameProgressId = ?;",
@@ -2157,12 +2157,12 @@ namespace PlayniteAchievements.Services.Database
             long sourceGameId)
         {
             db.ExecuteNonQuery(
-                @"DELETE FROM AchievementDefinitions
+                @"DELETE FROM PlatformDefinitions
                   WHERE GameId = ?
                     AND NOT EXISTS (
                         SELECT 1
                         FROM UserAchievements ua
-                        WHERE ua.AchievementDefinitionId = AchievementDefinitions.Id
+                        WHERE ua.AchievementDefinitionId = PlatformDefinitions.Id
                     );",
                 sourceGameId);
 
@@ -2979,7 +2979,7 @@ namespace PlayniteAchievements.Services.Database
                         AND TRIM(g.PlayniteGameId) <> ''
                         AND EXISTS (
                             SELECT 1
-                            FROM AchievementDefinitions ad
+                            FROM PlatformDefinitions ad
                             WHERE ad.GameId = g.Id
                         );");
                 foreach (var row in rows)
@@ -3692,11 +3692,11 @@ namespace PlayniteAchievements.Services.Database
                 db.ExecuteNonQuery(
                     @"DELETE FROM UserAchievements
                       WHERE AchievementDefinitionId IN (
-                          SELECT Id FROM AchievementDefinitions WHERE GameId = ?
+                          SELECT Id FROM PlatformDefinitions WHERE GameId = ?
                       );",
                     loser.Id);
                 db.ExecuteNonQuery(
-                    @"DELETE FROM AchievementDefinitions
+                    @"DELETE FROM PlatformDefinitions
                       WHERE GameId = ?;",
                     loser.Id);
                 db.ExecuteNonQuery(
@@ -3956,7 +3956,7 @@ namespace PlayniteAchievements.Services.Database
                         );")),
                 Definitions = (int)Math.Max(0, db.ExecuteScalar<long>(
                     @"SELECT COUNT(*)
-                      FROM AchievementDefinitions
+                      FROM PlatformDefinitions
                       WHERE GameId IN (
                           SELECT g.Id
                           FROM Games g
@@ -4200,7 +4200,7 @@ namespace PlayniteAchievements.Services.Database
                 @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath,
                          Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone,
                          GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc
-                  FROM AchievementDefinitions ad
+                  FROM PlatformDefinitions ad
                   WHERE GameId = ?
                   ORDER BY " + DefinitionOrderSql + @";",
                 gameId).ToList();
@@ -5013,7 +5013,7 @@ namespace PlayniteAchievements.Services.Database
                 ),
                 totals AS (
                     SELECT ad.GameId AS GameId, COUNT(*) AS TotalAchievements
-                    FROM AchievementDefinitions ad
+                    FROM PlatformDefinitions ad
                     GROUP BY ad.GameId
                 ),
                 scrapeStatus AS (
@@ -5097,7 +5097,7 @@ namespace PlayniteAchievements.Services.Database
                 ),
                 totals AS (
                     SELECT ad.GameId AS GameId, COUNT(*) AS TotalAchievements
-                    FROM AchievementDefinitions ad
+                    FROM PlatformDefinitions ad
                     INNER JOIN target_games tg ON tg.Id = ad.GameId
                     GROUP BY ad.GameId
                 ),
@@ -5190,7 +5190,7 @@ namespace PlayniteAchievements.Services.Database
             return LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true);
         }
 
-        // Rows are driven from the game's full AchievementDefinitions schema with the friend's
+        // Rows are driven from the game's full PlatformDefinitions schema with the friend's
         // stored unlock rows LEFT JOINed on the stable definition key, so the friend+game pair
         // view always shows every achievement of the game with the friend's unlock state per
         // row, even when the friend's stored rows cover only a subset of the schema.
@@ -5214,7 +5214,7 @@ namespace PlayniteAchievements.Services.Database
                     INNER JOIN UserGameProgress cugp ON cugp.UserId = cu.Id
                     INNER JOIN Games cg ON cg.Id = cugp.GameId
                     INNER JOIN UserAchievements cua ON cua.UserGameProgressId = cugp.Id AND cua.Unlocked = 1
-                    INNER JOIN AchievementDefinitions cad ON cad.Id = cua.AchievementDefinitionId
+                    INNER JOIN PlatformDefinitions cad ON cad.Id = cua.AchievementDefinitionId
                     WHERE cu.IsCurrentUser = 1
                       AND cg.PlayniteGameId IS NOT NULL
                       AND TRIM(cg.PlayniteGameId) <> ''
@@ -5895,14 +5895,14 @@ namespace PlayniteAchievements.Services.Database
                         AND NOT EXISTS (SELECT 1 FROM UserGameProgress WHERE GameId = Games.Id);",
                     stub.GameId);
 
-                // Delete AchievementDefinitions for the stub's game if no other progress references them
+                // Delete PlatformDefinitions for the stub's game if no other progress references them
                 db.ExecuteNonQuery(
-                    @"DELETE FROM AchievementDefinitions
+                    @"DELETE FROM PlatformDefinitions
                       WHERE GameId = ?
                         AND NOT EXISTS (
                             SELECT 1 FROM UserAchievements ua
                             INNER JOIN UserGameProgress ugp ON ua.UserGameProgressId = ugp.Id
-                            WHERE ua.AchievementDefinitionId = AchievementDefinitions.Id
+                            WHERE ua.AchievementDefinitionId = PlatformDefinitions.Id
                         );",
                     stub.GameId);
 
@@ -5972,7 +5972,7 @@ namespace PlayniteAchievements.Services.Database
                 var cleared = db.Load<FriendDataGameIdRow>(
                         @"SELECT DISTINCT g.PlayniteGameId AS PlayniteGameId
                           FROM AchievementMetadataLayer m
-                          INNER JOIN AchievementDefinitions ad ON ad.Id = m.AchievementDefinitionId
+                          INNER JOIN PlatformDefinitions ad ON ad.Id = m.AchievementDefinitionId
                           INNER JOIN Games g ON g.Id = ad.GameId
                           WHERE g.PlayniteGameId IS NOT NULL;")
                     .Select(row => Guid.TryParse(row?.PlayniteGameId, out var id) ? id : Guid.Empty)
@@ -5990,7 +5990,7 @@ namespace PlayniteAchievements.Services.Database
                         db.ExecuteNonQuery(
                             @"DELETE FROM AchievementMetadataLayer
                               WHERE AchievementDefinitionId IN (
-                                  SELECT ad.Id FROM AchievementDefinitions ad
+                                  SELECT ad.Id FROM PlatformDefinitions ad
                                   INNER JOIN Games g ON g.Id = ad.GameId
                                   WHERE g.PlayniteGameId = ?);",
                             gameId.ToString());
@@ -6659,7 +6659,7 @@ namespace PlayniteAchievements.Services.Database
                         ad.Id AS Id,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                         ad.Rarity AS Rarity
-                      FROM AchievementDefinitions ad;").ToList();
+                      FROM PlatformDefinitions ad;").ToList();
 
                 for (var i = 0; i < rows.Count; i++)
                 {
@@ -6684,7 +6684,7 @@ namespace PlayniteAchievements.Services.Database
                     }
 
                     db.ExecuteNonQuery(
-                        @"UPDATE AchievementDefinitions
+                        @"UPDATE PlatformDefinitions
                           SET GlobalPercentUnlocked = ?,
                               Rarity = ?
                           WHERE Id = ?;",
@@ -7189,7 +7189,7 @@ namespace PlayniteAchievements.Services.Database
         {
             var existingDefinitions = db.Load<AchievementDefinitionRow>(
                     @"SELECT Id, GameId, ApiName, Category, Tags, CategoryKind
-                      FROM AchievementDefinitions
+                      FROM PlatformDefinitions
                       WHERE GameId = ?;",
                     gameId)
                 .Where(a => a != null)
@@ -7202,7 +7202,7 @@ namespace PlayniteAchievements.Services.Database
             foreach (var backfill in backfills)
             {
                 db.ExecuteNonQuery(
-                    @"UPDATE AchievementDefinitions
+                    @"UPDATE PlatformDefinitions
                       SET Category = ?,
                           Tags = ?,
                           CategoryKind = ?,
@@ -7277,11 +7277,11 @@ namespace PlayniteAchievements.Services.Database
                 db.ExecuteNonQuery(
                     @"DELETE FROM UserAchievements
                       WHERE AchievementDefinitionId IN (
-                          SELECT Id FROM AchievementDefinitions WHERE GameId = ?
+                          SELECT Id FROM PlatformDefinitions WHERE GameId = ?
                       );",
                     gameId);
                 db.ExecuteNonQuery(
-                    @"DELETE FROM AchievementDefinitions
+                    @"DELETE FROM PlatformDefinitions
                       WHERE GameId = ?;",
                     gameId);
                 return idsByApiName;
@@ -7295,7 +7295,7 @@ namespace PlayniteAchievements.Services.Database
 
             var existingByApiName = db.Load<AchievementDefinitionRow>(
                     @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc
-                      FROM AchievementDefinitions
+                      FROM PlatformDefinitions
                       WHERE GameId = ?;",
                     gameId)
                 .Where(a => !string.IsNullOrWhiteSpace(a?.ApiName))
@@ -7316,7 +7316,7 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 db.ExecuteNonQuery(
-                    @"UPDATE AchievementDefinitions
+                    @"UPDATE PlatformDefinitions
                       SET ApiName = ?,
                           UpdatedUtc = ?
                       WHERE Id = ?;",
@@ -7380,7 +7380,7 @@ namespace PlayniteAchievements.Services.Database
                     // reads the capstone the table holds.
                     achievement.IsCapstone = isCapstone;
                     db.ExecuteNonQuery(
-                        @"INSERT INTO AchievementDefinitions
+                        @"INSERT INTO PlatformDefinitions
                             (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, MetadataOrder, CreatedUtc, UpdatedUtc)
                           VALUES
                             (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
@@ -7478,7 +7478,7 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 db.ExecuteNonQuery(
-                    @"UPDATE AchievementDefinitions
+                    @"UPDATE PlatformDefinitions
                       SET DisplayName = ?,
                           Description = ?,
                           UnlockedIconPath = ?,
@@ -7576,7 +7576,7 @@ namespace PlayniteAchievements.Services.Database
                         "DELETE FROM UserAchievements WHERE AchievementDefinitionId IN (" + inClause + ");",
                         args);
                     db.ExecuteNonQuery(
-                        "DELETE FROM AchievementDefinitions WHERE Id IN (" + inClause + ");",
+                        "DELETE FROM PlatformDefinitions WHERE Id IN (" + inClause + ");",
                         args);
                 }
             }
