@@ -381,8 +381,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 var settings = new PersistedSettings
                 {
-                    UseSeparateLockedIconsWhenAvailable = false,
-                    SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId }
+                    UseSeparateLockedIconsWhenAvailable = true
                 };
                 var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
                 var iconService = new AchievementIconService(
@@ -990,25 +989,6 @@ namespace PlayniteAchievements.Services.Images.Tests
             {
                 DeleteDirectory(tempDir);
             }
-        }
-
-        [TestMethod]
-        public void ShouldUseSeparateLockedIcons_UsesGlobalSettingOrPerGameOverride()
-        {
-            var gameId = Guid.NewGuid();
-            var settings = new PersistedSettings
-            {
-                UseSeparateLockedIconsWhenAvailable = false
-            };
-
-            Assert.IsFalse(settings.ShouldUseSeparateLockedIcons(gameId));
-
-            settings.SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId };
-            Assert.IsTrue(settings.ShouldUseSeparateLockedIcons(gameId));
-
-            settings.SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
-            settings.UseSeparateLockedIconsWhenAvailable = true;
-            Assert.IsTrue(settings.ShouldUseSeparateLockedIcons(gameId));
         }
 
         [TestMethod]
@@ -1630,26 +1610,6 @@ namespace PlayniteAchievements.Services.Images.Tests
             {
                 DeleteDirectory(tempDir);
             }
-        }
-
-        [TestMethod]
-        public void PersistedSettingsCloneAndCopy_PreservesSeparateLockedIconFlags()
-        {
-            var gameId = Guid.NewGuid();
-            var source = new PersistedSettings
-            {
-                UseSeparateLockedIconsWhenAvailable = true,
-                SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId }
-            };
-
-            var clone = source.Clone();
-            var copyTarget = new PersistedSettings();
-            copyTarget.CopyFrom(source);
-
-            Assert.IsTrue(clone.UseSeparateLockedIconsWhenAvailable);
-            Assert.IsTrue(clone.SeparateLockedIconEnabledGameIds.Contains(gameId));
-            Assert.IsTrue(copyTarget.UseSeparateLockedIconsWhenAvailable);
-            Assert.IsTrue(copyTarget.SeparateLockedIconEnabledGameIds.Contains(gameId));
         }
 
         [TestMethod]
