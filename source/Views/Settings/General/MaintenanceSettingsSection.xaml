@@ -40,6 +40,13 @@
                                         MinWidth="130"/>
                             </controls:SettingRow>
 
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearMetadata_Description}">
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                                        Click="ClearMetadata_Click"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        MinWidth="130"/>
+                            </controls:SettingRow>
+
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ClearUnownedFriendData_Description}"
                                                  Margin="0">
                                 <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
