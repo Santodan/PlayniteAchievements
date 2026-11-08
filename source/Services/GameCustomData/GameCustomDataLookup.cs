@@ -189,8 +189,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ReadGameFlag(
                 gameId,
                 store,
-                customData => customData.ExcludedFromRefreshes == true,
-                () => fallbackSettings?.ExcludedGameIds?.Contains(gameId) == true);
+                customData => customData.ExcludedFromRefreshes == true);
         }
 
         public static bool IsExcludedFromSummaries(
@@ -201,19 +200,16 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ReadGameFlag(
                 gameId,
                 store,
-                customData => customData.ExcludedFromSummaries == true,
-                () => fallbackSettings?.ExcludedFromSummariesGameIds?.Contains(gameId) == true);
+                customData => customData.ExcludedFromSummaries == true);
         }
 
         /// <summary>
-        /// Reads one flag off a game's stored record, falling back to the legacy settings
-        /// projection when the game has no record.
+        /// Reads one flag off a game's stored record; false when the game has none.
         /// </summary>
         private static bool ReadGameFlag(
             Guid gameId,
             GameCustomDataStore store,
-            Func<GameCustomDataFile, bool> fromRecord,
-            Func<bool> fromSettings)
+            Func<GameCustomDataFile, bool> fromRecord)
         {
             if (gameId != Guid.Empty)
             {
@@ -227,7 +223,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
             }
 
-            return fromSettings();
+            return false;
         }
 
         public static bool HasVisibleCustomization(
@@ -354,14 +350,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataStore store = null)
         {
             var resolvedStore = ResolveStore(store);
-            if (resolvedStore == null)
-            {
-                return fallbackSettings?.ExcludedGameIds != null
-                    ? new HashSet<Guid>(fallbackSettings.ExcludedGameIds)
-                    : new HashSet<Guid>();
-            }
-
-            return resolvedStore.GetExcludedRefreshGameIds(fallbackSettings?.ExcludedGameIds);
+            return resolvedStore?.GetExcludedRefreshGameIds() ?? new HashSet<Guid>();
         }
 
         public static HashSet<Guid> GetExcludedSummaryGameIds(
@@ -369,14 +358,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             GameCustomDataStore store = null)
         {
             var resolvedStore = ResolveStore(store);
-            if (resolvedStore == null)
-            {
-                return fallbackSettings?.ExcludedFromSummariesGameIds != null
-                    ? new HashSet<Guid>(fallbackSettings.ExcludedFromSummariesGameIds)
-                    : new HashSet<Guid>();
-            }
-
-            return resolvedStore.GetExcludedSummaryGameIds(fallbackSettings?.ExcludedFromSummariesGameIds);
+            return resolvedStore?.GetExcludedSummaryGameIds() ?? new HashSet<Guid>();
         }
 
         /// <remarks>
@@ -400,8 +382,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ReadGameFlag(
                 resolvedGameId,
                 store,
-                customData => customData.UseSeparateLockedIconsOverride == true,
-                () => settings?.SeparateLockedIconEnabledGameIds?.Contains(resolvedGameId) == true);
+                customData => customData.UseSeparateLockedIconsOverride == true);
         }
 
         /// <summary>
