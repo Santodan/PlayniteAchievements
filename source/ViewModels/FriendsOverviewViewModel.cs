@@ -112,7 +112,6 @@ namespace PlayniteAchievements.ViewModels
         private string _friendSearchText;
         private string _gameSearchText;
         private string _achievementSearchText;
-        private string _selectedProviderKey;
         private string _selectedRefreshMode = RefreshModeType.FriendsRecent.GetKey();
         private readonly RefreshHeaderProgressTracker _progressTracker;
         private readonly TimeSpan _cacheInvalidationDebounceInterval;
@@ -171,7 +170,6 @@ namespace PlayniteAchievements.ViewModels
             FilteredGames = new BulkObservableCollection<FriendGameSummaryItem>();
             DisplayedAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
             SelectedFriendGameAllAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
-            ProviderFilterOptions = new ObservableCollection<string>();
             OwnershipFilterOptions = new ObservableCollection<string>();
             FriendProviderFilterOptions = new ObservableCollection<string>();
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
@@ -269,7 +267,6 @@ namespace PlayniteAchievements.ViewModels
 
         public PlayniteAchievementsSettings Settings => _settings;
 
-        public ObservableCollection<string> ProviderFilterOptions { get; }
         public ObservableCollection<string> OwnershipFilterOptions { get; }
         public ObservableCollection<string> FriendProviderFilterOptions { get; }
 
@@ -421,20 +418,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public string SelectedProviderKey
-        {
-            get => _selectedProviderKey;
-            set
-            {
-                var normalized = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-                if (SetValueAndReturn(ref _selectedProviderKey, normalized))
-                {
-                    OnPropertyChanged(nameof(SelectedProviderFilterText));
-                    ApplyFilters();
-                }
-            }
-        }
-
         public string SelectedRefreshMode
         {
             get => _selectedRefreshMode;
@@ -535,10 +518,6 @@ namespace PlayniteAchievements.ViewModels
         public bool HasData => _allFriends.Count > 0 || _allGames.Count > 0 || _allRecentUnlocks.Count > 0 || _allAchievements.Count > 0 || _allUnlockedAchievements.Count > 0;
         public bool IsProviderDisabled => false;
 
-        public string SelectedProviderFilterText => string.IsNullOrWhiteSpace(SelectedProviderKey)
-            ? ResourceProvider.GetString("LOCPlayAch_FriendsOverview_AllProviders")
-            : SelectedProviderKey;
-
         // Single selection shows the localized provider name (options carry raw provider keys so
         // merged-friend membership checks stay key-based).
         public string SelectedFriendProviderFilterText =>
@@ -547,7 +526,6 @@ namespace PlayniteAchievements.ViewModels
                     _selectedFriendProviderFilters.First())
                 : GetSelectedFilterText(
                     _selectedFriendProviderFilters,
-                    FriendProviderFilterOptions,
                     ResourceProvider.GetString("LOCPlayAch_Common_Platform"));
 
         public string SelectedGamePlatformFilterText => OverviewGameSummaryFilters.BuildProviderFilterText(
@@ -556,7 +534,6 @@ namespace PlayniteAchievements.ViewModels
 
         public string SelectedOwnershipFilterText => GetSelectedFilterText(
             _selectedOwnershipFilters,
-            OwnershipFilterOptions,
             ResourceProvider.GetString("LOCPlayAch_Filter_OwnershipSelectorPlaceholder"));
 
         private static string OwnedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Column_Owned");
@@ -733,16 +710,6 @@ namespace PlayniteAchievements.ViewModels
             AchievementSearchText = string.Empty;
         }
 
-        public bool IsProviderFilterSelected(string providerKey)
-        {
-            return string.Equals(SelectedProviderKey, providerKey, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public void SetProviderFilter(string providerKey)
-        {
-            SelectedProviderKey = providerKey;
-        }
-
         public bool IsFriendProviderFilterSelected(string value)
         {
             return IsFilterSelected(_selectedFriendProviderFilters, value);
@@ -823,20 +790,6 @@ namespace PlayniteAchievements.ViewModels
                     group.IsExpanded = false;
                 }
             }
-        }
-
-        public void ToggleFriendSelection(FriendSummaryItem friend)
-        {
-            SelectedFriend = ReferenceEquals(SelectedFriend, friend) || IsSameFriend(SelectedFriend, friend)
-                ? null
-                : friend;
-        }
-
-        public void ToggleGameSelection(FriendGameSummaryItem game)
-        {
-            SelectedGame = ReferenceEquals(SelectedGame, game) || IsSameGame(SelectedGame, game)
-                ? null
-                : game;
         }
 
         public void ClearSelection()
@@ -1620,7 +1573,7 @@ namespace PlayniteAchievements.ViewModels
                 var achievementQuery = SearchQuery.From(AchievementSearchText);
 
                 var friends = _allFriends
-                    .Where(MatchesProvider)
+                    .Where(friend => friend != null)
                     .Where(friend => _friendSearchIndex.Matches(friend, friendQuery));
                 if (_selectedFriendProviderFilters.Count > 0)
                 {
@@ -1656,7 +1609,6 @@ namespace PlayniteAchievements.ViewModels
                 // ownership rows that should display (owned games unconditionally; provider-only games
                 // once the friend has confirmed unlocks).
                 var games = gameSource
-                    .Where(game => MatchesProvider(game?.ProviderKey))
                     .Where(game => _gameSearchIndex.Matches(game, gameQuery));
 
                 games = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(games, GamePlatformFilterGroups);
@@ -1741,8 +1693,7 @@ namespace PlayniteAchievements.ViewModels
                         ? _allUnlockedAchievements
                         : _allRecentUnlocks;
 
-                IEnumerable<FriendAchievementDisplayItem> scoped = achievementSource
-                    .Where(achievement => MatchesProvider(achievement?.ProviderKey));
+                IEnumerable<FriendAchievementDisplayItem> scoped = achievementSource;
                 if (SelectedFriend != null)
                 {
                     scoped = scoped.Where(achievement => IsSameFriend(achievement, SelectedFriend));
@@ -2114,29 +2065,6 @@ namespace PlayniteAchievements.ViewModels
                 _settings?.Persisted?.FriendsOverviewAchievementsGridMaxRows));
         }
 
-        private bool MatchesProvider(string providerKey)
-        {
-            return string.IsNullOrWhiteSpace(SelectedProviderKey) ||
-                   string.Equals(providerKey, SelectedProviderKey, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private bool MatchesProvider(FriendSummaryItem friend)
-        {
-            if (friend == null)
-            {
-                return false;
-            }
-
-            if (MatchesProvider(friend.ProviderKey))
-            {
-                return true;
-            }
-
-            return !string.IsNullOrWhiteSpace(SelectedProviderKey) &&
-                   (friend.MemberProviderKeys ?? new List<string>())
-                   .Any(provider => string.Equals(provider, SelectedProviderKey, StringComparison.OrdinalIgnoreCase));
-        }
-
         private IReadOnlyList<FriendGameSummaryItem> GetSelectedFriendGames(FriendSummaryItem friend)
         {
             return _projection?.GetSelectedFriendGames(friend) ?? Array.Empty<FriendGameSummaryItem>();
@@ -2246,20 +2174,6 @@ namespace PlayniteAchievements.ViewModels
 
         private void UpdateFilterOptions()
         {
-            ReplaceOptions(
-                ProviderFilterOptions,
-                _allFriends.SelectMany(GetProviderFilterKeys)
-                    .Concat(_allGames.Select(game => game?.ProviderKey))
-                    .Concat(_allAchievements.Select(achievement => achievement?.ProviderKey)));
-
-            if (!string.IsNullOrWhiteSpace(SelectedProviderKey) &&
-                !ProviderFilterOptions.Any(provider => string.Equals(provider, SelectedProviderKey, StringComparison.OrdinalIgnoreCase)))
-            {
-                _selectedProviderKey = null;
-                OnPropertyChanged(nameof(SelectedProviderKey));
-                OnPropertyChanged(nameof(SelectedProviderFilterText));
-            }
-
             ReplaceOptions(
                 FriendProviderFilterOptions,
                 _allFriends.SelectMany(GetProviderFilterKeys));
@@ -2407,7 +2321,6 @@ namespace PlayniteAchievements.ViewModels
 
         private static string GetSelectedFilterText(
             HashSet<string> selectedValues,
-            ObservableCollection<string> options,
             string placeholder)
         {
             var selectedCount = selectedValues?.Count ?? 0;
