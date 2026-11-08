@@ -23,6 +23,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             public string Description { get; set; }
             public int? Points { get; set; }
             public string Category { get; set; }
+            public string ProviderCategory { get; set; }
             public string CategoryKind { get; set; }
             public string Tags { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
@@ -35,6 +36,35 @@ namespace PlayniteAchievements.SqlNado.Tests
         private sealed class CountRow
         {
             public long Count { get; set; }
+        }
+
+        private const string GameId = "0b7d2f0e-4c41-4c55-9a43-3f1c2a6e8d11";
+
+        [TestMethod]
+        public void View_ResolvesCustomOverMetadata_AndKeepsTheProviderCategory()
+        {
+            WithDatabase(db =>
+            {
+                Definition(db, "custom", "Own", "Desc", 10, "Steam", null, "Softcore|Unobtainable", null, "Common");
+                Metadata(db, "custom", displayName: "Borrowed", points: 50, tags: "Collectable");
+                db.ExecuteNonQuery(
+                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, Category, Tags, Cleared, UpdatedUtc)
+                      VALUES (?, 'custom', 'Mine', 'My Story', 'Challenge', ?, '');",
+                    GameId,
+                    (long)AchievementField.Description);
+
+                var row = db.Load<ResolvedRow>("SELECT * FROM " + AchievementLayerSql.ViewName + ";").Single();
+
+                Assert.AreEqual("Mine", row.DisplayName);
+                Assert.IsNull(row.Description, "a cleared custom description hides the platform's");
+                Assert.AreEqual(50, row.Points, "metadata shows where the user set nothing");
+                Assert.AreEqual("My Story", row.Category);
+                Assert.AreEqual("Steam", row.ProviderCategory, "the category before the user's");
+                CollectionAssert.AreEquivalent(
+                    new[] { "Challenge", "Softcore" },
+                    AchievementTagHelper.Parse(row.Tags),
+                    "custom tags replace Unobtainable but keep the derived tags");
+            });
         }
 
         [TestMethod]
@@ -152,6 +182,26 @@ namespace PlayniteAchievements.SqlNado.Tests
                         MetadataOrder INTEGER NULL,
                         CreatedUtc TEXT NOT NULL,
                         UpdatedUtc TEXT NOT NULL);");
+                    db.ExecuteNonQuery(@"CREATE TABLE Games (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        PlayniteGameId TEXT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, PlayniteGameId) VALUES (1, '" + GameId + "');");
+                    db.ExecuteNonQuery(@"CREATE TABLE AchievementOverrides (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                        ApiName TEXT NOT NULL COLLATE NOCASE,
+                        DisplayName TEXT NULL,
+                        Description TEXT NULL,
+                        Points INTEGER NULL,
+                        TrophyType TEXT NULL COLLATE NOCASE,
+                        Category TEXT NULL,
+                        Tags TEXT NULL,
+                        Hidden INTEGER NULL,
+                        Cleared INTEGER NOT NULL DEFAULT 0,
+                        IsFiltered INTEGER NOT NULL DEFAULT 0,
+                        IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
+                        UpdatedUtc TEXT NOT NULL,
+                        UNIQUE (PlayniteGameId, ApiName));");
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
