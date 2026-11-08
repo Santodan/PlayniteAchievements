@@ -345,6 +345,23 @@ namespace PlayniteAchievements.Services.Metadata
             });
         }
 
+        /// <summary>
+        /// Forgets what metadata was applied to the game and its automatic links, so the next
+        /// overlay searches every source again. Links the user set are kept.
+        /// </summary>
+        public void ForgetApplied(Guid gameId)
+        {
+            foreach (var pair in GetAll(gameId))
+            {
+                if (pair.Value?.Origin == MetadataLinkOrigin.Auto)
+                {
+                    Clear(gameId, pair.Key);
+                }
+            }
+
+            RecordApplied(gameId, null, null);
+        }
+
         public bool Clear(Guid gameId, string sourceKey)
         {
             if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || _customData == null)
