@@ -249,6 +249,20 @@ namespace PlayniteAchievements
                     }
                 };
 
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton"),
+                    MenuSection = PluginGameMaintenanceSection,
+                    Action = (a) => ClearCustomDataFromMenu(GetDistinctValidGames(selectedGames))
+                };
+
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearMetadata"),
+                    MenuSection = PluginGameMaintenanceSection,
+                    Action = (a) => ClearMetadataFromMenu(GetDistinctValidGames(selectedGames))
+                };
+
                 var allExcludedFromSummaries = selectedGames.All(g => IsGameExcludedFromSummaries(g.Id));
                 yield return new GameMenuItem
                 {
@@ -381,6 +395,20 @@ namespace PlayniteAchievements
                 {
                     ClearSingleGameData(game);
                 }
+            };
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton"),
+                MenuSection = PluginGameMaintenanceSection,
+                Action = (a) => ClearCustomDataFromMenu(new[] { game })
+            };
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearMetadata"),
+                MenuSection = PluginGameMaintenanceSection,
+                Action = (a) => ClearMetadataFromMenu(new[] { game })
             };
 
             var excludedFromSummaries = IsGameExcludedFromSummaries(game.Id);
