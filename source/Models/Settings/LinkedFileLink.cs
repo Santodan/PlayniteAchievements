@@ -21,9 +21,9 @@ namespace PlayniteAchievements.Models.Settings
         public string LastReadStatus { get; set; }
 
         /// <summary>
-        /// Rows the user paired by hand, by row key (see <c>LinkedFileMatcher.RowKey</c>): the
-        /// achievement's API name, or "" for a row that pairs with nothing. Rows not listed are
-        /// matched automatically. Null when there are none.
+        /// Achievements the user paired by hand, by API name: the key of the file row it reads
+        /// (see <c>LinkedFileMatcher.RowKey</c>), or "" for an achievement that reads no row.
+        /// Achievements not listed are matched automatically. Null when there are none.
         /// </summary>
         public Dictionary<string, string> Pairings { get; set; }
 
