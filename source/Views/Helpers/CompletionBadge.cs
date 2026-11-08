@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
@@ -71,9 +72,9 @@ namespace PlayniteAchievements.Views.Helpers
             element == null ? 24d : (double)element.GetValue(FrameBadgeSizeProperty);
 
         /// <summary>
-        /// Binds <see cref="PreferTrophyBadgesProperty"/> on <paramref name="element"/> to the global
-        /// progress badge source, through the settings wrapper so a cancelled edit's replaced
-        /// Persisted instance is followed.
+        /// Binds <see cref="PreferTrophyBadgesProperty"/> on <paramref name="element"/> to whether the
+        /// trophy style is enabled in the global progress details list, through the settings wrapper
+        /// so a cancelled edit's replaced Persisted instance is followed.
         /// </summary>
         public static void BindPreferTrophyBadgesToSettings(FrameworkElement element)
         {
@@ -85,7 +86,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             element.SetBinding(
                 PreferTrophyBadgesProperty,
-                new Binding($"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.ProgressBadgeSource)}")
+                new Binding($"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.ProgressDetails)}")
                 {
                     Source = settings,
                     Mode = BindingMode.OneWay,
@@ -98,7 +99,7 @@ namespace PlayniteAchievements.Views.Helpers
             public static readonly PreferTrophyConverter Instance = new PreferTrophyConverter();
 
             public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-                !(value is ProgressBadgeSource source) || source != ProgressBadgeSource.Rarity;
+                ProgressDetailOrder.IsTrophyEnabled(value as IEnumerable<ProgressDetailEntry>);
 
             public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
                 Binding.DoNothing;
