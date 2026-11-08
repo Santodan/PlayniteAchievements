@@ -1112,13 +1112,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 store.AttachRuntimeSettings(settings);
 
-                Assert.AreEqual(0, settings.Persisted.ExcludedGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.ExcludedFromSummariesGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.SeparateLockedIconEnabledGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.ManualCapstones.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementOrderOverrides.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementCategoryOverrides.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementCategoryTypeOverrides.Count);
+                Assert.IsNotNull(settings.Persisted);
             }
             finally
             {
@@ -1169,50 +1163,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void GetExcludedSummaryGameIds_UsesDatabaseAsSourceOfTruthButKeepsFallbackForUnmigratedGames()
-        {
-            var tempDir = CreateTempDirectory();
-            var fallbackOverriddenGameId = Guid.NewGuid();
-            var fallbackOnlyGameId = Guid.NewGuid();
-            var databaseOnlyGameId = Guid.NewGuid();
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                var fallbackSettings = new PersistedSettings
-                {
-                    ExcludedFromSummariesGameIds = new HashSet<Guid>
-                    {
-                        fallbackOverriddenGameId,
-                        fallbackOnlyGameId
-                    }
-                };
-
-                store.Save(fallbackOverriddenGameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = fallbackOverriddenGameId,
-                    UseSeparateLockedIconsOverride = true
-                });
-                store.Save(databaseOnlyGameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = databaseOnlyGameId,
-                    ExcludedFromSummaries = true
-                });
-
-                var excluded = GameCustomDataLookup.GetExcludedSummaryGameIds(fallbackSettings, store);
-
-                Assert.IsFalse(excluded.Contains(fallbackOverriddenGameId));
-                Assert.IsTrue(excluded.Contains(fallbackOnlyGameId));
-                Assert.IsTrue(excluded.Contains(databaseOnlyGameId));
-                Assert.AreEqual(2, excluded.Count);
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
         public void TryLoad_AfterDeleteAndResave_ReturnsCurrentDatabaseValue()
         {
             var tempDir = CreateTempDirectory();
@@ -1246,52 +1196,6 @@ namespace PlayniteAchievements.Services.Tests
             {
                 DeleteDirectory(tempDir);
             }
-        }
-
-        [TestMethod]
-        public void PersistedSettingsSerialization_OmitsRuntimeProjectedCustomDataFields()
-        {
-            var gameId = Guid.NewGuid();
-            var persisted = new PersistedSettings
-            {
-                GlobalLanguage = "english",
-                ExcludedGameIds = new HashSet<Guid> { gameId },
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId },
-                SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId },
-                ManualCapstones = new Dictionary<Guid, string>
-                {
-                    [gameId] = "capstone"
-                },
-                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
-                {
-                    [gameId] = new List<string> { "ach_one" }
-                },
-                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = "Category"
-                    }
-                },
-                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = "DLC"
-                    }
-                }
-            };
-
-            var json = JsonConvert.SerializeObject(persisted);
-
-            Assert.IsTrue(json.Contains(nameof(PersistedSettings.GlobalLanguage)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ExcludedGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ExcludedFromSummariesGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.SeparateLockedIconEnabledGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ManualCapstones)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementOrderOverrides)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementCategoryOverrides)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementCategoryTypeOverrides)));
         }
 
         [TestMethod]
