@@ -171,59 +171,6 @@ namespace PlayniteAchievements.Services.Images
                     cancel: cancel,
                     onIconProgress: onIconProgress)
                 .ConfigureAwait(false);
-
-            DeleteOwnCopiesOfBorrowedIcons(targets, fileStems, gameId);
-        }
-
-        /// <summary>
-        /// Deletes the game's own-folder files of achievements whose icon is used from a metadata
-        /// source folder. Those files are copies of the borrowed icon, or an own icon no longer
-        /// shown; a later fallback to the own icon downloads it again.
-        /// </summary>
-        private void DeleteOwnCopiesOfBorrowedIcons(
-            IReadOnlyList<AchievementDetail> achievements,
-            IReadOnlyDictionary<string, string> fileStems,
-            string gameId)
-        {
-            HashSet<string> ownFolder = null;
-            foreach (var achievement in achievements)
-            {
-                var apiName = NormalizeText(achievement?.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    !AchievementIconCachePathBuilder.IsMetadataSourceIconPath(achievement.UnlockedIconPath, gameId) ||
-                    !fileStems.TryGetValue(apiName, out var fileStem) ||
-                    string.IsNullOrWhiteSpace(fileStem))
-                {
-                    continue;
-                }
-
-                // One listing of the own folder for the pass, taken at the first borrowed icon.
-                ownFolder = ownFolder ?? _diskImageService.ScanAchievementIconCacheDirectory(gameId);
-                if (ownFolder.Count == 0)
-                {
-                    return;
-                }
-
-                foreach (var variant in new[] { AchievementIconVariant.Unlocked, AchievementIconVariant.Locked })
-                {
-                    var ownPath = _diskImageService.FindExistingAchievementIconCachePath(gameId, fileStem, variant, ownFolder);
-                    if (string.IsNullOrWhiteSpace(ownPath) ||
-                        string.Equals(ownPath, achievement.UnlockedIconPath, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(ownPath, achievement.LockedIconPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        File.Delete(ownPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, $"Failed to delete own copy of borrowed icon '{ownPath}'.");
-                    }
-                }
-            }
         }
 
         public async Task PopulateFriendAvatarIconCacheAsync(
