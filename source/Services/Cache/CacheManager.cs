@@ -1463,41 +1463,50 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        FriendCacheWriteResult IFriendCacheManager.SaveFriendList(
-            string providerKey,
-            IReadOnlyList<FriendIdentity> friends)
+        private T FriendRead<T>(string operation, Func<T> read)
         {
             lock (_sync)
             {
-                EnsureReady_Locked("SaveFriendList");
-                var result = _store.SaveFriendList(providerKey, friends);
+                EnsureReady_Locked(operation);
+                return read();
+            }
+        }
+
+        private FriendCacheWriteResult FriendWrite(
+            string operation,
+            Func<FriendCacheWriteResult> write,
+            Func<FriendCacheChange> change)
+        {
+            lock (_sync)
+            {
+                EnsureReady_Locked(operation);
+                var result = write();
                 if (result?.Success == true)
                 {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange.ForRoster(providerKey));
+                    RaiseOrDeferFriendCacheInvalidatedEvent(change());
                 }
 
                 return result;
             }
         }
+
+        FriendCacheWriteResult IFriendCacheManager.SaveFriendList(
+            string providerKey,
+            IReadOnlyList<FriendIdentity> friends) =>
+            FriendWrite(
+                "SaveFriendList",
+                () => _store.SaveFriendList(providerKey, friends),
+                () => FriendCacheChange.ForRoster(providerKey));
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendOwnership(
             string providerKey,
             string externalUserId,
             IReadOnlyList<FriendGameOwnership> ownership,
-            FriendOwnershipSaveOptions options)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveFriendOwnership");
-                var result = _store.SaveFriendOwnership(providerKey, externalUserId, ownership, options);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange.ForFriendOwnership(providerKey, externalUserId));
-                }
-
-                return result;
-            }
-        }
+            FriendOwnershipSaveOptions options) =>
+            FriendWrite(
+                "SaveFriendOwnership",
+                () => _store.SaveFriendOwnership(providerKey, externalUserId, ownership, options),
+                () => FriendCacheChange.ForFriendOwnership(providerKey, externalUserId));
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendGameDefinition(
             string providerKey,
@@ -1530,53 +1539,31 @@ namespace PlayniteAchievements.Services.Cache
             string providerGameKey,
             int appId,
             string iconAbsolutePath,
-            string coverAbsolutePath)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveProviderGameImagePaths");
-                var result = _store.SaveProviderGameImagePaths(providerKey, providerGameKey, appId, iconAbsolutePath, coverAbsolutePath);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
-                }
-
-                return result;
-            }
-        }
+            string coverAbsolutePath) =>
+            FriendWrite(
+                "SaveProviderGameImagePaths",
+                () => _store.SaveProviderGameImagePaths(providerKey, providerGameKey, appId, iconAbsolutePath, coverAbsolutePath),
+                () => FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
 
         Dictionary<string, FriendGameDefinitionState> IFriendCacheManager.LoadFriendGameDefinitionStates(
             string providerKey,
-            IReadOnlyCollection<string> providerGameKeys)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendGameDefinitionStates");
-                return _store.LoadFriendGameDefinitionStates(providerKey, providerGameKeys) ??
-                       new Dictionary<string, FriendGameDefinitionState>(StringComparer.OrdinalIgnoreCase);
-            }
-        }
+            IReadOnlyCollection<string> providerGameKeys) =>
+            FriendRead(
+                "LoadFriendGameDefinitionStates",
+                () => _store.LoadFriendGameDefinitionStates(providerKey, providerGameKeys) ??
+                      new Dictionary<string, FriendGameDefinitionState>(StringComparer.OrdinalIgnoreCase));
 
         List<string> IFriendCacheManager.LoadLegacyKeyedDefinitionGameKeys(
             string providerKey,
-            IReadOnlyCollection<string> providerGameKeys)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadLegacyKeyedDefinitionGameKeys");
-                return _store.LoadLegacyKeyedDefinitionGameKeys(providerKey, providerGameKeys) ?? new List<string>();
-            }
-        }
+            IReadOnlyCollection<string> providerGameKeys) =>
+            FriendRead(
+                "LoadLegacyKeyedDefinitionGameKeys",
+                () => _store.LoadLegacyKeyedDefinitionGameKeys(providerKey, providerGameKeys) ?? new List<string>());
 
-        FriendUnownedCacheStats IFriendCacheManager.GetUnownedFriendGameCacheStats()
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("GetUnownedFriendGameCacheStats");
-                return _store.GetUnownedFriendGameCacheStats() ?? new FriendUnownedCacheStats();
-            }
-        }
+        FriendUnownedCacheStats IFriendCacheManager.GetUnownedFriendGameCacheStats() =>
+            FriendRead(
+                "GetUnownedFriendGameCacheStats",
+                () => _store.GetUnownedFriendGameCacheStats() ?? new FriendUnownedCacheStats());
 
         FriendUnownedCacheClearResult IFriendCacheManager.ClearUnownedFriendGameData()
         {
@@ -1597,39 +1584,21 @@ namespace PlayniteAchievements.Services.Cache
         FriendCacheWriteResult IFriendCacheManager.ClearUnownedFriendGame(
             string providerKey,
             int appId,
-            string providerGameKey)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("ClearUnownedFriendGame");
-                var result = _store.ClearUnownedFriendGame(providerKey, appId, providerGameKey);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
-                }
+            string providerGameKey) =>
+            FriendWrite(
+                "ClearUnownedFriendGame",
+                () => _store.ClearUnownedFriendGame(providerKey, appId, providerGameKey),
+                () => FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
 
-                return result;
-            }
-        }
+        bool IFriendCacheManager.IsProviderGameMappedToPlayniteLibrary(string providerKey, int appId, string providerGameKey) =>
+            FriendRead(
+                "IsProviderGameMappedToPlayniteLibrary",
+                () => _store.IsProviderGameMappedToPlayniteLibrary(providerKey, appId, providerGameKey));
 
-        bool IFriendCacheManager.IsProviderGameMappedToPlayniteLibrary(string providerKey, int appId, string providerGameKey)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("IsProviderGameMappedToPlayniteLibrary");
-                return _store.IsProviderGameMappedToPlayniteLibrary(providerKey, appId, providerGameKey);
-            }
-        }
-
-        IReadOnlyList<FriendGameMapping> IFriendCacheManager.LoadFriendGameMappings(string providerKey)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendGameMappings");
-                return _store.LoadFriendGameMappings(providerKey) ?? new List<FriendGameMapping>();
-            }
-        }
+        IReadOnlyList<FriendGameMapping> IFriendCacheManager.LoadFriendGameMappings(string providerKey) =>
+            FriendRead(
+                "LoadFriendGameMappings",
+                () => _store.LoadFriendGameMappings(providerKey) ?? new List<FriendGameMapping>());
 
         FriendCacheWriteResult IFriendCacheManager.PromoteProviderOnlyGameToPlayniteBacked(
             string providerKey,
@@ -1658,17 +1627,10 @@ namespace PlayniteAchievements.Services.Cache
             int appId,
             FriendGameAchievements achievements)
         {
-            FriendCacheWriteResult result;
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveFriendGameAchievements");
-                result = _store.SaveFriendGameAchievements(providerKey, externalUserId, providerGameKey, appId, achievements);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForFriendGameAchievements(providerKey, externalUserId, appId, providerGameKey));
-                }
-            }
+            var result = FriendWrite(
+                "SaveFriendGameAchievements",
+                () => _store.SaveFriendGameAchievements(providerKey, externalUserId, providerGameKey, appId, achievements),
+                () => FriendCacheChange.ForFriendGameAchievements(providerKey, externalUserId, appId, providerGameKey));
 
             if (result?.Success == true)
             {
@@ -1684,94 +1646,52 @@ namespace PlayniteAchievements.Services.Cache
             string providerKey,
             string externalUserId,
             int appId,
-            string providerGameKey)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendGameAchievements");
-                return _store.LoadFriendGameAchievements(providerKey, externalUserId, appId, providerGameKey) ??
-                       new List<FriendAchievementRow>();
-            }
-        }
+            string providerGameKey) =>
+            FriendRead(
+                "LoadFriendGameAchievements",
+                () => _store.LoadFriendGameAchievements(providerKey, externalUserId, appId, providerGameKey) ??
+                      new List<FriendAchievementRow>());
 
         FriendCacheWriteResult IFriendCacheManager.DeleteFriendData(
             string providerKey,
             string externalUserId,
-            bool preserveFriendRecord)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("DeleteFriendData");
-                var result = _store.DeleteFriendData(providerKey, externalUserId, preserveFriendRecord);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForFriendRemoved(providerKey, externalUserId));
-                }
+            bool preserveFriendRecord) =>
+            FriendWrite(
+                "DeleteFriendData",
+                () => _store.DeleteFriendData(providerKey, externalUserId, preserveFriendRecord),
+                () => FriendCacheChange.ForFriendRemoved(providerKey, externalUserId));
 
-                return result;
-            }
-        }
+        List<FriendIdentity> IFriendCacheManager.LoadFriendIdentities(string providerKey) =>
+            FriendRead(
+                "LoadFriendIdentities",
+                () => _store.LoadFriendIdentities(providerKey) ?? new List<FriendIdentity>());
 
-        List<FriendIdentity> IFriendCacheManager.LoadFriendIdentities(string providerKey)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendIdentities");
-                return _store.LoadFriendIdentities(providerKey) ?? new List<FriendIdentity>();
-            }
-        }
+        List<FriendIdentity> IFriendCacheManager.LoadCurrentUserIdentities() =>
+            FriendRead(
+                "LoadCurrentUserIdentities",
+                () => _store.LoadCurrentUserIdentities() ?? new List<FriendIdentity>());
 
-        List<FriendIdentity> IFriendCacheManager.LoadCurrentUserIdentities()
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadCurrentUserIdentities");
-                return _store.LoadCurrentUserIdentities() ?? new List<FriendIdentity>();
-            }
-        }
+        bool IFriendCacheManager.SaveCurrentUserProfile(string providerKey, FriendIdentity self) =>
+            FriendRead("SaveCurrentUserProfile", () => _store.SaveCurrentUserProfile(providerKey, self));
 
-        bool IFriendCacheManager.SaveCurrentUserProfile(string providerKey, FriendIdentity self)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveCurrentUserProfile");
-                return _store.SaveCurrentUserProfile(providerKey, self);
-            }
-        }
-
-        DateTime? IFriendCacheManager.GetMostRecentFriendLastRefreshedUtc()
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("GetMostRecentFriendLastRefreshedUtc");
-                return _store.GetMostRecentFriendLastRefreshedUtc();
-            }
-        }
+        DateTime? IFriendCacheManager.GetMostRecentFriendLastRefreshedUtc() =>
+            FriendRead("GetMostRecentFriendLastRefreshedUtc", () => _store.GetMostRecentFriendLastRefreshedUtc());
 
         List<FriendRefreshCandidate> IFriendCacheManager.LoadFriendRefreshCandidates(
             string providerKey,
-            FriendRefreshOptions options)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendRefreshCandidates");
-                return _store.LoadFriendRefreshCandidates(providerKey, options) ??
-                       new List<FriendRefreshCandidate>();
-            }
-        }
+            FriendRefreshOptions options) =>
+            FriendRead(
+                "LoadFriendRefreshCandidates",
+                () => _store.LoadFriendRefreshCandidates(providerKey, options) ??
+                      new List<FriendRefreshCandidate>());
 
         IReadOnlyDictionary<string, FriendOwnershipRecency> IFriendCacheManager.LoadFriendOwnershipRecency(
             string providerKey,
-            string externalUserId)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("LoadFriendOwnershipRecency");
-                return _store.LoadFriendOwnershipRecency(providerKey, externalUserId) ??
-                       new Dictionary<string, FriendOwnershipRecency>(StringComparer.OrdinalIgnoreCase);
-            }
-        }
+            string externalUserId) =>
+            FriendRead(
+                "LoadFriendOwnershipRecency",
+                () => _store.LoadFriendOwnershipRecency(providerKey, externalUserId) ??
+                      new Dictionary<string, FriendOwnershipRecency>(StringComparer.OrdinalIgnoreCase));
 
         FriendsOverviewData IFriendCacheManager.LoadFriendsOverviewData(int recentLimit)
         {
