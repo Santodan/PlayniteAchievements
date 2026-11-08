@@ -187,6 +187,10 @@ namespace PlayniteAchievements.Models.Achievements
 
         public string ProviderCategoryKind { get; set; }
 
+        public AchievementLayerValues PlatformLayer { get; set; }
+
+        public AchievementLayerValues MetadataLayer { get; set; }
+
         public string ProviderKey { get; set; }
 
         public bool IsCustom { get; set; }
