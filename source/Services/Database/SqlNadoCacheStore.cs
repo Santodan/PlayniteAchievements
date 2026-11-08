@@ -342,6 +342,7 @@ namespace PlayniteAchievements.Services.Database
             public int? Points { get; set; }
             public int? ScaledPoints { get; set; }
             public string Category { get; set; }
+            public string ProviderCategory { get; set; }
             public string Tags { get; set; }
             public string CategoryKind { get; set; }
             public string TrophyType { get; set; }
@@ -5124,6 +5125,7 @@ namespace PlayniteAchievements.Services.Database
                     ad.Points AS Points,
                     ad.ScaledPoints AS ScaledPoints,
                     ad.Category AS Category,
+                    ad.ProviderCategory AS ProviderCategory,
                     ad.Tags AS Tags,
                     ad.CategoryKind AS CategoryKind,
                     ad.TrophyType AS TrophyType,
@@ -5272,7 +5274,6 @@ namespace PlayniteAchievements.Services.Database
                     continue;
                 }
 
-                var category = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category);
                 var playniteGameId = ResolveCachedPlayniteGameId(null, row.PlayniteGameId);
                 var presentation = ResolveGamePresentation(playniteGameId, presentationCache);
                 var item = new FriendAchievementDisplayItem
@@ -5283,7 +5284,7 @@ namespace PlayniteAchievements.Services.Database
                     UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath),
                     LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
                     PointsValue = row.ScaledPoints ?? row.Points,
-                    CategoryLabel = category,
+                    CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
                     Tags = AchievementTagHelper.Normalize(row.Tags),
                     CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
                     TrophyType = row.TrophyType,
@@ -5322,7 +5323,7 @@ namespace PlayniteAchievements.Services.Database
                     customData?.AchievementCategoryOrder,
                     customData?.AchievementCategoryImageOverrides,
                     item.CategoryLabel,
-                    category,
+                    AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),
                     playniteGameId);
                 // Only the per-game flag varies; the rest of the snapshot is shared.
                 item.ApplyAppearanceSettings(
