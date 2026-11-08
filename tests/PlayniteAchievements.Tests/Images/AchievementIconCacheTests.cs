@@ -1382,7 +1382,7 @@ namespace PlayniteAchievements.Services.Images.Tests
             new[] { new MetadataSourceList(id, id, rows) };
 
         [TestMethod]
-        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndDeletesTheirOwnCopies()
+        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndKeepsTheOwnFiles()
         {
             var tempDir = CreateTempDirectory();
 
@@ -1419,7 +1419,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 Assert.AreEqual(borrowedFile, borrowed.UnlockedIconPath, "a borrowed icon is used from its source folder");
                 Assert.IsTrue(File.Exists(borrowedFile));
-                Assert.IsFalse(File.Exists(staleCopy), "the own-folder copy of a borrowed icon is deleted");
+                Assert.IsTrue(File.Exists(staleCopy), "the game's own file stays for when metadata is cleared");
                 var ownTarget = diskImageService.GetAchievementIconCachePath(gameIdText, "own", AchievementIconVariant.Unlocked);
                 Assert.AreEqual(ownTarget, own.UnlockedIconPath, "an icon of the game's own is still cached in its own folder");
                 Assert.IsTrue(File.Exists(ownTarget));
