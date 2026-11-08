@@ -156,7 +156,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 {
                     return platformMatched
                         .OrderByDescending(candidate => candidate.Score)
-                        .ThenByDescending(candidate => RegionHintMatches(candidate.Game.Region, regionHint))
+                        .ThenByDescending(candidate => RegionHintMatches(candidate.Game.Regions, regionHint))
                         .ThenBy(candidate => candidate.Slug.Length)
                         .ThenBy(candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase)
                         .First().Game;
@@ -267,22 +267,33 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
-        private static bool RegionHintMatches(string rowRegion, string regionHint)
+        private static bool RegionHintMatches(IList<ExophaseRegion> rowRegions, string regionHint)
         {
-            if (string.IsNullOrWhiteSpace(rowRegion) || string.IsNullOrWhiteSpace(regionHint))
+            if (rowRegions == null || string.IsNullOrWhiteSpace(regionHint))
             {
                 return false;
             }
 
-            var row = rowRegion.Trim().ToLowerInvariant();
             var hint = regionHint.Trim().ToLowerInvariant();
-            if (string.Equals(row, hint, StringComparison.Ordinal))
-            {
-                return true;
-            }
+            return rowRegions.Any(region => string.Equals(MapRegionSlugToHint(region?.Slug), hint, StringComparison.Ordinal));
+        }
 
-            // Exophase renders the Americas region as NA; PSN serials encode it as U(S).
-            return (row == "us" && hint == "na") || (row == "na" && hint == "us");
+        /// <summary>
+        /// Maps an Exophase region slug to the hint token the PSN id mappers produce. Observed
+        /// slugs are north-america, europe and asia; japan and korea follow the same naming.
+        /// </summary>
+        internal static string MapRegionSlugToHint(string slug)
+        {
+            switch (slug?.Trim().ToLowerInvariant())
+            {
+                case "north-america": return "na";
+                case "europe": return "eu";
+                case "asia": return "as";
+                case "japan": return "jp";
+                case "korea":
+                case "south-korea": return "kr";
+                default: return null;
+            }
         }
     }
 }
