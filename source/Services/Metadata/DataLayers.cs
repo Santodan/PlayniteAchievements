@@ -9,16 +9,8 @@ using System.Linq;
 namespace PlayniteAchievements.Services.Metadata
 {
     /// <summary>
-    /// Works out which data areas a refreshed game got from its own platform and which from a
-    /// metadata source. The overlay writes into the payload in place, so the platform's values are
-    /// captured before it runs and compared with the result afterwards.
+    /// Which data areas a game's achievements carry values for: the area masks tagging reads.
     /// </summary>
-    /// <remarks>
-    /// An achievement's value counts as the platform's when it survives the overlay unchanged, and
-    /// as metadata when the overlay left a different, non-empty value. A source that failed and
-    /// had its last saved values carried forward is judged the same way: carried platform values
-    /// equal the snapshot, carried metadata values differ from it.
-    /// </remarks>
     internal static class DataLayers
     {
         /// <summary>The areas whose values live on the achievements, in a stable order.</summary>
@@ -96,87 +88,6 @@ namespace PlayniteAchievements.Services.Metadata
                 });
 
             return new Snapshot(values, rows.Any(IsPlatformCapstone), rows.Count);
-        }
-
-        /// <summary>
-        /// Per value area, the ApiNames whose value after the overlay is non-empty and differs from
-        /// <paramref name="before"/>.
-        /// </summary>
-        public static Dictionary<CustomizationArea, HashSet<string>> ChangedSince(
-            Snapshot before,
-            IEnumerable<AchievementDetail> after)
-        {
-            var current = Take(after);
-            return ValueAreas.ToDictionary(
-                area => area,
-                area =>
-                {
-                    var was = before?.Values[area] ?? new Dictionary<string, string>();
-                    return new HashSet<string>(
-                        current.Values[area]
-                            .Where(pair => !was.TryGetValue(pair.Key, out var old) || !string.Equals(old, pair.Value, StringComparison.Ordinal))
-                            .Select(pair => pair.Key),
-                        StringComparer.OrdinalIgnoreCase);
-                });
-        }
-
-        /// <summary>
-        /// The platform and metadata masks for a refreshed game.
-        /// </summary>
-        /// <param name="before">The payload as the provider built it, before the overlay.</param>
-        /// <param name="after">The payload after the overlay.</param>
-        /// <param name="metadataByArea">
-        /// ApiNames a metadata source supplied per value area: the overlay's changes.
-        /// </param>
-        /// <param name="metadataCapstone">Whether the overlay borrowed a capstone for the game.</param>
-        public static (CustomizationArea Platform, CustomizationArea Metadata) Resolve(
-            Snapshot before,
-            IEnumerable<AchievementDetail> after,
-            IReadOnlyDictionary<CustomizationArea, HashSet<string>> metadataByArea,
-            bool metadataCapstone)
-        {
-            var current = Take(after);
-            var platform = CustomizationArea.None;
-            var metadata = CustomizationArea.None;
-
-            foreach (var area in ValueAreas)
-            {
-                if (!current.Has(area))
-                {
-                    continue;
-                }
-
-                HashSet<string> supplied = null;
-                metadataByArea?.TryGetValue(area, out supplied);
-                var hasMetadata = supplied != null && supplied.Any(name => current.Values[area].ContainsKey(name));
-                if (hasMetadata)
-                {
-                    metadata |= area;
-                }
-
-                // The platform's value has to reach the result untouched and not be one a source wrote.
-                var now = current.Values[area];
-                var hasPlatform = before.Values[area].Any(pair =>
-                    (supplied == null || !supplied.Contains(pair.Key)) &&
-                    now.TryGetValue(pair.Key, out var value) &&
-                    string.Equals(value, pair.Value, StringComparison.Ordinal));
-                if (hasPlatform)
-                {
-                    platform |= area;
-                }
-            }
-
-            if (before.HasCapstone)
-            {
-                platform |= CustomizationArea.Capstones;
-            }
-
-            if (metadataCapstone)
-            {
-                metadata |= CustomizationArea.Capstones;
-            }
-
-            return (platform, metadata);
         }
 
         /// <summary>The value areas any achievement carries a value for, from whatever source.</summary>
