@@ -1766,13 +1766,6 @@ namespace PlayniteAchievements.Services.Cache
                    new FriendsOverviewData();
         }
 
-        FriendsOverviewData IFriendCacheManager.LoadFriendRecentUnlocksData(int recentLimit)
-        {
-            EnsureReadyForRead("LoadFriendRecentUnlocksData");
-            return _store.LoadFriendRecentUnlocksData(recentLimit) ??
-                   new FriendsOverviewData();
-        }
-
         IReadOnlyList<CurrentUserGameLabel> IFriendCacheManager.LoadCurrentUserGameLabels()
         {
             var records = LoadAllGameHeaders();
