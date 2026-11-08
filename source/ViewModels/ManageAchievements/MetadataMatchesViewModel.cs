@@ -5,15 +5,15 @@ using System.Linq;
 using System.Windows.Data;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
-using PlayniteAchievements.Services.Metadata;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     /// <summary>
-    /// The Achievement matches window for one game and one metadata source: one row per
-    /// achievement, each with a searchable dropdown of the source's rows. Pairings are staged here
-    /// and handed back together by <see cref="GetChanges"/> when the user saves.
+    /// The Achievement matches window for one game and one source of rows (a metadata source, or
+    /// a linked file): one row per achievement, each with a searchable dropdown of the source's
+    /// rows. Pairings are staged here and handed back together by <see cref="GetChanges"/> when
+    /// the user saves.
     /// </summary>
     public sealed class MetadataMatchesViewModel : ObservableObject
     {
@@ -24,27 +24,26 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         internal MetadataMatchesViewModel(
             string sourceName,
             IReadOnlyList<AchievementDetail> targets,
-            MetadataSourceSnapshot snapshot,
+            IReadOnlyList<MatchOption> options,
+            IReadOnlyDictionary<string, string> automatic,
             IReadOnlyDictionary<string, string> pairings)
         {
             SourceName = sourceName;
-            _trophies = (snapshot?.Rows ?? new List<MetadataSourceRow>())
-                .Select(row => MatchOption.Create(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List))
-                .ToList();
+            _trophies = (options ?? Array.Empty<MatchOption>()).Where(option => option != null).ToList();
             _trophiesByApiName = _trophies
                 .GroupBy(trophy => trophy.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             Automatic = MatchOption.Special(null, ResourceProvider.GetString("LOCPlayAch_Common_Automatic"));
             None = MatchOption.Special(string.Empty, ResourceProvider.GetString("LOCPlayAch_Common_None"));
 
-            var matches = snapshot?.Matches ?? new Dictionary<string, string>();
+            var matches = automatic ?? new Dictionary<string, string>();
             pairings = pairings ?? new Dictionary<string, string>();
             var rows = (targets ?? Array.Empty<AchievementDetail>())
                 .Select(target =>
                 {
-                    matches.TryGetValue(target.ApiName, out var automatic);
+                    matches.TryGetValue(target.ApiName, out var matched);
                     var hasPairing = pairings.TryGetValue(target.ApiName, out var paired);
-                    return new MatchTargetItem(this, target, automatic, hasPairing ? paired ?? string.Empty : null);
+                    return new MatchTargetItem(this, target, matched, hasPairing ? paired ?? string.Empty : null);
                 })
                 .OrderBy(target => target.IsMatched ? 1 : 0)
                 .ToList();
