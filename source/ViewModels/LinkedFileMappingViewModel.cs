@@ -49,9 +49,6 @@ namespace PlayniteAchievements.ViewModels
         public Func<Func<LinkedFileReadResult>, Task<LinkedFileReadResult>> RunRead { get; set; } = work => Task.Run(work);
 
         public Func<string, string> Localize { get; set; } = key => ResourceProvider.GetString(key);
-
-        /// <summary>Shows the achievement matches window; true when the user saved.</summary>
-        public Func<MetadataMatchesViewModel, bool> EditPairings { get; set; }
     }
 
     /// <summary>
@@ -89,12 +86,14 @@ namespace PlayniteAchievements.ViewModels
         private bool _isReading;
         private IReadOnlyList<LinkedFilePreviewRow> _previewRows = Array.Empty<LinkedFilePreviewRow>();
         private LinkedFileTable _previewTable = LinkedFileTable.Empty;
+        private LinkedFileTable _previewRowsTable;
         private string _previewCountText;
         private string _unmatchedAchievementsHeader;
         private bool _isReloadingNames;
 
-        // Hand pairings by achievement API name (a row key, or "" for no row), staged until Apply.
-        private readonly Dictionary<string, string> _pairings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // Hand pairings by row key, staged until Apply.
+        private readonly Dictionary<string, string> _pairings = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly LinkedFilePairingContext _pairing;
 
         public LinkedFileMappingViewModel(LinkedFileMappingServices services)
         {
@@ -154,7 +153,10 @@ namespace PlayniteAchievements.ViewModels
             ApplyNowCommand = new RelayCommand(_ => ApplyNow(), _ => CanApplyNow);
             UnlinkCommand = new RelayCommand(_ => Unlink(), _ => HasStoredLink);
             RereadCommand = new RelayCommand(_ => Reread());
-            EditPairingsCommand = new RelayCommand(_ => EditPairings(), _ => CanEditPairings);
+            _pairing = new LinkedFilePairingContext(
+                MatchOption.Special(null, L("LOCPlayAch_Common_Automatic")),
+                MatchOption.Special(string.Empty, L("LOCPlayAch_Common_None")),
+                PairRow);
 
             LoadFromRecord();
             ReloadSavedNames();
@@ -789,7 +791,6 @@ namespace PlayniteAchievements.ViewModels
                 UnmatchedAchievementsHeader = null;
                 ApplyNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(CanApplyNow));
-                EditPairingsCommand.RaiseCanExecuteChanged();
                 return;
             }
 
@@ -808,7 +809,8 @@ namespace PlayniteAchievements.ViewModels
                 pairings: _pairings);
             var report = plan.Report;
 
-            PreviewRows = BuildPreviewRows(match, plan);
+            _pairing.Achievements = BuildAchievementOptions(achievements, match, table, schema);
+            PreviewRows = BuildPreviewRows(match, plan, schema);
 
             foreach (var achievement in match.UnmatchedAchievements)
             {
@@ -823,136 +825,115 @@ namespace PlayniteAchievements.ViewModels
 
             ApplyNowCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanApplyNow));
-            EditPairingsCommand.RaiseCanExecuteChanged();
         }
 
-        /// <summary>The preview rows, each with the achievement it pairs with once a match ran.</summary>
-        private IReadOnlyList<LinkedFilePreviewRow> BuildPreviewRows(LinkedFileMatchResult match, LinkedFileApplyPlan plan)
+        /// <summary>
+        /// The preview rows, each with the achievement it pairs with once a match ran. The rows
+        /// of the same table are updated in place, so a pick keeps the grid where it was.
+        /// </summary>
+        private IReadOnlyList<LinkedFilePreviewRow> BuildPreviewRows(LinkedFileMatchResult match, LinkedFileApplyPlan plan, LinkedFileSchema schema = null)
         {
             var matched = match?.Matches.ToDictionary(row => row.RowIndex, row => row.Achievement) ??
                           new Dictionary<int, AchievementDetail>();
-            var rows = new List<LinkedFilePreviewRow>(_previewTable.Rows.Count);
-            for (var i = 0; i < _previewTable.Rows.Count; i++)
+            var skipped = new HashSet<int>(match?.SkippedRows ?? new List<int>());
+            var count = _previewTable.Rows.Count;
+            var reuse = ReferenceEquals(_previewRowsTable, _previewTable) && _previewRows.Count == count;
+            var rows = new List<LinkedFilePreviewRow>(count);
+            for (var i = 0; i < count; i++)
             {
-                var cells = _previewTable.Rows[i].ToArray();
+                string text;
+                bool isMatched;
                 if (matched.TryGetValue(i, out var achievement))
                 {
-                    var name = string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName;
-                    rows.Add(new LinkedFilePreviewRow(cells, name, isMatched: true));
+                    text = string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName;
+                    isMatched = true;
                 }
                 else if (plan?.CreatedRows.Contains(i) == true)
                 {
-                    rows.Add(new LinkedFilePreviewRow(cells, L("LOCPlayAch_LinkedFile_NewRow"), isMatched: true));
+                    text = L("LOCPlayAch_LinkedFile_NewRow");
+                    isMatched = true;
                 }
                 else
                 {
-                    rows.Add(new LinkedFilePreviewRow(cells, match == null ? null : L("LOCPlayAch_LinkedFile_NoMatch"), isMatched: false));
+                    text = match == null ? null : skipped.Contains(i) ? L("LOCPlayAch_Common_None") : L("LOCPlayAch_LinkedFile_NoMatch");
+                    isMatched = false;
                 }
+
+                var row = reuse ? _previewRows[i] : new LinkedFilePreviewRow(_previewTable.Rows[i].ToArray(), null, isMatched: false);
+                var rowKey = match == null ? null : LinkedFileMatcher.RowKey(_previewTable, schema, i);
+                row.SetMatch(
+                    text,
+                    isMatched,
+                    rowKey != null && _pairings.ContainsKey(rowKey),
+                    rowKey,
+                    match == null ? null : _pairing);
+                rows.Add(row);
             }
 
-            return rows;
+            _previewRowsTable = _previewTable;
+            return reuse ? _previewRows : rows;
         }
 
-        // ---------------------------------------------------------------- pairing by hand
-
-        /// <summary>Opens the achievement matches window over the file's rows.</summary>
-        public RelayCommand EditPairingsCommand { get; }
-
-        /// <summary>Pairing needs the file read and at least one achievement to pair.</summary>
-        public bool CanEditPairings =>
-            _services.EditPairings != null &&
-            _lastRead?.Success == true &&
-            (_services.LoadAchievements?.Invoke()?.Any(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName)) ?? false);
-
-        /// <summary>
-        /// One row per achievement, each with a dropdown of the file's rows. What the user saves
-        /// there is staged with the window's other settings until Apply.
-        /// </summary>
-        private void EditPairings()
+        /// <summary>The game's achievements for the pairing dropdowns, each naming the row it pairs with.</summary>
+        private static IReadOnlyList<MatchOption> BuildAchievementOptions(
+            IReadOnlyList<AchievementDetail> achievements,
+            LinkedFileMatchResult match,
+            LinkedFileTable table,
+            LinkedFileSchema schema)
         {
-            if (!CanEditPairings)
+            var rowByAchievement = new Dictionary<AchievementDetail, int>();
+            foreach (var row in match.Matches)
+            {
+                rowByAchievement[row.Achievement] = row.RowIndex;
+            }
+
+            var options = new List<MatchOption>();
+            foreach (var achievement in achievements.Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.ApiName)))
+            {
+                var option = MatchOption.ForAchievement(achievement);
+                if (rowByAchievement.TryGetValue(achievement, out var rowIndex))
+                {
+                    option.SetPairedWith(DescribeRow(table, schema, rowIndex), null);
+                }
+
+                options.Add(option);
+            }
+
+            return options;
+        }
+
+        /// <summary>The row's API name or name cell, else its number.</summary>
+        private static string DescribeRow(LinkedFileTable table, LinkedFileSchema schema, int rowIndex)
+        {
+            var key = LinkedFileMatcher.RowKey(table, schema, rowIndex);
+            return key.StartsWith("row:", StringComparison.Ordinal)
+                ? "#" + (rowIndex + 1).ToString(CultureInfo.InvariantCulture)
+                : key.Substring(key.IndexOf(':') + 1);
+        }
+
+        /// <summary>Stages a hand pairing: an API name, "" for none, or null to leave the row to matching.</summary>
+        private void PairRow(string rowKey, string achievementKey)
+        {
+            if (string.IsNullOrEmpty(rowKey))
             {
                 return;
             }
 
-            var viewModel = CreatePairingsViewModel();
-            if (_services.EditPairings(viewModel) != true)
+            if (achievementKey == null)
             {
-                return;
+                _pairings.Remove(rowKey);
             }
-
-            foreach (var change in viewModel.GetChanges())
+            else
             {
-                if (change.Value == null)
-                {
-                    _pairings.Remove(change.Key);
-                }
-                else
-                {
-                    _pairings[change.Key] = change.Value;
-                }
+                _pairings[rowKey] = achievementKey;
             }
 
             Recompute();
         }
 
-        internal MetadataMatchesViewModel CreatePairingsViewModel()
-        {
-            var table = _lastRead.Table;
-            var schema = BuildSchema();
-            var achievements = (_services.LoadAchievements?.Invoke() ?? Array.Empty<AchievementDetail>())
-                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
-                .ToList();
-
-            var options = new List<MatchOption>(table.Rows.Count);
-            for (var row = 0; row < table.Rows.Count; row++)
-            {
-                options.Add(MatchOption.Create(
-                    LinkedFileMatcher.RowKey(table, schema, row),
-                    DescribeRow(table, schema, row),
-                    CellText(table, schema, LinkedFileField.Description, row),
-                    icon: null,
-                    list: null));
-            }
-
-            // What matching alone gives each achievement, shown while it is left to Automatic.
-            var automatic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var match in LinkedFileMatcher.Match(table, schema, achievements).Matches)
-            {
-                automatic[match.Achievement.ApiName] = LinkedFileMatcher.RowKey(table, schema, match.RowIndex);
-            }
-
-            return new MetadataMatchesViewModel(L("LOCPlayAch_LinkedFile_Title"), achievements, options, automatic, _pairings);
-        }
-
-        /// <summary>A file row as the dropdown names it: its name or API name cell, else its number and first cells.</summary>
-        private static string DescribeRow(LinkedFileTable table, LinkedFileSchema schema, int row)
-        {
-            var named = CellText(table, schema, LinkedFileField.DisplayName, row) ?? CellText(table, schema, LinkedFileField.ApiName, row);
-            if (named != null)
-            {
-                return named;
-            }
-
-            var cells = table.Rows[row].Where(cell => !string.IsNullOrWhiteSpace(cell)).Take(3).Select(cell => cell.Trim());
-            return ("#" + (row + 1).ToString(CultureInfo.InvariantCulture) + "  " + string.Join(", ", cells)).Trim();
-        }
-
-        private static string CellText(LinkedFileTable table, LinkedFileSchema schema, LinkedFileField field, int row)
-        {
-            if (!schema.TryGetColumn(field, out var column))
-            {
-                return null;
-            }
-
-            var index = table.IndexOfColumn(column);
-            var text = index < 0 ? null : table.Cell(row, index)?.Trim();
-            return string.IsNullOrEmpty(text) ? null : text;
-        }
-
         /// <summary>
-        /// The pairings to store with the link, without those naming a row the file no longer
-        /// has; null when none are left.
+        /// The pairings to store with the link, without those whose row the file no longer has;
+        /// null when none are left.
         /// </summary>
         private Dictionary<string, string> PairingsToStore(LinkedFileSchema schema)
         {
@@ -961,7 +942,7 @@ namespace PlayniteAchievements.ViewModels
                 return null;
             }
 
-            var kept = new Dictionary<string, string>(_pairings, StringComparer.OrdinalIgnoreCase);
+            var kept = new Dictionary<string, string>(_pairings, StringComparer.Ordinal);
             var table = _lastRead?.Success == true ? _lastRead.Table : null;
             if (table != null)
             {
@@ -971,7 +952,7 @@ namespace PlayniteAchievements.ViewModels
                     present.Add(LinkedFileMatcher.RowKey(table, schema, row));
                 }
 
-                foreach (var key in kept.Where(pair => pair.Value.Length > 0 && !present.Contains(pair.Value)).Select(pair => pair.Key).ToList())
+                foreach (var key in kept.Keys.Where(key => !present.Contains(key)).ToList())
                 {
                     kept.Remove(key);
                 }
