@@ -191,6 +191,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public AchievementLayerValues MetadataLayer { get; set; }
 
+        public AchievementLayerValues CustomLayer { get; set; }
+
         public string ProviderKey { get; set; }
 
         public bool IsCustom { get; set; }
