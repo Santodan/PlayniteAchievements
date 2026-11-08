@@ -168,6 +168,13 @@ namespace PlayniteAchievements.Models.Achievements
         public AchievementLayerValues MetadataLayer { get; set; }
 
         /// <summary>
+        /// Runtime-only: the values the user's override supplies, set on each hydration. Never
+        /// stored in the cache; custom data is its own store.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues CustomLayer { get; set; }
+
+        /// <summary>
         /// Runtime-only category art path for theme/display bindings: custom override when
         /// set, otherwise the provider default. Null when neither exists; consumers choose
         /// the game icon/cover fallback.
