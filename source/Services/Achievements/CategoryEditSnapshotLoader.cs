@@ -43,7 +43,7 @@ namespace PlayniteAchievements.Services.Achievements
             IReadOnlyList<AchievementDetail> achievements,
             ResolvedGameCustomData resolved)
         {
-            var overrides = resolved?.AchievementCategoryOverrides ?? new Dictionary<string, string>();
+            var overrides = resolved?.Project(o => o.Category) ?? new Dictionary<string, string>();
             var ordered = AchievementOrderHelper.ApplyOrder(
                 achievements ?? Array.Empty<AchievementDetail>(),
                 a => a.ApiName,
