@@ -300,7 +300,7 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     achievement.CustomLayer = entry.ToLayer();
                     AchievementLayers.Resolve(achievement);
-                    AchievementOverrideApplier.ApplyUnlockTime(achievement, entry, hasManualLink);
+                    entry?.ApplyUnlockTimeTo(achievement, hasManualLink);
                 }
             }
         }
