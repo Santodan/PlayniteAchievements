@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -63,6 +64,9 @@ namespace PlayniteAchievements.Services.Images.Relocation
         private readonly IconCacheMoveEnvironment _environment;
         private readonly ILogger _logger;
         private int _moving;
+
+        // Source files the last run could only copy because another program held them open.
+        private List<string> _leftovers = new List<string>();
 
         public IconCacheRelocationService(
             IconCacheLocation location,
@@ -191,6 +195,15 @@ namespace PlayniteAchievements.Services.Images.Relocation
                     RestoreAfterCancel(journal, targetExisted, progress);
                     return new IconCacheMoveResult { Outcome = IconCacheMoveOutcome.Cancelled };
                 }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    // A file that could not be moved or read: put back what moved, so this session
+                    // keeps every icon in one folder. If that fails too, the journal stays and the
+                    // next launch finishes the move instead.
+                    _logger?.Error(ex, $"Failed to move the icon cache to '{plan.TargetFolder}'; moving the files back.");
+                    RestoreAfterCancel(journal, targetExisted, progress);
+                    return new IconCacheMoveResult { Outcome = IconCacheMoveOutcome.Failed, Error = ex };
+                }
 
                 Commit(journal);
                 return new IconCacheMoveResult { Outcome = IconCacheMoveOutcome.Moved };
@@ -294,23 +307,31 @@ namespace PlayniteAchievements.Services.Images.Relocation
             var size = IconCacheTreeMover.Measure(plan.SourceFolder, cancel);
             try
             {
-                var root = Path.GetPathRoot(plan.TargetFolder);
-                if (string.IsNullOrEmpty(root) || root.StartsWith(@"\\", StringComparison.Ordinal))
+                var available = FreeBytesAt(plan.TargetFolder);
+                if (available == null)
                 {
                     return null;
                 }
 
-                var drive = new DriveInfo(root);
-                var keepsLinks = string.Equals(drive.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(drive.DriveFormat, "ReFS", StringComparison.OrdinalIgnoreCase);
+                // Hard links survive only on NTFS and ReFS drives; a network share or another
+                // file system gets a full copy of every linked name.
+                var root = Path.GetPathRoot(plan.TargetFolder);
+                var keepsLinks = false;
+                if (!string.IsNullOrEmpty(root) && !root.StartsWith(@"\\", StringComparison.Ordinal))
+                {
+                    var format = new DriveInfo(root).DriveFormat;
+                    keepsLinks = string.Equals(format, "NTFS", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(format, "ReFS", StringComparison.OrdinalIgnoreCase);
+                }
+
                 var required = keepsLinks ? size.UniqueBytes : size.TotalBytes;
-                if (drive.AvailableFreeSpace < required)
+                if (available.Value < required)
                 {
                     return new IconCacheMoveResult
                     {
                         Outcome = IconCacheMoveOutcome.NotEnoughSpace,
                         RequiredBytes = required,
-                        AvailableBytes = drive.AvailableFreeSpace
+                        AvailableBytes = available.Value
                     };
                 }
             }
@@ -321,6 +342,35 @@ namespace PlayniteAchievements.Services.Images.Relocation
 
             return null;
         }
+
+        // Free bytes for the current user at the folder, or its nearest existing parent; works for
+        // drive letters and network shares alike.
+        private static long? FreeBytesAt(string folder)
+        {
+            var current = folder;
+            while (!string.IsNullOrEmpty(current) && !Directory.Exists(current))
+            {
+                current = Path.GetDirectoryName(current);
+            }
+
+            if (string.IsNullOrEmpty(current))
+            {
+                return null;
+            }
+
+            var probe = current.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                ? current
+                : current + Path.DirectorySeparatorChar;
+            return GetDiskFreeSpaceEx(probe, out var available, out _, out _) ? (long)available : (long?)null;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetDiskFreeSpaceEx(
+            string directoryName,
+            out ulong freeBytesAvailable,
+            out ulong totalNumberOfBytes,
+            out ulong totalNumberOfFreeBytes);
 
         private void MoveFiles(IconCacheRelocationJournal journal, Action<string, int, int> progress, CancellationToken cancel)
         {
@@ -335,11 +385,11 @@ namespace PlayniteAchievements.Services.Images.Relocation
             }
 
             var movingText = ResourceProvider.GetString(MovingTextKey);
-            IconCacheTreeMover.MoveTree(
+            _leftovers = IconCacheTreeMover.MoveTree(
                 journal.SourceFolder,
                 journal.TargetFolder,
                 (done, total) => progress?.Invoke(movingText, done, total),
-                cancel);
+                cancel).Leftovers;
         }
 
         // One rename when the target is free; false sends the move file by file, as when a file in
@@ -410,8 +460,18 @@ namespace PlayniteAchievements.Services.Images.Relocation
             RemoveLink(journal.LinkToRemove);
             if (!IconCacheLocation.PathsEqual(journal.SourceFolder, journal.TargetFolder))
             {
+                // The plugin reloaded from the new folder, so files it held in the old one may be
+                // free now. Whatever another program still holds stays behind, already copied.
+                var held = IconCacheTreeMover.DeleteLeftovers(_leftovers);
+                if (held.Count > 0)
+                {
+                    _logger?.Warn($"{held.Count} file(s) in '{journal.SourceFolder}' are held open by another program and were left there; their copies are in '{journal.TargetFolder}'.");
+                }
+
                 IconCacheTreeMover.DeleteEmptyFolders(journal.SourceFolder);
             }
+
+            _leftovers = new List<string>();
 
             if (saved)
             {
