@@ -128,6 +128,47 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        private sealed class UserRow
+        {
+            public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string Note { get; set; }
+            public long IsGoal { get; set; }
+            public long? CustomOrder { get; set; }
+            public long IsFiltered { get; set; }
+            public long Unlocked { get; set; }
+            public string GameName { get; set; }
+        }
+
+        [TestMethod]
+        public void UserView_JoinsTheCurrentUsersUnlocks_AndCarriesTheUserState()
+        {
+            WithDatabase(db =>
+            {
+                Definition(db, "won", "Won", null, null, "Default", null, null, null, "Common");
+                Definition(db, "open", "Open", null, null, "Default", null, null, null, "Common");
+                var wonId = db.ExecuteScalar<long>("SELECT Id FROM PlatformDefinitions WHERE ApiName = 'won';");
+                db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (1, ?, 1);", wonId);
+                db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (2, ?, 0);", wonId);
+                db.ExecuteNonQuery(
+                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, Note, GoalOrder, CustomOrder, IsFiltered, UpdatedUtc)
+                      VALUES (?, 'open', 'route note', 0, 3, 1, '');",
+                    GameId);
+
+                var rows = db.Load<UserRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + " ORDER BY ApiName;").ToList();
+
+                Assert.AreEqual(2, rows.Count, "one row per achievement for the current user only");
+                var open = rows.Single(row => row.ApiName == "open");
+                Assert.AreEqual(0, open.Unlocked);
+                Assert.AreEqual("route note", open.Note);
+                Assert.AreEqual(1, open.IsGoal);
+                Assert.AreEqual(3L, open.CustomOrder);
+                Assert.AreEqual(1, open.IsFiltered);
+                Assert.AreEqual("Game", open.GameName);
+                Assert.AreEqual(1, rows.Single(row => row.ApiName == "won").Unlocked);
+            });
+        }
+
         private sealed class SqlRow
         {
             public string Sql { get; set; }
@@ -232,8 +273,17 @@ namespace PlayniteAchievements.SqlNado.Tests
                         UpdatedUtc TEXT NOT NULL);");
                     db.ExecuteNonQuery(@"CREATE TABLE Games (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        PlayniteGameId TEXT NULL);");
-                    db.ExecuteNonQuery("INSERT INTO Games (Id, PlayniteGameId) VALUES (1, '" + GameId + "');");
+                        PlayniteGameId TEXT NULL,
+                        GameName TEXT NULL,
+                        ProviderKey TEXT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, PlayniteGameId, GameName, ProviderKey) VALUES (1, '" + GameId + "', 'Game', 'Steam');");
+                    db.ExecuteNonQuery("CREATE TABLE Users (Id INTEGER PRIMARY KEY, IsCurrentUser INTEGER NOT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO Users (Id, IsCurrentUser) VALUES (1, 1), (2, 0);");
+                    db.ExecuteNonQuery("CREATE TABLE UserGameProgress (Id INTEGER PRIMARY KEY, UserId INTEGER NOT NULL, GameId INTEGER NOT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO UserGameProgress (Id, UserId, GameId) VALUES (1, 1, 1), (2, 2, 1);");
+                    db.ExecuteNonQuery(@"CREATE TABLE UserAchievements (
+                        Id INTEGER PRIMARY KEY, UserGameProgressId INTEGER NOT NULL, AchievementDefinitionId INTEGER NOT NULL,
+                        Unlocked INTEGER NOT NULL, UnlockTimeUtc TEXT NULL, ProgressNum INTEGER NULL, ProgressDenom INTEGER NULL);");
                     db.ExecuteNonQuery(@"CREATE TABLE AchievementOverrides (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
@@ -246,6 +296,9 @@ namespace PlayniteAchievements.SqlNado.Tests
                         Tags TEXT NULL,
                         Hidden INTEGER NULL,
                         Cleared INTEGER NOT NULL DEFAULT 0,
+                        Note TEXT NULL,
+                        GoalOrder INTEGER NULL,
+                        CustomOrder INTEGER NULL,
                         IsFiltered INTEGER NOT NULL DEFAULT 0,
                         IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                         UpdatedUtc TEXT NOT NULL,
