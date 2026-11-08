@@ -381,9 +381,9 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
-                Assert.AreEqual(2, loaded.AchievementNotes.Count);
-                Assert.AreEqual("second note\nline", loaded.AchievementNotes["ach_one"]);
-                Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, loaded.AchievementNotes["ach_long"].Length);
+                Assert.AreEqual(2, AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note).Count);
+                Assert.AreEqual("second note\nline", AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note)["ach_one"]);
+                Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note)["ach_long"].Length);
                 Assert.AreEqual("second note\nline", GameCustomDataLookup.GetAchievementNote(gameId, "ACH_ONE", store: store));
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
@@ -687,11 +687,11 @@ namespace PlayniteAchievements.Services.Tests
                 var imported = importResult.ImportedData;
                 Assert.IsNotNull(imported);
                 Assert.IsFalse(importResult.HasIgnoredPackageImages);
-                Assert.IsTrue(imported.AchievementUnlockedIconOverrides[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".png")));
-                Assert.IsTrue(imported.AchievementLockedIconOverrides[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".locked.png")));
-                Assert.AreEqual("package note", imported.AchievementNotes[apiName]);
-                Assert.IsTrue(File.Exists(imported.AchievementUnlockedIconOverrides[apiName]));
-                Assert.IsTrue(File.Exists(imported.AchievementLockedIconOverrides[apiName]));
+                Assert.IsTrue(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".png")));
+                Assert.IsTrue(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".locked.png")));
+                Assert.AreEqual("package note", AchievementOverride.Project(imported.AchievementOverrides, o => o.Note)[apiName]);
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)[apiName]));
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)[apiName]));
                 AssertProviderOverride(imported, "Steam", "480");
             }
             finally
@@ -759,9 +759,9 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(imported.ExcludedFromSummaries == true);
                 Assert.IsTrue(imported.CapstonesMaterialized);
                 Assert.AreEqual("imported-capstone", imported.Capstones.Single().ApiName);
-                Assert.AreEqual("https://example.com/new-unlocked.png", imported.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/new-locked.png", imported.AchievementLockedIconOverrides["ach_one"]);
-                Assert.AreEqual("imported note", imported.AchievementNotes["ach_one"]);
+                Assert.AreEqual("https://example.com/new-unlocked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]);
+                Assert.AreEqual("https://example.com/new-locked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_one"]);
+                Assert.AreEqual("imported note", AchievementOverride.Project(imported.AchievementOverrides, o => o.Note)["ach_one"]);
                 AssertProviderOverride(imported, "Steam", "480");
                 Assert.IsNull(imported.UseSeparateLockedIconsOverride);
             }
@@ -840,11 +840,11 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsNotNull(imported);
                 Assert.IsTrue(importResult.HasIgnoredPackageImages);
                 Assert.AreEqual(1, importResult.IgnoredPackageImageCount);
-                Assert.AreEqual(1, imported.AchievementUnlockedIconOverrides.Count);
-                Assert.AreEqual(1, imported.AchievementLockedIconOverrides.Count);
-                Assert.IsTrue(File.Exists(imported.AchievementUnlockedIconOverrides["ach_one"]));
-                Assert.IsTrue(File.Exists(imported.AchievementLockedIconOverrides["ach_two"]));
-                Assert.IsFalse(imported.AchievementUnlockedIconOverrides.ContainsKey("missing_api"));
+                Assert.AreEqual(1, AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath).Count);
+                Assert.AreEqual(1, AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath).Count);
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]));
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_two"]));
+                Assert.IsFalse(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath).ContainsKey("missing_api"));
             }
             finally
             {
@@ -1049,7 +1049,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(legacyOnly.UseSeparateLockedIconsOverride == true);
                 Assert.AreEqual("legacy-only-capstone", legacyOnly.Capstones.Single().ApiName);
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, legacyOnly.AchievementOrder);
-                Assert.AreEqual("Main", legacyOnly.AchievementCategoryOverrides["ach_one"]);
+                Assert.AreEqual("Main", legacyOnly.AchievementOverrides["ach_one"].Category);
                 Assert.IsNull(legacyOnly.AchievementOverrides["ach_one"].LegacyCategoryType);
                 Assert.AreEqual("Singleplayer", legacyOnly.AchievementOverrides["ach_one"].Tags);
                 CollectionAssert.AreEqual(new[] { "ach_one" }, legacyOnly.FilteredAchievementApiNames);
@@ -1157,8 +1157,8 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.IsNotNull(imported);
                 Assert.AreEqual(gameId, imported.PlayniteGameId);
-                Assert.AreEqual("https://example.com/unlocked.png", imported.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/locked.png", imported.AchievementLockedIconOverrides["ach_one"]);
+                Assert.AreEqual("https://example.com/unlocked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]);
+                Assert.AreEqual("https://example.com/locked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_one"]);
                 Assert.IsFalse(imported.ExcludedFromRefreshes.HasValue);
                 Assert.IsFalse(imported.ExcludedFromSummaries.HasValue);
             }
