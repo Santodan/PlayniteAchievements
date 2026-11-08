@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Providers.Manual
         public string Platforms { get; set; }
 
         /// <summary>
-        /// Optional regional release marker (e.g., "EU" for an Exophase regional page).
+        /// Optional release region display string (e.g., "Europe" for an Exophase regional page).
         /// </summary>
         public string Region { get; set; }
     }
