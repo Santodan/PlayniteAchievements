@@ -5538,18 +5538,9 @@ namespace PlayniteAchievements.Services.Database
                 item.IsCapstone = customData.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
             }
 
+            // The row reads the resolved view, which already carries the user's category and tags.
             PlayniteAchievements.Models.Settings.AchievementOverride userOverride = null;
             customData.AchievementOverrides?.TryGetValue(apiName, out userOverride);
-            if (!string.IsNullOrWhiteSpace(userOverride?.Category))
-            {
-                item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(userOverride.Category);
-            }
-            if (userOverride != null && (userOverride.ClearTags || userOverride.Tags != null))
-            {
-                item.Tags = AchievementTagHelper.ApplyOverride(
-                    item.Tags,
-                    userOverride.ClearTags ? string.Empty : userOverride.Tags);
-            }
 
             item.CategoryKind = CategoryKindHelper.ResolveEffective(
                 customData.GetStoredCategoryKind(item.CategoryLabel),
