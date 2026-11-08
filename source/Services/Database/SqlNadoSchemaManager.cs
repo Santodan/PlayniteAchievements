@@ -19,7 +19,9 @@ namespace PlayniteAchievements.Services.Database
         // page slugs.
         // v21: AchievementDefinitions.MetadataOrder holds each achievement's position in the list
         // of the metadata source chosen for order.
-        public const int SchemaVersion = 21;
+        // v22: AchievementMetadataLayer holds what metadata sources supplied apart from the
+        // platform's definitions, and the ResolvedDefinitions view resolves one over the other.
+        public const int SchemaVersion = 22;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -348,6 +350,21 @@ namespace PlayniteAchievements.Services.Database
             EnsureAchievementOverridesTable(db);
             EnsureMetadataStateTables(db);
             EnsureMetadataStateIndexes(db);
+            EnsureAchievementLayers(db);
+        }
+
+        /// <summary>
+        /// Creates the metadata layer table and its delete trigger, and recreates the view that
+        /// resolves it over the definitions. Runs once the definitions table is verified.
+        /// </summary>
+        private void EnsureAchievementLayers(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
+            foreach (var sql in AchievementLayerSql.RecreateViewSql())
+            {
+                ExecuteSafe(db, sql);
+            }
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
