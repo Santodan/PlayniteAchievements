@@ -204,7 +204,8 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 var moved = IconCacheTreeMover.MoveTree(source, target, null, CancellationToken.None);
 
-                Assert.AreEqual(3, moved);
+                Assert.AreEqual(3, moved.Moved);
+                Assert.AreEqual(0, moved.Leftovers.Count);
                 Assert.IsFalse(Directory.Exists(source));
                 Assert.IsTrue(File.Exists(Path.Combine(target, "loose.png")));
                 Assert.IsTrue(IconFileLinks.TryGetIdentity(Path.Combine(target, "game", "original", "a.png"), out var a, out var links));
