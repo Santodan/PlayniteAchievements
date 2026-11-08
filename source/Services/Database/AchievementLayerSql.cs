@@ -6,9 +6,9 @@ using System.Linq;
 namespace PlayniteAchievements.Services.Database
 {
     /// <summary>
-    /// The metadata layer table and the <see cref="ViewName"/> view that resolves it over the
-    /// platform's <c>AchievementDefinitions</c>, with the same precedence as
-    /// <see cref="LayerResolver"/>. Reads that show an achievement's values go through the view;
+    /// The metadata layer table and the <see cref="ViewName"/> view that resolves the custom layer
+    /// mirror (<c>AchievementOverrides</c>) and the metadata layer over the platform's
+    /// <c>AchievementDefinitions</c>, with the same precedence as <see cref="LayerResolver"/>. Reads that show an achievement's values go through the view;
     /// writes and identity checks use the tables.
     /// </summary>
     internal static class AchievementLayerSql
@@ -61,17 +61,18 @@ namespace PlayniteAchievements.Services.Database
                 ad.Id AS Id,
                 ad.GameId AS GameId,
                 ad.ApiName AS ApiName,
-                " + Pick("DisplayName", AchievementField.DisplayName) + @",
-                " + Pick("Description", AchievementField.Description) + @",
+                " + Pick("DisplayName", AchievementField.DisplayName, custom: true) + @",
+                " + Pick("Description", AchievementField.Description, custom: true) + @",
                 " + Pick("UnlockedIconPath", AchievementField.UnlockedIcon) + @",
                 " + Pick("LockedIconPath", AchievementField.LockedIcon) + @",
-                " + Pick("Points", AchievementField.Points) + @",
+                " + Pick("Points", AchievementField.Points, custom: true) + @",
                 ad.ScaledPoints AS ScaledPoints,
-                COALESCE(" + Value("Category", AchievementField.Category) + @", 'Default') AS Category,
+                COALESCE(" + Value("Category", AchievementField.Category, custom: true) + @", 'Default') AS Category,
+                COALESCE(" + Value("Category", AchievementField.Category) + @", 'Default') AS ProviderCategory,
                 " + Tags() + @" AS Tags,
                 " + Pick("CategoryKind", AchievementField.CategoryKind) + @",
-                " + Pick("TrophyType", AchievementField.TrophyType) + @",
-                ad.Hidden AS Hidden,
+                " + Pick("TrophyType", AchievementField.TrophyType, custom: true) + @",
+                COALESCE(c.Hidden, ad.Hidden) AS Hidden,
                 ad.IsCapstone AS IsCapstone,
                 CASE WHEN " + IsCleared(AchievementField.Rarity) + @" THEN NULL
                      WHEN m.Rarity IS NOT NULL THEN m.GlobalPercentUnlocked
@@ -97,29 +98,41 @@ namespace PlayniteAchievements.Services.Database
                 m.AchievementDefinitionId IS NOT NULL AS HasMetadata,
                 " + string.Join(",\n                ", MetadataColumns.Select(column => "m." + column + " AS M_" + column)) + @"
               FROM AchievementDefinitions ad
-              LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id;";
+              LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
+              LEFT JOIN Games g ON g.Id = ad.GameId
+              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName;";
         }
 
-        private static string IsCleared(AchievementField field) => "(COALESCE(m.Cleared, 0) & " + (int)field + ") <> 0";
-
-        private static string Value(string column, AchievementField field) =>
-            "CASE WHEN " + IsCleared(field) + " THEN NULL ELSE COALESCE(m." + column + ", ad." + column + ") END";
-
-        private static string Pick(string column, AchievementField field) => Value(column, field) + " AS " + column;
+        private static string IsCleared(AchievementField field, string layer = "m") =>
+            "(COALESCE(" + layer + ".Cleared, 0) & " + (int)field + ") <> 0";
 
         /// <summary>
-        /// The tags <see cref="LayerResolver.ResolveTags"/> gives when metadata decides them: the
-        /// source's, plus the platform's derived tags and Unobtainable.
+        /// The first layer that supplies the column, set or cleared: custom (when it carries the
+        /// field), then metadata, then the platform, as <see cref="LayerResolver"/> picks it.
+        /// </summary>
+        private static string Value(string column, AchievementField field, bool custom = false) =>
+            "CASE " +
+            (custom ? "WHEN c." + column + " IS NOT NULL THEN c." + column + " WHEN " + IsCleared(field, "c") + " THEN NULL " : string.Empty) +
+            "WHEN m." + column + " IS NOT NULL THEN m." + column + " WHEN " + IsCleared(field) + " THEN NULL " +
+            "ELSE ad." + column + " END";
+
+        private static string Pick(string column, AchievementField field, bool custom = false) =>
+            Value(column, field, custom) + " AS " + column;
+
+        /// <summary>
+        /// The tags <see cref="LayerResolver.ResolveTags"/> gives: the deciding layer's, plus the
+        /// platform's derived tags always and its Unobtainable when metadata decides.
         /// </summary>
         private static string Tags()
         {
             string Keep(string key) =>
                 "CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|" + key + "|%' THEN '|" + key + "' ELSE '' END";
-            return "CASE WHEN m.Tags IS NULL AND NOT " + IsCleared(AchievementField.Tags) + @" THEN ad.Tags
-                     ELSE NULLIF(TRIM(COALESCE(m.Tags, '') || " +
-                   Keep(AchievementTagHelper.Softcore) + " || " +
-                   Keep(AchievementTagHelper.Hardcore) + " || " +
-                   Keep(AchievementTagHelper.Unobtainable) + ", '|'), '') END";
+            var derived = Keep(AchievementTagHelper.Softcore) + " || " + Keep(AchievementTagHelper.Hardcore);
+            return "CASE WHEN c.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags, "c") + @"
+                     THEN NULLIF(TRIM(COALESCE(c.Tags, '') || " + derived + @", '|'), '')
+                     WHEN m.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags) + @"
+                     THEN NULLIF(TRIM(COALESCE(m.Tags, '') || " + derived + " || " + Keep(AchievementTagHelper.Unobtainable) + @", '|'), '')
+                     ELSE ad.Tags END";
         }
     }
 }
