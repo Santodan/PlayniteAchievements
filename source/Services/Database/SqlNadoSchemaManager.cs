@@ -388,6 +388,8 @@ namespace PlayniteAchievements.Services.Database
         {
             ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateGameStateTableSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateCategoryKindsTableSql);
             foreach (var sql in AchievementLayerSql.RecreateViewSql())
             {
                 ExecuteSafe(db, sql);
@@ -448,7 +450,7 @@ namespace PlayniteAchievements.Services.Database
             // Derived state the startup resync rebuilds, so a table from before the custom layer
             // columns is dropped rather than altered.
             var existing = GetColumnNames(db, "AchievementOverrides");
-            if (existing.Count > 0 && !existing.Contains("CustomOrder"))
+            if (existing.Count > 0 && !existing.Contains("IsAuthored"))
             {
                 ExecuteSafe(db, "DROP TABLE AchievementOverrides;");
             }
@@ -468,6 +470,19 @@ namespace PlayniteAchievements.Services.Database
                 Note TEXT NULL,
                 GoalOrder INTEGER NULL,
                 CustomOrder INTEGER NULL,
+                UnlockedIconPath TEXT NULL,
+                LockedIconPath TEXT NULL,
+                UnlockTimeUtc TEXT NULL,
+                CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
+                IsAuthored INTEGER NOT NULL DEFAULT 0,
+                Unlocked INTEGER NOT NULL DEFAULT 0,
+                ProgressNum INTEGER NULL,
+                ProgressDenom INTEGER NULL,
+                ScaledPoints INTEGER NULL,
+                CategoryKind TEXT NULL,
+                GlobalPercentUnlocked REAL NULL,
+                Rarity TEXT NULL,
+                IsCapstone INTEGER NOT NULL DEFAULT 0,
                 IsFiltered INTEGER NOT NULL DEFAULT 0,
                 IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                 UpdatedUtc TEXT NOT NULL,
