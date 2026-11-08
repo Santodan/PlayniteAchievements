@@ -1357,8 +1357,8 @@ namespace PlayniteAchievements.Services.Tests
                         Schema = new LinkedFileSchema { Name = "Progress" },
                         Pairings = new Dictionary<string, string>
                         {
-                            [" custom:c1 "] = " id:x ",
-                            ["a2"] = null,
+                            [" id:x "] = " custom:c1 ",
+                            ["row:2"] = null,
                             ["  "] = "ignored"
                         }
                     }
@@ -1367,8 +1367,8 @@ namespace PlayniteAchievements.Services.Tests
 
             var pairings = normalized.LinkedFile.Pairings;
             Assert.AreEqual(2, pairings.Count);
-            Assert.AreEqual("id:x", pairings["custom:c1"]);
-            Assert.AreEqual(string.Empty, pairings["a2"], "An achievement paired with no row stays paired with no row.");
+            Assert.AreEqual("custom:c1", pairings["id:x"]);
+            Assert.AreEqual(string.Empty, pairings["row:2"], "A row paired with nothing stays paired with nothing.");
             Assert.AreEqual(2, normalized.LinkedFile.Clone().Pairings.Count);
         }
 
