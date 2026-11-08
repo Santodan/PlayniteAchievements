@@ -87,21 +87,22 @@
                                Margin="4,0"
                                VerticalAlignment="Center"
                                Visibility="{Binding CanPick, Converter={StaticResource InverseBoolToVis}}" />
-                    <!-- Ignores clicks while open, so a click on it closes the dropdown
-                         (StaysOpen=False) instead of closing and reopening it. -->
-                    <ToggleButton x:Name="PickerButton"
-                                  Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
-                                  IsChecked="{Binding IsPickerOpen, Mode=TwoWay}"
-                                  IsHitTestVisible="{Binding IsPickerOpen, Converter={StaticResource InvertBoolConverter}}"
+                    <!-- Opens the window's one pairing dropdown under itself. The press is taken
+                         before the grid sees it, so the grid neither selects the row nor pulls
+                         focus away from the dropdown as it opens. -->
+                    <ToggleButton Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
+                                  IsChecked="{Binding IsPickerOpen, Mode=OneWay}"
+                                  Focusable="False"
+                                  PreviewMouseLeftButtonDown="PickerButton_PreviewMouseLeftButtonDown"
                                   Visibility="{Binding CanPick, Converter={StaticResource BoolToVis}}">
                         <TextBlock Text="{Binding Match}" Style="{StaticResource MatchCellTextStyle}" />
                     </ToggleButton>
-                    <Popup IsOpen="{Binding IsPickerOpen, Mode=TwoWay}"
-                           PlacementTarget="{Binding ElementName=PickerButton}"
-                           Placement="Bottom"
-                           StaysOpen="False"
-                           AllowsTransparency="True"
-                           Opened="PickerPopup_Opened">
+                </Grid>
+            </DataTemplate>
+
+            <!-- The pairing dropdown's content, shown in the window's one popup for the row whose
+                 cell opened it. -->
+            <DataTemplate x:Key="PairingPopupTemplate">
                         <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                 BorderThickness="1"
@@ -147,8 +148,6 @@
                                 </ListBox>
                             </StackPanel>
                         </Border>
-                    </Popup>
-                </Grid>
             </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -287,6 +286,18 @@
                           MinColumnWidth="140"
                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           ItemsSource="{Binding PreviewRows}">
+                    <!-- A preview, not a list to act on: a clicked row keeps the grid's own look. -->
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -376,6 +387,19 @@
                     <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}" Click="Cancel_Click" />
                 </StackPanel>
             </DockPanel>
+
+            <!-- The one pairing dropdown. It sits outside the preview grid, so the grid's own
+                 mouse and focus handling cannot close it; its data context is the row being paired. -->
+            <Popup x:Name="PairingPopup"
+                   DataContext="{x:Null}"
+                   IsOpen="{Binding IsPickerOpen, Mode=TwoWay, FallbackValue=False}"
+                   Placement="Bottom"
+                   StaysOpen="False"
+                   AllowsTransparency="True"
+                   Opened="PickerPopup_Opened"
+                   Closed="PairingPopup_Closed">
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource PairingPopupTemplate}" />
+            </Popup>
         </Grid>
     </Border>
 </UserControl>
