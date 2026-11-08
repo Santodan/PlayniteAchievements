@@ -24,22 +24,16 @@ namespace PlayniteAchievements.Services.Metadata
             CustomizationArea.Tags
         };
 
-        /// <summary>
-        /// Each value area's non-empty values by ApiName, plus whether any row is the platform's
-        /// own capstone.
-        /// </summary>
+        /// <summary>Each value area's non-empty values by ApiName.</summary>
         public sealed class Snapshot
         {
-            internal Snapshot(Dictionary<CustomizationArea, Dictionary<string, string>> values, bool hasCapstone, int rowCount)
+            internal Snapshot(Dictionary<CustomizationArea, Dictionary<string, string>> values, int rowCount)
             {
                 Values = values;
-                HasCapstone = hasCapstone;
                 RowCount = rowCount;
             }
 
             public Dictionary<CustomizationArea, Dictionary<string, string>> Values { get; }
-
-            public bool HasCapstone { get; }
 
             /// <summary>The achievements with an ApiName.</summary>
             public int RowCount { get; }
@@ -87,7 +81,7 @@ namespace PlayniteAchievements.Services.Metadata
                     return byApiName;
                 });
 
-            return new Snapshot(values, rows.Any(IsPlatformCapstone), rows.Count);
+            return new Snapshot(values, rows.Count);
         }
 
         /// <summary>The value areas any achievement carries a value for, from whatever source.</summary>
@@ -97,10 +91,12 @@ namespace PlayniteAchievements.Services.Metadata
             var present = ValueAreas
                 .Where(snapshot.Has)
                 .Aggregate(CustomizationArea.None, (mask, area) => mask | area);
-            var anyCapstone = (achievements ?? Enumerable.Empty<AchievementDetail>())
-                .Any(row => row != null && (row.IsCapstone || IsPlatinum(row)));
-            return anyCapstone ? present | CustomizationArea.Capstones : present;
+            return HasCapstone(achievements) ? present | CustomizationArea.Capstones : present;
         }
+
+        /// <summary>Whether any achievement is a capstone: flagged as one, or a platinum trophy.</summary>
+        public static bool HasCapstone(IEnumerable<AchievementDetail> achievements) =>
+            (achievements ?? Enumerable.Empty<AchievementDetail>()).Any(row => row != null && (row.IsCapstone || IsPlatinum(row)));
 
         internal static string ValueOf(AchievementDetail row, CustomizationArea area)
         {
@@ -139,8 +135,6 @@ namespace PlayniteAchievements.Services.Metadata
                 ? null
                 : path;
         }
-
-        private static bool IsPlatformCapstone(AchievementDetail row) => row.IsCapstone || IsPlatinum(row);
 
         private static bool IsPlatinum(AchievementDetail row) =>
             string.Equals(row.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase);
