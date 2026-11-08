@@ -36,13 +36,13 @@ namespace PlayniteAchievements.Services.Achievements
                 hidden: row.Hidden);
 
         /// <summary>
-        /// Writes the resolved platform and metadata values into the row's fields, pinning its
-        /// platform layer first so the row can be resolved again.
+        /// Writes the resolved values of the row's layers into its fields, pinning its platform
+        /// layer first so the row can be resolved again.
         /// </summary>
         public static ResolvedAchievementValues Resolve(AchievementDetail row)
         {
             row.PlatformLayer = PlatformOf(row);
-            var resolved = LayerResolver.Resolve(row.PlatformLayer, row.MetadataLayer, null);
+            var resolved = LayerResolver.Resolve(row.PlatformLayer, row.MetadataLayer, row.CustomLayer);
             var values = resolved.Values;
             row.DisplayName = values.DisplayName;
             row.Description = values.Description;
