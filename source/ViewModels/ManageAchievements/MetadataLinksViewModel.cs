@@ -422,7 +422,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName) &&
                                       !CustomAchievementProjectionService.IsCustomApiName(achievement.ApiName))
                 .ToList();
-            var viewModel = new MetadataMatchesViewModel(row.SourceName, targets, row.Snapshot, record.Pairings);
+            var options = (row.Snapshot.Rows ?? new List<MetadataSourceRow>())
+                .Select(source => MatchOption.Create(
+                    source.ApiName,
+                    source.Name,
+                    source.Description,
+                    MetadataSourceSnapshotStore.LocalIconPath(source.Icon),
+                    source.List))
+                .ToList();
+            var viewModel = new MetadataMatchesViewModel(row.SourceName, targets, options, row.Snapshot.Matches, record.Pairings);
             var title = string.Join(
                 " · ",
                 new[] { row.SourceName, _gameName?.Invoke() }
