@@ -180,6 +180,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             public string UnlockTimeUtc { get; set; }
             public long IsAuthored { get; set; }
             public long ExcludedFromSummaries { get; set; }
+            public string CleanCapturePath { get; set; }
         }
 
         [TestMethod]
@@ -204,6 +205,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     GameId);
                 db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
                 db.ExecuteNonQuery("INSERT INTO AchievementCategoryKinds (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
+                db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
 
                 var rows = db.Load<GapRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + ";").ToList();
 
@@ -213,6 +215,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual("DLC", won.CategoryKind, "the kind stored for its category");
                 Assert.AreEqual("2026-02-02T00:00:00Z", won.UnlockTimeUtc, "the user's unlock time on an unlocked row");
                 Assert.AreEqual(1, won.ExcludedFromSummaries);
+                Assert.AreEqual("C:/captures/won.png", won.CleanCapturePath);
                 Assert.AreEqual(0, rows.Single(row => row.ApiName == "plat").IsCapstone, "an edited capstone set replaces the provider's flag");
                 var mine = rows.Single(row => row.ApiName == "custom:mine");
                 Assert.AreEqual(1, mine.IsAuthored);
@@ -372,6 +375,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateGameStateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateCategoryKindsTableSql);
+                    db.ExecuteNonQuery(AchievementLayerSql.CreateCapturesTableSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
                     {
                         db.ExecuteNonQuery(sql);
