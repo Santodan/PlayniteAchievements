@@ -279,9 +279,14 @@
     <sys:String x:Key="LOCPlayAch_Menu_ClearPlayniteMapping">Clear Playnite Mapping</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame">Map to Playnite Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame_PlatformMismatch">The selected Playnite game is not on the same platform as the Exophase friend game ({0}).</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearCustomData_ConfirmSelected">Clear all custom data for {0} selected games?&#10;&#10;Cached achievement data is kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearCustomData_ConfirmSelectedManual">Clear all custom data for {0} selected games?&#10;&#10;For games with a chosen achievement list, this also removes the list and the achievements it produced. This cannot be undone.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This deletes their cached achievements, icons, and any chosen achievement lists and unlock times.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for &quot;{0}&quot;?&#10;&#10;This deletes its cached achievements, icons, and any chosen achievement list and unlock times.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearMetadata">Clear Metadata</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearMetadata_ConfirmSelected">Clear metadata for {0} selected games?&#10;&#10;This deletes the values taken from metadata sources and refreshes the games to fetch them again. Metadata links you set are kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearMetadata_ConfirmSingle">Clear metadata for &quot;{0}&quot;?&#10;&#10;This deletes the values taken from metadata sources and refreshes the game to fetch them again. Metadata links you set are kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_DisplaySettings">Display Settings…</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear their data?&#10;&#10;This hides them from the achievements view and deletes their cached data and custom tracking.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude &quot;{0}&quot; and clear its data?&#10;&#10;This hides the game from the achievements view and deletes its cached data and custom tracking.</sys:String>
@@ -655,6 +660,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_ButtonPreview">Button</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Clearing cached achievement data...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Clear cached achievement data. The next refresh rebuilds it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ClearMetadata_Confirm">Clear metadata for every game?&#10;&#10;This deletes the values taken from metadata sources and refreshes every game that had metadata. Metadata links you set are kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ClearMetadata_Description">Clear metadata for every game and fetch it again. Metadata links you set are kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ClearUnownedFriendData_Description">Remove discovered unowned friend games and their cached images. Owned and shared friend data is kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Achievement data cached from your platforms. Clearing it does not touch icon files.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Cached Achievement Data</sys:String>
