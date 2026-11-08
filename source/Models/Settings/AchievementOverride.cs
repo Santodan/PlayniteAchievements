@@ -116,6 +116,29 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Applies this record's unlock time to an unlocked row, the one override field kept outside
+        /// the layers because a live unlock changes a loaded row's time. Unlock status itself stays
+        /// provider-owned, and a manually tracked game records its own times, so neither is touched.
+        /// A stored timestamp wins over the cleared state.
+        /// </summary>
+        public void ApplyUnlockTimeTo(PlayniteAchievements.Models.Achievements.IAchievementOverrideTarget target, bool hasManualLink)
+        {
+            if (target == null || !target.Unlocked || hasManualLink)
+            {
+                return;
+            }
+
+            if (UnlockTimeUtc.HasValue)
+            {
+                target.UnlockTimeUtc = UnlockTimeUtc;
+            }
+            else if (ClearUnlockTime)
+            {
+                target.UnlockTimeUtc = null;
+            }
+        }
+
+        /// <summary>
         /// One field of each record, keyed by ApiName, leaving out records with no value for it.
         /// </summary>
         public static Dictionary<string, string> Project(
