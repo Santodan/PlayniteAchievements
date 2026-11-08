@@ -848,7 +848,7 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             // The friend+game view shows the game's full schema with the friend's unlock state
             // joined per definition, not just the rows the friend scrape happened to store.
-            StringAssert.Contains(store, "INNER JOIN AchievementDefinitions ad ON ad.GameId = g.Id");
+            StringAssert.Contains(store, "INNER JOIN \" + AchievementLayerSql.ViewName + @\" ad ON ad.GameId = g.Id");
             StringAssert.Contains(store, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id");
             StringAssert.Contains(store, "AND ua.AchievementDefinitionId = ad.Id");
             StringAssert.Contains(store, "COALESCE(ua.Unlocked, 0) AS Unlocked");
