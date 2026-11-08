@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
@@ -86,6 +87,26 @@ namespace PlayniteAchievements.Models.Settings
         /// provider fact, so either value can be an override, and only an explicit one is stored.
         /// </summary>
         public bool? Hidden { get; set; }
+
+        /// <summary>
+        /// One field of each record, keyed by ApiName, leaving out records with no value for it.
+        /// </summary>
+        public static Dictionary<string, string> Project(
+            IReadOnlyDictionary<string, AchievementOverride> overrides,
+            Func<AchievementOverride, string> field)
+        {
+            var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                var value = pair.Value == null ? null : field(pair.Value);
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(value))
+                {
+                    projected[pair.Key.Trim()] = value.Trim();
+                }
+            }
+
+            return projected;
+        }
 
         /// <summary>
         /// True when no member carries a value, so the record can be pruned rather than stored
