@@ -53,42 +53,49 @@ namespace PlayniteAchievements.Services.Database
         private const string DefinitionOrderSql = "ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id";
 
         /// <summary>
-        /// Shared column list for loading achievements with their layers; requires the layer view
-        /// (AchievementLayerSql.LayerViewName) aliased as "ad" and UserAchievements aliased as "ua". The platform's own
-        /// values read under the definition column names and the metadata layer's under M_ names;
+        /// <see cref="DefinitionOrderSql"/> for the loader, which reads PlatformDefinitions as "ad" and
+        /// the metadata layer as "m": the layer's position, else one stored before the layer existed.
+        /// </summary>
+        private const string LayerOrderSql =
+            "COALESCE(m.MetadataOrder, ad.MetadataOrder) IS NULL, COALESCE(m.MetadataOrder, ad.MetadataOrder), ad.Id";
+
+        /// <summary>
+        /// Shared column list for loading achievements with their layers; requires PlatformDefinitions
+        /// aliased as "ad", AchievementMetadataLayer as "m" and UserAchievements as "ua". The platform's
+        /// own values read under the definition column names and the metadata layer's under M_ names;
         /// <see cref="MapAchievementDetail"/> resolves one over the other.
         /// </summary>
         private const string AchievementDetailColumnsSql =
             @"ad.ApiName AS ApiName,
-                        ad.P_DisplayName AS DisplayName,
-                        ad.P_Description AS Description,
-                        ad.P_UnlockedIconPath AS UnlockedIconPath,
-                        ad.P_LockedIconPath AS LockedIconPath,
-                        ad.P_Points AS Points,
+                        ad.DisplayName AS DisplayName,
+                        ad.Description AS Description,
+                        ad.UnlockedIconPath AS UnlockedIconPath,
+                        ad.LockedIconPath AS LockedIconPath,
+                        ad.Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
-                        ad.P_Category AS Category,
-                        ad.P_Tags AS Tags,
-                        ad.P_CategoryKind AS CategoryKind,
-                        ad.P_TrophyType AS TrophyType,
+                        ad.Category AS Category,
+                        ad.Tags AS Tags,
+                        ad.CategoryKind AS CategoryKind,
+                        ad.TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
-                        ad.P_GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                        ad.P_Rarity AS Rarity,
-                        ad.P_MetadataOrder AS MetadataOrder,
-                        ad.HasMetadata AS HasMetadata,
-                        ad.M_DisplayName AS M_DisplayName,
-                        ad.M_Description AS M_Description,
-                        ad.M_UnlockedIconPath AS M_UnlockedIconPath,
-                        ad.M_LockedIconPath AS M_LockedIconPath,
-                        ad.M_Points AS M_Points,
-                        ad.M_TrophyType AS M_TrophyType,
-                        ad.M_Category AS M_Category,
-                        ad.M_CategoryKind AS M_CategoryKind,
-                        ad.M_Tags AS M_Tags,
-                        ad.M_GlobalPercentUnlocked AS M_GlobalPercentUnlocked,
-                        ad.M_Rarity AS M_Rarity,
-                        ad.M_MetadataOrder AS M_MetadataOrder,
-                        ad.M_Cleared AS M_Cleared,
+                        ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                        ad.Rarity AS Rarity,
+                        ad.MetadataOrder AS MetadataOrder,
+                        m.AchievementDefinitionId IS NOT NULL AS HasMetadata,
+                        m.DisplayName AS M_DisplayName,
+                        m.Description AS M_Description,
+                        m.UnlockedIconPath AS M_UnlockedIconPath,
+                        m.LockedIconPath AS M_LockedIconPath,
+                        m.Points AS M_Points,
+                        m.TrophyType AS M_TrophyType,
+                        m.Category AS M_Category,
+                        m.CategoryKind AS M_CategoryKind,
+                        m.Tags AS M_Tags,
+                        m.GlobalPercentUnlocked AS M_GlobalPercentUnlocked,
+                        m.Rarity AS M_Rarity,
+                        m.MetadataOrder AS M_MetadataOrder,
+                        m.Cleared AS M_Cleared,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -685,12 +692,13 @@ namespace PlayniteAchievements.Services.Database
                 var details = db.Load<AchievementJoinRow>(
                     @"SELECT
                         " + AchievementDetailColumnsSql + @"
-                      FROM " + AchievementLayerSql.LayerViewName + @" ad
+                      FROM PlatformDefinitions ad
+                      LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
                       LEFT JOIN UserAchievements ua
                         ON ua.AchievementDefinitionId = ad.Id
                        AND ua.UserGameProgressId = ?
                       WHERE ad.GameId = ?
-                      ORDER BY " + DefinitionOrderSql + @";",
+                      ORDER BY " + LayerOrderSql + @";",
                     progress.UserGameProgressId,
                     progress.GameId).ToList();
 
@@ -821,12 +829,13 @@ namespace PlayniteAchievements.Services.Database
                     lp.UserGameProgressId AS UserGameProgressId,
                     " + AchievementDetailColumnsSql + @"
                   FROM LatestProgress lp
-                  INNER JOIN " + AchievementLayerSql.LayerViewName + @" ad ON ad.GameId = lp.GameId
+                  INNER JOIN PlatformDefinitions ad ON ad.GameId = lp.GameId
+                  LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
                   LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
                   WHERE lp.RowNum = 1
-                  ORDER BY lp.UserGameProgressId, " + DefinitionOrderSql + @";").ToList();
+                  ORDER BY lp.UserGameProgressId, " + LayerOrderSql + @";").ToList();
 
             for (int i = 0; i < detailRows.Count; i++)
             {
@@ -6719,10 +6728,13 @@ namespace PlayniteAchievements.Services.Database
                     .Select(row => row.PlayniteGameId)
                     .Where(id => !Guid.TryParse(id, out var gameId) || keep == null || !keep.Contains(gameId))
                     .ToList();
-                foreach (var id in stale)
+                db.RunTransaction(() =>
                 {
-                    db.ExecuteNonQuery("DELETE FROM AchievementCaptures WHERE PlayniteGameId = ?;", id);
-                }
+                    foreach (var id in stale)
+                    {
+                        db.ExecuteNonQuery("DELETE FROM AchievementCaptures WHERE PlayniteGameId = ?;", id);
+                    }
+                });
 
                 return stale.Count;
             });
