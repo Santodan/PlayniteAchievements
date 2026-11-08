@@ -2035,9 +2035,6 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             public List<FriendAchievementDisplayItem> PairAchievements { get; set; }
 
-            public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
-                Data;
-
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() =>
                 new List<CurrentUserGameLabel>();
         }
