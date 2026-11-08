@@ -1601,9 +1601,13 @@ namespace PlayniteAchievements.Services.Achievements
         // subscription order).
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
-            // A reorder-only change (goals) cannot move the filter mirror or any summary, and
-            // resyncing costs a store load plus a mirror write on every toggle. A tag edit moves
-            // only the game's tallies, which are recounted on their own.
+            // The custom layer mirror carries every field the resolved view shows, notes, goals
+            // and order included, so every write resyncs it; the resync diffs and stays silent
+            // when nothing moved.
+            SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
+
+            // A change that moves no summary (goals, order) stops here. A tag edit moves only the
+            // game's tallies, which are recounted on their own.
             if (e != null && !e.AffectsSummaryData)
             {
                 if (e.AffectsTagTotals)
@@ -1612,14 +1616,6 @@ namespace PlayniteAchievements.Services.Achievements
                 }
 
                 return;
-            }
-
-            // Still before the memo is cleared, preserving the ordering invariant above. A writer
-            // that cannot have moved the mirror says so, and for that case the invariant is
-            // vacuous rather than bypassed: there are no stale mirror rows to guard against.
-            if (e == null || e.AffectsOverrideMirror)
-            {
-                SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
             }
 
             // Names the one game that moved, so the next read patches its contribution instead
@@ -1736,7 +1732,38 @@ namespace PlayniteAchievements.Services.Achievements
                 ResolveMirrorEntry(entries, apiName).SetLayer(layer);
             }
 
+            // The rest of the user's per-achievement state, so a reader of the resolved view needs
+            // no custom-data logic: note, goal position and custom order position.
+            foreach (var pair in customData?.AchievementOverrides ??
+                new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase))
+            {
+                var apiName = NormalizeText(pair.Key);
+                var note = NormalizeText(pair.Value?.Note);
+                if (apiName != null && note != null)
+                {
+                    ResolveMirrorEntry(entries, apiName).Note = note;
+                }
+            }
+
+            MarkPositions(entries, customData?.GoalAchievementApiNames, (entry, index) => entry.GoalOrder = index);
+            MarkPositions(entries, customData?.AchievementOrder, (entry, index) => entry.CustomOrder = index);
+
             return entries.Values.Where(entry => !entry.IsEmpty).ToList();
+        }
+
+        private static void MarkPositions(
+            Dictionary<string, AchievementOverrideMirrorEntry> entries,
+            IList<string> apiNames,
+            Action<AchievementOverrideMirrorEntry, int> mark)
+        {
+            for (var i = 0; i < (apiNames?.Count ?? 0); i++)
+            {
+                var normalized = NormalizeText(apiNames[i]);
+                if (normalized != null)
+                {
+                    mark(ResolveMirrorEntry(entries, normalized), i);
+                }
+            }
         }
 
         private static void MarkFilterEntries(
