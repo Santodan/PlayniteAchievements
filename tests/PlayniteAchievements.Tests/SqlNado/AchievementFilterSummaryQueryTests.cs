@@ -267,11 +267,11 @@ namespace PlayniteAchievements.SqlNado.Tests
                 6,
                 CountOccurrences(reader, "AND (ao.IsFiltered = 1 OR ao.IsSummaryFiltered = 1))"),
                 "Each anti-join must test the filter flags, not merely the row's presence.");
-            // The user-editable fields aggregates read must resolve the override first.
-            StringAssert.Contains(reader, "COALESCE(aov.Points, ad.Points) AS Points");
+            // Points and trophy types come resolved from the view, custom over metadata over platform.
+            StringAssert.Contains(reader, "ad.Points AS Points");
             // Platform scores drop RetroAchievements softcore unlocks by the derived Softcore tag.
             StringAssert.Contains(reader, "CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|Softcore|%'");
-            StringAssert.Contains(reader, "LOWER(COALESCE(aov.TrophyType, ad.TrophyType, ''))");
+            StringAssert.Contains(reader, "LOWER(COALESCE(ad.TrophyType, ''))");
             // Rarity stays provider-owned; an override must never reach it.
             Assert.AreEqual(
                 0,
