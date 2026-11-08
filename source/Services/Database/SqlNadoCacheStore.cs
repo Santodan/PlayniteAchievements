@@ -6317,8 +6317,21 @@ namespace PlayniteAchievements.Services.Database
             public string Note { get; set; }
             public long? GoalOrder { get; set; }
             public long? CustomOrder { get; set; }
+            public string UnlockedIconPath { get; set; }
+            public string LockedIconPath { get; set; }
+            public string UnlockTimeUtc { get; set; }
+            public long CapstoneAssigned { get; set; }
+            public long IsAuthored { get; set; }
+            public long Unlocked { get; set; }
+            public long? ProgressNum { get; set; }
+            public long? ProgressDenom { get; set; }
+            public long? ScaledPoints { get; set; }
+            public string CategoryKind { get; set; }
+            public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
+            public long IsCapstone { get; set; }
 
-            public AchievementOverrideMirrorEntry ToEntry()
+            public AchievementOverrideMirrorEntry ToEntry(Func<string, string> absolutePath)
             {
                 return new AchievementOverrideMirrorEntry
                 {
@@ -6334,6 +6347,19 @@ namespace PlayniteAchievements.Services.Database
                     Note = Note,
                     GoalOrder = GoalOrder.HasValue ? (int)GoalOrder.Value : (int?)null,
                     CustomOrder = CustomOrder.HasValue ? (int)CustomOrder.Value : (int?)null,
+                    UnlockedIconPath = absolutePath(UnlockedIconPath),
+                    LockedIconPath = absolutePath(LockedIconPath),
+                    UnlockTimeUtc = ParseUtc(UnlockTimeUtc),
+                    CapstoneAssigned = CapstoneAssigned != 0,
+                    IsAuthored = IsAuthored != 0,
+                    Unlocked = Unlocked != 0,
+                    ProgressNum = ProgressNum.HasValue ? (int)ProgressNum.Value : (int?)null,
+                    ProgressDenom = ProgressDenom.HasValue ? (int)ProgressDenom.Value : (int?)null,
+                    ScaledPoints = ScaledPoints.HasValue ? (int)ScaledPoints.Value : (int?)null,
+                    CategoryKind = CategoryKind,
+                    GlobalPercentUnlocked = GlobalPercentUnlocked,
+                    Rarity = Rarity,
+                    IsCapstone = IsCapstone != 0,
                     IsFiltered = IsFiltered != 0,
                     IsSummaryFiltered = IsSummaryFiltered != 0
                 };
@@ -6403,12 +6429,12 @@ namespace PlayniteAchievements.Services.Database
                 // customized the game is.
                 var existingByApiName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var row in db.Load<AchievementOverrideRow>(
-                    @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder
+                    @"SELECT " + OverrideMirrorColumns + @"
                       FROM AchievementOverrides
                       WHERE PlayniteGameId = ?;",
                     gameIdText))
                 {
-                    var entry = row.ToEntry();
+                    var entry = row.ToEntry(MakeAbsolutePath);
                     var apiName = (entry.ApiName ?? string.Empty).Trim();
                     if (apiName.Length > 0)
                     {
@@ -6504,13 +6530,13 @@ namespace PlayniteAchievements.Services.Database
             return WithDb(db =>
             {
                 var existingByGameText = db.Load<AchievementOverrideRow>(
-                        @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder
+                        @"SELECT " + OverrideMirrorColumns + @"
                           FROM AchievementOverrides;")
                     .GroupBy(row => row.PlayniteGameId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
                         group => group.Key,
                         group => new HashSet<string>(
-                            group.Select(row => row.ToEntry().ToSignature()),
+                            group.Select(row => row.ToEntry(MakeAbsolutePath).ToSignature()),
                             StringComparer.OrdinalIgnoreCase),
                         StringComparer.OrdinalIgnoreCase);
 
@@ -6572,12 +6598,17 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        private static void InsertAchievementOverrideRows(
+        private const string OverrideMirrorColumns =
+            "PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder, UnlockedIconPath, LockedIconPath, UnlockTimeUtc, CapstoneAssigned, IsAuthored, Unlocked, ProgressNum, ProgressDenom, ScaledPoints, CategoryKind, GlobalPercentUnlocked, Rarity, IsCapstone";
+
+        private void InsertAchievementOverrideRows(
             SQLiteDatabase db,
             string gameIdText,
             IEnumerable<AchievementOverrideMirrorEntry> entries,
             string nowIso)
         {
+            var insertSql = "INSERT OR IGNORE INTO AchievementOverrides (" + OverrideMirrorColumns + ", UpdatedUtc) VALUES (" +
+                string.Join(", ", Enumerable.Repeat("?", OverrideMirrorColumns.Split(',').Length + 1)) + ");";
             foreach (var entry in entries)
             {
                 if (entry == null || string.IsNullOrWhiteSpace(entry.ApiName))
@@ -6586,14 +6617,12 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 db.ExecuteNonQuery(
-                    @"INSERT OR IGNORE INTO AchievementOverrides
-                          (PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder, UpdatedUtc)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                    insertSql,
                     gameIdText,
                     entry.ApiName.Trim(),
                     DbValue(entry.DisplayName),
                     DbValue(entry.Description),
-                    entry.Points.HasValue ? (object)entry.Points.Value : null,
+                    DbParam(entry.Points),
                     DbValue(entry.TrophyType),
                     DbValue(entry.Category),
                     DbValue(entry.Tags),
@@ -6602,10 +6631,134 @@ namespace PlayniteAchievements.Services.Database
                     entry.IsFiltered ? 1 : 0,
                     entry.IsSummaryFiltered ? 1 : 0,
                     DbValue(entry.Note),
-                    entry.GoalOrder.HasValue ? (object)entry.GoalOrder.Value : null,
-                    entry.CustomOrder.HasValue ? (object)entry.CustomOrder.Value : null,
+                    DbParam(entry.GoalOrder),
+                    DbParam(entry.CustomOrder),
+                    DbValue(MakeRelativePath(entry.UnlockedIconPath)),
+                    DbValue(MakeRelativePath(entry.LockedIconPath)),
+                    entry.UnlockTimeUtc.HasValue ? (object)ToIso(entry.UnlockTimeUtc.Value) : null,
+                    entry.CapstoneAssigned ? 1 : 0,
+                    entry.IsAuthored ? 1 : 0,
+                    entry.Unlocked ? 1 : 0,
+                    DbParam(entry.ProgressNum),
+                    DbParam(entry.ProgressDenom),
+                    DbParam(entry.ScaledPoints),
+                    DbValue(entry.CategoryKind),
+                    DbParam(entry.GlobalPercentUnlocked),
+                    DbValue(entry.Rarity),
+                    entry.IsCapstone ? 1 : 0,
                     nowIso);
             }
+        }
+
+        private sealed class GameCustomStateRow
+        {
+            public string PlayniteGameId { get; set; }
+            public long CapstonesMaterialized { get; set; }
+            public long HasManualLink { get; set; }
+            public long ExcludedFromSummaries { get; set; }
+            public long ExcludedFromRefreshes { get; set; }
+            public long UseSeparateLockedIcons { get; set; }
+        }
+
+        private sealed class CategoryKindRow
+        {
+            public string PlayniteGameId { get; set; }
+            public string Category { get; set; }
+            public string Kind { get; set; }
+        }
+
+        /// <summary>
+        /// Reconciles the game-level custom state mirror for <paramref name="statesByGameId"/>.
+        /// When <paramref name="onlyGameId"/> is set only that game is compared; otherwise games
+        /// absent from the map lose their rows. Unchanged games are not written.
+        /// </summary>
+        public int ReplaceGameCustomStates(IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId, Guid? onlyGameId = null)
+        {
+            var desired = (statesByGameId ?? new Dictionary<Guid, GameCustomStateEntry>())
+                .Where(pair => pair.Key != Guid.Empty && pair.Value != null && !pair.Value.IsEmpty)
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            return WithDb(db =>
+            {
+                var scope = onlyGameId.HasValue ? " WHERE PlayniteGameId = ?" : string.Empty;
+                var args = onlyGameId.HasValue ? new object[] { onlyGameId.Value.ToString() } : new object[0];
+                var stored = new Dictionary<Guid, GameCustomStateEntry>();
+                foreach (var row in db.Load<GameCustomStateRow>("SELECT * FROM GameCustomState" + scope + ";", args))
+                {
+                    if (Guid.TryParse(row?.PlayniteGameId, out var id))
+                    {
+                        stored[id] = new GameCustomStateEntry
+                        {
+                            CapstonesMaterialized = row.CapstonesMaterialized != 0,
+                            HasManualLink = row.HasManualLink != 0,
+                            ExcludedFromSummaries = row.ExcludedFromSummaries != 0,
+                            ExcludedFromRefreshes = row.ExcludedFromRefreshes != 0,
+                            UseSeparateLockedIcons = row.UseSeparateLockedIcons != 0
+                        };
+                    }
+                }
+
+                foreach (var row in db.Load<CategoryKindRow>("SELECT * FROM AchievementCategoryKinds" + scope + ";", args))
+                {
+                    if (Guid.TryParse(row?.PlayniteGameId, out var id))
+                    {
+                        if (!stored.TryGetValue(id, out var entry))
+                        {
+                            stored[id] = entry = new GameCustomStateEntry();
+                        }
+
+                        entry.CategoryKinds[row.Category] = row.Kind;
+                    }
+                }
+
+                var changed = stored.Keys.Concat(desired.Keys).Distinct()
+                    .Where(id => !onlyGameId.HasValue || id == onlyGameId.Value)
+                    .Where(id =>
+                    {
+                        stored.TryGetValue(id, out var was);
+                        desired.TryGetValue(id, out var now);
+                        return !string.Equals(was?.ToSignature(), now?.ToSignature(), StringComparison.Ordinal);
+                    })
+                    .ToList();
+                if (changed.Count == 0)
+                {
+                    return 0;
+                }
+
+                db.RunTransaction(() =>
+                {
+                    foreach (var id in changed)
+                    {
+                        var idText = id.ToString();
+                        db.ExecuteNonQuery("DELETE FROM GameCustomState WHERE PlayniteGameId = ?;", idText);
+                        db.ExecuteNonQuery("DELETE FROM AchievementCategoryKinds WHERE PlayniteGameId = ?;", idText);
+                        if (!desired.TryGetValue(id, out var state))
+                        {
+                            continue;
+                        }
+
+                        db.ExecuteNonQuery(
+                            @"INSERT INTO GameCustomState
+                                (PlayniteGameId, CapstonesMaterialized, HasManualLink, ExcludedFromSummaries, ExcludedFromRefreshes, UseSeparateLockedIcons)
+                              VALUES (?, ?, ?, ?, ?, ?);",
+                            idText,
+                            state.CapstonesMaterialized ? 1 : 0,
+                            state.HasManualLink ? 1 : 0,
+                            state.ExcludedFromSummaries ? 1 : 0,
+                            state.ExcludedFromRefreshes ? 1 : 0,
+                            state.UseSeparateLockedIcons ? 1 : 0);
+                        foreach (var pair in state.CategoryKinds ?? new Dictionary<string, string>())
+                        {
+                            db.ExecuteNonQuery(
+                                "INSERT OR REPLACE INTO AchievementCategoryKinds (PlayniteGameId, Category, Kind) VALUES (?, ?, ?);",
+                                idText,
+                                pair.Key,
+                                pair.Value);
+                        }
+                    }
+                });
+
+                return changed.Count;
+            });
         }
 
         private void EnsureInitializedLocked()
