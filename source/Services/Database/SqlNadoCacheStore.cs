@@ -52,23 +52,43 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         private const string DefinitionOrderSql = "ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id";
 
+        /// <summary>
+        /// Shared column list for loading achievements with their layers; requires the resolved
+        /// definitions view aliased as "ad" and UserAchievements aliased as "ua". The platform's own
+        /// values read under the definition column names and the metadata layer's under M_ names;
+        /// <see cref="MapAchievementDetail"/> resolves one over the other.
+        /// </summary>
         private const string AchievementDetailColumnsSql =
             @"ad.ApiName AS ApiName,
-                        ad.DisplayName AS DisplayName,
-                        ad.Description AS Description,
-                        ad.UnlockedIconPath AS UnlockedIconPath,
-                        ad.LockedIconPath AS LockedIconPath,
-                        ad.Points AS Points,
+                        ad.P_DisplayName AS DisplayName,
+                        ad.P_Description AS Description,
+                        ad.P_UnlockedIconPath AS UnlockedIconPath,
+                        ad.P_LockedIconPath AS LockedIconPath,
+                        ad.P_Points AS Points,
                         ad.ScaledPoints AS ScaledPoints,
-                        ad.Category AS Category,
-                        ad.Tags AS Tags,
-                        ad.CategoryKind AS CategoryKind,
-                        ad.TrophyType AS TrophyType,
+                        ad.P_Category AS Category,
+                        ad.P_Tags AS Tags,
+                        ad.P_CategoryKind AS CategoryKind,
+                        ad.P_TrophyType AS TrophyType,
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
-                        ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                        ad.Rarity AS Rarity,
-                        ad.MetadataOrder AS MetadataOrder,
+                        ad.P_GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                        ad.P_Rarity AS Rarity,
+                        ad.P_MetadataOrder AS MetadataOrder,
+                        ad.HasMetadata AS HasMetadata,
+                        ad.M_DisplayName AS M_DisplayName,
+                        ad.M_Description AS M_Description,
+                        ad.M_UnlockedIconPath AS M_UnlockedIconPath,
+                        ad.M_LockedIconPath AS M_LockedIconPath,
+                        ad.M_Points AS M_Points,
+                        ad.M_TrophyType AS M_TrophyType,
+                        ad.M_Category AS M_Category,
+                        ad.M_CategoryKind AS M_CategoryKind,
+                        ad.M_Tags AS M_Tags,
+                        ad.M_GlobalPercentUnlocked AS M_GlobalPercentUnlocked,
+                        ad.M_Rarity AS M_Rarity,
+                        ad.M_MetadataOrder AS M_MetadataOrder,
+                        ad.M_Cleared AS M_Cleared,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -136,80 +156,50 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
-        /// Common shape of achievement join rows (AchievementDefinitions + UserAchievements columns)
-        /// consumed by <see cref="MapAchievementDetail"/>.
+        /// An achievement join row (<see cref="AchievementDetailColumnsSql"/>), consumed by
+        /// <see cref="MapAchievementDetail"/>.
         /// </summary>
-        private interface IAchievementDetailJoinRow
+        private class AchievementJoinRow
         {
-            string ApiName { get; }
-            string DisplayName { get; }
-            string Description { get; }
-            string UnlockedIconPath { get; }
-            string LockedIconPath { get; }
-            int? Points { get; }
-            int? ScaledPoints { get; }
-            string Category { get; }
-            string Tags { get; }
-            string CategoryKind { get; }
-            string TrophyType { get; }
-            long Hidden { get; }
-            long IsCapstone { get; }
-            double? GlobalPercentUnlocked { get; }
-            string Rarity { get; }
-            int? MetadataOrder { get; }
-            long? Unlocked { get; }
-            string UnlockTimeUtc { get; }
-            int? ProgressNum { get; }
-            int? ProgressDenom { get; }
+            public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
+            public string UnlockedIconPath { get; set; }
+            public string LockedIconPath { get; set; }
+            public int? Points { get; set; }
+            public int? ScaledPoints { get; set; }
+            public string Category { get; set; }
+            public string Tags { get; set; }
+            public string CategoryKind { get; set; }
+            public string TrophyType { get; set; }
+            public long Hidden { get; set; }
+            public long IsCapstone { get; set; }
+            public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
+            public int? MetadataOrder { get; set; }
+            public long? HasMetadata { get; set; }
+            public string M_DisplayName { get; set; }
+            public string M_Description { get; set; }
+            public string M_UnlockedIconPath { get; set; }
+            public string M_LockedIconPath { get; set; }
+            public int? M_Points { get; set; }
+            public string M_TrophyType { get; set; }
+            public string M_Category { get; set; }
+            public string M_CategoryKind { get; set; }
+            public string M_Tags { get; set; }
+            public double? M_GlobalPercentUnlocked { get; set; }
+            public string M_Rarity { get; set; }
+            public int? M_MetadataOrder { get; set; }
+            public long? M_Cleared { get; set; }
+            public long? Unlocked { get; set; }
+            public string UnlockTimeUtc { get; set; }
+            public int? ProgressNum { get; set; }
+            public int? ProgressDenom { get; set; }
         }
 
-        private sealed class ProgressAchievementJoinRow : IAchievementDetailJoinRow
+        private sealed class ProgressAchievementJoinRow : AchievementJoinRow
         {
             public long UserGameProgressId { get; set; }
-            public string ApiName { get; set; }
-            public string DisplayName { get; set; }
-            public string Description { get; set; }
-            public string UnlockedIconPath { get; set; }
-            public string LockedIconPath { get; set; }
-            public int? Points { get; set; }
-            public int? ScaledPoints { get; set; }
-            public string Category { get; set; }
-            public string Tags { get; set; }
-            public string CategoryKind { get; set; }
-            public string TrophyType { get; set; }
-            public long Hidden { get; set; }
-            public long IsCapstone { get; set; }
-            public double? GlobalPercentUnlocked { get; set; }
-            public string Rarity { get; set; }
-            public int? MetadataOrder { get; set; }
-            public long? Unlocked { get; set; }
-            public string UnlockTimeUtc { get; set; }
-            public int? ProgressNum { get; set; }
-            public int? ProgressDenom { get; set; }
-        }
-
-        private sealed class AchievementJoinRow : IAchievementDetailJoinRow
-        {
-            public string ApiName { get; set; }
-            public string DisplayName { get; set; }
-            public string Description { get; set; }
-            public string UnlockedIconPath { get; set; }
-            public string LockedIconPath { get; set; }
-            public int? Points { get; set; }
-            public int? ScaledPoints { get; set; }
-            public string Category { get; set; }
-            public string Tags { get; set; }
-            public string CategoryKind { get; set; }
-            public string TrophyType { get; set; }
-            public long Hidden { get; set; }
-            public long IsCapstone { get; set; }
-            public double? GlobalPercentUnlocked { get; set; }
-            public string Rarity { get; set; }
-            public int? MetadataOrder { get; set; }
-            public long? Unlocked { get; set; }
-            public string UnlockTimeUtc { get; set; }
-            public int? ProgressNum { get; set; }
-            public int? ProgressDenom { get; set; }
         }
 
         private sealed class AchievementPercentNormalizationRow
@@ -636,7 +626,7 @@ namespace PlayniteAchievements.Services.Database
             {
                 var rows = db.Load<CacheKeyRow>(
                     @"SELECT DISTINCT ugp.CacheKey AS CacheKey
-                      FROM AchievementDefinitions ad
+                      FROM " + AchievementLayerSql.ViewName + @" ad
                       INNER JOIN UserGameProgress ugp ON ugp.GameId = ad.GameId
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       WHERE u.IsCurrentUser = 1 AND ('|' || ad.Tags || '|') LIKE ? ESCAPE '\';",
@@ -695,7 +685,7 @@ namespace PlayniteAchievements.Services.Database
                 var details = db.Load<AchievementJoinRow>(
                     @"SELECT
                         " + AchievementDetailColumnsSql + @"
-                      FROM AchievementDefinitions ad
+                      FROM " + AchievementLayerSql.ViewName + @" ad
                       LEFT JOIN UserAchievements ua
                         ON ua.AchievementDefinitionId = ad.Id
                        AND ua.UserGameProgressId = ?
@@ -831,7 +821,7 @@ namespace PlayniteAchievements.Services.Database
                     lp.UserGameProgressId AS UserGameProgressId,
                     " + AchievementDetailColumnsSql + @"
                   FROM LatestProgress lp
-                  INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                  INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = lp.GameId
                   LEFT JOIN UserAchievements ua
                     ON ua.AchievementDefinitionId = ad.Id
                    AND ua.UserGameProgressId = lp.UserGameProgressId
@@ -863,7 +853,7 @@ namespace PlayniteAchievements.Services.Database
                 .ToList();
         }
 
-        private AchievementDetail MapAchievementDetail(IAchievementDetailJoinRow row)
+        private AchievementDetail MapAchievementDetail(AchievementJoinRow row)
         {
             var detail = new AchievementDetail
             {
@@ -893,6 +883,33 @@ namespace PlayniteAchievements.Services.Database
                 detail.Unlocked = row.Unlocked.Value != 0;
             }
 
+            // The fields above are the platform's; the metadata layer resolves over them. An order
+            // stored on the definition predates the layer and is metadata.
+            detail.PlatformLayer = AchievementLayers.PlatformOf(detail);
+            if (row.HasMetadata != 1 && row.MetadataOrder.HasValue)
+            {
+                detail.MetadataLayer = new AchievementLayerValues(order: row.MetadataOrder);
+            }
+
+            if (row.HasMetadata == 1)
+            {
+                detail.MetadataLayer = new AchievementLayerValues(
+                    row.M_DisplayName,
+                    row.M_Description,
+                    MakeAbsolutePath(row.M_UnlockedIconPath),
+                    MakeAbsolutePath(row.M_LockedIconPath),
+                    row.M_Points,
+                    row.M_TrophyType,
+                    row.M_Category,
+                    row.M_CategoryKind,
+                    row.M_Tags,
+                    row.M_GlobalPercentUnlocked,
+                    row.M_Rarity == null ? (RarityTier?)null : ParseStoredRarity(row.M_Rarity),
+                    row.M_MetadataOrder,
+                    cleared: (AchievementField)(row.M_Cleared ?? 0));
+            }
+
+            AchievementLayers.Resolve(detail);
             return detail;
         }
 
@@ -2418,7 +2435,7 @@ namespace PlayniteAchievements.Services.Database
                       INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
                       INNER JOIN Games g ON g.Id = ugp.GameId
                       INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id
-                      INNER JOIN AchievementDefinitions ad ON ad.Id = ua.AchievementDefinitionId
+                      INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId
                       WHERE u.ProviderKey = ?
                         AND u.IsCurrentUser = 0
                         AND u.ExternalUserId = ?
@@ -5252,7 +5269,7 @@ namespace PlayniteAchievements.Services.Database
                   INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
                   INNER JOIN Games g ON g.Id = ugp.GameId
                   INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id
-                  INNER JOIN AchievementDefinitions ad ON ad.GameId = g.Id
+                  INNER JOIN " + AchievementLayerSql.ViewName + @" ad ON ad.GameId = g.Id
                   LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id
                       AND ua.AchievementDefinitionId = ad.Id
                   LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId
@@ -5723,6 +5740,7 @@ namespace PlayniteAchievements.Services.Database
                         nowIso,
                         updatedIso,
                         renamedApiNames);
+                    SaveMetadataLayers(db, achievements, definitionIds);
 
                     var existingRows = db.Load<UserAchievementRow>(
                         @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
@@ -6004,7 +6022,7 @@ namespace PlayniteAchievements.Services.Database
         {
             return WithDb(db => db.Load<MetadataAppliedRow>(
                     @"SELECT PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
-                             CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc
+                             CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, UpdatedUtc
                       FROM MetadataApplied;")
                 .Where(row => row != null)
                 .ToList());
@@ -6045,8 +6063,8 @@ namespace PlayniteAchievements.Services.Database
                     db.ExecuteNonQuery(
                         @"INSERT OR REPLACE INTO MetadataApplied
                               (PlayniteGameId, IconSourceKey, CapstoneArtUrl, CapstoneTitle,
-                               CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, IconFallbackApiNamesJson, UpdatedUtc)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                               CapstoneDescription, CapstoneMatchApiName, CategoryCapstonesJson, IconApiNamesJson, UpdatedUtc)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameIdText,
                         applied.IconSourceKey,
                         applied.CapstoneArtUrl,
@@ -6055,7 +6073,6 @@ namespace PlayniteAchievements.Services.Database
                         applied.CapstoneMatchApiName,
                         applied.CategoryCapstonesJson,
                         applied.IconApiNamesJson,
-                        applied.IconFallbackApiNamesJson,
                         updatedUtc);
 
                     db.ExecuteNonQuery(
@@ -7153,6 +7170,50 @@ namespace PlayniteAchievements.Services.Database
             return backfills.Count;
         }
 
+        /// <summary>
+        /// Stores each layered row's metadata layer against its definition, replacing what was
+        /// there. A row with no platform layer was never layered and leaves its metadata alone.
+        /// </summary>
+        private void SaveMetadataLayers(
+            SQLiteDatabase db,
+            IEnumerable<AchievementDetail> achievements,
+            IReadOnlyDictionary<string, long> definitionIds)
+        {
+            foreach (var achievement in achievements ?? Enumerable.Empty<AchievementDetail>())
+            {
+                if (achievement?.PlatformLayer == null ||
+                    string.IsNullOrWhiteSpace(achievement.ApiName) ||
+                    !definitionIds.TryGetValue(achievement.ApiName.Trim(), out var definitionId))
+                {
+                    continue;
+                }
+
+                var layer = achievement.MetadataLayer;
+                if (layer == null || layer.IsEmpty)
+                {
+                    db.ExecuteNonQuery(AchievementLayerSql.DeleteSql, definitionId);
+                    continue;
+                }
+
+                db.ExecuteNonQuery(
+                    AchievementLayerSql.InsertSql,
+                    definitionId,
+                    DbValue(layer.DisplayName),
+                    DbValue(layer.Description),
+                    DbValue(MakeRelativePath(layer.UnlockedIconPath)),
+                    DbValue(MakeRelativePath(layer.LockedIconPath)),
+                    DbParam(layer.Points),
+                    DbValue(layer.TrophyType),
+                    DbValue(layer.Category),
+                    DbValue(layer.CategoryKind),
+                    DbValue(layer.Tags),
+                    DbParam(layer.GlobalPercentUnlocked),
+                    DbValue(layer.Rarity?.ToString()),
+                    DbParam(layer.Order),
+                    (long)layer.Cleared);
+            }
+        }
+
         private Dictionary<string, long> UpsertAchievementDefinitions(
             SQLiteDatabase db,
             long gameId,
@@ -7240,6 +7301,9 @@ namespace PlayniteAchievements.Services.Database
 
                 var apiName = achievement.ApiName.Trim();
                 desiredApiNames.Add(apiName);
+                // The table holds the platform's values: a layered row stores its platform layer,
+                // never what metadata or the user show over it.
+                var platform = AchievementLayers.PlatformRow(achievement);
                 // Canonicalize the path here so the stored label is the same form the change
                 // detection below compares against, and a provider that starts emitting a nested
                 // path does not read back as a change on every refresh.
@@ -7248,13 +7312,13 @@ namespace PlayniteAchievements.Services.Database
                 // in the per-game custom data. A payload that has been through the hydrator then
                 // stores what the provider said rather than what the user filed it under.
                 var incomingCategory = CategoryPathHelper.NormalizePath(
-                    achievement.ProviderCategory ?? achievement.Category);
+                    platform.ProviderCategory ?? platform.Category);
                 // Tags and kind likewise: hydration replaces them with the user's, and the captured
                 // provider values ("" when the provider gave none) are what this table stores.
-                var incomingTags = AchievementTagHelper.Normalize(achievement.ProviderTags ?? achievement.Tags);
-                var incomingKind = CategoryKindHelper.Normalize(achievement.ProviderCategoryKind ?? achievement.CategoryKind);
-                var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
-                var incomingRarity = achievement.Rarity.ToString();
+                var incomingTags = AchievementTagHelper.Normalize(platform.ProviderTags ?? platform.Tags);
+                var incomingKind = CategoryKindHelper.Normalize(platform.ProviderCategoryKind ?? platform.CategoryKind);
+                var incomingGlobalPercent = NormalizeStoredPercent(platform.GlobalPercentUnlocked);
+                var incomingRarity = platform.Rarity.ToString();
 
                 // The provider seed for a newly inserted achievement: its own capstone flag,
                 // or a platinum trophy, which every platform treats as one. Once a game has a
@@ -7274,22 +7338,22 @@ namespace PlayniteAchievements.Services.Database
                             (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameId,
                         apiName,
-                        DbValue(achievement.DisplayName),
-                        DbValue(achievement.Description),
-                        DbValue(MakeRelativePath(achievement.UnlockedIconPath)),
-                        DbValue(MakeRelativePath(achievement.LockedIconPath)),
-                        DbParam(achievement.Points),
-                        DbParam(achievement.ScaledPoints),
+                        DbValue(platform.DisplayName),
+                        DbValue(platform.Description),
+                        DbValue(MakeRelativePath(platform.UnlockedIconPath)),
+                        DbValue(MakeRelativePath(platform.LockedIconPath)),
+                        DbParam(platform.Points),
+                        DbParam(platform.ScaledPoints),
                         DbValue(incomingCategory),
                         DbValue(incomingTags),
                         DbValue(incomingKind),
-                        DbValue(achievement.TrophyType),
-                        achievement.Hidden ? 1 : 0,
+                        DbValue(platform.TrophyType),
+                        platform.Hidden ? 1 : 0,
                         isCapstone ? 1 : 0,
                         DbParam(incomingGlobalPercent),
                         incomingRarity,
-                        DbParam(achievement.ProgressDenom),
-                        DbParam(achievement.MetadataOrderIndex),
+                        DbParam(platform.ProgressDenom),
+                        DbParam(platform.MetadataOrderIndex),
                         nowIso,
                         updatedIso);
 
@@ -7304,36 +7368,43 @@ namespace PlayniteAchievements.Services.Database
                     continue;
                 }
 
-                var incomingDisplayName = NormalizeDbText(achievement.DisplayName);
-                var incomingDescription = NormalizeDbText(achievement.Description);
-                var incomingUnlockedIconPath = MakeRelativePath(NormalizeDbText(achievement.UnlockedIconPath));
-                var incomingLockedIconPath = MakeRelativePath(NormalizeDbText(achievement.LockedIconPath));
-                var incomingPoints = achievement.Points;
-                var incomingScaledPoints = achievement.ScaledPoints;
-                var incomingTrophyType = NormalizeDbText(achievement.TrophyType);
-                var incomingHidden = achievement.Hidden ? 1L : 0L;
+                var incomingDisplayName = NormalizeDbText(platform.DisplayName);
+                var incomingDescription = NormalizeDbText(platform.Description);
+                var incomingUnlockedIconPath = MakeRelativePath(NormalizeDbText(platform.UnlockedIconPath));
+                var incomingLockedIconPath = MakeRelativePath(NormalizeDbText(platform.LockedIconPath));
+                var incomingPoints = platform.Points;
+                var incomingScaledPoints = platform.ScaledPoints;
+                var incomingTrophyType = NormalizeDbText(platform.TrophyType);
+                var incomingHidden = platform.Hidden ? 1L : 0L;
                 // Capstones are seeded on insert and owned by the stored set from then on, so a
                 // refresh never restamps one. Without this an achievement the user has since
                 // dropped or nominated would silently revert on the next scan.
                 var incomingIsCapstone = existing.IsCapstone;
                 achievement.IsCapstone = incomingIsCapstone != 0;
                 var incomingStoredRarity = incomingRarity;
-                var incomingProgressMax = achievement.ProgressDenom;
-                var incomingMetadataOrder = achievement.MetadataOrderIndex;
+                var incomingProgressMax = platform.ProgressDenom;
+                var incomingMetadataOrder = platform.MetadataOrderIndex;
 
                 // A payload that does not know the rarity must not blank what is already stored.
                 // The payload carries the stored values back, so the caller's in-memory copy reads
                 // the rarity the table holds.
                 if (SqlNadoCacheBehavior.ShouldKeepStoredRarity(
                         incomingGlobalPercent,
-                        achievement.Rarity,
+                        platform.Rarity,
                         existing.GlobalPercentUnlocked,
                         existing.Rarity))
                 {
                     incomingGlobalPercent = existing.GlobalPercentUnlocked;
                     incomingStoredRarity = existing.Rarity;
-                    achievement.GlobalPercentUnlocked = existing.GlobalPercentUnlocked;
-                    achievement.Rarity = ParseStoredRarity(existing.Rarity);
+                    if (achievement.PlatformLayer != null)
+                    {
+                        AchievementLayers.KeepPlatformRarity(achievement, existing.GlobalPercentUnlocked, ParseStoredRarity(existing.Rarity));
+                    }
+                    else
+                    {
+                        achievement.GlobalPercentUnlocked = existing.GlobalPercentUnlocked;
+                        achievement.Rarity = ParseStoredRarity(existing.Rarity);
+                    }
                 }
 
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
