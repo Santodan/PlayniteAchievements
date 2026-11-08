@@ -312,8 +312,8 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The rarity/trophy badge row under the progress bar is one drawn element,
-         controls:ProgressBadgeStrip; it reads the same brush, glyph and font resource keys the
+    <!-- The detail row under the progress bar (rarity, trophy or points) is one drawn element,
+         controls:ProgressDetailStrip; it reads the same brush, glyph and font resource keys the
          former per-badge styles used. The footer templates below position it and, for the Left
          and Center alignments, reverse its order. -->
 
@@ -329,10 +329,10 @@
                 <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
             <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
             </StackPanel>
-            <controls:ProgressBadgeStrip Grid.Column="1"
+            <controls:ProgressDetailStrip Grid.Column="1"
                                          HorizontalAlignment="Right"
                                          VerticalAlignment="Center"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
         </Grid>
     </DataTemplate>
@@ -343,9 +343,9 @@
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
-            <controls:ProgressBadgeStrip VerticalAlignment="Center"
+            <controls:ProgressDetailStrip VerticalAlignment="Center"
                                          Reversed="True"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
             <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
             <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
@@ -360,11 +360,11 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <controls:ProgressBadgeStrip Grid.Column="0"
+            <controls:ProgressDetailStrip Grid.Column="0"
                                          HorizontalAlignment="Left"
                                          VerticalAlignment="Center"
                                          Reversed="True"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                 <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
