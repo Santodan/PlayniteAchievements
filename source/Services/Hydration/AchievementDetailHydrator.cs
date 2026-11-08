@@ -116,45 +116,30 @@ namespace PlayniteAchievements.Services.Hydration
                 detail.ProviderKey = providerKey;
 
                 var apiName = (detail.ApiName ?? string.Empty).Trim();
-                // Prefer the previously captured provider label: re-hydrating an instance whose
-                // Category was already overwritten by a rename override must not lose it.
-                var providerCategory = NormalizeCategory(detail.ProviderCategory ?? detail.Category);
-                detail.ProviderCategory = providerCategory;
-                // Captured once as "" rather than null when the provider gives none, so a re-hydrated
-                // instance never mistakes an overridden value for the provider's.
-                var providerTags = AchievementTagHelper.Normalize(detail.ProviderTags ?? detail.Tags);
-                var providerKind = CategoryKindHelper.Normalize(detail.ProviderCategoryKind ?? detail.CategoryKind);
-                detail.ProviderTags = providerTags ?? string.Empty;
-                detail.ProviderCategoryKind = providerKind ?? string.Empty;
-
                 AchievementOverride userOverride = null;
                 if (hasOverrides && !string.IsNullOrWhiteSpace(apiName))
                 {
                     overridesByApiName.TryGetValue(apiName, out userOverride);
                 }
 
-                if (userOverride != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
-                    {
-                        providerCategory = NormalizeCategory(userOverride.Category);
-                    }
+                // The platform and metadata values are what the user's customization sits on: the
+                // provider category keys default category art and is what an edit compares against.
+                detail.CustomLayer = null;
+                var below = AchievementLayers.Resolve(detail).Values;
+                detail.ProviderCategory = NormalizeCategory(below.Category);
+                detail.ProviderTags = AchievementTagHelper.Normalize(below.Tags) ?? string.Empty;
+                detail.ProviderCategoryKind = CategoryKindHelper.Normalize(below.CategoryKind) ?? string.Empty;
 
-                    AchievementOverrideApplier.Apply(detail, userOverride, customData.HasManualLink);
-                }
+                detail.CustomLayer = userOverride?.ToLayer();
+                AchievementLayers.Resolve(detail);
+                AchievementOverrideApplier.ApplyUnlockTime(detail, userOverride, customData.HasManualLink);
 
-                // NormalizePath, not NormalizeCategoryOrDefault: a provider may now supply a nested
-                // path, and this is the one place every provider label passes through, so the depth
-                // cap and empty-segment rules apply to provider input as they do to user input.
-                // Blank still resolves to the Default label, so a provider that supplies nothing is
-                // unaffected.
-                detail.Category = CategoryPathHelper.NormalizePath(providerCategory);
-                detail.Tags = AchievementTagHelper.ApplyOverride(
-                    providerTags,
-                    userOverride?.ClearTags == true ? string.Empty : userOverride?.Tags);
+                // NormalizePath applies the depth cap and empty-segment rules to every label, the
+                // provider's and the user's alike.
+                detail.Category = CategoryPathHelper.NormalizePath(detail.Category);
                 detail.CategoryKind = CategoryKindHelper.ResolveEffective(
                     customData.GetStoredCategoryKind(detail.Category),
-                    providerKind);
+                    detail.CategoryKind);
                 detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
                 detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
                                                  summaryFilteredApiNames.Contains(apiName);
