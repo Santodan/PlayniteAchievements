@@ -871,11 +871,17 @@ namespace PlayniteAchievements.SqlNado.Tests
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
 
             StringAssert.Contains(store, "var customDataByGameId = new Dictionary<Guid, ResolvedGameCustomData>();");
-            StringAssert.Contains(store, "ApplyCustomDataToFriendAchievement(item, customData);");
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
-            StringAssert.Contains(store, "customData.AchievementOverrides?.TryGetValue(apiName, out userOverride);");
-            StringAssert.Contains(store, "customData.GetStoredCategoryKind(item.CategoryLabel)");
+            // Capstone, category kind and note come resolved from the achievement view.
+            StringAssert.Contains(store, "ad.IsCapstone AS IsCapstone,");
+            StringAssert.Contains(store, "ad.CategoryKind AS CategoryKind,");
+            StringAssert.Contains(store, "ad.Note AS Note,");
+            StringAssert.Contains(store, "AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),");
+            // Category art is keyed by the category before the user's rename.
+            StringAssert.Contains(store, "ad.ProviderCategory AS ProviderCategory,");
+            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),");
+            Assert.IsFalse(store.Contains("ApplyCustomDataToFriendAchievement"));
         }
 
         [TestMethod]
