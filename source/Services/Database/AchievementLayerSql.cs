@@ -82,6 +82,17 @@ namespace PlayniteAchievements.Services.Database
                 PRIMARY KEY (PlayniteGameId, Category)
             );";
 
+        /// <summary>Each achievement's capture files, as the plugin matches them to it.</summary>
+        public const string CreateCapturesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCaptures (
+                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                ApiName TEXT NOT NULL COLLATE NOCASE,
+                CleanPath TEXT NULL,
+                NotificationPath TEXT NULL,
+                FramedPath TEXT NULL,
+                VideoPath TEXT NULL,
+                PRIMARY KEY (PlayniteGameId, ApiName)
+            );";
+
         public static string InsertSql =>
             "INSERT OR REPLACE INTO AchievementMetadataLayer (AchievementDefinitionId, " +
             string.Join(", ", MetadataColumns) + ") VALUES (?" + string.Concat(MetadataColumns.Select(_ => ", ?")) + ");";
@@ -159,6 +170,10 @@ namespace PlayniteAchievements.Services.Database
               LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId";
 
+        private const string CaptureColumns =
+            "cap.CleanPath AS CleanCapturePath, cap.NotificationPath AS NotificationCapturePath, " +
+            "cap.FramedPath AS FramedCapturePath, cap.VideoPath AS VideoCapturePath";
+
         /// <summary>The kind the user stored for the achievement's resolved category, if any.</summary>
         private static string StoredKind =>
             "(SELECT k.Kind FROM AchievementCategoryKinds k WHERE k.PlayniteGameId = g.PlayniteGameId AND k.Category = " +
@@ -210,7 +225,8 @@ namespace PlayniteAchievements.Services.Database
                 ua.ProgressNum AS ProgressNum,
                 ua.ProgressDenom AS ProgressDenom,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
-                0 AS IsAuthored
+                0 AS IsAuthored,
+                " + CaptureColumns + @"
               FROM UserGameProgress ugp
               INNER JOIN Users u ON u.Id = ugp.UserId AND u.IsCurrentUser = 1
               INNER JOIN Games g ON g.Id = ugp.GameId
@@ -218,6 +234,7 @@ namespace PlayniteAchievements.Services.Database
               LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id
               LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName
             UNION ALL SELECT
                 " + authored + @",
                 a.PlayniteGameId AS PlayniteGameId,
@@ -228,9 +245,11 @@ namespace PlayniteAchievements.Services.Database
                 a.ProgressNum AS ProgressNum,
                 a.ProgressDenom AS ProgressDenom,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
-                1 AS IsAuthored
+                1 AS IsAuthored,
+                " + CaptureColumns + @"
               FROM AchievementOverrides a
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
+              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
               WHERE a.IsAuthored = 1;";
         }
 
