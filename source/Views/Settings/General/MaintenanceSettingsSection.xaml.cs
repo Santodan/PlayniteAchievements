@@ -117,6 +117,32 @@ namespace PlayniteAchievements.Views.Settings.General
                 image);
         }
 
+        private void ClearMetadata_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                L("LOCPlayAch_Settings_ClearMetadata_Confirm"),
+                L("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                _plugin.ClearMetadataAndRefetch(null);
+            }
+            catch (Exception ex)
+            {
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Status_Failed", ex.Message),
+                    L("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         private void ClearUnownedFriendGameData_Click(object sender, RoutedEventArgs e)
         {
             var friendCache = _plugin?.RefreshRuntime?.Cache as IFriendCacheManager;
