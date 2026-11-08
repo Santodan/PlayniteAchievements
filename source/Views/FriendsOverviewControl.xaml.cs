@@ -211,23 +211,23 @@ namespace PlayniteAchievements.Views
         private void ClearSelection()
         {
             _viewModel?.ClearSelection();
-            ClearGridSelection(FriendSummariesGridControl?.InternalDataGrid);
-            ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
-            ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
-            ClearGridSelection(FriendsAchievementsGrid?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(FriendSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(FriendsAchievementsGrid?.InternalDataGrid);
         }
 
         private void ClearFriendSelection_Click(object sender, RoutedEventArgs e)
         {
             _viewModel?.ClearFriendSelection();
-            ClearGridSelection(FriendSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(FriendSummariesGridControl?.InternalDataGrid);
         }
 
         private void ClearGameSelection_Click(object sender, RoutedEventArgs e)
         {
             _viewModel?.ClearGameSelection();
-            ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
-            ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(FriendGameSummariesGridControl?.InternalDataGrid);
+            DataGridRowInteraction.ClearGridSelection(SelectedFriendGameSummariesGridControl?.InternalDataGrid);
         }
 
         private void ToggleFriendSummariesControlBar_Click(object sender, RoutedEventArgs e)
@@ -379,10 +379,10 @@ namespace PlayniteAchievements.Views
 
             if (row.DataContext is FriendSummaryItem)
             {
-                if (IsSelectedRow(row, grid))
+                if (DataGridRowInteraction.IsSelectedRow(row, grid))
                 {
                     _viewModel.ClearFriendSelection();
-                    ClearGridSelection(grid);
+                    DataGridRowInteraction.ClearGridSelection(grid);
                     QueueScrollAfterSummarySelection(row.DataContext);
                     e.Handled = true;
                 }
@@ -393,10 +393,10 @@ namespace PlayniteAchievements.Views
             }
             else if (row.DataContext is FriendGameSummaryItem)
             {
-                if (IsSelectedRow(row, grid))
+                if (DataGridRowInteraction.IsSelectedRow(row, grid))
                 {
                     _viewModel.ClearGameSelection();
-                    ClearGridSelection(grid);
+                    DataGridRowInteraction.ClearGridSelection(grid);
                     QueueScrollAfterSummarySelection(row.DataContext);
                     e.Handled = true;
                 }
@@ -415,29 +415,15 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            ClearGridSelection(grid);
+            DataGridRowInteraction.ClearGridSelection(grid);
             e.Handled = true;
         }
 
-        private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (TryResolveContextMenuRow(sender, e, out var row))
-            {
-                e.Handled = true;
-                _pendingRightClickRow = row;
-            }
-        }
+        private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) =>
+            DataGridRowInteraction.BeginRowRightClick(ResolveDataGridRow(sender, e), e, ref _pendingRightClickRow);
 
-        private void DataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (TryResolveContextMenuRow(sender, e, out var row))
-            {
-                e.Handled = true;
-                var targetRow = _pendingRightClickRow ?? row;
-                _pendingRightClickRow = null;
-                OpenContextMenuForRow(targetRow);
-            }
-        }
+        private void DataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e) =>
+            DataGridRowInteraction.CompleteRowRightClick(ResolveDataGridRow(sender, e), e, ref _pendingRightClickRow, row => OpenContextMenuForRow(row));
 
         private void FriendSummaries_Sorting(object sender, DataGridSortingEventArgs e)
         {
@@ -705,16 +691,7 @@ namespace PlayniteAchievements.Views
                 return false;
             }
 
-            return IsSelectedRow(row, grid);
-        }
-
-        private static bool IsSelectedRow(DataGridRow row, DataGrid grid)
-        {
-            return row != null &&
-                   grid != null &&
-                   (row.IsSelected ||
-                   ReferenceEquals(grid.SelectedItem, row.DataContext) ||
-                   ReferenceEquals(grid.CurrentItem, row.DataContext));
+            return DataGridRowInteraction.IsSelectedRow(row, grid);
         }
 
         private static DataGridRow ResolveDataGridRow(object sender, MouseButtonEventArgs e)
@@ -731,12 +708,6 @@ namespace PlayniteAchievements.Views
 
             return VisualTreeHelpers.FindVisualParent<DataGridRow>(
                 e?.OriginalSource as DependencyObject ?? e?.Source as DependencyObject);
-        }
-
-        private static bool TryResolveContextMenuRow(object sender, MouseButtonEventArgs e, out DataGridRow row)
-        {
-            row = ResolveDataGridRow(sender, e);
-            return row != null;
         }
 
         private bool OpenContextMenuForRow(DataGridRow row)
@@ -1313,26 +1284,6 @@ namespace PlayniteAchievements.Views
             catch
             {
                 // Best effort; scrolling should not interfere with row selection.
-            }
-        }
-
-        private static void ClearGridSelection(DataGrid grid)
-        {
-            if (grid == null)
-            {
-                return;
-            }
-
-            try
-            {
-                grid.SelectedItem = null;
-                grid.UnselectAll();
-                grid.CurrentItem = null;
-                Keyboard.ClearFocus();
-            }
-            catch
-            {
-                // Best effort; focus clearing should not break row toggling.
             }
         }
 
