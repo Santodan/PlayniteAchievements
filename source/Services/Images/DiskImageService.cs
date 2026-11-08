@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Services.Images
         private readonly ILogger _logger;
         private readonly HttpClientHandler _httpHandler;
         private readonly HttpClient _http;
-        private readonly string _cacheRoot;
+        private readonly IconCacheLocation _location;
         private readonly SemaphoreSlim _downloadGate;
         private readonly SemaphoreSlim _rateLimitedDownloadGate;
         private readonly object _pathWriteLocksSync = new object();
@@ -125,10 +125,11 @@ namespace PlayniteAchievements.Services.Images
         }
 #endif
 
-        public DiskImageService(ILogger logger, string cacheRoot, int downloadConcurrency = 8)
+        public DiskImageService(ILogger logger, string cacheRoot, int downloadConcurrency = 8, IconCacheLocation location = null)
         {
             _logger = logger ?? StaticLogger;
-            _cacheRoot = cacheRoot ?? throw new ArgumentNullException(nameof(cacheRoot));
+            _location = location ?? new IconCacheLocation(cacheRoot ?? throw new ArgumentNullException(nameof(cacheRoot)));
+            _location.RootChanged += Location_RootChanged;
             _downloadGate = new SemaphoreSlim(Math.Max(1, downloadConcurrency), Math.Max(1, downloadConcurrency));
             _rateLimitedDownloadGate = new SemaphoreSlim(8, 8); // Xbox CDN concurrency (increased for EDS with w=128 param)
 
@@ -381,10 +382,30 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private string IconCacheDirectory => Path.Combine(_cacheRoot, "icon_cache");
+        private string IconCacheDirectory => _location.Root;
+
+        /// <summary>The icon cache folder's owner, for services that resolve stored paths.</summary>
+        public IconCacheLocation Location => _location;
+
+        // State keyed by absolute folders under the old root no longer names anything.
+        private void Location_RootChanged(object sender, IconCacheRootChangedEventArgs e)
+        {
+            ClearDefaultCategoryArtSnapshots();
+            _foldersWritten.Clear();
+            _hardLinksUnsupported = false;
+            lock (_linkedOnceSync)
+            {
+                _linkedOnce = null;
+            }
+        }
 
         private void EnsureIconCacheDirectory()
         {
+            if (!_location.IsAvailable)
+            {
+                return;
+            }
+
             try
             {
                 if (!Directory.Exists(IconCacheDirectory))
@@ -435,7 +456,7 @@ namespace PlayniteAchievements.Services.Images
         {
             return string.IsNullOrWhiteSpace(relativePath)
                 ? null
-                : Path.Combine(_cacheRoot, relativePath);
+                : _location.ResolveLogical(relativePath);
         }
 
         internal string GetAchievementIconCachePath(
@@ -447,7 +468,7 @@ namespace PlayniteAchievements.Services.Images
                 gameId,
                 fileStem,
                 variant);
-            return Path.Combine(_cacheRoot, relativePath);
+            return _location.ResolveLogical(relativePath);
         }
 
         // Probes the default cached achievement icon across supported extensions. Downloads with
@@ -516,7 +537,7 @@ namespace PlayniteAchievements.Services.Images
                 gameId,
                 fileStem,
                 variant);
-            return Path.Combine(_cacheRoot, relativePath);
+            return _location.ResolveLogical(relativePath);
         }
 
         // Absolute path for the provider-supplied default category art file. Deterministic per
@@ -530,7 +551,7 @@ namespace PlayniteAchievements.Services.Images
             var relativePath = AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath(
                 gameId,
                 categoryLabel);
-            var canonicalPath = Path.Combine(_cacheRoot, relativePath);
+            var canonicalPath = _location.ResolveLogical(relativePath);
             AdoptLegacyDefaultCategoryImage(gameId, categoryLabel, canonicalPath);
             return canonicalPath;
         }
@@ -549,8 +570,7 @@ namespace PlayniteAchievements.Services.Images
                 return;
             }
 
-            var legacyPath = Path.Combine(
-                _cacheRoot,
+            var legacyPath = _location.ResolveLogical(
                 AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath(gameId, categoryLabel));
             if (string.Equals(legacyPath, canonicalPath, StringComparison.Ordinal))
             {
@@ -1797,7 +1817,7 @@ namespace PlayniteAchievements.Services.Images
             try
             {
                 var iconCacheRoot = Path.GetFullPath(IconCacheDirectory);
-                var target = Path.GetFullPath(Path.Combine(_cacheRoot, relativeDirectory));
+                var target = Path.GetFullPath(_location.ResolveLogical(relativeDirectory));
 
                 // Refuse to touch anything outside icon_cache, or icon_cache itself.
                 if (!IsPathWithinDirectory(target, iconCacheRoot) || IsSameDirectory(target, iconCacheRoot))
