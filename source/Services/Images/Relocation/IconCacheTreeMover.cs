@@ -17,6 +17,22 @@ namespace PlayniteAchievements.Services.Images.Relocation
         // Links refused in a row before the move stops trying, as on a volume without hard links.
         private const int MaxLinkFailures = 8;
 
+        // A file another program holds open is tried again this many times, this far apart.
+        private const int LockedRetries = 5;
+        private const int LockedRetryDelayMs = 200;
+
+        /// <summary>What a run did: the files it moved and the source files it could only copy.</summary>
+        internal sealed class MoveTreeResult
+        {
+            public int Moved;
+
+            /// <summary>
+            /// Source files held open by another program: copied to the target, but still in the
+            /// source until whatever holds them lets go.
+            /// </summary>
+            public List<string> Leftovers = new List<string>();
+        }
+
         /// <summary>Totals for a tree, counting each hard-linked file once in UniqueBytes.</summary>
         internal sealed class TreeSize
         {
@@ -65,16 +81,19 @@ namespace PlayniteAchievements.Services.Images.Relocation
         /// <paramref name="target"/>, then removes the folders left empty, <paramref name="source"/>
         /// included. <paramref name="onFile"/> is told after each file. Throws
         /// <see cref="OperationCanceledException"/> between files when cancelled.
+        /// A file another program holds open is tried again, then copied when it can be read,
+        /// and listed in <see cref="MoveTreeResult.Leftovers"/>.
         /// </summary>
-        internal static int MoveTree(
+        internal static MoveTreeResult MoveTree(
             string source,
             string target,
             Action<int, int> onFile,
             CancellationToken cancel)
         {
+            var result = new MoveTreeResult();
             if (!Directory.Exists(source))
             {
-                return 0;
+                return result;
             }
 
             Directory.CreateDirectory(target);
@@ -82,7 +101,6 @@ namespace PlayniteAchievements.Services.Images.Relocation
             var files = Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).ToList();
             var movedByIdentity = new Dictionary<IconFileLinks.FileIdentity, string>();
             var linkFailures = 0;
-            var moved = 0;
 
             for (var i = 0; i < files.Count; i++)
             {
@@ -101,16 +119,43 @@ namespace PlayniteAchievements.Services.Images.Relocation
                 var destination = Path.Combine(target, relative);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination));
 
-                MoveFile(file, destination, movedByIdentity, ref linkFailures);
-                moved++;
+                if (!MoveFile(file, destination, movedByIdentity, ref linkFailures))
+                {
+                    result.Leftovers.Add(file);
+                }
+
+                result.Moved++;
                 onFile?.Invoke(i + 1, files.Count);
             }
 
             DeleteEmptyFolders(source);
-            return moved;
+            return result;
         }
 
-        private static void MoveFile(
+        /// <summary>Deletes the files still there; returns the ones that are still held open.</summary>
+        internal static List<string> DeleteLeftovers(IEnumerable<string> leftovers)
+        {
+            var remaining = new List<string>();
+            foreach (var file in leftovers ?? Enumerable.Empty<string>())
+            {
+                try
+                {
+                    if (File.Exists(file))
+                    {
+                        File.Delete(file);
+                    }
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    remaining.Add(file);
+                }
+            }
+
+            return remaining;
+        }
+
+        // False when the source file had to stay behind because another program holds it open.
+        private static bool MoveFile(
             string file,
             string destination,
             Dictionary<IconFileLinks.FileIdentity, string> movedByIdentity,
@@ -125,13 +170,12 @@ namespace PlayniteAchievements.Services.Images.Relocation
                 // one that stopped mid-copy left a short file, which is replaced.
                 if (SameLength(file, destination))
                 {
-                    File.Delete(file);
                     if (isLinked && !movedByIdentity.ContainsKey(identity))
                     {
                         movedByIdentity[identity] = destination;
                     }
 
-                    return;
+                    return TryDeleteWithRetry(file);
                 }
 
                 File.Delete(destination);
@@ -142,8 +186,7 @@ namespace PlayniteAchievements.Services.Images.Relocation
                 if (IconFileLinks.TryCreateLink(destination, keeper))
                 {
                     linkFailures = 0;
-                    File.Delete(file);
-                    return;
+                    return TryDeleteWithRetry(file);
                 }
 
                 // A volume without hard links refuses every link; a file with too many names
@@ -151,10 +194,62 @@ namespace PlayniteAchievements.Services.Images.Relocation
                 linkFailures++;
             }
 
-            File.Move(file, destination);
+            var leftBehind = !MoveOrCopy(file, destination);
             if (isLinked)
             {
                 movedByIdentity[identity] = destination;
+            }
+
+            return !leftBehind;
+        }
+
+        // Moves the file, trying again while another program holds it. A file still held is copied
+        // when it can be read, and false says the source stayed; one that cannot be read throws.
+        private static bool MoveOrCopy(string file, string destination)
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Move(file, destination);
+                    return true;
+                }
+                catch (IOException) when (attempt < LockedRetries && File.Exists(file))
+                {
+                    if (File.Exists(destination))
+                    {
+                        TryDeleteFile(destination);
+                    }
+
+                    Thread.Sleep(LockedRetryDelayMs);
+                }
+                catch (IOException) when (File.Exists(file))
+                {
+                    break;
+                }
+            }
+
+            File.Copy(file, destination, overwrite: true);
+            return TryDeleteWithRetry(file);
+        }
+
+        private static bool TryDeleteWithRetry(string file)
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Delete(file);
+                    return true;
+                }
+                catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException) && attempt < LockedRetries)
+                {
+                    Thread.Sleep(LockedRetryDelayMs);
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    return false;
+                }
             }
         }
 
