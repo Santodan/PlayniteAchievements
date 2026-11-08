@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Windows;
@@ -141,6 +142,41 @@ namespace PlayniteAchievements.Views.Dialogs
 
             Dispatcher.BeginInvoke(new Action(() =>
                 comboBox.GetBindingExpression(ComboBox.TextProperty)?.UpdateSource()));
+        }
+
+        // The row whose dropdown just closed, and when: the press that closes the dropdown by
+        // landing on the row's own cell must not open it again.
+        private LinkedFilePreviewRow _closedRow;
+        private int _closedAt;
+
+        /// <summary>
+        /// Opens the pairing dropdown under the cell. Handled here so the grid neither selects the
+        /// row nor takes focus from the dropdown as it opens.
+        /// </summary>
+        private void PickerButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            if (!(sender is FrameworkElement cell) || !(cell.DataContext is LinkedFilePreviewRow row) || !row.CanPick)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(row, _closedRow) && unchecked(Environment.TickCount - _closedAt) < 300)
+            {
+                _closedRow = null;
+                return;
+            }
+
+            PairingPopup.PlacementTarget = cell;
+            PairingPopup.MinWidth = Math.Max(320, cell.ActualWidth);
+            PairingPopup.DataContext = row;
+            row.IsPickerOpen = true;
+        }
+
+        private void PairingPopup_Closed(object sender, EventArgs e)
+        {
+            _closedRow = PairingPopup.DataContext as LinkedFilePreviewRow;
+            _closedAt = Environment.TickCount;
         }
 
         private void PickerPopup_Opened(object sender, EventArgs e) => MatchPickerHandlers.PopupOpened(sender);
