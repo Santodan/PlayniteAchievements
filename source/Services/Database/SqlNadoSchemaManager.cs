@@ -390,6 +390,7 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
             ExecuteSafe(db, AchievementLayerSql.CreateGameStateTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateCategoryKindsTableSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateCapturesTableSql);
             foreach (var sql in AchievementLayerSql.RecreateViewSql())
             {
                 ExecuteSafe(db, sql);
