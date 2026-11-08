@@ -1396,18 +1396,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// that no refresh will ever update -- a real provider's own refresh returns nothing for
         /// them and is turned away by the empty-payload guard, so they are frozen for good.
         /// </remarks>
-        private bool WouldStrandManualAchievements(GameCustomDataFile currentData)
-        {
-            if (currentData?.ManualLink == null)
-            {
-                return false;
-            }
-
-            var rawGameData = GetRawGameData();
-            return rawGameData?.Achievements?.Count > 0 &&
-                   string.Equals(rawGameData.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
-        }
-
         private void ClearCustomData()
         {
             if (!HasGame)
@@ -1423,7 +1411,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             // The manual link is not customization but the game's source of achievements, so
             // dropping it has to take what it produced with it.
-            var strandsManualAchievements = WouldStrandManualAchievements(currentData);
+            var strandsManualAchievements = _plugin.WouldStrandManualAchievements(_gameId, currentData);
             var result = _playniteApi?.Dialogs?.ShowMessage(
                 string.Format(
                     L(strandsManualAchievements
@@ -1441,15 +1429,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             try
             {
-                if (strandsManualAchievements)
-                {
-                    // Removes the link from both of its homes and the achievements it produced
-                    // from the cache, so nothing is left that no provider services.
-                    _achievementOverridesService?.ClearGameData(_gameId, GameName);
-                }
-
-                store.Delete(_gameId);
-                RemoveWorkshopSource();
+                _plugin.ClearGameCustomData(_gameId, GameName);
+                RefreshWorkshopSource();
                 var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
