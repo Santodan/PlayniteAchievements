@@ -20,25 +20,11 @@ namespace PlayniteAchievements.Services.Achievements
         /// The layer that decided each single field (never a combined flag such as Icons);
         /// <see cref="DataLayer.None"/> when no layer supplied it.
         /// </summary>
-        public IReadOnlyDictionary<AchievementField, DataLayer> Origin { get; }
+        private IReadOnlyDictionary<AchievementField, DataLayer> Origin { get; }
 
         public DataLayer OriginOf(AchievementField field) =>
             Origin.TryGetValue(field, out var layer) ? layer : DataLayer.None;
 
-        /// <summary>The fields whose value came from <paramref name="layer"/>.</summary>
-        public AchievementField FieldsFrom(DataLayer layer)
-        {
-            var fields = AchievementField.None;
-            foreach (var pair in Origin)
-            {
-                if (pair.Value == layer)
-                {
-                    fields |= pair.Key;
-                }
-            }
-
-            return fields;
-        }
     }
 
     /// <summary>
@@ -54,7 +40,7 @@ namespace PlayniteAchievements.Services.Achievements
     public static class LayerResolver
     {
         /// <summary>Every single field, in a stable order.</summary>
-        public static readonly IReadOnlyList<AchievementField> SingleFields = new[]
+        private static readonly IReadOnlyList<AchievementField> SingleFields = new[]
         {
             AchievementField.DisplayName,
             AchievementField.Description,
