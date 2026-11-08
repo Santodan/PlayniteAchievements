@@ -105,6 +105,14 @@ namespace PlayniteAchievements.Services.Captures
 
         private void SyncGame(Guid gameId)
         {
+            // A game whose folder holds no captures needs no full load; its rows, if any, go.
+            var header = _cache?.LoadGameData(gameId.ToString());
+            if (_library == null || !_library.GameFolderHasCaptures(header?.GameName ?? header?.Game?.Name))
+            {
+                _cache?.ReplaceAchievementCaptures(gameId, new List<CaptureIndexRow>());
+                return;
+            }
+
             var data = _loadShown?.Invoke(gameId);
             var set = AchievementCapturePathResolver.ResolveGameSet(data);
             var rows = new List<CaptureIndexRow>();
