@@ -1356,6 +1356,32 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        /// <summary>
+        /// Clears the metadata layer of the given games, or of every game when
+        /// <paramref name="playniteGameIds"/> is null, and returns the games that had one. Their
+        /// memory copies are dropped so the next read shows the platform's values.
+        /// </summary>
+        public IReadOnlyList<Guid> ClearMetadataLayers(IReadOnlyCollection<Guid> playniteGameIds = null)
+        {
+            List<Guid> cleared;
+            lock (_sync)
+            {
+                EnsureReady_Locked("ClearMetadataLayers");
+                cleared = _store.ClearMetadataLayers(playniteGameIds);
+                foreach (var gameId in cleared)
+                {
+                    RemoveMemoryGameData_Locked(UserKey(gameId.ToString()));
+                }
+            }
+
+            if (cleared.Count > 0)
+            {
+                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(cleared));
+            }
+
+            return cleared;
+        }
+
         public void RemoveGameCache(Guid playniteGameId)
         {
             if (playniteGameId == Guid.Empty)
