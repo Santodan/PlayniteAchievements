@@ -6314,6 +6314,9 @@ namespace PlayniteAchievements.Services.Database
             public long Cleared { get; set; }
             public long IsFiltered { get; set; }
             public long IsSummaryFiltered { get; set; }
+            public string Note { get; set; }
+            public long? GoalOrder { get; set; }
+            public long? CustomOrder { get; set; }
 
             public AchievementOverrideMirrorEntry ToEntry()
             {
@@ -6328,6 +6331,9 @@ namespace PlayniteAchievements.Services.Database
                     Tags = Tags,
                     Hidden = Hidden.HasValue ? Hidden.Value != 0 : (bool?)null,
                     Cleared = Cleared,
+                    Note = Note,
+                    GoalOrder = GoalOrder.HasValue ? (int)GoalOrder.Value : (int?)null,
+                    CustomOrder = CustomOrder.HasValue ? (int)CustomOrder.Value : (int?)null,
                     IsFiltered = IsFiltered != 0,
                     IsSummaryFiltered = IsSummaryFiltered != 0
                 };
@@ -6397,7 +6403,7 @@ namespace PlayniteAchievements.Services.Database
                 // customized the game is.
                 var existingByApiName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var row in db.Load<AchievementOverrideRow>(
-                    @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered
+                    @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder
                       FROM AchievementOverrides
                       WHERE PlayniteGameId = ?;",
                     gameIdText))
@@ -6498,7 +6504,7 @@ namespace PlayniteAchievements.Services.Database
             return WithDb(db =>
             {
                 var existingByGameText = db.Load<AchievementOverrideRow>(
-                        @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered
+                        @"SELECT PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder
                           FROM AchievementOverrides;")
                     .GroupBy(row => row.PlayniteGameId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(
@@ -6581,8 +6587,8 @@ namespace PlayniteAchievements.Services.Database
 
                 db.ExecuteNonQuery(
                     @"INSERT OR IGNORE INTO AchievementOverrides
-                          (PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, UpdatedUtc)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                          (PlayniteGameId, ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder, UpdatedUtc)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                     gameIdText,
                     entry.ApiName.Trim(),
                     DbValue(entry.DisplayName),
@@ -6595,6 +6601,9 @@ namespace PlayniteAchievements.Services.Database
                     entry.Cleared,
                     entry.IsFiltered ? 1 : 0,
                     entry.IsSummaryFiltered ? 1 : 0,
+                    DbValue(entry.Note),
+                    entry.GoalOrder.HasValue ? (object)entry.GoalOrder.Value : null,
+                    entry.CustomOrder.HasValue ? (object)entry.CustomOrder.Value : null,
                     nowIso);
             }
         }
