@@ -203,9 +203,6 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowLockedTrophy = source.ShowLockedTrophy;
             target.ShowLockedPoints = source.ShowLockedPoints;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
-            target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
-                ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
-                : new HashSet<Guid>();
             target.LockedFallbackIconPath = source.LockedFallbackIconPath;
             target.HiddenFallbackIconPath = source.HiddenFallbackIconPath;
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
@@ -317,36 +314,6 @@ namespace PlayniteAchievements.Models.Settings
                 : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
 
             // User Preferences (Survive Cache Clear)
-            target.ExcludedGameIds = source.ExcludedGameIds != null
-                ? new HashSet<Guid>(source.ExcludedGameIds)
-                : new HashSet<Guid>();
-            target.ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
-                ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
-                : new HashSet<Guid>();
-            target.ManualCapstones = source.ManualCapstones != null
-                ? new Dictionary<Guid, string>(source.ManualCapstones)
-                : new Dictionary<Guid, string>();
-            target.AchievementOrderOverrides = source.AchievementOrderOverrides != null
-                ? source.AchievementOrderOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new List<string>(kvp.Value)
-                        : new List<string>())
-                : new Dictionary<Guid, List<string>>();
-            target.AchievementCategoryOverrides = source.AchievementCategoryOverrides != null
-                ? source.AchievementCategoryOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
-            target.AchievementCategoryTypeOverrides = source.AchievementCategoryTypeOverrides != null
-                ? source.AchievementCategoryTypeOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
 
             // Tagging Settings
             target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();
