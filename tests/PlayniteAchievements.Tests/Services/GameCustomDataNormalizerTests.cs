@@ -411,9 +411,9 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(2, normalized.AchievementNotes.Count);
-            Assert.AreEqual("second note\nline", normalized.AchievementNotes["ach_one"]);
-            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, normalized.AchievementNotes["ach_long"].Length);
+            Assert.AreEqual(2, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note).Count);
+            Assert.AreEqual("second note\nline", AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_one"]);
+            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_long"].Length);
             Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
         }
 
@@ -795,9 +795,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var customData = new ResolvedGameCustomData
             {
-                AchievementNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["ACH_ONE"] = "route note"
+                    ["ACH_ONE"] = new AchievementOverride { Note = "route note" }
                 }
             };
 
@@ -822,9 +822,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var renamed = new ResolvedGameCustomData
             {
-                AchievementCategoryOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["dlc_ach"] = "My Renamed DLC"
+                    ["dlc_ach"] = new AchievementOverride { Category = "My Renamed DLC" }
                 }
             };
 
@@ -960,8 +960,8 @@ namespace PlayniteAchievements.Services.Tests
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.FilteredAchievementApiNames);
             Assert.IsNull(normalized.SummaryFilteredAchievementApiNames);
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementOverrides.Keys.ToList());
-            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementCategoryOverrides.Keys.ToList());
-            Assert.IsNull(normalized.AchievementNotes);
+            Assert.IsNull(normalized.AchievementCategoryOverrides);
+            Assert.IsNull(normalized.AchievementOverrides["prov_one"].Note);
         }
 
         [TestMethod]
