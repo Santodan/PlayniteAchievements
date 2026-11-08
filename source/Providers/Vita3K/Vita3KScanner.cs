@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.Vita3K
 {
@@ -295,7 +296,7 @@ namespace PlayniteAchievements.Providers.Vita3K
 
             try
             {
-                var iconFolder = Path.Combine(_pluginUserDataPath, "icon_cache", "vita3k", npCommId);
+                var iconFolder = Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), "vita3k", npCommId);
                 if (Directory.Exists(iconFolder) && Directory.EnumerateFiles(iconFolder, "TROP*.PNG").Any())
                 {
                     return iconFolder;

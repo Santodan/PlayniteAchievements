@@ -38,6 +38,38 @@ namespace PlayniteAchievements.Views.Settings.General
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
+            Loaded += (_, __) => UpdateIconCacheFolderRow();
+        }
+
+        // -----------------------------
+        // Icon cache folder
+        // -----------------------------
+
+        private void UpdateIconCacheFolderRow()
+        {
+            var location = _plugin?.IconCacheFolder;
+            IconCacheFolderText.Text = location?.Root ?? string.Empty;
+            IconCacheFolderResetButton.IsEnabled = location?.IsCustom == true;
+        }
+
+        private void IconCacheFolder_Browse_Click(object sender, RoutedEventArgs e)
+        {
+            var target = _plugin.PlayniteApi.Dialogs.SelectFolder();
+            if (!string.IsNullOrWhiteSpace(target))
+            {
+                _plugin.MoveIconCacheInteractive(target);
+                UpdateIconCacheFolderRow();
+            }
+        }
+
+        private void IconCacheFolder_Reset_Click(object sender, RoutedEventArgs e)
+        {
+            var location = _plugin.IconCacheFolder;
+            if (location?.IsCustom == true)
+            {
+                _plugin.MoveIconCacheInteractive(location.DefaultRootPath);
+                UpdateIconCacheFolderRow();
+            }
         }
 
         // -----------------------------

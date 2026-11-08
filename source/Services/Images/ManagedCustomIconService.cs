@@ -40,9 +40,7 @@ namespace PlayniteAchievements.Services.Images
                 gameId,
                 fileStem,
                 variant);
-            return Path.Combine(
-                Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
-                relativePath);
+            return _diskImageService.Location.ResolveLogical(relativePath);
         }
 
         public string GetCategoryCustomImagePath(
@@ -52,9 +50,7 @@ namespace PlayniteAchievements.Services.Images
             var relativePath = AchievementIconCachePathBuilder.BuildCustomCategoryRelativePath(
                 gameId,
                 fileStem);
-            return Path.Combine(
-                Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
-                relativePath);
+            return _diskImageService.Location.ResolveLogical(relativePath);
         }
 
         public bool IsManagedCustomIconPath(string path)
@@ -165,20 +161,14 @@ namespace PlayniteAchievements.Services.Images
                 return normalized;
             }
 
-            if (!normalized.StartsWith("icon_cache", StringComparison.OrdinalIgnoreCase))
+            if (!IconCacheLocation.TryStripLogicalPrefix(normalized, out _))
             {
                 return normalized;
             }
 
             try
             {
-                var baseDirectory = GetCacheRootDirectory();
-                if (string.IsNullOrWhiteSpace(baseDirectory))
-                {
-                    return normalized;
-                }
-
-                var candidate = Path.GetFullPath(Path.Combine(baseDirectory, normalized));
+                var candidate = Path.GetFullPath(_diskImageService.Location.ResolveLogical(normalized));
                 return IsManagedCustomIconPath(candidate, gameId)
                     ? candidate
                     : normalized;
@@ -400,11 +390,6 @@ namespace PlayniteAchievements.Services.Images
                 : directoryPath + Path.DirectorySeparatorChar;
 
             return candidatePath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private string GetCacheRootDirectory()
-        {
-            return Path.GetDirectoryName(Path.GetFullPath(_diskImageService.GetCacheDirectoryPath()));
         }
 
         private static string NormalizePath(string value)

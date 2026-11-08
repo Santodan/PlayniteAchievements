@@ -679,6 +679,22 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
+        /// Points every stored path under the old icon cache folder at the same file under the new
+        /// one, after the files moved. Raises no change event: the caller reloads every surface
+        /// once the cache root changes.
+        /// </summary>
+        public int RewriteIconCacheRoot(string oldRoot, string newRoot)
+        {
+            var rewritten = _repository.RewriteIconCacheRoot(oldRoot, newRoot);
+            if (rewritten > 0)
+            {
+                InvalidateCache();
+            }
+
+            return rewritten;
+        }
+
+        /// <summary>
         /// Every stored record, deep-cloned so a caller cannot mutate the cache through what it
         /// is handed. Prefer <see cref="QueryAll{TResult}"/> when the answer is a projection:
         /// the copies here cost a library's worth of overrides, notes and maps.

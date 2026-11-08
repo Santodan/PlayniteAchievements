@@ -175,6 +175,14 @@
     <Compile Include="..\..\source\Services\Images\CategoryArtChainResolver.cs" Link="Source\Services\Images\CategoryArtChainResolver.cs" />
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
     <Compile Include="..\..\source\Services\Images\IconFileLinks.cs" Link="Source\Services\Images\IconFileLinks.cs" />
+    <Compile Include="..\..\source\Services\Images\IconCacheLocation.cs" Link="Source\Services\Images\IconCacheLocation.cs" />
+    <Compile Include="..\..\source\Services\Images\IconCacheWriteGate.cs" Link="Source\Services\Images\IconCacheWriteGate.cs" />
+    <Compile Include="..\..\source\Services\Images\IconCachePathRebaser.cs" Link="Source\Services\Images\IconCachePathRebaser.cs" />
+    <Compile Include="..\..\source\Services\Images\Relocation\IconCacheMovePlanner.cs" Link="Source\Services\Images\Relocation\IconCacheMovePlanner.cs" />
+    <Compile Include="..\..\source\Services\Images\Relocation\IconCacheTreeMover.cs" Link="Source\Services\Images\Relocation\IconCacheTreeMover.cs" />
+    <Compile Include="..\..\source\Services\Images\Relocation\IconCacheRelocationJournal.cs" Link="Source\Services\Images\Relocation\IconCacheRelocationJournal.cs" />
+    <Compile Include="..\..\source\Services\Images\Relocation\IconCacheRelocationService.cs" Link="Source\Services\Images\Relocation\IconCacheRelocationService.cs" />
+    <Compile Include="..\..\source\Services\Database\StoredPathMapping.cs" Link="Source\Services\Database\StoredPathMapping.cs" />
     <Compile Include="..\..\source\Services\Images\ImageCompressionPlan.cs" Link="Source\Services\Images\ImageCompressionPlan.cs" />
     <Compile Include="..\..\source\Services\Images\ImageHeaderDimensions.cs" Link="Source\Services\Images\ImageHeaderDimensions.cs" />
     <Compile Include="..\..\source\Services\Images\ImageFormats.cs" Link="Source\Services\Images\ImageFormats.cs" />

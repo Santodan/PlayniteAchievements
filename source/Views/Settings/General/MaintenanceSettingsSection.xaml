@@ -59,6 +59,32 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Folder}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="IconCacheFolderText"
+                                         Grid.Column="0"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"/>
+                                <Button x:Name="IconCacheFolderBrowseButton"
+                                        Grid.Column="1"
+                                        Content="..."
+                                        ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="IconCacheFolder_Browse_Click"
+                                        Margin="8,0,0,0"/>
+                                <Button x:Name="IconCacheFolderResetButton"
+                                        Grid.Column="2"
+                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
+                                        Click="IconCacheFolder_Reset_Click"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
+
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}">
                                 <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
                                         Click="ClearAllIconCache_Click"
