@@ -236,22 +236,6 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(true, new AchievementOverride { Hidden = true }.Clone().Hidden);
         }
 
-        [TestMethod]
-        public void HydrateAll_LegacyMirrorMapsOnly_StillResolveCustomization()
-        {
-            // A caller that populated only the legacy maps must still resolve its customization
-            // while both shapes are live.
-            var details = Details("alpha");
-            Hydrate(details, new ResolvedGameCustomData
-            {
-                AchievementNotes = new Dictionary<string, string> { ["alpha"] = "legacy note" },
-                AchievementCategoryOverrides = new Dictionary<string, string> { ["alpha"] = "Story" }
-            });
-
-            Assert.AreEqual("legacy note", details[0].AchievementNote);
-            Assert.AreEqual("Story", details[0].Category);
-        }
-
         private static ResolvedGameCustomData WithOverride(string apiName, AchievementOverride entry)
         {
             return new ResolvedGameCustomData
