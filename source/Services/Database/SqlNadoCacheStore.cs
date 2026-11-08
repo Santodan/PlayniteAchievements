@@ -5538,15 +5538,12 @@ namespace PlayniteAchievements.Services.Database
                 item.IsCapstone = customData.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
             }
 
-            if (customData.AchievementCategoryOverrides != null &&
-                customData.AchievementCategoryOverrides.TryGetValue(apiName, out var categoryOverride) &&
-                !string.IsNullOrWhiteSpace(categoryOverride))
-            {
-                item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryOverride);
-            }
-
             PlayniteAchievements.Models.Settings.AchievementOverride userOverride = null;
-            customData.ResolveAchievementOverrides()?.TryGetValue(apiName, out userOverride);
+            customData.AchievementOverrides?.TryGetValue(apiName, out userOverride);
+            if (!string.IsNullOrWhiteSpace(userOverride?.Category))
+            {
+                item.CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(userOverride.Category);
+            }
             if (userOverride != null && (userOverride.ClearTags || userOverride.Tags != null))
             {
                 item.Tags = AchievementTagHelper.ApplyOverride(
@@ -5558,10 +5555,7 @@ namespace PlayniteAchievements.Services.Database
                 customData.GetStoredCategoryKind(item.CategoryLabel),
                 item.CategoryKind);
 
-            item.AchievementNote = customData.AchievementNotes != null &&
-                                   customData.AchievementNotes.TryGetValue(apiName, out var note)
-                ? note
-                : null;
+            item.AchievementNote = string.IsNullOrWhiteSpace(userOverride?.Note) ? null : userOverride.Note.Trim();
         }
 
         private static string NormalizeMatchText(string value)
