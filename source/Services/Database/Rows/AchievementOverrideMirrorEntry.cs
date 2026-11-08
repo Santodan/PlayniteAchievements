@@ -9,8 +9,8 @@ namespace PlayniteAchievements.Services.Database.Rows
     /// queries see the user's customization in a join.
     /// </summary>
     /// <remarks>
-    /// Notes, icons and unlock times are never read in SQL, so they stay in the custom-data store
-    /// and are applied during hydration.
+    /// Icon overrides and unlock times stay in the custom-data store and are applied during
+    /// hydration.
     /// </remarks>
     internal sealed class AchievementOverrideMirrorEntry
     {
@@ -36,6 +36,14 @@ namespace PlayniteAchievements.Services.Database.Rows
         public bool IsFiltered { get; set; }
 
         public bool IsSummaryFiltered { get; set; }
+
+        public string Note { get; set; }
+
+        /// <summary>Position in the game's goal list; null when the achievement is not a goal.</summary>
+        public int? GoalOrder { get; set; }
+
+        /// <summary>Position in the user's custom order; null when the game has none or omits it.</summary>
+        public int? CustomOrder { get; set; }
 
         /// <summary>Takes the fields of a custom layer.</summary>
         public void SetLayer(AchievementLayerValues layer)
@@ -64,7 +72,10 @@ namespace PlayniteAchievements.Services.Database.Rows
             !Hidden.HasValue &&
             Cleared == 0 &&
             !IsFiltered &&
-            !IsSummaryFiltered;
+            !IsSummaryFiltered &&
+            string.IsNullOrWhiteSpace(Note) &&
+            !GoalOrder.HasValue &&
+            !CustomOrder.HasValue;
 
         /// <summary>
         /// Canonical text used to diff a game's desired rows against what is stored, so an
@@ -84,7 +95,10 @@ namespace PlayniteAchievements.Services.Database.Rows
                 Hidden.HasValue ? (Hidden.Value ? "1" : "0") : string.Empty,
                 Cleared.ToString(CultureInfo.InvariantCulture),
                 IsFiltered ? "1" : "0",
-                IsSummaryFiltered ? "1" : "0");
+                IsSummaryFiltered ? "1" : "0",
+                (Note ?? string.Empty).Trim(),
+                GoalOrder.HasValue ? GoalOrder.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                CustomOrder.HasValue ? CustomOrder.Value.ToString(CultureInfo.InvariantCulture) : string.Empty);
         }
     }
 }
