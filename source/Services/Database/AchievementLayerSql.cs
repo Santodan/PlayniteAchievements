@@ -22,8 +22,14 @@ namespace PlayniteAchievements.Services.Database
 
         public const string LayerViewName = "AchievementDefinitionLayers";
 
+        /// <summary>
+        /// The current user's achievements with their unlock state: one row per achievement of each
+        /// game the user has, carrying every column of <see cref="ViewName"/>.
+        /// </summary>
+        public const string UserViewName = "ResolvedAchievements";
+
         /// <summary>Every view this class creates, including names retired since.</summary>
-        public static readonly IReadOnlyList<string> AllViewNames = new[] { ViewName, LayerViewName, "ResolvedDefinitions" };
+        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, ViewName, LayerViewName, "ResolvedDefinitions" };
 
         /// <summary>The metadata layer columns, in insert order, after AchievementDefinitionId.</summary>
         public static readonly IReadOnlyList<string> MetadataColumns = new[]
@@ -73,6 +79,20 @@ namespace PlayniteAchievements.Services.Database
 
             yield return "CREATE VIEW " + ViewName + " AS SELECT\n" + PublicColumns() + FromClause + ";";
             yield return "CREATE VIEW " + LayerViewName + " AS SELECT\n" + PublicColumns() + ",\n" + RawLayerColumns() + FromClause + ";";
+            yield return "CREATE VIEW " + UserViewName + @" AS SELECT
+                g.PlayniteGameId AS PlayniteGameId,
+                g.GameName AS GameName,
+                g.ProviderKey AS ProviderKey,
+                ad.*,
+                COALESCE(ua.Unlocked, 0) AS Unlocked,
+                ua.UnlockTimeUtc AS UnlockTimeUtc,
+                ua.ProgressNum AS ProgressNum,
+                ua.ProgressDenom AS ProgressDenom
+              FROM UserGameProgress ugp
+              INNER JOIN Users u ON u.Id = ugp.UserId AND u.IsCurrentUser = 1
+              INNER JOIN Games g ON g.Id = ugp.GameId
+              INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
+              LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id;";
         }
 
         private static string PublicColumns() => @"                ad.Id AS Id,
@@ -101,7 +121,11 @@ namespace PlayniteAchievements.Services.Database
                 ad.CreatedUtc AS CreatedUtc,
                 ad.UpdatedUtc AS UpdatedUtc,
                 COALESCE(c.IsFiltered, 0) AS IsFiltered,
-                COALESCE(c.IsSummaryFiltered, 0) AS IsSummaryFiltered";
+                COALESCE(c.IsSummaryFiltered, 0) AS IsSummaryFiltered,
+                c.Note AS Note,
+                c.GoalOrder IS NOT NULL AS IsGoal,
+                c.GoalOrder AS GoalOrder,
+                c.CustomOrder AS CustomOrder";
 
         private static string RawLayerColumns() => @"                ad.DisplayName AS P_DisplayName,
                 ad.Description AS P_Description,
