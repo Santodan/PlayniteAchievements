@@ -4574,7 +4574,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private Dictionary<string, string> GetCurrentCategoryOverrideMap(ResolvedGameCustomData resolved = null)
         {
-            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryOverrides
+            var source = (resolved ?? ResolveCurrentCustomData())?.Project(o => o.Category)
                 ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in source)
