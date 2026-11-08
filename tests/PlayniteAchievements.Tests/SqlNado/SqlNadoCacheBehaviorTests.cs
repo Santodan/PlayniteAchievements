@@ -790,7 +790,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             // Header banner is downloaded with the normalized cache key and stored as local icon+cover paths.
             StringAssert.Contains(runtime, "var cacheKey = GetProviderGameCacheKey(appId, providerGameKey);");
             StringAssert.Contains(runtime, "DownloadDefinitionGameImageAsync(providerKey, providerGameKey, appId, definition.IconUrl, definition.GameName, cancel, progress)");
-            StringAssert.Contains(runtime, "SaveProviderGameImagePaths(providerKey, cacheKey, appId, localPath, localPath);");
+            StringAssert.Contains(runtime, "SaveFriendGameImagePaths(providerKey, cacheKey, appId, localPath, localPath, ");
             StringAssert.Contains(runtime, "var gameKey = GetProviderGameCacheKey(source.AppId, source.ProviderGameKey)");
             StringAssert.Contains(store, "AND (ProviderGameKey = ? OR ProviderGameId = ?)");
             // The source URL is not persisted into the definition state.
