@@ -3122,31 +3122,6 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit)
-        {
-            return WithReadDb(db =>
-            {
-                var data = new FriendsOverviewData();
-                var presentationCache = new Dictionary<Guid, GamePresentation>();
-                var effectiveLimit = Math.Max(0, recentLimit);
-
-                using (PerfScope.Start(_logger, "Friends.LoadRecentUnlockRows", thresholdMs: 15))
-                data.RecentUnlocks = MapFriendAchievementRows(
-                    LoadFriendAchievementRows(
-                        db,
-                        effectiveLimit,
-                        requireUnlockTime: true,
-                        unlockedOnly: true),
-                    presentationCache);
-
-                data.AllAchievements = data.RecentUnlocks;
-                data.AllUnlockedAchievements = data.RecentUnlocks;
-                data.Friends = BuildFriendSummariesFromAchievements(data.RecentUnlocks);
-                FriendsOverviewDerivations.ApplyFriendSummaryScores(data.Friends, data.AllUnlockedAchievements);
-                return data;
-            });
-        }
-
         private static string GetFriendSource(string providerKey) =>
             string.IsNullOrWhiteSpace(providerKey) ? "Friends" : providerKey.Trim() + "Friends";
 
@@ -4838,58 +4813,6 @@ namespace PlayniteAchievements.Services.Database
                     PlaytimeForeverMinutes = Math.Max(0, row.PlaytimeForeverMinutes),
                     LastPlayedUtc = ParseUtc(row.LastPlayedUtc)
                 })
-                .ToList();
-        }
-
-        private static List<FriendSummaryItem> BuildFriendSummariesFromAchievements(
-            IEnumerable<FriendAchievementDisplayItem> achievements)
-        {
-            return (achievements ?? Enumerable.Empty<FriendAchievementDisplayItem>())
-                .Where(achievement => achievement != null &&
-                                      !string.IsNullOrWhiteSpace(achievement.ProviderKey) &&
-                                      !string.IsNullOrWhiteSpace(achievement.FriendExternalUserId))
-                .GroupBy(
-                    achievement => FriendsOverviewDerivations.BuildFriendScoreKey(achievement.ProviderKey, achievement.FriendExternalUserId),
-                    StringComparer.OrdinalIgnoreCase)
-                .Select(group =>
-                {
-                    var first = group.First();
-                    var unlocked = group.Where(achievement => achievement.Unlocked).ToList();
-                    return new FriendSummaryItem
-                    {
-                        ProviderKey = first.ProviderKey,
-                        ExternalUserId = first.FriendExternalUserId,
-                        DisplayName = first.FriendName,
-                        AvatarPath = first.FriendAvatarPath,
-                        SharedGamesCount = group
-                            .Select(achievement => FriendOverviewProjection.BuildGameUnlockKey(
-                                achievement.ProviderKey,
-                                achievement.ProviderGameKey,
-                                achievement.AppId,
-                                achievement.PlayniteGameId))
-                            .Where(key => !string.IsNullOrWhiteSpace(key))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Count(),
-                        GamesWithUnlocksCount = unlocked
-                            .Select(achievement => FriendOverviewProjection.BuildGameUnlockKey(
-                                achievement.ProviderKey,
-                                achievement.ProviderGameKey,
-                                achievement.AppId,
-                                achievement.PlayniteGameId))
-                            .Where(key => !string.IsNullOrWhiteSpace(key))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Count(),
-                        UnlockedAchievementsCount = unlocked.Count,
-                        RecentUnlockCount = unlocked.Count(achievement => achievement.UnlockTimeUtc.HasValue),
-                        LastUnlockUtc = unlocked
-                            .Select(achievement => achievement.UnlockTimeUtc)
-                            .Where(value => value.HasValue)
-                            .DefaultIfEmpty()
-                            .Max()
-                    };
-                })
-                .OrderByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
-                .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
 
