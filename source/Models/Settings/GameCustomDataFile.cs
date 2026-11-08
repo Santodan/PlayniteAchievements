@@ -335,6 +335,22 @@ namespace PlayniteAchievements.Models.Settings
             };
         }
 
+        /// <summary>
+        /// A schema-7 map for the portable package: a copy of the record's own map when it still
+        /// carries one (not yet normalized), else projected from <see cref="AchievementOverrides"/>,
+        /// which normalized records hold alone. Packages keep the maps for older versions.
+        /// </summary>
+        private Dictionary<string, string> PortableMap(Dictionary<string, string> map, Func<AchievementOverride, string> field)
+        {
+            if (map != null)
+            {
+                return new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+            }
+
+            var projected = AchievementOverride.Project(AchievementOverrides, field);
+            return projected.Count > 0 ? projected : null;
+        }
+
         public GameCustomDataPortableFile ToPortable()
         {
             return new GameCustomDataPortableFile
@@ -351,9 +367,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
-                AchievementCategoryOverrides = AchievementCategoryOverrides != null
-                    ? new Dictionary<string, string>(AchievementCategoryOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
+                AchievementCategoryOverrides = PortableMap(AchievementCategoryOverrides, o => o.Category),
                 AchievementCategoryTypeOverrides = AchievementCategoryTypeOverrides != null
                     ? new Dictionary<string, string>(AchievementCategoryTypeOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
@@ -373,15 +387,9 @@ namespace PlayniteAchievements.Models.Settings
                 GoalAchievementApiNames = GoalAchievementApiNames != null
                     ? new List<string>(GoalAchievementApiNames)
                     : null,
-                AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
-                    ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
-                AchievementLockedIconOverrides = AchievementLockedIconOverrides != null
-                    ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
-                AchievementNotes = AchievementNotes != null
-                    ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                    : null,
+                AchievementUnlockedIconOverrides = PortableMap(AchievementUnlockedIconOverrides, o => o.UnlockedIconPath),
+                AchievementLockedIconOverrides = PortableMap(AchievementLockedIconOverrides, o => o.LockedIconPath),
+                AchievementNotes = PortableMap(AchievementNotes, o => o.Note),
                 AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
