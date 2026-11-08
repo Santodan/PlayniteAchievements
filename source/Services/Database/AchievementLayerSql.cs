@@ -74,11 +74,16 @@ namespace PlayniteAchievements.Services.Database
                 UseSeparateLockedIcons INTEGER NOT NULL DEFAULT 0
             );";
 
-        /// <summary>The kind the user set per category path; "None" says the category has none.</summary>
-        public const string CreateCategoryKindsTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCategoryKinds (
+        /// <summary>
+        /// The user's settings per category path: its kind ("None" says it has none), its position in
+        /// the custom category order and its custom art.
+        /// </summary>
+        public const string CreateCategoriesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCategories (
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 Category TEXT NOT NULL COLLATE NOCASE,
-                Kind TEXT NOT NULL,
+                Kind TEXT NULL,
+                SortIndex INTEGER NULL,
+                ImagePath TEXT NULL,
                 PRIMARY KEY (PlayniteGameId, Category)
             );";
 
@@ -145,7 +150,9 @@ namespace PlayniteAchievements.Services.Database
                 c.Note AS Note,
                 c.GoalOrder IS NOT NULL AS IsGoal,
                 c.GoalOrder AS GoalOrder,
-                c.CustomOrder AS CustomOrder";
+                c.CustomOrder AS CustomOrder,
+                " + CategoryValue("SortIndex", "g.PlayniteGameId", ResolvedCategory) + @" AS CategoryOrder,
+                " + CategoryValue("ImagePath", "g.PlayniteGameId", ResolvedCategory) + @" AS CategoryArtPath";
 
         private static string RawLayerColumns() => @"                ad.DisplayName AS P_DisplayName,
                 ad.Description AS P_Description,
@@ -175,9 +182,13 @@ namespace PlayniteAchievements.Services.Database
             "cap.FramedPath AS FramedCapturePath, cap.VideoPath AS VideoCapturePath";
 
         /// <summary>The kind the user stored for the achievement's resolved category, if any.</summary>
-        private static string StoredKind =>
-            "(SELECT k.Kind FROM AchievementCategoryKinds k WHERE k.PlayniteGameId = g.PlayniteGameId AND k.Category = " +
-            "COALESCE(" + Value("Category", AchievementField.Category, custom: true) + ", 'Default'))";
+        private static string StoredKind => CategoryValue("Kind", "g.PlayniteGameId", ResolvedCategory);
+
+        private static string ResolvedCategory => "COALESCE(" + Value("Category", AchievementField.Category, custom: true) + ", 'Default')";
+
+        /// <summary>A column of the user's settings for the given game and category.</summary>
+        private static string CategoryValue(string column, string gameId, string category) =>
+            "(SELECT k." + column + " FROM AchievementCategories k WHERE k.PlayniteGameId = " + gameId + " AND k.Category = " + category + ")";
 
         /// <summary>The public view's columns, in order; the user view's two halves list them alike.</summary>
         private static readonly string[] PublicColumnNames =
@@ -185,7 +196,7 @@ namespace PlayniteAchievements.Services.Database
             "Id", "GameId", "ApiName", "DisplayName", "Description", "UnlockedIconPath", "LockedIconPath", "Points",
             "ScaledPoints", "Category", "ProviderCategory", "Tags", "CategoryKind", "TrophyType", "Hidden", "IsCapstone",
             "GlobalPercentUnlocked", "Rarity", "ProgressMax", "MetadataOrder", "CreatedUtc", "UpdatedUtc", "IsFiltered",
-            "IsSummaryFiltered", "Note", "IsGoal", "GoalOrder", "CustomOrder"
+            "IsSummaryFiltered", "Note", "IsGoal", "GoalOrder", "CustomOrder", "CategoryOrder", "CategoryArtPath"
         };
 
         /// <summary>How an authored achievement's mirror row fills each public column.</summary>
@@ -200,12 +211,15 @@ namespace PlayniteAchievements.Services.Database
             ["ProgressMax"] = "a.ProgressDenom",
             ["MetadataOrder"] = "NULL",
             ["CreatedUtc"] = "NULL",
-            ["IsGoal"] = "a.GoalOrder IS NOT NULL"
+            ["IsGoal"] = "a.GoalOrder IS NOT NULL",
+            ["CategoryOrder"] = CategoryValue("SortIndex", "a.PlayniteGameId", "COALESCE(a.Category, 'Default')"),
+            ["CategoryArtPath"] = CategoryValue("ImagePath", "a.PlayniteGameId", "COALESCE(a.Category, 'Default')")
         };
 
         /// <summary>
         /// The current user's achievements: each definition of a game the user has, with unlock
-        /// state and the user's unlock time, plus the achievements the user authored.
+        /// state and the user's unlock time, plus the achievements the user authored, numbered in
+        /// the order the plugin lists them (DisplayOrder).
         /// </summary>
         private static string UserViewSql()
         {
@@ -213,7 +227,10 @@ namespace PlayniteAchievements.Services.Database
             var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
             var authored = string.Join(",\n                ", PublicColumnNames.Select(name =>
                 (AuthoredColumns.TryGetValue(name, out var expression) ? expression : "a." + name) + " AS " + name));
-            return "CREATE VIEW " + UserViewName + @" AS SELECT
+            return "CREATE VIEW " + UserViewName + @" AS SELECT u.*,
+                ROW_NUMBER() OVER (PARTITION BY u.PlayniteGameId ORDER BY u.CustomOrder IS NULL, u.CustomOrder,
+                    u.MetadataOrder IS NULL, u.MetadataOrder, u.IsAuthored, u.Id, u.ApiName) - 1 AS DisplayOrder
+              FROM (SELECT
                 " + platform + @",
                 g.PlayniteGameId AS PlayniteGameId,
                 g.GameName AS GameName,
@@ -250,7 +267,7 @@ namespace PlayniteAchievements.Services.Database
               FROM AchievementOverrides a
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
-              WHERE a.IsAuthored = 1;";
+              WHERE a.IsAuthored = 1) u;";
         }
 
         private static string IsCleared(AchievementField field, string layer = "m") =>
