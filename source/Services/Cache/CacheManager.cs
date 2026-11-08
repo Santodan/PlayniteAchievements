@@ -842,6 +842,22 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        /// <summary>
+        /// Drops every game held in memory, whose icon paths name the old icon cache folder, and
+        /// tells every surface to reload. Called once the icon cache has moved.
+        /// </summary>
+        public void ResetMemoryForIconCacheMove()
+        {
+            lock (_sync)
+            {
+                ClearMemoryState_Locked();
+            }
+
+            RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+            RaiseCacheInvalidatedEvent();
+            RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
+        }
+
         public bool CacheFileExists() => CoreArtifactsPresent();
 
         public bool IsCacheValid()
