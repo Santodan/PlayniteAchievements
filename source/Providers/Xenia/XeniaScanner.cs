@@ -18,6 +18,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
@@ -131,7 +132,7 @@ namespace PlayniteAchievements.Providers.Xenia
                     .FirstOrDefault(title => !string.IsNullOrEmpty(title));
 
                 // Write icon data to icon cache; the first file carrying an icon id wins
-                var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{game.Id}\\";
+                var iconDirectory = Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), game.Id.ToString()) + Path.DirectorySeparatorChar;
                 Directory.CreateDirectory(iconDirectory);
                 var writtenIconIds = new HashSet<int>();
                 foreach (var icon in gpdFiles.SelectMany(file => file.IconData))
