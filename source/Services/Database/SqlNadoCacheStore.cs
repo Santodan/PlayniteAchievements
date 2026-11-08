@@ -350,6 +350,7 @@ namespace PlayniteAchievements.Services.Database
             public long IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }
+            public string Note { get; set; }
             public string UnlockTimeUtc { get; set; }
             public long? Unlocked { get; set; }
             public long? MyUnlocked { get; set; }
@@ -5133,6 +5134,7 @@ namespace PlayniteAchievements.Services.Database
                     ad.IsCapstone AS IsCapstone,
                     ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                     ad.Rarity AS Rarity,
+                    ad.Note AS Note,
                     ua.UnlockTimeUtc AS UnlockTimeUtc,
                     COALESCE(ua.Unlocked, 0) AS Unlocked,
                     COALESCE(cu.Unlocked, 0) AS MyUnlocked,
@@ -5292,6 +5294,7 @@ namespace PlayniteAchievements.Services.Database
                     IsCapstone = row.IsCapstone != 0,
                     GlobalPercentUnlocked = row.GlobalPercentUnlocked,
                     Rarity = ParseStoredRarity(row.Rarity),
+                    AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),
                     UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
                     Unlocked = row.Unlocked.GetValueOrDefault() != 0,
                     UnlockedBySelf = row.MyUnlocked.GetValueOrDefault() != 0,
@@ -5315,7 +5318,6 @@ namespace PlayniteAchievements.Services.Database
                 };
 
                 var customData = ResolveFriendAchievementCustomData(playniteGameId, customDataByGameId);
-                ApplyCustomDataToFriendAchievement(item, customData);
                 // Category rollups render the shared CategoryArtPath; the display-path
                 // properties fall back to the game images when no category art exists.
                 AchievementDisplayItem.ApplyCategoryPresentation(
@@ -5358,38 +5360,6 @@ namespace PlayniteAchievements.Services.Database
             }
 
             return customData;
-        }
-
-        private static void ApplyCustomDataToFriendAchievement(
-            FriendAchievementDisplayItem item,
-            ResolvedGameCustomData customData)
-        {
-            if (item == null || customData == null)
-            {
-                return;
-            }
-
-            var apiName = NormalizeDbText(item.ApiName);
-            if (string.IsNullOrWhiteSpace(apiName))
-            {
-                return;
-            }
-
-            // The stored set replaces the provider seed outright once the user has edited it.
-            if (customData.CapstonesMaterialized)
-            {
-                item.IsCapstone = customData.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
-            }
-
-            // The row reads the resolved view, which already carries the user's category and tags.
-            PlayniteAchievements.Models.Settings.AchievementOverride userOverride = null;
-            customData.AchievementOverrides?.TryGetValue(apiName, out userOverride);
-
-            item.CategoryKind = CategoryKindHelper.ResolveEffective(
-                customData.GetStoredCategoryKind(item.CategoryLabel),
-                item.CategoryKind);
-
-            item.AchievementNote = string.IsNullOrWhiteSpace(userOverride?.Note) ? null : userOverride.Note.Trim();
         }
 
         private static string NormalizeMatchText(string value)
