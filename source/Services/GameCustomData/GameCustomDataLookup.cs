@@ -421,22 +421,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             return new CapstoneSet(false, new List<CapstoneAssignment>());
         }
 
-        public static List<string> GetAchievementOrder(
-            Guid gameId,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementOrder;
-        }
-
-        public static List<string> GetGoalAchievements(
-            Guid gameId,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).GoalAchievementApiNames;
-        }
-
         public static Dictionary<string, string> GetAchievementCategoryOverrides(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
@@ -635,14 +619,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             return ResolveGameCustomData(gameId, fallbackSettings, store).SummaryFilteredAchievementApiNames;
         }
 
-        public static Dictionary<string, string> GetAchievementNotes(
-            Guid gameId,
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            return ResolveGameCustomData(gameId, fallbackSettings, store).Project(o => o.Note);
-        }
-
         public static List<CustomAchievementDefinition> GetCustomAchievements(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
@@ -677,7 +653,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 return null;
             }
 
-            var notes = GetAchievementNotes(gameId, fallbackSettings, store);
+            var notes = ResolveGameCustomData(gameId, fallbackSettings, store).Project(o => o.Note);
             return notes != null && notes.TryGetValue(normalizedApiName, out var note)
                 ? note
                 : null;
