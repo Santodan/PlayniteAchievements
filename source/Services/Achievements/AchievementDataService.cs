@@ -21,8 +21,6 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private static readonly IReadOnlyDictionary<string, string> EmptyIconOverrides =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<string, string> EmptyStringMap =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> OverviewProjectionAffectingSettings =
             new HashSet<string>(StringComparer.Ordinal)
             {
@@ -30,9 +28,7 @@ namespace PlayniteAchievements.Services.Achievements
                 nameof(PersistedSettings.SeparateLockedIconEnabledGameIds),
                 nameof(PersistedSettings.ExcludedFromSummariesGameIds),
                 nameof(PersistedSettings.IncludeHiddenGamesInSummaries),
-                nameof(PersistedSettings.ManualCapstones),
-                nameof(PersistedSettings.AchievementCategoryOverrides),
-                nameof(PersistedSettings.AchievementCategoryTypeOverrides)
+                nameof(PersistedSettings.ManualCapstones)
             };
 
         private sealed class SummaryCustomizationData
@@ -657,10 +653,10 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         private HashSet<string> EditedCapstones(Guid gameId, GameCustomDataFile customData)
         {
-            var capstones = customData != null
-                ? (customData.CapstonesMaterialized ? customData.Capstones ?? new List<CapstoneAssignment>() : null)
-                : ResolveFallbackCapstones(gameId);
-            if (capstones == null || (customData == null && capstones.Count == 0))
+            var capstones = customData != null && customData.CapstonesMaterialized
+                ? customData.Capstones ?? new List<CapstoneAssignment>()
+                : null;
+            if (capstones == null)
             {
                 return null;
             }
@@ -770,10 +766,10 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     Resolved = resolved,
                     UnlockedIconOverrides = includeIconOverrides
-                        ? CloneStringMap(customData?.AchievementUnlockedIconOverrides)
+                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.UnlockedIconPath)
                         : EmptyIconOverrides,
                     LockedIconOverrides = includeIconOverrides
-                        ? CloneStringMap(customData?.AchievementLockedIconOverrides)
+                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.LockedIconPath)
                         : EmptyIconOverrides
                 };
             }
@@ -909,69 +905,9 @@ namespace PlayniteAchievements.Services.Achievements
                 return ResolvedGameCustomData.Empty;
             }
 
-            var hasCustomData = customData != null;
-            var useSeparateLockedIconsDefault = Persisted?.UseSeparateLockedIconsWhenAvailable == true;
-            return new ResolvedGameCustomData
-            {
-                ExcludedFromRefreshes = hasCustomData
-                    ? customData.ExcludedFromRefreshes == true
-                    : Persisted?.ExcludedGameIds?.Contains(gameId) == true,
-                ExcludedFromSummaries = hasCustomData
-                    ? customData.ExcludedFromSummaries == true
-                    : Persisted?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
-                // Same as GameCustomDataLookup: a manual link owns unlock times, so the override
-                // applier must skip its unlock-time fields here exactly as the per-game path does.
-                HasManualLink = hasCustomData && customData.ManualLink != null,
-                UseSeparateLockedIcons = useSeparateLockedIconsDefault ||
-                    (hasCustomData
-                        ? customData.UseSeparateLockedIconsOverride == true
-                        : Persisted?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                CapstonesMaterialized = hasCustomData
-                    ? customData.CapstonesMaterialized
-                    : ResolveFallbackCapstones(gameId).Count > 0,
-                Capstones = hasCustomData
-                    ? customData.Capstones ?? new List<CapstoneAssignment>()
-                    : ResolveFallbackCapstones(gameId),
-                AchievementCategoryOverrides = hasCustomData
-                    ? CloneStringMap(customData.AchievementCategoryOverrides)
-                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryOverrides, gameId),
-                AchievementCategoryTypeOverrides = hasCustomData
-                    ? CloneStringMap(customData.AchievementCategoryTypeOverrides)
-                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryTypeOverrides, gameId),
-                AchievementCategoryOrder = hasCustomData
-                    ? CloneCategoryOrder(customData.AchievementCategoryOrder)
-                    : new List<string>(),
-                AchievementCategoryImageOverrides = hasCustomData
-                    ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
-                AchievementNotes = hasCustomData
-                    ? CloneNoteMap(customData.AchievementNotes)
-                    : EmptyStringMap,
-                AchievementOverrides = hasCustomData
-                    ? GameCustomDataFile.CloneAchievementOverrideMap(customData.AchievementOverrides) ??
-                        new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
-            };
-        }
-
-        /// <summary>
-        /// The pre-per-game-file capstone as a materialized single game-wide set, which is what it
-        /// always behaved as: it suppressed every provider capstone.
-        /// </summary>
-        private List<CapstoneAssignment> ResolveFallbackCapstones(Guid gameId)
-        {
-            var capstones = new List<CapstoneAssignment>();
-            if (Persisted?.ManualCapstones != null &&
-                Persisted.ManualCapstones.TryGetValue(gameId, out var legacy))
-            {
-                var apiName = NormalizeText(legacy);
-                if (!string.IsNullOrWhiteSpace(apiName))
-                {
-                    capstones.Add(new CapstoneAssignment { ApiName = apiName });
-                }
-            }
-
-            return capstones;
+            return customData != null
+                ? GameCustomDataLookup.BuildResolvedFromRecord(customData, Persisted)
+                : new ResolvedGameCustomData { UseSeparateLockedIcons = Persisted?.UseSeparateLockedIconsWhenAvailable == true };
         }
 
         /// <summary>
@@ -1017,41 +953,6 @@ namespace PlayniteAchievements.Services.Achievements
             return (scoped, excluded);
         }
 
-        private static Dictionary<string, string> ResolveFallbackOverrides(
-            IReadOnlyDictionary<Guid, Dictionary<string, string>> mapByGameId,
-            Guid gameId)
-        {
-            if (mapByGameId == null || !mapByGameId.TryGetValue(gameId, out var overrides))
-            {
-                return EmptyStringMap;
-            }
-
-            return CloneStringMap(overrides);
-        }
-
-        private static Dictionary<string, string> CloneStringMap(IReadOnlyDictionary<string, string> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return EmptyStringMap;
-            }
-
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = NormalizeText(pair.Key);
-                var value = NormalizeText(pair.Value);
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
-                {
-                    continue;
-                }
-
-                map[key] = value;
-            }
-
-            return map.Count == 0 ? EmptyStringMap : map;
-        }
-
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
@@ -1093,29 +994,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return map;
-        }
-
-        private static Dictionary<string, string> CloneNoteMap(IReadOnlyDictionary<string, string> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return EmptyStringMap;
-            }
-
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = NormalizeText(pair.Key);
-                var value = AchievementNoteHelper.NormalizeNote(pair.Value);
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
-                {
-                    continue;
-                }
-
-                map[key] = value;
-            }
-
-            return map.Count == 0 ? EmptyStringMap : map;
         }
 
         private List<GameAchievementData> ExcludeSummaryGames(List<GameAchievementData> allData)
@@ -1633,7 +1511,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         private static AchievementOverride ResolveSummaryOverride(ResolvedGameCustomData resolved, string apiName)
         {
-            var overrides = resolved?.ResolveAchievementOverrides();
+            var overrides = resolved?.AchievementOverrides;
             if (overrides == null || overrides.Count == 0)
             {
                 return null;
