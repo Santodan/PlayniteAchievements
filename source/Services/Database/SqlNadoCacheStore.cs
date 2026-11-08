@@ -4912,104 +4912,43 @@ namespace PlayniteAchievements.Services.Database
             return db.Load<FriendSummaryRow>(sql.ToString(), args.ToArray()).ToList();
         }
 
-        private static List<FriendGameSummaryRow> LoadFriendGameSummaryRows(SQLiteDatabase db)
+        // Per-game friend stats are pre-aggregated once (grouped by GameId) across the source
+        // CTEs and joined back to the game rows. Without a game id, ownership is the driving
+        // set, so only games a friend owns appear. With one, the matching game rows drive the
+        // query and a game appears when any friend owns it, has unlocks in it, or it has
+        // definitions. COALESCE on the ownership columns only matters for the per-game shape;
+        // the all-games INNER JOIN never yields NULL there.
+        private static List<FriendGameSummaryRow> LoadFriendGameSummaryRows(
+            SQLiteDatabase db,
+            Guid? playniteGameId = null)
         {
-            // Per-game friend stats are pre-aggregated once (grouped by GameId) across three
-            // source CTEs and joined back to the game rows, replacing the previous eleven
-            // correlated subqueries per game. Ownership is the driving set, so only games a
-            // friend owns appear (matching the previous EXISTS filter).
-            return db.Load<FriendGameSummaryRow>(
-                @"WITH ownership AS (
-                    SELECT fo.GameId AS GameId,
-                           COUNT(DISTINCT u.Id) AS FriendCount,
-                           COALESCE(SUM(fo.PlaytimeForeverMinutes), 0) AS TotalPlaytimeMinutes,
-                           COALESCE(AVG(fo.PlaytimeForeverMinutes), 0) AS AveragePlaytimeMinutes,
-                           MAX(fo.LastPlayedUtc) AS LastPlayedUtc,
-                           MAX(fo.LastScrapedUtc) AS LastScrapedUtc
-                    FROM FriendOwnership fo
-                    INNER JOIN Users u ON u.Id = fo.UserId
-                    WHERE " + ActiveFriendPredicateSql + @"
-                    GROUP BY fo.GameId
-                ),
-                unlocks AS (
-                    SELECT ugp.GameId AS GameId,
-                           COUNT(DISTINCT u.Id) AS FriendsWithUnlocksCount,
-                           COUNT(ua.Id) AS UnlockedAchievementsCount,
-                           COUNT(DISTINCT ua.AchievementDefinitionId) AS UniqueUnlockedAchievementsCount,
-                           MAX(ua.UnlockTimeUtc) AS LastUnlockUtc
-                    FROM Users u
-                    INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
-                    INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
-                    WHERE " + ActiveFriendPredicateSql + @"
-                    GROUP BY ugp.GameId
-                ),
-                totals AS (
-                    SELECT ad.GameId AS GameId, COUNT(*) AS TotalAchievements
-                    FROM PlatformDefinitions ad
-                    GROUP BY ad.GameId
-                ),
-                scrapeStatus AS (
-                    SELECT GameId, LastScrapeStatus
-                    FROM (
-                        SELECT fo.GameId AS GameId,
-                               fo.LastScrapeStatus AS LastScrapeStatus,
-                               ROW_NUMBER() OVER (PARTITION BY fo.GameId ORDER BY fo.LastScrapedUtc DESC) AS rn
-                        FROM FriendOwnership fo
-                        INNER JOIN Users u ON u.Id = fo.UserId
-                        WHERE " + ActiveFriendPredicateSql + @"
-                          AND fo.LastScrapeStatus IS NOT NULL
-                    )
-                    WHERE rn = 1
-                )
-                SELECT
-                    g.ProviderKey AS ProviderKey,
-                    g.ProviderPlatformKey AS ProviderPlatformKey,
-                    g.ProviderGameId AS ProviderGameId,
-                    g.ProviderGameKey AS ProviderGameKey,
-                    g.PlayniteGameId AS PlayniteGameId,
-                    g.GameName AS GameName,
-                    o.FriendCount AS FriendCount,
-                    COALESCE(un.FriendsWithUnlocksCount, 0) AS FriendsWithUnlocksCount,
-                    COALESCE(un.UnlockedAchievementsCount, 0) AS UnlockedAchievementsCount,
-                    COALESCE(un.UniqueUnlockedAchievementsCount, 0) AS UniqueUnlockedAchievementsCount,
-                    COALESCE(t.TotalAchievements, 0) AS TotalAchievements,
-                    un.LastUnlockUtc AS LastUnlockUtc,
-                    o.TotalPlaytimeMinutes AS TotalPlaytimeMinutes,
-                    o.AveragePlaytimeMinutes AS AveragePlaytimeMinutes,
-                    o.LastPlayedUtc AS LastPlayedUtc,
-                    o.LastScrapedUtc AS LastScrapedUtc,
-                    ss.LastScrapeStatus AS LastScrapeStatus,
-                    g.IconPath AS IconPath,
-                    g.CoverPath AS CoverPath
-                  FROM Games g
-                  INNER JOIN ownership o ON o.GameId = g.Id
-                  LEFT JOIN unlocks un ON un.GameId = g.Id
-                  LEFT JOIN totals t ON t.GameId = g.Id
-                  LEFT JOIN scrapeStatus ss ON ss.GameId = g.Id
-                  ORDER BY un.LastUnlockUtc DESC, g.GameName;").ToList();
-        }
+            var filterByGame = playniteGameId.HasValue;
+            string JoinTarget(string gameIdColumn) => filterByGame
+                ? @"
+                    INNER JOIN target_games tg ON tg.Id = " + gameIdColumn
+                : string.Empty;
 
-        private static List<FriendGameSummaryRow> LoadFriendGameSummaryRows(SQLiteDatabase db, Guid playniteGameId)
-        {
-            var playniteGameIdText = playniteGameId.ToString("D");
-
-            return db.Load<FriendGameSummaryRow>(
-                @"WITH target_games AS (
+            var sql = new StringBuilder("WITH ");
+            if (filterByGame)
+            {
+                sql.Append(@"target_games AS (
                     SELECT Id
                     FROM Games
                     WHERE PlayniteGameId IS NOT NULL
                       AND TRIM(PlayniteGameId) <> ''
                       AND LOWER(PlayniteGameId) = LOWER(?)
                 ),
-                ownership AS (
+                ");
+            }
+
+            sql.Append(@"ownership AS (
                     SELECT fo.GameId AS GameId,
                            COUNT(DISTINCT u.Id) AS FriendCount,
                            COALESCE(SUM(fo.PlaytimeForeverMinutes), 0) AS TotalPlaytimeMinutes,
                            COALESCE(AVG(fo.PlaytimeForeverMinutes), 0) AS AveragePlaytimeMinutes,
                            MAX(fo.LastPlayedUtc) AS LastPlayedUtc,
                            MAX(fo.LastScrapedUtc) AS LastScrapedUtc
-                    FROM FriendOwnership fo
-                    INNER JOIN target_games tg ON tg.Id = fo.GameId
+                    FROM FriendOwnership fo" + JoinTarget("fo.GameId") + @"
                     INNER JOIN Users u ON u.Id = fo.UserId
                     WHERE " + ActiveFriendPredicateSql + @"
                     GROUP BY fo.GameId
@@ -5021,16 +4960,14 @@ namespace PlayniteAchievements.Services.Database
                            COUNT(DISTINCT ua.AchievementDefinitionId) AS UniqueUnlockedAchievementsCount,
                            MAX(ua.UnlockTimeUtc) AS LastUnlockUtc
                     FROM Users u
-                    INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id
-                    INNER JOIN target_games tg ON tg.Id = ugp.GameId
+                    INNER JOIN UserGameProgress ugp ON ugp.UserId = u.Id" + JoinTarget("ugp.GameId") + @"
                     INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
                     WHERE " + ActiveFriendPredicateSql + @"
                     GROUP BY ugp.GameId
                 ),
                 totals AS (
                     SELECT ad.GameId AS GameId, COUNT(*) AS TotalAchievements
-                    FROM PlatformDefinitions ad
-                    INNER JOIN target_games tg ON tg.Id = ad.GameId
+                    FROM PlatformDefinitions ad" + JoinTarget("ad.GameId") + @"
                     GROUP BY ad.GameId
                 ),
                 scrapeStatus AS (
@@ -5039,8 +4976,7 @@ namespace PlayniteAchievements.Services.Database
                         SELECT fo.GameId AS GameId,
                                fo.LastScrapeStatus AS LastScrapeStatus,
                                ROW_NUMBER() OVER (PARTITION BY fo.GameId ORDER BY fo.LastScrapedUtc DESC) AS rn
-                        FROM FriendOwnership fo
-                        INNER JOIN target_games tg ON tg.Id = fo.GameId
+                        FROM FriendOwnership fo" + JoinTarget("fo.GameId") + @"
                         INNER JOIN Users u ON u.Id = fo.UserId
                         WHERE " + ActiveFriendPredicateSql + @"
                           AND fo.LastScrapeStatus IS NOT NULL
@@ -5067,15 +5003,32 @@ namespace PlayniteAchievements.Services.Database
                     ss.LastScrapeStatus AS LastScrapeStatus,
                     g.IconPath AS IconPath,
                     g.CoverPath AS CoverPath
-                  FROM Games g
+                  FROM Games g");
+
+            sql.Append(filterByGame
+                ? @"
                   INNER JOIN target_games tg ON tg.Id = g.Id
-                  LEFT JOIN ownership o ON o.GameId = g.Id
+                  LEFT JOIN ownership o ON o.GameId = g.Id"
+                : @"
+                  INNER JOIN ownership o ON o.GameId = g.Id");
+
+            sql.Append(@"
                   LEFT JOIN unlocks un ON un.GameId = g.Id
                   LEFT JOIN totals t ON t.GameId = g.Id
-                  LEFT JOIN scrapeStatus ss ON ss.GameId = g.Id
-                  WHERE o.GameId IS NOT NULL OR un.GameId IS NOT NULL OR t.GameId IS NOT NULL
-                  ORDER BY un.LastUnlockUtc DESC, g.GameName;",
-                playniteGameIdText).ToList();
+                  LEFT JOIN scrapeStatus ss ON ss.GameId = g.Id");
+
+            if (filterByGame)
+            {
+                sql.Append(@"
+                  WHERE o.GameId IS NOT NULL OR un.GameId IS NOT NULL OR t.GameId IS NOT NULL");
+            }
+
+            sql.Append(@"
+                  ORDER BY un.LastUnlockUtc DESC, g.GameName;");
+
+            return filterByGame
+                ? db.Load<FriendGameSummaryRow>(sql.ToString(), playniteGameId.Value.ToString("D")).ToList()
+                : db.Load<FriendGameSummaryRow>(sql.ToString()).ToList();
         }
 
         private static List<FriendGameLinkRow> LoadFriendGameLinkRows(SQLiteDatabase db, Guid? playniteGameId = null)
