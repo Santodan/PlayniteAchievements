@@ -1508,7 +1508,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             };
         }
 
-        /// <summary>Keys trimmed and blank keys dropped; "" stays as a row paired with nothing.</summary>
+        /// <summary>Keys trimmed and blank keys dropped; "" stays as an achievement paired with no row.</summary>
         private static Dictionary<string, string> NormalizeLinkedFilePairings(Dictionary<string, string> pairings)
         {
             if (pairings == null || pairings.Count == 0)
