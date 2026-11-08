@@ -89,6 +89,33 @@ namespace PlayniteAchievements.Models.Settings
         public bool? Hidden { get; set; }
 
         /// <summary>
+        /// The custom layer this record supplies: its text, points, trophy type, category, tags and
+        /// hidden flag, with each Clear flag read as a cleared field. A value wins over its Clear
+        /// flag, except for tags, where ClearTags removes every assigned tag. Icons and unlock time
+        /// are applied apart from the layers.
+        /// </summary>
+        public PlayniteAchievements.Models.Achievements.AchievementLayerValues ToLayer()
+        {
+            var cleared = PlayniteAchievements.Models.Achievements.AchievementField.None;
+            if (ClearDescription) cleared |= PlayniteAchievements.Models.Achievements.AchievementField.Description;
+            if (ClearTrophyType) cleared |= PlayniteAchievements.Models.Achievements.AchievementField.TrophyType;
+            if (ClearTags || (Tags != null && string.IsNullOrWhiteSpace(Tags)))
+            {
+                cleared |= PlayniteAchievements.Models.Achievements.AchievementField.Tags;
+            }
+
+            return new PlayniteAchievements.Models.Achievements.AchievementLayerValues(
+                displayName: DisplayName,
+                description: Description,
+                points: Points,
+                trophyType: TrophyType,
+                category: Category,
+                tags: ClearTags ? null : Tags,
+                hidden: Hidden,
+                cleared: cleared);
+        }
+
+        /// <summary>
         /// One field of each record, keyed by ApiName, leaving out records with no value for it.
         /// </summary>
         public static Dictionary<string, string> Project(
