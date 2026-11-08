@@ -1,5 +1,8 @@
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.ManageAchievements;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.ViewModels.Items
@@ -78,18 +81,47 @@ namespace PlayniteAchievements.ViewModels.Items
     }
 
     /// <summary>
-    /// One preview row: its cells by column index, and what the row pairs with, so the preview
-    /// shows the match beside the file's own columns.
+    /// What a preview row's pairing dropdown offers and where a pick goes: the game's
+    /// achievements, the Automatic and None choices, and the window's handler for a pick
+    /// (row key, then the achievement's API name, "" for none, or null for automatic).
     /// </summary>
-    public sealed class LinkedFilePreviewRow
+    public sealed class LinkedFilePairingContext
+    {
+        public LinkedFilePairingContext(MatchOption automatic, MatchOption none, Action<string, string> pair)
+        {
+            Automatic = automatic;
+            None = none;
+            Pair = pair;
+        }
+
+        public MatchOption Automatic { get; }
+
+        public MatchOption None { get; }
+
+        public Action<string, string> Pair { get; }
+
+        public IReadOnlyList<MatchOption> Achievements { get; set; } = Array.Empty<MatchOption>();
+    }
+
+    /// <summary>
+    /// One preview row: its cells by column index, and what the row pairs with, so the preview
+    /// shows the match beside the file's own columns. Once a match ran, the match cell is a
+    /// dropdown that pairs the row with an achievement by hand.
+    /// </summary>
+    public sealed class LinkedFilePreviewRow : MatchPickerItem
     {
         private readonly string[] _cells;
+        private string _match;
+        private bool _isMatched;
+        private bool _isUserSet;
+        private string _rowKey;
+        private LinkedFilePairingContext _pairing;
 
         public LinkedFilePreviewRow(string[] cells, string match, bool isMatched)
         {
             _cells = cells ?? Array.Empty<string>();
-            Match = match;
-            IsMatched = isMatched;
+            _match = match;
+            _isMatched = isMatched;
         }
 
         public string this[int index] => index >= 0 && index < _cells.Length ? _cells[index] : string.Empty;
@@ -97,9 +129,80 @@ namespace PlayniteAchievements.ViewModels.Items
         public int Count => _cells.Length;
 
         /// <summary>The achievement the row pairs with, or why it pairs with none.</summary>
-        public string Match { get; }
+        public string Match => _match;
 
-        public bool IsMatched { get; }
+        public bool IsMatched => _isMatched;
+
+        /// <summary>Whether the user paired the row by hand, with an achievement or with none.</summary>
+        public bool IsUserSet => _isUserSet;
+
+        /// <summary>The key the row's hand pairing is stored under.</summary>
+        public string RowKey => _rowKey;
+
+        /// <summary>Whether the row can be paired by hand; not before the file was matched.</summary>
+        public bool CanPick => _pairing != null;
+
+        /// <summary>Sets what the row pairs with, keeping the instance so the grid keeps its place.</summary>
+        internal void SetMatch(string match, bool isMatched, bool isUserSet, string rowKey, LinkedFilePairingContext pairing)
+        {
+            var couldPick = CanPick;
+            _rowKey = rowKey;
+            _pairing = pairing;
+            if (!string.Equals(_match, match, StringComparison.Ordinal))
+            {
+                _match = match;
+                OnPropertyChanged(nameof(Match));
+            }
+
+            if (_isMatched != isMatched)
+            {
+                _isMatched = isMatched;
+                OnPropertyChanged(nameof(IsMatched));
+            }
+
+            if (_isUserSet != isUserSet)
+            {
+                _isUserSet = isUserSet;
+                OnPropertyChanged(nameof(IsUserSet));
+            }
+
+            if (couldPick != CanPick)
+            {
+                OnPropertyChanged(nameof(CanPick));
+            }
+
+            RefreshOptions();
+        }
+
+        /// <summary>Automatic (when the user paired the row), None, then the achievements the search matches.</summary>
+        protected override IReadOnlyList<MatchOption> BuildOptions(string search)
+        {
+            if (_pairing == null)
+            {
+                return Array.Empty<MatchOption>();
+            }
+
+            var options = new List<MatchOption>();
+            if (_isUserSet)
+            {
+                options.Add(_pairing.Automatic);
+            }
+
+            options.Add(_pairing.None);
+            options.AddRange(_pairing.Achievements.Where(achievement => MatchesSearch(achievement, search)));
+            return options;
+        }
+
+        public override void Pick(MatchOption option)
+        {
+            if (option == null || _pairing == null)
+            {
+                return;
+            }
+
+            IsPickerOpen = false;
+            _pairing.Pair?.Invoke(_rowKey, option.Key);
+        }
     }
 
     /// <summary>An achievement the match left unpaired, for the mapping window's list.</summary>
