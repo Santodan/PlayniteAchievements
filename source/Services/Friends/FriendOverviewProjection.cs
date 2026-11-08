@@ -224,39 +224,27 @@ namespace PlayniteAchievements.Services.Friends
                    string.Equals(scopeKey, AllScopeKey, StringComparison.OrdinalIgnoreCase);
         }
 
-        public static string GetFriendScopeKey(FriendSummaryItem friend)
-        {
-            if (!string.IsNullOrWhiteSpace(friend?.MergedFriendId))
-            {
-                return BuildFriendKey(MergedProviderKey, friend.MergedFriendId) ?? AllScopeKey;
-            }
+        public static string GetFriendScopeKey(FriendSummaryItem friend) =>
+            GetFriendScopeKey(friend?.MergedFriendId, friend?.ProviderKey, friend?.ExternalUserId);
 
-            return BuildFriendKey(friend?.ProviderKey, friend?.ExternalUserId) ?? AllScopeKey;
-        }
-
-        public static string GetFriendScopeKey(FriendAchievementDisplayItem achievement)
-        {
-            if (!string.IsNullOrWhiteSpace(achievement?.FriendGroupId))
-            {
-                return BuildFriendKey(MergedProviderKey, achievement.FriendGroupId) ?? AllScopeKey;
-            }
-
-            return BuildFriendKey(achievement?.ProviderKey, achievement?.FriendExternalUserId) ?? AllScopeKey;
-        }
+        public static string GetFriendScopeKey(FriendAchievementDisplayItem achievement) =>
+            GetFriendScopeKey(achievement?.FriendGroupId, achievement?.ProviderKey, achievement?.FriendExternalUserId);
 
         public static string GetGameScopeKey(FriendGameSummaryItem game)
         {
             return BuildGameUnlockKey(game?.ProviderKey, game?.ProviderGameKey, game?.AppId ?? 0, game?.PlayniteGameId) ?? AllScopeKey;
         }
 
-        public static string GetFriendScopeKey(FriendGameLinkItem link)
-        {
-            if (!string.IsNullOrWhiteSpace(link?.FriendGroupId))
-            {
-                return BuildFriendKey(MergedProviderKey, link.FriendGroupId) ?? AllScopeKey;
-            }
+        public static string GetFriendScopeKey(FriendGameLinkItem link) =>
+            GetFriendScopeKey(link?.FriendGroupId, link?.ProviderKey, link?.ExternalUserId);
 
-            return BuildFriendKey(link?.ProviderKey, link?.ExternalUserId) ?? AllScopeKey;
+        // A merged-friend group id wins over the row's own provider identity.
+        private static string GetFriendScopeKey(string groupId, string providerKey, string externalUserId)
+        {
+            return (!string.IsNullOrWhiteSpace(groupId)
+                       ? BuildFriendKey(MergedProviderKey, groupId)
+                       : BuildFriendKey(providerKey, externalUserId)) ??
+                   AllScopeKey;
         }
 
         public static string BuildFriendKey(string providerKey, string externalUserId)
@@ -310,109 +298,70 @@ namespace PlayniteAchievements.Services.Friends
                 : null;
         }
 
-        public static bool IsSameFriend(FriendSummaryItem left, FriendSummaryItem right)
-        {
-            return left != null &&
-                   right != null &&
-                   string.Equals(GetFriendScopeKey(left), GetFriendScopeKey(right), StringComparison.OrdinalIgnoreCase);
-        }
+        public static bool IsSameFriend(FriendSummaryItem left, FriendSummaryItem right) =>
+            left != null && right != null && IsSameFriendKey(GetFriendScopeKey(left), GetFriendScopeKey(right));
 
-        public static bool IsSameFriend(FriendAchievementDisplayItem achievement, FriendSummaryItem friend)
-        {
-            return achievement != null &&
-                   friend != null &&
-                   string.Equals(GetFriendScopeKey(achievement), GetFriendScopeKey(friend), StringComparison.OrdinalIgnoreCase);
-        }
+        public static bool IsSameFriend(FriendAchievementDisplayItem achievement, FriendSummaryItem friend) =>
+            achievement != null && friend != null && IsSameFriendKey(GetFriendScopeKey(achievement), GetFriendScopeKey(friend));
 
-        public static bool IsSameFriend(FriendGameLinkItem link, FriendSummaryItem friend)
-        {
-            return link != null &&
-                   friend != null &&
-                   string.Equals(GetFriendScopeKey(link), GetFriendScopeKey(friend), StringComparison.OrdinalIgnoreCase);
-        }
+        public static bool IsSameFriend(FriendGameLinkItem link, FriendSummaryItem friend) =>
+            link != null && friend != null && IsSameFriendKey(GetFriendScopeKey(link), GetFriendScopeKey(friend));
 
-        public static bool IsSameGame(FriendGameSummaryItem left, FriendGameSummaryItem right)
+        private static bool IsSameFriendKey(string left, string right) =>
+            string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
+        public static bool IsSameGame(FriendGameSummaryItem left, FriendGameSummaryItem right) =>
+            left != null &&
+            right != null &&
+            IsSameGame(
+                left.ProviderKey, left.AppId, left.ProviderGameKey, left.PlayniteGameId,
+                right.ProviderKey, right.AppId, right.ProviderGameKey, right.PlayniteGameId);
+
+        public static bool IsSameGame(FriendAchievementDisplayItem achievement, FriendGameSummaryItem game) =>
+            achievement != null &&
+            game != null &&
+            IsSameGame(
+                achievement.ProviderKey, achievement.AppId, achievement.ProviderGameKey, achievement.PlayniteGameId,
+                game.ProviderKey, game.AppId, game.ProviderGameKey, game.PlayniteGameId);
+
+        public static bool IsSameGame(FriendGameLinkItem link, FriendGameSummaryItem game) =>
+            link != null &&
+            game != null &&
+            IsSameGame(
+                link.ProviderKey, link.AppId, link.ProviderGameKey, link.PlayniteGameId,
+                game.ProviderKey, game.AppId, game.ProviderGameKey, game.PlayniteGameId);
+
+        // Same provider, then the strongest identity both sides carry: app id, provider game
+        // key, then Playnite game id.
+        private static bool IsSameGame(
+            string leftProviderKey,
+            int leftAppId,
+            string leftProviderGameKey,
+            Guid? leftPlayniteGameId,
+            string rightProviderKey,
+            int rightAppId,
+            string rightProviderGameKey,
+            Guid? rightPlayniteGameId)
         {
-            if (left == null || right == null)
+            if (!string.Equals(leftProviderKey, rightProviderKey, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
-            if (!string.Equals(left.ProviderKey, right.ProviderKey, StringComparison.OrdinalIgnoreCase))
+            if (leftAppId > 0 && rightAppId > 0)
             {
-                return false;
+                return leftAppId == rightAppId;
             }
 
-            if (left.AppId > 0 && right.AppId > 0)
+            if (!string.IsNullOrWhiteSpace(leftProviderGameKey) &&
+                !string.IsNullOrWhiteSpace(rightProviderGameKey))
             {
-                return left.AppId == right.AppId;
+                return string.Equals(leftProviderGameKey.Trim(), rightProviderGameKey.Trim(), StringComparison.OrdinalIgnoreCase);
             }
 
-            if (!string.IsNullOrWhiteSpace(left.ProviderGameKey) &&
-                !string.IsNullOrWhiteSpace(right.ProviderGameKey))
-            {
-                return string.Equals(left.ProviderGameKey.Trim(), right.ProviderGameKey.Trim(), StringComparison.OrdinalIgnoreCase);
-            }
-
-            return left.PlayniteGameId.HasValue &&
-                   right.PlayniteGameId.HasValue &&
-                   left.PlayniteGameId.Value == right.PlayniteGameId.Value;
-        }
-
-        public static bool IsSameGame(FriendAchievementDisplayItem achievement, FriendGameSummaryItem game)
-        {
-            if (achievement == null || game == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(achievement.ProviderKey, game.ProviderKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            if (achievement.AppId > 0 && game.AppId > 0)
-            {
-                return achievement.AppId == game.AppId;
-            }
-
-            if (!string.IsNullOrWhiteSpace(achievement.ProviderGameKey) &&
-                !string.IsNullOrWhiteSpace(game.ProviderGameKey))
-            {
-                return string.Equals(achievement.ProviderGameKey.Trim(), game.ProviderGameKey.Trim(), StringComparison.OrdinalIgnoreCase);
-            }
-
-            return achievement.PlayniteGameId.HasValue &&
-                   game.PlayniteGameId.HasValue &&
-                   achievement.PlayniteGameId.Value == game.PlayniteGameId.Value;
-        }
-
-        public static bool IsSameGame(FriendGameLinkItem link, FriendGameSummaryItem game)
-        {
-            if (link == null || game == null)
-            {
-                return false;
-            }
-
-            if (!string.Equals(link.ProviderKey, game.ProviderKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            if (link.AppId > 0 && game.AppId > 0)
-            {
-                return link.AppId == game.AppId;
-            }
-
-            if (!string.IsNullOrWhiteSpace(link.ProviderGameKey) &&
-                !string.IsNullOrWhiteSpace(game.ProviderGameKey))
-            {
-                return string.Equals(link.ProviderGameKey.Trim(), game.ProviderGameKey.Trim(), StringComparison.OrdinalIgnoreCase);
-            }
-
-            return link.PlayniteGameId.HasValue &&
-                   game.PlayniteGameId.HasValue &&
-                   link.PlayniteGameId.Value == game.PlayniteGameId.Value;
+            return leftPlayniteGameId.HasValue &&
+                   rightPlayniteGameId.HasValue &&
+                   leftPlayniteGameId.Value == rightPlayniteGameId.Value;
         }
 
         /// <summary>
@@ -784,16 +733,23 @@ namespace PlayniteAchievements.Services.Friends
         }
 
         private static string GetFriendProviderKey(FriendAchievementDisplayItem achievement) =>
-            string.IsNullOrWhiteSpace(achievement?.FriendGroupId) ? achievement?.ProviderKey : MergedProviderKey;
+            GetFriendProviderKey(achievement?.FriendGroupId, achievement?.ProviderKey);
 
         private static string GetFriendExternalUserId(FriendAchievementDisplayItem achievement) =>
-            string.IsNullOrWhiteSpace(achievement?.FriendGroupId) ? achievement?.FriendExternalUserId : achievement.FriendGroupId;
+            GetFriendExternalUserId(achievement?.FriendGroupId, achievement?.FriendExternalUserId);
 
         private static string GetFriendProviderKey(FriendGameLinkItem link) =>
-            string.IsNullOrWhiteSpace(link?.FriendGroupId) ? link?.ProviderKey : MergedProviderKey;
+            GetFriendProviderKey(link?.FriendGroupId, link?.ProviderKey);
 
         private static string GetFriendExternalUserId(FriendGameLinkItem link) =>
-            string.IsNullOrWhiteSpace(link?.FriendGroupId) ? link?.ExternalUserId : link.FriendGroupId;
+            GetFriendExternalUserId(link?.FriendGroupId, link?.ExternalUserId);
+
+        // A merged-friend group stands in for the row's own provider identity.
+        private static string GetFriendProviderKey(string groupId, string providerKey) =>
+            string.IsNullOrWhiteSpace(groupId) ? providerKey : MergedProviderKey;
+
+        private static string GetFriendExternalUserId(string groupId, string externalUserId) =>
+            string.IsNullOrWhiteSpace(groupId) ? externalUserId : groupId;
 
         private Dictionary<string, List<FriendGameSummaryItem>> BuildSelectedFriendGameSummaries()
         {
