@@ -6650,6 +6650,84 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        private sealed class CaptureRow
+        {
+            public string PlayniteGameId { get; set; }
+            public string ApiName { get; set; }
+            public string CleanPath { get; set; }
+            public string NotificationPath { get; set; }
+            public string FramedPath { get; set; }
+            public string VideoPath { get; set; }
+        }
+
+        /// <summary>Replaces one game's capture index rows; unchanged rows are not written.</summary>
+        public void ReplaceAchievementCaptures(Guid playniteGameId, IReadOnlyList<Captures.CaptureIndexRow> rows)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var idText = playniteGameId.ToString();
+            var desired = (rows ?? new List<Captures.CaptureIndexRow>())
+                .Where(row => !string.IsNullOrWhiteSpace(row?.ApiName))
+                .GroupBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+            WithDb(db =>
+            {
+                var stored = db.Load<CaptureRow>("SELECT * FROM AchievementCaptures WHERE PlayniteGameId = ?;", idText)
+                    .Select(row => new Captures.CaptureIndexRow
+                    {
+                        ApiName = row.ApiName,
+                        CleanPath = row.CleanPath,
+                        NotificationPath = row.NotificationPath,
+                        FramedPath = row.FramedPath,
+                        VideoPath = row.VideoPath
+                    })
+                    .Select(row => row.ToSignature());
+                if (new HashSet<string>(stored, StringComparer.OrdinalIgnoreCase).SetEquals(desired.Select(row => row.ToSignature())))
+                {
+                    return 0;
+                }
+
+                db.RunTransaction(() =>
+                {
+                    db.ExecuteNonQuery("DELETE FROM AchievementCaptures WHERE PlayniteGameId = ?;", idText);
+                    foreach (var row in desired)
+                    {
+                        db.ExecuteNonQuery(
+                            "INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath, NotificationPath, FramedPath, VideoPath) VALUES (?, ?, ?, ?, ?, ?);",
+                            idText,
+                            row.ApiName,
+                            DbValue(row.CleanPath),
+                            DbValue(row.NotificationPath),
+                            DbValue(row.FramedPath),
+                            DbValue(row.VideoPath));
+                    }
+                });
+                return desired.Count;
+            });
+        }
+
+        /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>.</summary>
+        public void RemoveAchievementCapturesExcept(ISet<Guid> keep)
+        {
+            WithDb(db =>
+            {
+                var stale = db.Load<CaptureRow>("SELECT DISTINCT PlayniteGameId FROM AchievementCaptures;")
+                    .Select(row => row.PlayniteGameId)
+                    .Where(id => !Guid.TryParse(id, out var gameId) || keep == null || !keep.Contains(gameId))
+                    .ToList();
+                foreach (var id in stale)
+                {
+                    db.ExecuteNonQuery("DELETE FROM AchievementCaptures WHERE PlayniteGameId = ?;", id);
+                }
+
+                return stale.Count;
+            });
+        }
+
         private sealed class GameCustomStateRow
         {
             public string PlayniteGameId { get; set; }
