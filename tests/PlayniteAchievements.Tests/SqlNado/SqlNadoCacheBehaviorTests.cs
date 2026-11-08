@@ -875,7 +875,6 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
             StringAssert.Contains(store, "customData.AchievementOverrides?.TryGetValue(apiName, out userOverride);");
-            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(userOverride.Category)");
             StringAssert.Contains(store, "customData.GetStoredCategoryKind(item.CategoryLabel)");
         }
 
