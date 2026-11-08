@@ -98,7 +98,6 @@
     <Compile Include="..\..\source\Providers\Steam\SteamAppIds.cs" Link="Source\Providers\Steam\SteamAppIds.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSourceGameSearch.cs" Link="Source\Providers\Manual\ManualSourceGameSearch.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamGameIdentity.cs" Link="Source\Providers\Steam\SteamGameIdentity.cs" />
-    <Compile Include="..\..\source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" Link="Source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamSettings.cs" Link="Source\Providers\Steam\SteamSettings.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamIdHelper.cs" Link="Source\Providers\Steam\Local\SteamIdHelper.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamInstallLocator.cs" Link="Source\Providers\Steam\Local\SteamInstallLocator.cs" />
@@ -413,6 +412,7 @@
     <Compile Include="..\..\source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" Link="Source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGameNameMatcher.cs" Link="Source\Providers\Exophase\ExophaseGameNameMatcher.cs" />
     <Compile Include="..\..\source\Common\StringSimilarity.cs" Link="Source\Common\StringSimilarity.cs" />
+    <Compile Include="..\..\source\Common\StringCoalesce.cs" Link="Source\Common\StringCoalesce.cs" />
     <Compile Include="..\..\source\Common\KeySequenceMatcher.cs" Link="Source\Common\KeySequenceMatcher.cs" />
     <Compile Include="..\..\source\Common\LruCache.cs" Link="Source\Common\LruCache.cs" />
     <Compile Include="..\..\source\Common\GameNameNormalizer.cs" Link="Source\Common\GameNameNormalizer.cs" />
@@ -783,6 +783,7 @@
     <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshCoordinator.cs" Link="Source\Services\Refresh\FriendRefreshCoordinator.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
+    <Compile Include="..\..\source\Services\Refresh\SteamExophaseOwnershipSupplement.cs" Link="Source\Services\Refresh\SteamExophaseOwnershipSupplement.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
     <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
     <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
