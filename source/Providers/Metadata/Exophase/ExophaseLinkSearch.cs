@@ -43,7 +43,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                     string.Join(", ", (entry.Game.Platforms ?? new List<ExophasePlatform>())
                         .Select(platform => platform?.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))),
-                    entry.Game.Region))
+                    entry.Game.GetRegionNames()))
                 .ToList();
         }
 
