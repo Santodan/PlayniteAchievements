@@ -701,10 +701,10 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
 
-            StringAssert.Contains(store, "GameLogo = ResolveFriendGameIconPath(presentation, row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath)");
-            StringAssert.Contains(store, "GameIconPath = ResolveFriendGameIconPath(presentation, row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath)");
+            StringAssert.Contains(store, "GameLogo = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
+            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
         }
 
         [TestMethod]
