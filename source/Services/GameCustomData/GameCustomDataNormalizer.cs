@@ -92,8 +92,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
-            // Schema 8 fold: the parallel maps above become one record per achievement. Both
-            // shapes are then kept in sync, so a writer targeting either is still correct.
+            // Schema 8 fold: the parallel maps above become one record per achievement, and the
+            // maps are dropped. Only portable packages still carry them, for older versions.
             var legacyTypesByCategory = CollectLegacyTypesByCategory(
                 splitLegacyTypes ? normalized.AchievementOverrides : null,
                 normalized.AchievementCategoryOverrides,
@@ -108,12 +108,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.AchievementNotes,
                 normalized.AchievementUnlockedIconOverrides,
                 normalized.AchievementLockedIconOverrides));
-            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryOverrides = null;
             normalized.AchievementCategoryTypeOverrides = null;
             normalized.AchievementCategoryKinds = LegacyCategoryTypes.PromoteKinds(normalized.AchievementCategoryKinds, legacyTypesByCategory);
-            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
-            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
-            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
+            normalized.AchievementNotes = null;
+            normalized.AchievementUnlockedIconOverrides = null;
+            normalized.AchievementLockedIconOverrides = null;
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
