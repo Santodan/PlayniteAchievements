@@ -55,11 +55,11 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static bool HaveIconOverridesChanged(GameCustomDataFile previousData, GameCustomDataFile currentData)
         {
             return !AreStringMapsEqual(
-                       previousData?.AchievementUnlockedIconOverrides,
-                       currentData?.AchievementUnlockedIconOverrides) ||
+                       AchievementOverride.Project(previousData?.AchievementOverrides, o => o.UnlockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.UnlockedIconPath)) ||
                    !AreStringMapsEqual(
-                       previousData?.AchievementLockedIconOverrides,
-                       currentData?.AchievementLockedIconOverrides);
+                       AchievementOverride.Project(previousData?.AchievementOverrides, o => o.LockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.LockedIconPath));
         }
 
         private static bool AreStringMapsEqual(IReadOnlyDictionary<string, string> left, IReadOnlyDictionary<string, string> right)
