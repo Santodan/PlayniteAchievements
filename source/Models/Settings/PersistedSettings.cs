@@ -119,6 +119,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
+        private string _iconCacheDirectory;
         private Dictionary<string, LibraryLink> _libraryLinks =
             new Dictionary<string, LibraryLink>(StringComparer.OrdinalIgnoreCase);
         private ScreenshotResolution _screenshotResolution = ScreenshotResolution.Native;
@@ -1636,6 +1637,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotDirectory;
             set => SetValue(ref _unlockScreenshotDirectory, value);
+        }
+
+        /// <summary>
+        /// The folder holding the icon cache; empty for icon_cache in the plugin data folder. Only
+        /// a move through the Maintenance settings changes it, since the files move with it.
+        /// </summary>
+        public string IconCacheDirectory
+        {
+            get => _iconCacheDirectory;
+            set => SetValue(ref _iconCacheDirectory, value);
         }
 
         /// <summary>
@@ -3429,6 +3440,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                IconCacheDirectory = this.IconCacheDirectory,
                 LibraryLinks = LibraryLink.CloneAll(this.LibraryLinks),
                 ScreenshotResolution = this.ScreenshotResolution,
                 UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
