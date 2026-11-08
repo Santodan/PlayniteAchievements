@@ -923,6 +923,8 @@ namespace PlayniteAchievements
                     _settingsViewModel = new PlayniteAchievementsSettingsViewModel(this);
                 }
 
+                InitializeIconCacheLocation(pluginUserDataPath);
+
                 AchievementRarityResolver.RoundDisplayPercentages =
                     _settingsViewModel?.Settings?.Persisted?.RoundRarityPercentages ?? false;
 
@@ -989,7 +991,7 @@ namespace PlayniteAchievements
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
                 using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                 {
-                    _diskImageService = new DiskImageService(_logger, pluginUserDataPath);
+                    _diskImageService = new DiskImageService(_logger, pluginUserDataPath, location: _iconCacheLocation);
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
@@ -1033,6 +1035,7 @@ namespace PlayniteAchievements
                                 : System.Threading.Tasks.Task.FromResult<IList<AchievementDetail>>(null),
                         usedIcons => _refreshService.IconService.DeleteUnusedMetadataListFolders(usedIcons));
                     _cacheManager = _refreshService.Cache;
+                    InitializeIconCacheRelocation();
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
@@ -1777,6 +1780,9 @@ namespace PlayniteAchievements
 
                 LogStartupBanner();
 
+                // Before anything writes an icon: a move the last session left unfinished ends now.
+                ResumeIconCacheMoveOnStartup();
+
                 // Launch and preload the sound host off the UI thread so the first unlock plays with
                 // no device-open or decode cost; a settings save re-applies the same step.
                 System.Threading.Tasks.Task.Run(() => OnSettingsSavedForUnlockSounds(this, EventArgs.Empty));
@@ -2461,6 +2467,7 @@ namespace PlayniteAchievements
             SettingsSaved -= OnSettingsSavedForUnlockSounds;
             SettingsSaved -= OnSettingsSavedForAutoCapstoneText;
             SettingsSaved -= OnSettingsSavedForAchievementTags;
+            SettingsSaved -= OnSettingsSavedForIconCacheJournal;
             try { _unlockSounds?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockSounds"); }
             try { _captureLibraryService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose captureLibraryService"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
