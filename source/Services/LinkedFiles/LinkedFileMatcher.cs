@@ -24,10 +24,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>Row indexes that matched no achievement, in file order.</summary>
         public List<int> UnmatchedRows { get; } = new List<int>();
 
-        /// <summary>Row indexes the user paired with nothing; they are neither matched nor created.</summary>
-        public List<int> SkippedRows { get; } = new List<int>();
-
-        /// <summary>Achievements no row matched, in the game's order.</summary>
+        /// <summary>Achievements no row matched, in the game's order; not those the user paired with no row.</summary>
         public List<AchievementDetail> UnmatchedAchievements { get; } = new List<AchievementDetail>();
 
         /// <summary>Why a row or achievement was left out, for the log and the mapping window.</summary>
@@ -35,8 +32,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
     }
 
     /// <summary>
-    /// Pairs file rows with achievements. The user's own pairings come first, by row key. Then
-    /// API names match, exactly (a custom achievement
+    /// Pairs file rows with achievements. The user's own pairings come first, by achievement.
+    /// Then API names match, exactly (a custom achievement
     /// also answers to its bare id), then display names by their normalized text, each over the
     /// rows and achievements still unmatched. With neither column mapped, rows pair by order
     /// when the file has no more rows than the game has achievements.
@@ -279,8 +276,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
         }
 
         /// <summary>
-        /// Applies the user's pairings. A key on more than one row pairs only the first; a pairing
-        /// whose achievement is gone, or already paired, leaves the row to automatic matching.
+        /// Applies the user's pairings, by achievement API name: a row key, or "" for an achievement
+        /// that takes no row. A key on more than one row names the first; a pairing whose row is
+        /// gone, or already taken, leaves the achievement to automatic matching.
         /// </summary>
         private static void MatchByPairing(
             LinkedFileTable table,
@@ -291,41 +289,51 @@ namespace PlayniteAchievements.Services.LinkedFiles
             HashSet<AchievementDetail> achievementTaken,
             LinkedFileMatchResult result)
         {
-            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
-            foreach (var achievement in candidates)
+            var pairingByApiName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in pairings)
             {
-                var apiName = achievement.ApiName?.Trim();
-                if (!string.IsNullOrEmpty(apiName) && !byApiName.ContainsKey(apiName))
+                var apiName = pair.Key?.Trim();
+                if (!string.IsNullOrEmpty(apiName) && !pairingByApiName.ContainsKey(apiName))
                 {
-                    byApiName[apiName] = achievement;
+                    pairingByApiName[apiName] = pair.Value?.Trim() ?? string.Empty;
                 }
             }
 
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var rowByKey = new Dictionary<string, int>(StringComparer.Ordinal);
             for (var row = 0; row < rowTaken.Length; row++)
             {
                 var key = RowKey(table, schema, row);
-                if (!pairings.TryGetValue(key, out var paired) || !seen.Add(key))
+                if (!rowByKey.ContainsKey(key))
+                {
+                    rowByKey[key] = row;
+                }
+            }
+
+            foreach (var achievement in candidates)
+            {
+                var apiName = achievement.ApiName?.Trim();
+                if (string.IsNullOrEmpty(apiName) ||
+                    achievementTaken.Contains(achievement) ||
+                    !pairingByApiName.TryGetValue(apiName, out var rowKey))
                 {
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(paired))
+                if (rowKey.Length == 0)
                 {
-                    rowTaken[row] = true;
-                    result.SkippedRows.Add(row);
+                    achievementTaken.Add(achievement);
                     continue;
                 }
 
-                if (!byApiName.TryGetValue(paired.Trim(), out var achievement))
+                if (!rowByKey.TryGetValue(rowKey, out var row))
                 {
-                    result.Diagnostics.Add(Describe(row) + " is paired with '" + paired + "', which the game does not have.");
+                    result.Diagnostics.Add("'" + apiName + "' is paired with a row the file does not have.");
                     continue;
                 }
 
-                if (achievementTaken.Contains(achievement))
+                if (rowTaken[row])
                 {
-                    result.Diagnostics.Add(Describe(row) + ": '" + paired + "' is already paired with another row.");
+                    result.Diagnostics.Add("'" + apiName + "': " + Describe(row) + " is already paired with another achievement.");
                     continue;
                 }
 
