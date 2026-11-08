@@ -27,6 +27,9 @@ namespace PlayniteAchievements.Services.Cache
         void ReplaceAchievementOverrides(Guid playniteGameId, IReadOnlyList<AchievementOverrideMirrorEntry> entries);
 
         void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
+
+        /// <summary>Reconciles the game-level state mirror: one game when <paramref name="onlyGameId"/> is set, else all.</summary>
+        void ReplaceGameCustomStates(IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId, Guid? onlyGameId = null);
     }
 
     public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
@@ -351,6 +354,20 @@ namespace PlayniteAchievements.Services.Cache
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"Failed to sync achievement filter mirror for game {playniteGameId}.");
+            }
+        }
+
+        void IAchievementOverrideMirror.ReplaceGameCustomStates(
+            IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId,
+            Guid? onlyGameId)
+        {
+            try
+            {
+                _store.ReplaceGameCustomStates(statesByGameId, onlyGameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to sync the game custom state mirror.");
             }
         }
 
