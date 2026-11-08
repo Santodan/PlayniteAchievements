@@ -790,14 +790,14 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
-        public HashSet<Guid> GetExcludedRefreshGameIds(ISet<Guid> fallbackIds = null)
+        public HashSet<Guid> GetExcludedRefreshGameIds()
         {
-            return GetExcludedGameIds(fallbackIds, data => data?.ExcludedFromRefreshes == true);
+            return GetExcludedGameIds(data => data?.ExcludedFromRefreshes == true);
         }
 
-        public HashSet<Guid> GetExcludedSummaryGameIds(ISet<Guid> fallbackIds = null)
+        public HashSet<Guid> GetExcludedSummaryGameIds()
         {
-            return GetExcludedGameIds(fallbackIds, data => data?.ExcludedFromSummaries == true);
+            return GetExcludedGameIds(data => data?.ExcludedFromSummaries == true);
         }
 
         public void ExportPortablePackage(Guid playniteGameId, string destinationPath)
@@ -2515,9 +2515,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// </remarks>
         private bool _cacheHoldsEveryStoredRow;
 
-        private HashSet<Guid> GetExcludedGameIds(
-            ISet<Guid> fallbackIds,
-            Func<GameCustomDataFile, bool> selector)
+        private HashSet<Guid> GetExcludedGameIds(Func<GameCustomDataFile, bool> selector)
         {
             if (selector == null)
             {
@@ -2528,9 +2526,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             lock (_cacheSync)
             {
-                var result = fallbackIds != null
-                    ? new HashSet<Guid>(fallbackIds)
-                    : new HashSet<Guid>();
+                var result = new HashSet<Guid>();
 
                 foreach (var pair in _cacheByGameId)
                 {
