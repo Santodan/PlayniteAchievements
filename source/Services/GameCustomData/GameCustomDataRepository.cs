@@ -393,6 +393,80 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
+        /// Rewrites every stored path under <paramref name="oldRoot"/> to the same place under
+        /// <paramref name="newRoot"/>, in the game payloads and the capstone art records, in one
+        /// transaction. Records holding no such path are left as they are. Returns how many records
+        /// changed.
+        /// </summary>
+        public int RewriteIconCacheRoot(string oldRoot, string newRoot)
+        {
+            var rows = WithDb(
+                createIfMissing: false,
+                db => db.Load<GameCustomDataRow>(
+                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName};").ToList(),
+                new List<GameCustomDataRow>());
+            var changedRows = new List<GameCustomDataRow>();
+            foreach (var row in rows ?? new List<GameCustomDataRow>())
+            {
+                if (row != null &&
+                    Images.IconCachePathRebaser.TryRebaseJson(row.PayloadJson, oldRoot, newRoot, out var rebased))
+                {
+                    row.PayloadJson = rebased;
+                    changedRows.Add(row);
+                }
+            }
+
+            var changedArt = LoadAllCapstoneArtRecords()
+                .Where(record => IconCacheLocationRebase(record, oldRoot, newRoot))
+                .ToList();
+
+            if (changedRows.Count == 0 && changedArt.Count == 0)
+            {
+                return 0;
+            }
+
+            WithDb(createIfMissing: false, db =>
+            {
+                db.RunTransaction(() =>
+                {
+                    foreach (var row in changedRows)
+                    {
+                        db.ExecuteNonQuery(
+                            $"UPDATE {TableName} SET PayloadJson = ? WHERE PlayniteGameId = ?;",
+                            row.PayloadJson,
+                            row.PlayniteGameId);
+                    }
+
+                    foreach (var record in changedArt)
+                    {
+                        db.ExecuteNonQuery(
+                            $"UPDATE {CapstoneArtTableName} SET Path = ? WHERE PlayniteGameId = ? AND ApiName = ?;",
+                            record.Path,
+                            record.PlayniteGameId,
+                            record.ApiName);
+                    }
+                });
+            });
+
+            _logger?.Info(
+                $"[GameCustomData] Moved stored icon paths to the new icon cache folder in " +
+                $"{changedRows.Count} record(s) and {changedArt.Count} capstone art record(s).");
+            return changedRows.Count + changedArt.Count;
+        }
+
+        private static bool IconCacheLocationRebase(CapstoneArtRecordRow record, string oldRoot, string newRoot)
+        {
+            var rebased = Images.IconCachePathRebaser.RebasePath(record?.Path, oldRoot, newRoot);
+            if (record == null || string.Equals(rebased, record.Path, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            record.Path = rebased;
+            return true;
+        }
+
+        /// <summary>
         /// Loads every CapstoneArtRecords row. Returns an empty list when the database file does
         /// not exist.
         /// </summary>
