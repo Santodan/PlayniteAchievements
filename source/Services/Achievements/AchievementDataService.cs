@@ -1808,7 +1808,27 @@ namespace PlayniteAchievements.Services.Achievements
                 var kind = CategoryKindHelper.NormalizeStored(pair.Value);
                 if (category != null && kind != null)
                 {
-                    state.CategoryKinds[category] = kind;
+                    state.Category(category).Kind = kind;
+                }
+            }
+
+            var order = customData?.AchievementCategoryOrder ?? new List<string>();
+            for (var i = 0; i < order.Count; i++)
+            {
+                var category = CategoryPathHelper.NormalizePath(order[i]);
+                if (category != null && !state.Category(category).SortIndex.HasValue)
+                {
+                    state.Category(category).SortIndex = i;
+                }
+            }
+
+            foreach (var pair in customData?.AchievementCategoryImageOverrides ?? new Dictionary<string, CategoryImageOverrideData>())
+            {
+                var category = CategoryPathHelper.NormalizePath(pair.Key);
+                var art = ResolveCustomIconOverridePath(pair.Value?.Art, customData.PlayniteGameId);
+                if (category != null && art != null)
+                {
+                    state.Category(category).ImagePath = art;
                 }
             }
 
