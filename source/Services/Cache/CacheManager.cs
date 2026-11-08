@@ -1399,6 +1399,32 @@ namespace PlayniteAchievements.Services.Cache
             return cleared;
         }
 
+        /// <summary>Replaces one game's rows in the capture index. Never throws.</summary>
+        internal void ReplaceAchievementCaptures(Guid playniteGameId, IReadOnlyList<Captures.CaptureIndexRow> rows)
+        {
+            try
+            {
+                _store.ReplaceAchievementCaptures(playniteGameId, rows);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to update the capture index for game {playniteGameId}.");
+            }
+        }
+
+        /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>. Never throws.</summary>
+        internal void RemoveAchievementCapturesExcept(ISet<Guid> keep)
+        {
+            try
+            {
+                _store.RemoveAchievementCapturesExcept(keep);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to prune the capture index.");
+            }
+        }
+
         public void RemoveGameCache(Guid playniteGameId)
         {
             if (playniteGameId == Guid.Empty)
