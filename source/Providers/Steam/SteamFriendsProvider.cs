@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Achievements;
@@ -158,7 +159,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 ProviderKey = ProviderKey,
                 ExternalUserId = steamId,
-                DisplayName = FirstNonEmpty(personaName, steamId),
+                DisplayName = StringCoalesce.FirstNonBlankTrimmed(personaName, steamId),
                 AvatarUrl = avatarUrl,
                 LastRefreshedUtc = DateTime.UtcNow
             });
@@ -202,7 +203,7 @@ namespace PlayniteAchievements.Providers.Steam
                     ProviderKey = ProviderKey,
                     ExternalUserId = friend.ExternalUserId,
                     AppId = game.AppId,
-                    GameName = FirstNonEmpty(game.Name, $"Steam App {game.AppId}"),
+                    GameName = StringCoalesce.FirstNonBlankTrimmed(game.Name, $"Steam App {game.AppId}"),
                     IconUrl = SteamImageUrls.Icon(game.AppId),
                     CoverUrl = SteamImageUrls.Cover(game.AppId),
                     PlaytimeForeverMinutes = Math.Max(0, game.PlaytimeForever),
@@ -271,7 +272,7 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     ProviderKey = ProviderKey,
                     ExternalUserId = friend.SteamId.Trim(),
-                    DisplayName = FirstNonEmpty(friend.DisplayName, friend.SteamId),
+                    DisplayName = StringCoalesce.FirstNonBlankTrimmed(friend.DisplayName, friend.SteamId),
                     ProviderNickname = friend.ProviderNickname,
                     AvatarUrl = friend.AvatarUrl,
                     LastRefreshedUtc = now
@@ -594,7 +595,7 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     ProviderKey = ProviderKey,
                     AppId = appId,
-                    GameName = FirstNonEmpty(gameName, $"Steam App {appId}"),
+                    GameName = StringCoalesce.FirstNonBlankTrimmed(gameName, $"Steam App {appId}"),
                     Status = status,
                     LastCheckedUtc = DateTime.UtcNow,
                     Achievements = achievements
@@ -1019,11 +1020,6 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 return null;
             }
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
         }
 
         private sealed class TokenState
