@@ -192,6 +192,24 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>Whether no metadata source supplies the game.</summary>
+        internal bool IsGameExcludedFromMetadata(Guid gameId) => _metadataLinkStore?.IsExcludedFromMetadata(gameId) == true;
+
+        /// <summary>
+        /// Excludes games from metadata, or includes them again, keeping their own metadata
+        /// choices, then clears and refreshes their metadata so the change shows.
+        /// </summary>
+        internal void SetExcludedFromMetadata(IReadOnlyCollection<Guid> gameIds, bool excluded)
+        {
+            var changed = (gameIds ?? Array.Empty<Guid>())
+                .Where(gameId => _metadataLinkStore?.SetExcludedFromMetadata(gameId, excluded) == true)
+                .ToList();
+            if (changed.Count > 0)
+            {
+                ClearMetadataAndRefetch(changed);
+            }
+        }
+
         internal bool ConfirmMaintenance(string message)
         {
             return (PlayniteApi?.Dialogs?.ShowMessage(
