@@ -136,7 +136,11 @@ namespace PlayniteAchievements.Providers.BattleNet
             report.AppendLine("Done.");
             File.WriteAllText(Path.Combine(folder, "report.txt"), Redact(report.ToString(), settings), Encoding.UTF8);
 
-            var zipPath = Path.Combine(Path.GetDirectoryName(folder) ?? folder, ZipName);
+            // The Desktop, so a tester can find the file without knowing where Playnite keeps data.
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var zipPath = Path.Combine(
+                Directory.Exists(desktop) ? desktop : (Path.GetDirectoryName(folder) ?? folder),
+                ZipName);
             if (File.Exists(zipPath))
             {
                 File.Delete(zipPath);
