@@ -301,7 +301,8 @@ namespace PlayniteAchievements.Services.Database
             }
 
             ExecuteSafe(db, "PRAGMA legacy_alter_table = OFF;");
-            foreach (var view in AchievementLayerSql.AllViewNames)
+            // AchievementDefinitions is still the table here, and DROP VIEW on a table name fails.
+            foreach (var view in AchievementLayerSql.AllViewNames.Where(name => name != AchievementLayerSql.ViewName))
             {
                 ExecuteSafe(db, "DROP VIEW IF EXISTS " + view + ";");
             }
