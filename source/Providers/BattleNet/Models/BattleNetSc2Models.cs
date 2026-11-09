@@ -80,8 +80,9 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
         [DataMember(Name = "achievementId")]
         public string AchievementId { get; set; }
 
+        /// <summary>Unix seconds. The profile endpoint sends a JSON number, sometimes in exponent form.</summary>
         [DataMember(Name = "completionDate")]
-        public string CompletionDate { get; set; }
+        public double? CompletionDate { get; set; }
 
         [DataMember(Name = "isComplete")]
         public bool IsComplete { get; set; }

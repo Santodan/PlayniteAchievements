@@ -22,8 +22,8 @@ namespace PlayniteAchievements.Providers.BattleNet
     public sealed class BattleNetApiClient : IDisposable
     {
         private bool _disposed;
-        private const string Sc2ProfileUrl = "https://{0}.api.blizzard.com/sc2/legacy/profile/{1}/{2}/{3}?locale={4}";
-        private const string Sc2AchievementsUrl = "https://{0}.api.blizzard.com/sc2/legacy/data/achievements/{1}?locale={2}";
+        private const string Sc2ProfileUrl = "https://{0}.api.blizzard.com/sc2/profile/{1}/{2}/{3}?locale={4}";
+        private const string Sc2AchievementsUrl = "https://{0}.api.blizzard.com/sc2/static/profile/{1}?locale={2}";
         private const string Sc2PlayerUrl = "https://{0}.api.blizzard.com/sc2/player/{1}";
         private const string TokenUrl = "https://{0}.battle.net/oauth/token";
         private const string AuthorizeUrl = "https://{0}.battle.net/oauth/authorize";

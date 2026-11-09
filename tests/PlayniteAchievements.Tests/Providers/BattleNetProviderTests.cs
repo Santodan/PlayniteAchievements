@@ -332,6 +332,81 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void GameSupport_RoutesClassicAndForeverAwayFromRetail()
+        {
+            Assert.AreEqual(BattleNetGameTitle.Wow, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft")));
+            Assert.AreEqual(BattleNetGameTitle.Wow, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("WoW")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft: Mists of Pandaria Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("WoW Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowForever, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft: Forever")));
+            Assert.AreEqual(BattleNetGameTitle.Sc2, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("StarCraft II")));
+            Assert.AreEqual(BattleNetGameTitle.None, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("Diablo IV")));
+            Assert.AreEqual(BattleNetGameTitle.None, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("StarCraft: Remastered")));
+
+            var settings = new BattleNetSettings();
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+        }
+
+        [TestMethod]
+        public void Sc2BuildAchievements_MapsStaticCatalogOntoProfile()
+        {
+            var definitions = JsonConvert.DeserializeObject<Sc2AchievementDefinitionsResponse>(@"{
+  ""achievements"": [
+    { ""id"": ""91475320766632"", ""title"": ""Victory"", ""description"": ""Win a game."", ""imageUrl"": ""https://example.test/a.jpg"", ""categoryId"": ""4325379"", ""points"": 10 },
+    { ""id"": ""91475320766633"", ""title"": ""Still Going"", ""description"": ""In progress."", ""categoryId"": ""4325379"", ""points"": 0 },
+    { ""id"": ""91475320766632"", ""title"": ""Duplicate"" },
+    { ""title"": ""No id"" }
+  ],
+  ""categories"": [
+    { ""id"": ""4325379"", ""name"": ""Wings of Liberty"", ""parentCategoryId"": ""4325377"" },
+    { ""id"": ""4325377"", ""name"": ""Campaign"", ""parentCategoryId"": null },
+    { ""id"": ""4325377"", ""name"": ""Campaign duplicate"" }
+  ]
+}");
+            var profile = JsonConvert.DeserializeObject<Sc2ProfileResponse>(@"{
+  ""summary"": { ""id"": ""987654"", ""displayName"": ""Tester"", ""totalAchievementPoints"": 10 },
+  ""earnedAchievements"": [
+    { ""achievementId"": ""91475320766632"", ""completionDate"": 1.710000000E9, ""isComplete"": true, ""inProgress"": false },
+    { ""achievementId"": ""91475320766633"", ""completionDate"": 0, ""isComplete"": false, ""inProgress"": true }
+  ]
+}");
+
+            var achievements = Sc2GameStrategy.BuildAchievements(definitions, profile);
+
+            Assert.AreEqual(2, achievements.Count);
+            var won = achievements[0];
+            Assert.AreEqual("91475320766632", won.ApiName);
+            Assert.AreEqual("Victory", won.DisplayName);
+            Assert.AreEqual("https://example.test/a.jpg", won.UnlockedIconPath);
+            Assert.AreEqual(10, won.Points);
+            Assert.AreEqual(CategoryPathHelper.JoinRaw("Campaign", "Wings of Liberty"), won.Category);
+            Assert.IsTrue(won.Unlocked);
+            Assert.AreEqual(new DateTime(2024, 3, 9, 16, 0, 0, DateTimeKind.Utc), won.UnlockTimeUtc);
+
+            var pending = achievements[1];
+            Assert.IsFalse(pending.Unlocked);
+            Assert.IsNull(pending.UnlockTimeUtc);
+            Assert.IsNull(pending.Points);
+        }
+
+        [TestMethod]
+        public void Sc2ChooseProfile_PrefersTheSignInRegion()
+        {
+            var profiles = new List<Sc2PlayerProfile>
+            {
+                new Sc2PlayerProfile { RegionId = 1, RealmId = 1, ProfileId = 0 },
+                new Sc2PlayerProfile { RegionId = 1, RealmId = 1, ProfileId = 11 },
+                new Sc2PlayerProfile { RegionId = 2, RealmId = 1, ProfileId = 22 }
+            };
+
+            Assert.AreEqual(22, Sc2GameStrategy.ChooseProfile(profiles, "eu").ProfileId);
+            Assert.AreEqual(11, Sc2GameStrategy.ChooseProfile(profiles, "kr").ProfileId);
+            Assert.IsNull(Sc2GameStrategy.ChooseProfile(null, "us"));
+        }
+
+        [TestMethod]
         public async Task Sc2ApiClient_UsesClientCredentialsTokenAndOfficialEndpoints()
         {
             var handler = new RecordingHandler();
@@ -364,11 +439,11 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=", handler.Requests[0].AuthorizationParameter);
             Assert.AreEqual("grant_type=client_credentials", handler.Requests[0].Body);
 
-            Assert.AreEqual("https://eu.api.blizzard.com/sc2/legacy/data/achievements/2?locale=de_DE", handler.Requests[1].RequestUri.ToString());
+            Assert.AreEqual("https://eu.api.blizzard.com/sc2/static/profile/2?locale=de_DE", handler.Requests[1].RequestUri.ToString());
             Assert.AreEqual("Bearer", handler.Requests[1].AuthorizationScheme);
             Assert.AreEqual("token-value", handler.Requests[1].AuthorizationParameter);
 
-            Assert.AreEqual("https://eu.api.blizzard.com/sc2/legacy/profile/2/1/987654?locale=de_DE", handler.Requests[2].RequestUri.ToString());
+            Assert.AreEqual("https://eu.api.blizzard.com/sc2/profile/2/1/987654?locale=de_DE", handler.Requests[2].RequestUri.ToString());
             Assert.AreEqual("Bearer", handler.Requests[2].AuthorizationScheme);
             Assert.AreEqual("token-value", handler.Requests[2].AuthorizationParameter);
         }
@@ -773,15 +848,15 @@ namespace PlayniteAchievements.Tests.Providers
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/legacy/data/achievements/2?locale=de_DE")
+                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/static/profile/2?locale=de_DE")
                 {
                     return JsonResponse(@"{""achievements"":[{""id"":""ach-1"",""title"":""Win"",""description"":""Win a match"",""points"":10,""categoryId"":""cat-1""}],""categories"":[{""id"":""cat-1"",""name"":""General""}]}");
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/legacy/profile/2/1/987654?locale=de_DE")
+                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/profile/2/1/987654?locale=de_DE")
                 {
-                    return JsonResponse(@"{""summary"":{""id"":""987654"",""displayName"":""Tester"",""totalAchievementPoints"":10},""earnedAchievements"":[{""achievementId"":""ach-1"",""completionDate"":""1710000000"",""isComplete"":true}]}");
+                    return JsonResponse(@"{""summary"":{""id"":""987654"",""displayName"":""Tester"",""totalAchievementPoints"":10},""earnedAchievements"":[{""achievementId"":""ach-1"",""completionDate"":1.71E9,""isComplete"":true}]}");
                 }
 
                 if (request.Method == HttpMethod.Post &&

@@ -28,11 +28,6 @@ namespace PlayniteAchievements.Providers.BattleNet
             _catalogCache = new BattleNetWowCatalogCache(pluginUserDataPath, logger);
         }
 
-        public bool MatchesGame(Game game)
-        {
-            return BattleNetGameSupport.IsWowGame(game);
-        }
-
         public async Task<GameAchievementData> FetchAchievementsAsync(Game game, string locale, CancellationToken ct)
         {
             var settings = ProviderRegistry.Settings<BattleNetSettings>();

@@ -84,16 +84,15 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
             }
 
-            if (_wow.MatchesGame(game))
+            switch (BattleNetGameSupport.ResolveTitleByName(game))
             {
-                return await _wow.FetchAchievementsAsync(game, locale, ct);
+                case BattleNetGameTitle.Wow:
+                    return await _wow.FetchAchievementsAsync(game, locale, ct);
+                case BattleNetGameTitle.Sc2 when BattleNetGameSupport.IsSc2Enabled:
+                    return await _sc2.FetchAchievementsAsync(game, locale, ct);
+                default:
+                    return null;
             }
-
-            if (_sc2.MatchesGame(game))
-            {
-                return await _sc2.FetchAchievementsAsync(game, locale, ct);
-            }
-            return null;
         }
 
         private static string Bool(bool value) => value ? "true" : "false";
