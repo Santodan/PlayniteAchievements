@@ -291,9 +291,11 @@
     <sys:String x:Key="LOCPlayAch_Menu_ClearPlatformData_Confirm">Clear platform data for {0}?&#10;&#10;Achievements, unlocks and metadata are removed until the next refresh downloads them again. Your changes are kept.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_DisplaySettings">Display Settings…</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">Exclude from Refreshes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromMetadata">Exclude from Metadata</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_Filters">Filters</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ManageAchievements">Manage Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">Include in Refreshes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_IncludeInMetadata">Include in Metadata</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">Achievements Overview</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend">Ignore Friend</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnignoreFriend">Unignore Friend</sys:String>
@@ -445,6 +447,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">Library Source</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">Metadata links</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Select picks another game, Reset matches again on the next refresh, or turn a source off for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_UseMetadata">Use metadata for this game</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly">Unmatched only</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">Excluded</sys:String>
