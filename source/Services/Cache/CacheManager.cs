@@ -123,7 +123,7 @@ namespace PlayniteAchievements.Services.Cache
             remove => FriendCacheInvalidated -= value;
         }
 
-        // Raised at the end of ClearCache, after the database file has been deleted and recreated.
+        // Raised at the end of ClearCache, after every platform and metadata row has been deleted.
         private event EventHandler MetadataStateCleared;
 
         event EventHandler IMetadataStateDatabase.MetadataStateCleared
