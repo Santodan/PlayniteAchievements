@@ -131,7 +131,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand UnlinkManualTrackingCommand { get; }
         public RelayCommand RefreshStateCommand { get; }
         public AsyncCommand RefreshGameCommand { get; }
-        public RelayCommand ClearGameDataCommand { get; }
+        public RelayCommand ClearPlatformDataCommand { get; }
+        public RelayCommand ClearMetadataCommand { get; }
+        public RelayCommand ClearAllDataCommand { get; }
         public RelayCommand ExportCustomCommand { get; }
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ImportFromWorkshopCommand { get; }
@@ -182,12 +184,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
-            ClearGameDataCommand = new RelayCommand(_ => ClearGameData(), _ => HasGame);
+            ClearPlatformDataCommand = new RelayCommand(_ => ClearData(DataClear.Platform), _ => HasGame);
+            ClearMetadataCommand = new RelayCommand(_ => ClearData(DataClear.Metadata), _ => HasGame);
+            ClearAllDataCommand = new RelayCommand(_ => ClearData(DataClear.All), _ => HasGame);
             ExportCustomCommand = new RelayCommand(_ => ExportCustom(), _ => HasGame && CanExportCustomJson);
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ImportFromWorkshopCommand = new RelayCommand(_ => _plugin?.OpenWorkshopWindow(_gameId), _ => HasGame && _plugin != null);
             ShareToWorkshopCommand = new RelayCommand(_ => ShareToWorkshop(), _ => HasGame && CanExportCustomJson && _plugin != null);
-            ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
+            ClearCustomDataCommand = new RelayCommand(_ => ClearData(DataClear.Custom), _ => HasGame && CanClearCustomData);
             InitializeWorkshopSource();
 
             Reload();
@@ -1395,58 +1399,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// that no refresh will ever update -- a real provider's own refresh returns nothing for
         /// them and is turned away by the empty-payload guard, so they are frozen for good.
         /// </remarks>
-        private void ClearCustomData()
+        /// <summary>Runs one of the plugin's clears on this game, then re-reads what it changed.</summary>
+        private void ClearData(DataClear kind)
         {
-            if (!HasGame)
+            if (!HasGame || _plugin?.ClearData(kind, new[] { (Id: _gameId, Name: GameName) }) != true)
             {
                 return;
             }
 
-            var store = _plugin?.GameCustomDataStore;
-            if (store == null || !store.TryLoad(_gameId, out var currentData) || currentData == null)
+            RefreshWorkshopSource();
+            if (kind == DataClear.Custom || kind == DataClear.All)
             {
-                return;
+                // The plugin starts any refresh the cleared data needs.
+                NotifyCustomDataChanged(requiresRefresh: false);
             }
-
-            // The manual link is not customization but the game's source of achievements, so
-            // dropping it has to take what it produced with it.
-            var strandsManualAchievements = _plugin.WouldStrandManualAchievements(_gameId, currentData);
-            var result = _playniteApi?.Dialogs?.ShowMessage(
-                string.Format(
-                    L(strandsManualAchievements
-                        ? "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual"
-                        : "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
-                    GameName),
-                L("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
+            else
             {
-                return;
-            }
-
-            try
-            {
-                _plugin.ClearGameCustomData(_gameId, GameName, currentData);
-                RefreshWorkshopSource();
-                var transitionEffects = CustomDataTransition.Analyze(currentData, null);
-                NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
-
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed clearing custom data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
                 Reload();
             }
         }
@@ -1602,59 +1570,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ClearGameData()
-        {
-            if (!HasGame)
-            {
-                return;
-            }
-
-            var result = _playniteApi?.Dialogs?.ShowMessage(
-                string.Format(
-                    L("LOCPlayAch_Menu_ClearData_ConfirmSingle"),
-                    GameName),
-                L("LOCPlayAch_Title_PluginName"),
-                System.Windows.MessageBoxButton.YesNo,
-                System.Windows.MessageBoxImage.Warning) ?? System.Windows.MessageBoxResult.None;
-
-            if (result != System.Windows.MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                if (_achievementOverridesService != null)
-                {
-                    _achievementOverridesService.ClearGameData(_gameId, GameName);
-                }
-                else
-                {
-                    _refreshService?.Cache?.RemoveGameCache(_gameId);
-                }
-
-                RemoveWorkshopSource();
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed to clear cached data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
-            }
-            finally
-            {
-                Reload();
-            }
-        }
-
         private void RaiseCommandStates()
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
@@ -1666,7 +1581,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
-            ClearGameDataCommand?.RaiseCanExecuteChanged();
+            ClearPlatformDataCommand?.RaiseCanExecuteChanged();
+            ClearMetadataCommand?.RaiseCanExecuteChanged();
+            ClearAllDataCommand?.RaiseCanExecuteChanged();
             ExportCustomCommand?.RaiseCanExecuteChanged();
             ShareToWorkshopCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
