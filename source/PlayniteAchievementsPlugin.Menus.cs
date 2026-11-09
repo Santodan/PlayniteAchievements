@@ -340,12 +340,11 @@ namespace PlayniteAchievements
         private IEnumerable<GameMenuItem> MaintenanceMenuItems(List<Game> games)
         {
             var targets = games.Select(game => (Id: game.Id, Name: game.Name)).ToList();
-            foreach (var clear in DataClears)
+            foreach (var kind in DataClears)
             {
-                var kind = clear.Kind;
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString(clear.LabelKey),
+                    Description = ResourceProvider.GetString(ClearLabelKey(kind)),
                     MenuSection = PluginGameMaintenanceSection,
                     Action = (a) => ClearData(kind, targets)
                 };
