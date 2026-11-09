@@ -1377,6 +1377,60 @@ namespace PlayniteAchievements.Services.Metadata
             target.Cleared |= target.Tags == null ? AchievementField.Tags : AchievementField.None;
         }
 
+        /// <summary>
+        /// Gives each of <paramref name="rows"/> a metadata layer of the category and kind
+        /// (<paramref name="categories"/>) and the tags (<paramref name="tags"/>) of the source row
+        /// with its ApiName, by <see cref="ApplyCategory"/> and <see cref="ApplyTags"/>, and resolves
+        /// the row over it. The row's own values are pinned as its platform layer first; a row the
+        /// source has no row for gets no metadata layer.
+        /// </summary>
+        internal static void LayerByApiName(
+            IEnumerable<AchievementDetail> rows,
+            IEnumerable<AchievementDetail> sourceRows,
+            bool categories,
+            bool tags)
+        {
+            var sources = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var source in sourceRows ?? Enumerable.Empty<AchievementDetail>())
+            {
+                var apiName = source?.ApiName?.Trim();
+                if (!string.IsNullOrEmpty(apiName) && !sources.ContainsKey(apiName))
+                {
+                    sources[apiName] = source;
+                }
+            }
+
+            foreach (var row in rows ?? Enumerable.Empty<AchievementDetail>())
+            {
+                if (row == null)
+                {
+                    continue;
+                }
+
+                row.PlatformLayer = AchievementLayers.PlatformOf(row);
+                var apiName = row.ApiName?.Trim();
+                if ((categories || tags) &&
+                    !string.IsNullOrEmpty(apiName) &&
+                    sources.TryGetValue(apiName, out var source))
+                {
+                    var draft = new LayerDraft();
+                    if (categories)
+                    {
+                        ApplyCategory(draft, source);
+                    }
+
+                    if (tags)
+                    {
+                        ApplyTags(draft, source);
+                    }
+
+                    row.MetadataLayer = draft.Build();
+                }
+
+                AchievementLayers.Resolve(row);
+            }
+        }
+
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>
         /// <summary>
         /// The first preferred source's capstone row with art (a PlayStation platinum), whose art,
