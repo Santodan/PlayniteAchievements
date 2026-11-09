@@ -208,6 +208,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             string providerGameKey,
             int appId,
             string gameName,
+            bool mappedToLibrary,
             CancellationToken cancel)
         {
             var gameId = ResolveGameId(providerGameKey, appId);
