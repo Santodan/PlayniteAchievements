@@ -307,6 +307,41 @@ namespace PlayniteAchievements.SqlNado.Tests
             }
         }
 
+        [TestMethod]
+        public void ClearingPlatformData_ForEveryGame_KeepsTheCustomData()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-clear-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    new SqlNadoSchemaManager(null, path, dir).EnsureSchema(db);
+                    db.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO GameCustomData VALUES ('g', '{}', '');");
+                    db.ExecuteNonQuery("INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, UpdatedUtc) VALUES ('g', 'a', 'Renamed', '');");
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
+                    Definition(db, "a", "Platform name", null, null, "Default", null, null, null, "Common");
+                    Metadata(db, "a", displayName: "Borrowed");
+
+                    SqlNadoSchemaManager.ClearPlatformAndMetadata(db);
+
+                    foreach (var table in SqlNadoSchemaManager.PlatformAndMetadataTables)
+                    {
+                        Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM " + table + ";"), table);
+                    }
+
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM GameCustomData;"));
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementOverrides;"));
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
         private static SQLiteDatabase Open(string path) => new SQLiteDatabase(
             path,
             SQLiteOpenOptions.SQLITE_OPEN_READWRITE | SQLiteOpenOptions.SQLITE_OPEN_CREATE | SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
