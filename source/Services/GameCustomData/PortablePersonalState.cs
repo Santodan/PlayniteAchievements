@@ -89,6 +89,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ? new List<string>(current.GoalAchievementApiNames)
                 : null;
 
+            // Nor whether the game takes metadata, which is this machine's choice.
+            imported.ExcludedFromMetadata = current.ExcludedFromMetadata;
+
             // The package never carries the game's sound pack, so the local one stays.
             imported.UnlockSounds = current.UnlockSounds?.Clone();
 
