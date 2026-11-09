@@ -1247,10 +1247,13 @@ namespace PlayniteAchievements.Services.Database
                                 // when the mapped row has no schema yet the category-bearing fetch
                                 // seeds it (non-authoritative: it must never prune a user scan), and
                                 // otherwise only Default category placeholders are backfilled.
+                                // Only provider-only rows store a metadata layer: a mapped game's
+                                // layer is the current user's metadata overlay's, so mapped rows
+                                // write platform values only.
                                 var isProviderOnlyRow = !ParseGuid(game?.PlayniteGameId).HasValue;
                                 if (isProviderOnlyRow)
                                 {
-                                    UpsertAchievementDefinitions(
+                                    var definitionIds = UpsertAchievementDefinitions(
                                         db,
                                         gameId,
                                         definition.Achievements,
@@ -1258,6 +1261,7 @@ namespace PlayniteAchievements.Services.Database
                                         checkedIso,
                                         renamedApiNames,
                                         authoritativeSource: true);
+                                    SaveMetadataLayers(db, definition.Achievements, definitionIds);
                                     writtenCount = definition.Achievements.Count;
                                 }
                                 else if (IsExophaseProvider(providerKey))
@@ -1283,7 +1287,7 @@ namespace PlayniteAchievements.Services.Database
                                     writtenCount = BackfillDefinitionCategories(
                                         db,
                                         gameId,
-                                        definition.Achievements,
+                                        definition.Achievements.Where(a => a != null).Select(AchievementLayers.PlatformRow).ToList(),
                                         checkedIso);
                                 }
 
