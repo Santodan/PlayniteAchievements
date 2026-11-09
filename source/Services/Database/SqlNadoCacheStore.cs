@@ -5734,13 +5734,7 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         public void ClearCacheData()
         {
-            WithDb(db => db.RunTransaction(() =>
-            {
-                foreach (var table in SqlNadoSchemaManager.PlatformAndMetadataTables)
-                {
-                    db.ExecuteNonQuery("DELETE FROM " + table + ";");
-                }
-            }));
+            WithDb(SqlNadoSchemaManager.ClearPlatformAndMetadata);
 
             lock (_sync)
             {
