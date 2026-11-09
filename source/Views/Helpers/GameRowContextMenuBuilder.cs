@@ -5,7 +5,6 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -32,7 +31,6 @@ namespace PlayniteAchievements.Views.Helpers
             Action<Guid> openManageAchievements,
             IPlayniteAPI playniteApi,
             AchievementOverridesService overridesService,
-            ICacheManager cacheManager,
             ILogger logger,
             DependencyObject menuSource,
             bool includeViewCaptures = false)
