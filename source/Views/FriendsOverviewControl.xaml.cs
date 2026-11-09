@@ -1000,7 +1000,7 @@ namespace PlayniteAchievements.Views
 
             var name = string.IsNullOrWhiteSpace(game.GameName) ? game.ProviderGameKey : game.GameName;
             var message = string.Format(
-                GetText("LOCPlayAch_Menu_ClearPlatformData_ConfirmSingle", "Clear platform data for {0}?"),
+                GetText("LOCPlayAch_Menu_ClearPlatformData_Confirm", "Clear platform data for {0}?"),
                 name);
 
             var result = _playniteApi?.Dialogs?.ShowMessage(
