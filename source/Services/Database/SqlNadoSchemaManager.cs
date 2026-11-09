@@ -24,6 +24,30 @@ namespace PlayniteAchievements.Services.Database
         // layer, and AchievementDefinitions is the view resolving custom over metadata over
         // platform, which the plugin and other add-ons read.
         public const int SchemaVersion = 22;
+
+        /// <summary>The plugin's one database: platform data, metadata and custom data.</summary>
+        internal const string DatabaseFileName = "achievement_cache.db";
+
+        /// <summary>
+        /// Every table of the platform and metadata layers, children first. Clearing these clears
+        /// the platform data of every game, and the metadata stored against it, while the custom
+        /// data tables, their mirror and the capture index stay.
+        /// </summary>
+        internal static readonly IReadOnlyList<string> PlatformAndMetadataTables = new[]
+        {
+            "AchievementMetadataLayer",
+            "MetadataApplied",
+            "MetadataCoverage",
+            "MetadataSourceSnapshots",
+            "MetadataSourcePages",
+            "UserAchievements",
+            "UserGameProgress",
+            "PlatformDefinitions",
+            "Games",
+            "Users",
+            "FriendOwnership",
+            "ProviderGameDefinitionState"
+        };
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -436,8 +460,8 @@ namespace PlayniteAchievements.Services.Database
                 ON FriendOwnership (LastScrapedUtc, LastScrapeStatus);");
         }
 
-        // Derived mirror of the per-game achievement filter lists stored in game_custom_data.db
-        // (a separate SQLite file the summary queries cannot join to). Fully resynced from
+        // Derived mirror of the per-game custom data records in the GameCustomData table, flattened
+        // into rows the views and summary queries can join. Fully resynced from
         // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
         // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
         // anti-join probe.
