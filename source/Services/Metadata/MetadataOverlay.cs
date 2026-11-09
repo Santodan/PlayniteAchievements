@@ -260,8 +260,11 @@ namespace PlayniteAchievements.Services.Metadata
             Commit(drafts);
             var englishTitles = EnglishTitlesFor(game, data);
             var request = CreateRequest(game, data, gameId, englishTitles);
-            var plan = BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
-            if (plan.IsEmpty)
+            // A game excluded from metadata takes nothing from any source, so its layer stays empty.
+            var plan = _links?.IsExcludedFromMetadata(gameId) == true
+                ? null
+                : BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
+            if (plan == null || plan.IsEmpty)
             {
                 _links?.RecordApplied(gameId, null, null);
                 return;
