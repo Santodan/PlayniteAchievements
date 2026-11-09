@@ -585,7 +585,6 @@ namespace PlayniteAchievements
                     id => OpenManageAchievementsView(id),
                     PlayniteApi,
                     _achievementOverridesService,
-                    _cacheManager,
                     _logger,
                     menuSource: menuSource,
                     includeViewCaptures: true);
