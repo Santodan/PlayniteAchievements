@@ -119,7 +119,6 @@ namespace PlayniteAchievements.Services.GameCustomData
     /// </summary>
     public sealed partial class GameCustomDataStore
     {
-        private const string DatabaseFileName = "game_custom_data.db";
 
         // Portable files are always zip packages under the bare .pa extension (zip inside like
         // Playnite's .pext); the legacy .pa.zip spelling is still accepted on import.
@@ -195,7 +194,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         public GameCustomDataStore(string pluginUserDataPath, ILogger logger = null)
         {
             _logger = logger;
-            var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, DatabaseFileName);
+            var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, Database.SqlNadoSchemaManager.DatabaseFileName);
             _repository = new GameCustomDataRepository(databasePath, _storeWriteSettings, logger);
         }
 
