@@ -21,20 +21,20 @@ namespace PlayniteAchievements.Providers.BattleNet
 {
     /// <summary>
     /// Developer-only check of which Blizzard API surfaces serve StarCraft II, WoW Classic and WoW
-    /// Forever achievement data, and which Data for Azeroth flavors serve rarity. Built to run on a
+    /// Forever achievement data, and which Data for Azeroth versions serve rarity. Built to run on a
     /// tester's machine: it uses the tester's saved client credentials, discovers public players from
     /// ladders and leaderboards instead of reading anyone's own account, and never writes the client
     /// secret, a token, an account id or a cookie value. Writes report.txt plus raw public JSON
     /// samples, then zips the folder into one file to send back.
     /// </summary>
-    internal static class BattleNetFlavorProbe
+    internal static class BattleNetGamesProbe
     {
         /// <summary>Hardcoded gate for the hidden probe menu item. Off in shipped builds.</summary>
         internal static readonly bool Enabled = false;
 
-        internal const string ZipName = "battlenet-flavors-probe.zip";
+        internal const string ZipName = "battlenet-probe.zip";
 
-        private const string LogPrefix = "[BattleNet/FlavorProbe]";
+        private const string LogPrefix = "[BattleNet/GamesProbe]";
         private const string Locale = "en_US";
         private const int MaxSavedBytes = 4 * 1024 * 1024;
 
@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// Namespace infixes to try. Retail has none; "classic" is progression Classic, "classic1x"
         /// Era, "classicann" Anniversary. The Forever candidates are guesses, since none is documented.
         /// </summary>
-        private static readonly string[][] WowFlavors =
+        private static readonly string[][] WowVersions =
         {
             new[] { "retail", "" },
             new[] { "classic", "classic-" },
@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             new[] { "camelot", "camelot-" }
         };
 
-        private static readonly string[] DfaFlavors =
+        private static readonly string[] DfaVersions =
         {
             "retail", "classic", "forever", "classic-era", "classicera", "era", "mop", "cata", "anniversary"
         };
@@ -68,7 +68,7 @@ namespace PlayniteAchievements.Providers.BattleNet
 
             Directory.CreateDirectory(folder);
             var report = new StringBuilder();
-            report.AppendLine($"Battle.net flavor probe, {DateTime.Now:yyyy-MM-dd HH:mm:ss}.");
+            report.AppendLine($"Battle.net probe, {DateTime.Now:yyyy-MM-dd HH:mm:ss}.");
             report.AppendLine();
 
             var settings = ProviderRegistry.Settings<BattleNetSettings>();
@@ -102,9 +102,9 @@ namespace PlayniteAchievements.Providers.BattleNet
                         {
                             var ctx = new ProbeContext(http, folder, report, settings, token);
                             await RunSc2Async(ctx, region, ct).ConfigureAwait(false);
-                            foreach (var flavor in WowFlavors)
+                            foreach (var version in WowVersions)
                             {
-                                await RunWowFlavorAsync(ctx, region, flavor[0], flavor[1], ct).ConfigureAwait(false);
+                                await RunWowVersionAsync(ctx, region, version[0], version[1], ct).ConfigureAwait(false);
                             }
                         }
                     }
@@ -233,9 +233,9 @@ namespace PlayniteAchievements.Providers.BattleNet
             }
         }
 
-        // --- World of Warcraft flavors ---
+        // --- World of Warcraft versions ---
 
-        private static async Task RunWowFlavorAsync(ProbeContext ctx, string region, string label, string infix, CancellationToken ct)
+        private static async Task RunWowVersionAsync(ProbeContext ctx, string region, string label, string infix, CancellationToken ct)
         {
             var host = $"https://{region}.api.blizzard.com";
             var staticNs = $"static-{infix}{region}";
@@ -377,9 +377,9 @@ namespace PlayniteAchievements.Providers.BattleNet
             {
                 http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-                foreach (var flavor in DfaFlavors)
+                foreach (var version in DfaVersions)
                 {
-                    var url = $"{DataForAzerothClient.BaseUrl}{flavor}/dynamic/index.json";
+                    var url = $"{DataForAzerothClient.BaseUrl}{version}/dynamic/index.json";
                     report.AppendLine($"-- {url}");
                     var body = await GetDfaAsync(http, url, header, report, ct).ConfigureAwait(false);
                     var root = TryParse(body);
@@ -388,7 +388,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                         continue;
                     }
 
-                    File.WriteAllText(Path.Combine(folder, $"dfa-{flavor}-index.json"), body, Encoding.UTF8);
+                    File.WriteAllText(Path.Combine(folder, $"dfa-{version}-index.json"), body, Encoding.UTF8);
                     report.AppendLine($"index keys: {string.Join(",", root.Properties().Select(p => p.Name).Take(40))}");
                     var rarityPath = root.Value<string>("achievementsrarity");
                     if (!string.IsNullOrWhiteSpace(rarityPath))
@@ -399,7 +399,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                     }
                 }
 
-                // The site's bundle names its own data paths; list every flavor prefix it uses.
+                // The site's bundle names its own data paths; list every version prefix it uses.
                 report.AppendLine($"-- bundle scan {DataForAzerothClient.BaseUrl}");
                 var shell = await GetDfaAsync(http, DataForAzerothClient.BaseUrl, header, report, ct).ConfigureAwait(false) ?? string.Empty;
                 var scripts = Regex.Matches(shell, "src=\"([^\"]+\\.js)\"").Cast<Match>().Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).ToList();
@@ -418,7 +418,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                     }
                 }
 
-                report.AppendLine($"scripts={scripts.Count}, dynamic prefixes and flavor tokens: {string.Join(", ", prefixes)}");
+                report.AppendLine($"scripts={scripts.Count}, dynamic prefixes and version tokens: {string.Join(", ", prefixes)}");
             }
 
             report.AppendLine();
