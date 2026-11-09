@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.PlayniteGameId = playniteGameId;
             normalized.ExcludedFromRefreshes = normalized.ExcludedFromRefreshes == true ? true : (bool?)null;
             normalized.ExcludedFromSummaries = normalized.ExcludedFromSummaries == true ? true : (bool?)null;
+            normalized.ExcludedFromMetadata = normalized.ExcludedFromMetadata == true ? true : (bool?)null;
             normalized.RuleClaims = NormalizeRuleClaims(normalized.RuleClaims);
             normalized.UserPinnedFields = NormalizeRuleFieldList(normalized.UserPinnedFields);
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
@@ -204,6 +205,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.ExcludedFromRefreshes == true ||
                    data.ExcludedFromSummaries == true ||
+                   data.ExcludedFromMetadata == true ||
                    // A claim alone must survive: it holds the status to restore when the rule lets go.
                    (data.RuleClaims != null && data.RuleClaims.Count > 0) ||
                    (data.UserPinnedFields != null && data.UserPinnedFields.Count > 0) ||
@@ -361,6 +363,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 PlayniteGameId = existing.PlayniteGameId != Guid.Empty ? existing.PlayniteGameId : legacy.PlayniteGameId,
                 ExcludedFromRefreshes = existing.ExcludedFromRefreshes ?? legacy.ExcludedFromRefreshes,
                 ExcludedFromSummaries = existing.ExcludedFromSummaries ?? legacy.ExcludedFromSummaries,
+                ExcludedFromMetadata = existing.ExcludedFromMetadata ?? legacy.ExcludedFromMetadata,
                 RuleClaims = GameCustomDataFile.CloneRuleClaims(existing.RuleClaims ?? legacy.RuleClaims),
                 UserPinnedFields = existing.UserPinnedFields != null
                     ? new List<string>(existing.UserPinnedFields)
