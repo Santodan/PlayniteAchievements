@@ -1990,7 +1990,6 @@ namespace PlayniteAchievements.Views
                 gameId => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(gameId),
                 _playniteApi,
                 _achievementOverridesService,
-                _cacheManager,
                 _logger,
                 includeViewCaptures: true,
                 menuSource: menuSource);
