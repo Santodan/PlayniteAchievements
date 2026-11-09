@@ -235,6 +235,8 @@
     <Compile Include="..\..\source\Services\Achievements\LayerResolver.cs" Link="Source\Services\Achievements\LayerResolver.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementLayers.cs" Link="Source\Services\Achievements\AchievementLayers.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementLayerSql.cs" Link="Source\Services\Database\AchievementLayerSql.cs" />
+    <Compile Include="..\..\source\Services\Database\SqlNadoSchemaManager.cs" Link="Source\Services\Database\SqlNadoSchemaManager.cs" />
+    <Compile Include="..\..\source\Services\Database\Rows\CacheMetadataRow.cs" Link="Source\Services\Database\Rows\CacheMetadataRow.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementTagRegistry.cs" Link="Source\Services\Achievements\AchievementTagRegistry.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementClassificationFilter.cs" Link="Source\Services\Achievements\AchievementClassificationFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\LegacyCategoryTypes.cs" Link="Source\Services\Achievements\LegacyCategoryTypes.cs" />
