@@ -115,7 +115,6 @@ namespace PlayniteAchievements.Views.Helpers
                     resourceOwner,
                     menuGameId,
                     ResolveGameName(data, playniteApi?.Database?.Games?.Get(menuGameId)),
-                    gameInLibrary,
                     excludedFromSummaries,
                     excludedFromRefreshes,
                     () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries),
@@ -136,7 +135,6 @@ namespace PlayniteAchievements.Views.Helpers
             FrameworkElement resourceOwner,
             Guid gameId,
             string gameName,
-            bool gameInLibrary,
             bool excludedFromSummaries,
             bool excludedFromRefreshes,
             Action toggleExcludedFromSummaries,
@@ -147,16 +145,9 @@ namespace PlayniteAchievements.Views.Helpers
                 Header = ResolveHeader(resourceOwner, "LOCPlayAch_Settings_Maintenance_Title")
             };
             var target = new[] { (Id: gameId, Name: gameName) };
-            foreach (var clear in PlayniteAchievementsPlugin.DataClears)
+            foreach (var kind in PlayniteAchievementsPlugin.DataClears)
             {
-                // Metadata is cleared to be fetched again, which a game removed from the library cannot do.
-                if (clear.Kind == DataClear.Metadata && !gameInLibrary)
-                {
-                    continue;
-                }
-
-                var kind = clear.Kind;
-                maintenance.Items.Add(CreateMenuItem(resourceOwner, clear.LabelKey,
+                maintenance.Items.Add(CreateMenuItem(resourceOwner, PlayniteAchievementsPlugin.ClearLabelKey(kind),
                     () => PlayniteAchievementsPlugin.Instance?.ClearData(kind, target)));
             }
 
