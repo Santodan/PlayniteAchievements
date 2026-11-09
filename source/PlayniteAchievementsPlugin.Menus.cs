@@ -375,6 +375,16 @@ namespace PlayniteAchievements
                 MenuSection = PluginGameMaintenanceSection,
                 Action = (a) => ToggleExcludedFromRefreshes(games)
             };
+
+            var excludedFromMetadata = games.All(g => IsGameExcludedFromMetadata(g.Id));
+            yield return new GameMenuItem
+            {
+                Description = excludedFromMetadata
+                    ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInMetadata")
+                    : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromMetadata"),
+                MenuSection = PluginGameMaintenanceSection,
+                Action = (a) => SetExcludedFromMetadata(games.Select(g => g.Id).ToList(), !excludedFromMetadata)
+            };
         }
 
         private static List<Game> GetDistinctValidGames(IEnumerable<Game> games)
