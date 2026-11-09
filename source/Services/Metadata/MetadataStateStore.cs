@@ -208,10 +208,7 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneMatchApiName = match,
                         CategoryCapstones = perCategory,
                         Coverage = counts,
-                        IconApiNames = borrowed?.Count > 0 ? borrowed : null,
-                        // Still the files' state while the borrowed set is unchanged; a changed set
-                        // overwrites every file anyway.
-                        IconFallbackApiNames = iconChanged ? null : previous?.IconFallbackApiNames
+                        IconApiNames = borrowed?.Count > 0 ? borrowed : null
                     };
                     _applied[gameId] = saved;
                 }
@@ -228,56 +225,6 @@ namespace PlayniteAchievements.Services.Metadata
             {
                 return _applied.TryGetValue(gameId, out var state) && state != null ? Copy(state) : null;
             }
-        }
-
-        /// <summary>The borrowed icons that fell back to the game's own at the last refresh.</summary>
-        public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId)
-        {
-            lock (_sync)
-            {
-                return _applied.TryGetValue(gameId, out var state) && state?.IconFallbackApiNames != null
-                    ? state.IconFallbackApiNames.ToList()
-                    : (IReadOnlyCollection<string>)Array.Empty<string>();
-            }
-        }
-
-        /// <summary>
-        /// Records which borrowed icons fell back to the game's own because their download failed,
-        /// returning the ones recorded before.
-        /// </summary>
-        public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames)
-        {
-            var next = (apiNames ?? Enumerable.Empty<string>())
-                .Where(apiName => !string.IsNullOrWhiteSpace(apiName))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(apiName => apiName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (gameId == Guid.Empty)
-            {
-                return Array.Empty<string>();
-            }
-
-            List<string> previous;
-            MetadataAppliedState saved;
-            lock (_sync)
-            {
-                if (!_applied.TryGetValue(gameId, out var state) || state == null)
-                {
-                    return Array.Empty<string>();
-                }
-
-                previous = state.IconFallbackApiNames ?? new List<string>();
-                if (previous.SequenceEqual(next, StringComparer.OrdinalIgnoreCase))
-                {
-                    return previous;
-                }
-
-                state.IconFallbackApiNames = next.Count > 0 ? next : null;
-                saved = Copy(state);
-            }
-
-            Persist(gameId, saved);
-            return previous;
         }
 
         /// <summary>A source's match count for the game at the last overlay, or null when it did not run.</summary>
@@ -410,8 +357,7 @@ namespace PlayniteAchievements.Services.Metadata
                             CapstoneDescription = row.CapstoneDescription,
                             CapstoneMatchApiName = row.CapstoneMatchApiName,
                             CategoryCapstones = ReadCategoryCapstones(row.CategoryCapstonesJson),
-                            IconApiNames = ReadList(row.IconApiNamesJson),
-                            IconFallbackApiNames = ReadList(row.IconFallbackApiNamesJson)
+                            IconApiNames = ReadList(row.IconApiNamesJson)
                         };
                     }
                 }
@@ -481,7 +427,6 @@ namespace PlayniteAchievements.Services.Metadata
                         CapstoneMatchApiName = state.CapstoneMatchApiName,
                         CategoryCapstonesJson = WriteCategoryCapstones(state.CategoryCapstones),
                         IconApiNamesJson = WriteList(state.IconApiNames),
-                        IconFallbackApiNamesJson = WriteList(state.IconFallbackApiNames),
                         UpdatedUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)
                     },
                     (state.Coverage ?? new Dictionary<string, MetadataCoverage>())
@@ -509,8 +454,7 @@ namespace PlayniteAchievements.Services.Metadata
             CapstoneMatchApiName = state.CapstoneMatchApiName,
             CategoryCapstones = ReadCategoryCapstones(WriteCategoryCapstones(state.CategoryCapstones)),
             Coverage = state.Coverage == null ? null : new Dictionary<string, MetadataCoverage>(state.Coverage, StringComparer.OrdinalIgnoreCase),
-            IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames),
-            IconFallbackApiNames = state.IconFallbackApiNames == null ? null : new List<string>(state.IconFallbackApiNames)
+            IconApiNames = state.IconApiNames == null ? null : new List<string>(state.IconApiNames)
         };
 
         private static string WriteCategoryCapstones(IReadOnlyList<MetadataCategoryCapstone> capstones) =>

@@ -22,6 +22,28 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExcludedFromMetadata_SurvivesNormalizing_AndAnImport_AndKeepsTheRecord()
+        {
+            var gameId = Guid.NewGuid();
+            var stored = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                ExcludedFromMetadata = true,
+                MetadataChoices = new MetadataChoices { Icons = MetadataChoices.Exophase }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(stored, gameId);
+            Assert.AreEqual(true, normalized.ExcludedFromMetadata);
+            Assert.AreEqual(MetadataChoices.Exophase, normalized.MetadataChoices.Icons, "the game's own choices stay");
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(new GameCustomDataFile { ExcludedFromMetadata = true }));
+
+            // A package never carries it, so an import keeps this machine's choice.
+            var imported = GameCustomDataFile.FromPortable(normalized.ToPortable(), gameId, null, null);
+            PortablePersonalState.CarryLocal(normalized, imported);
+            Assert.AreEqual(true, imported.ExcludedFromMetadata);
+        }
+
+        [TestMethod]
         public void HasVisibleCustomization_ExclusionsOnly_ReturnsFalse()
         {
             var data = new GameCustomDataFile
@@ -411,9 +433,9 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(2, normalized.AchievementNotes.Count);
-            Assert.AreEqual("second note\nline", normalized.AchievementNotes["ach_one"]);
-            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, normalized.AchievementNotes["ach_long"].Length);
+            Assert.AreEqual(2, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note).Count);
+            Assert.AreEqual("second note\nline", AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_one"]);
+            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_long"].Length);
             Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
         }
 
@@ -795,9 +817,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var customData = new ResolvedGameCustomData
             {
-                AchievementNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["ACH_ONE"] = "route note"
+                    ["ACH_ONE"] = new AchievementOverride { Note = "route note" }
                 }
             };
 
@@ -822,9 +844,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var renamed = new ResolvedGameCustomData
             {
-                AchievementCategoryOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["dlc_ach"] = "My Renamed DLC"
+                    ["dlc_ach"] = new AchievementOverride { Category = "My Renamed DLC" }
                 }
             };
 
@@ -960,8 +982,8 @@ namespace PlayniteAchievements.Services.Tests
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.FilteredAchievementApiNames);
             Assert.IsNull(normalized.SummaryFilteredAchievementApiNames);
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementOverrides.Keys.ToList());
-            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementCategoryOverrides.Keys.ToList());
-            Assert.IsNull(normalized.AchievementNotes);
+            Assert.IsNull(normalized.AchievementCategoryOverrides);
+            Assert.IsNull(normalized.AchievementOverrides["prov_one"].Note);
         }
 
         [TestMethod]

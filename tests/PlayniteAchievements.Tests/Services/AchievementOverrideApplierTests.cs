@@ -6,30 +6,13 @@ using System;
 
 namespace PlayniteAchievements.Services.Tests
 {
+    /// <summary>
+    /// An override's fields reach a row through its custom layer; its unlock time is applied
+    /// apart from the layers.
+    /// </summary>
     [TestClass]
     public class AchievementOverrideApplierTests
     {
-        /// <summary>
-        /// Stands in for the summary row, which is internal to the plugin assembly. What matters is
-        /// that a second implementation of the interface gets identical treatment.
-        /// </summary>
-        private sealed class FakeRow : IAchievementOverrideTarget
-        {
-            public string DisplayName { get; set; }
-
-            public string Description { get; set; }
-
-            public int? Points { get; set; }
-
-            public string TrophyType { get; set; }
-
-            public bool Hidden { get; set; }
-
-            public DateTime? UnlockTimeUtc { get; set; }
-
-            public bool Unlocked { get; set; }
-        }
-
         private static AchievementOverride FullOverride()
         {
             return new AchievementOverride
@@ -43,114 +26,79 @@ namespace PlayniteAchievements.Services.Tests
             };
         }
 
-        [TestMethod]
-        public void Apply_EveryTargetTypeGetsTheSameResult()
+        private static AchievementDetail Apply(AchievementDetail row, AchievementOverride userOverride, bool hasManualLink)
         {
-            var detail = new FakeRow { Unlocked = true };
-            var row = new FakeRow { Unlocked = true };
-            var userOverride = FullOverride();
-
-            AchievementOverrideApplier.Apply(detail, userOverride, hasManualLink: false);
-            AchievementOverrideApplier.Apply(row, userOverride, hasManualLink: false);
-
-            // The whole point of the shared applier: the hydrated row and the summary row cannot
-            // disagree about what the user asked for.
-            Assert.AreEqual(detail.DisplayName, row.DisplayName);
-            Assert.AreEqual(detail.Description, row.Description);
-            Assert.AreEqual(detail.Points, row.Points);
-            Assert.AreEqual(detail.TrophyType, row.TrophyType);
-            Assert.AreEqual(detail.Hidden, row.Hidden);
-            Assert.AreEqual(detail.UnlockTimeUtc, row.UnlockTimeUtc);
+            row.CustomLayer = userOverride.ToLayer();
+            AchievementLayers.Resolve(row);
+            userOverride?.ApplyUnlockTimeTo(row, hasManualLink);
+            return row;
         }
 
         [TestMethod]
-        public void Apply_HiddenOverride_LandsOnBothTargets()
+        public void FullOverride_ReachesEveryField()
         {
-            var detail = new FakeRow { Hidden = false };
-            var row = new FakeRow { Hidden = false };
-            var userOverride = new AchievementOverride { Hidden = true };
+            var row = Apply(new AchievementDetail { ApiName = "a", Unlocked = true }, FullOverride(), hasManualLink: false);
 
-            AchievementOverrideApplier.Apply(detail, userOverride, hasManualLink: false);
-            AchievementOverrideApplier.Apply(row, userOverride, hasManualLink: false);
+            Assert.AreEqual("Renamed", row.DisplayName);
+            Assert.AreEqual("Rewritten", row.Description);
+            Assert.AreEqual(42, row.Points);
+            Assert.AreEqual("gold", row.TrophyType);
+            Assert.IsTrue(row.Hidden);
+            Assert.AreEqual(FullOverride().UnlockTimeUtc, row.UnlockTimeUtc);
+        }
 
-            Assert.IsTrue(detail.Hidden);
+        [TestMethod]
+        public void NullHidden_LeavesTheProviderValue()
+        {
+            var row = Apply(new AchievementDetail { ApiName = "a", Hidden = true }, new AchievementOverride(), hasManualLink: false);
+
+            // Null is "no opinion", not "not hidden".
             Assert.IsTrue(row.Hidden);
         }
 
         [TestMethod]
-        public void Apply_NullHidden_LeavesTheProviderValue()
-        {
-            var detail = new FakeRow { Hidden = true };
-
-            AchievementOverrideApplier.Apply(detail, new AchievementOverride(), hasManualLink: false);
-
-            // Null is "no opinion", not "not hidden".
-            Assert.IsTrue(detail.Hidden);
-        }
-
-        [TestMethod]
-        public void Apply_ManuallyTrackedGame_KeepsTheLinksUnlockTime()
+        public void ManuallyTrackedGame_KeepsTheLinksUnlockTime()
         {
             var linkTime = new DateTime(2025, 5, 5, 0, 0, 0, DateTimeKind.Utc);
-            var detail = new FakeRow { Unlocked = true, UnlockTimeUtc = linkTime };
-            var row = new FakeRow { Unlocked = true, UnlockTimeUtc = linkTime };
-            var userOverride = FullOverride();
+            var row = Apply(
+                new AchievementDetail { ApiName = "a", Unlocked = true, UnlockTimeUtc = linkTime },
+                FullOverride(),
+                hasManualLink: true);
 
-            AchievementOverrideApplier.Apply(detail, userOverride, hasManualLink: true);
-            AchievementOverrideApplier.Apply(row, userOverride, hasManualLink: true);
-
-            Assert.AreEqual(linkTime, detail.UnlockTimeUtc);
             Assert.AreEqual(linkTime, row.UnlockTimeUtc);
             // Everything else still applies; only the timestamp is withheld.
-            Assert.AreEqual("Renamed", detail.DisplayName);
             Assert.AreEqual("Renamed", row.DisplayName);
         }
 
         [TestMethod]
-        public void Apply_ClearUnlockTime_ClearsOnBothTargets()
+        public void ClearUnlockTime_Clears()
         {
-            var stamped = new DateTime(2025, 5, 5, 0, 0, 0, DateTimeKind.Utc);
-            var detail = new FakeRow { Unlocked = true, UnlockTimeUtc = stamped };
-            var row = new FakeRow { Unlocked = true, UnlockTimeUtc = stamped };
-            var userOverride = new AchievementOverride { ClearUnlockTime = true };
+            var row = Apply(
+                new AchievementDetail { ApiName = "a", Unlocked = true, UnlockTimeUtc = new DateTime(2025, 5, 5, 0, 0, 0, DateTimeKind.Utc) },
+                new AchievementOverride { ClearUnlockTime = true },
+                hasManualLink: false);
 
-            AchievementOverrideApplier.Apply(detail, userOverride, hasManualLink: false);
-            AchievementOverrideApplier.Apply(row, userOverride, hasManualLink: false);
-
-            Assert.IsNull(detail.UnlockTimeUtc);
             Assert.IsNull(row.UnlockTimeUtc);
         }
 
         [TestMethod]
-        public void Apply_ClearTrophyTypeAndDescription_BlanksBothTargets()
+        public void ClearTrophyTypeAndDescription_Blank()
         {
-            var detail = new FakeRow { TrophyType = "gold", Description = "Provider text" };
-            var row = new FakeRow { TrophyType = "gold", Description = "Provider text" };
-            var userOverride = new AchievementOverride { ClearTrophyType = true, ClearDescription = true };
+            var row = Apply(
+                new AchievementDetail { ApiName = "a", TrophyType = "gold", Description = "Provider text" },
+                new AchievementOverride { ClearTrophyType = true, ClearDescription = true },
+                hasManualLink: false);
 
-            AchievementOverrideApplier.Apply(detail, userOverride, hasManualLink: false);
-            AchievementOverrideApplier.Apply(row, userOverride, hasManualLink: false);
-
-            Assert.IsNull(detail.TrophyType);
             Assert.IsNull(row.TrophyType);
-            Assert.IsNull(detail.Description);
             Assert.IsNull(row.Description);
         }
 
         [TestMethod]
-        public void Apply_ClearFlags_LoseToExplicitValues()
+        public void ClearFlags_LoseToExplicitValues()
         {
-            var row = new FakeRow { TrophyType = "gold", Description = "Provider text" };
-
-            AchievementOverrideApplier.Apply(
-                row,
-                new AchievementOverride
-                {
-                    TrophyType = "bronze",
-                    ClearTrophyType = true,
-                    Description = "Rewritten",
-                    ClearDescription = true
-                },
+            var row = Apply(
+                new AchievementDetail { ApiName = "a", TrophyType = "gold", Description = "Provider text" },
+                new AchievementOverride { TrophyType = "bronze", ClearTrophyType = true, Description = "Rewritten", ClearDescription = true },
                 hasManualLink: false);
 
             Assert.AreEqual("bronze", row.TrophyType);
@@ -158,36 +106,38 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void Apply_LockedRow_DoesNotTakeAnUnlockTime()
+        public void LockedRow_DoesNotTakeAnUnlockTime()
         {
-            var row = new FakeRow { Unlocked = false };
-
-            AchievementOverrideApplier.Apply(row, FullOverride(), hasManualLink: false);
+            var row = Apply(new AchievementDetail { ApiName = "a", Unlocked = false }, FullOverride(), hasManualLink: false);
 
             // Unlock status stays provider-owned, so a locked row has no timestamp to correct.
             Assert.IsNull(row.UnlockTimeUtc);
         }
 
         [TestMethod]
-        public void Apply_BlankOverride_LeavesProviderValuesAlone()
+        public void BlankOverride_LeavesProviderValuesAlone()
         {
-            var detail = new FakeRow
-            {
-                DisplayName = "Provider name",
-                Description = "Provider text",
-                Points = 7,
-                TrophyType = "bronze"
-            };
-
-            AchievementOverrideApplier.Apply(
-                detail,
+            var row = Apply(
+                new AchievementDetail { ApiName = "a", DisplayName = "Provider name", Description = "Provider text", Points = 7, TrophyType = "bronze" },
                 new AchievementOverride { DisplayName = "  ", Description = string.Empty, TrophyType = null },
                 hasManualLink: false);
 
-            Assert.AreEqual("Provider name", detail.DisplayName);
-            Assert.AreEqual("Provider text", detail.Description);
-            Assert.AreEqual(7, detail.Points);
-            Assert.AreEqual("bronze", detail.TrophyType);
+            Assert.AreEqual("Provider name", row.DisplayName);
+            Assert.AreEqual("Provider text", row.Description);
+            Assert.AreEqual(7, row.Points);
+            Assert.AreEqual("bronze", row.TrophyType);
+        }
+
+        [TestMethod]
+        public void ResolvingAgain_WithoutTheOverride_RestoresTheProviderValues()
+        {
+            var row = Apply(new AchievementDetail { ApiName = "a", DisplayName = "Provider name", Points = 7 }, FullOverride(), hasManualLink: false);
+
+            row.CustomLayer = null;
+            AchievementLayers.Resolve(row);
+
+            Assert.AreEqual("Provider name", row.DisplayName);
+            Assert.AreEqual(7, row.Points);
         }
     }
 }

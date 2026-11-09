@@ -1039,7 +1039,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // Type/category options are game-specific vocabulary: they are only populated once a
             // single game is selected (with no game selected the option lists are cleared and any
             // selections are pruned, so the dropdowns auto-hide).
-            viewModel.SetProviderFilter("Steam");
+            viewModel.SetFriendProviderFilterSelected("Steam", true);
             viewModel.FriendSearchText = "ali";
             viewModel.SelectedGame = data.Games[0];
             GetTypeFilter(viewModel).SetSelected("Base", true);
@@ -2034,9 +2034,6 @@ namespace PlayniteAchievements.Tests.ViewModels
             }
 
             public List<FriendAchievementDisplayItem> PairAchievements { get; set; }
-
-            public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
-                Data;
 
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() =>
                 new List<CurrentUserGameLabel>();

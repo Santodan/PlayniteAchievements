@@ -381,8 +381,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 var settings = new PersistedSettings
                 {
-                    UseSeparateLockedIconsWhenAvailable = false,
-                    SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId }
+                    UseSeparateLockedIconsWhenAvailable = true
                 };
                 var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir);
                 var iconService = new AchievementIconService(
@@ -993,25 +992,6 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
-        public void ShouldUseSeparateLockedIcons_UsesGlobalSettingOrPerGameOverride()
-        {
-            var gameId = Guid.NewGuid();
-            var settings = new PersistedSettings
-            {
-                UseSeparateLockedIconsWhenAvailable = false
-            };
-
-            Assert.IsFalse(settings.ShouldUseSeparateLockedIcons(gameId));
-
-            settings.SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId };
-            Assert.IsTrue(settings.ShouldUseSeparateLockedIcons(gameId));
-
-            settings.SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
-            settings.UseSeparateLockedIconsWhenAvailable = true;
-            Assert.IsTrue(settings.ShouldUseSeparateLockedIcons(gameId));
-        }
-
-        [TestMethod]
         public void ClearIconCache_LockedOnly_RemovesNamedLockedFilesAndExplicitLegacyLockedPaths()
         {
             var tempDir = CreateTempDirectory();
@@ -1382,7 +1362,7 @@ namespace PlayniteAchievements.Services.Images.Tests
             new[] { new MetadataSourceList(id, id, rows) };
 
         [TestMethod]
-        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndDeletesTheirOwnCopies()
+        public async Task PopulateAchievementIconCacheAsync_UsesBorrowedIconsInPlace_AndKeepsTheOwnFiles()
         {
             var tempDir = CreateTempDirectory();
 
@@ -1419,7 +1399,7 @@ namespace PlayniteAchievements.Services.Images.Tests
 
                 Assert.AreEqual(borrowedFile, borrowed.UnlockedIconPath, "a borrowed icon is used from its source folder");
                 Assert.IsTrue(File.Exists(borrowedFile));
-                Assert.IsFalse(File.Exists(staleCopy), "the own-folder copy of a borrowed icon is deleted");
+                Assert.IsTrue(File.Exists(staleCopy), "the game's own file stays for when metadata is cleared");
                 var ownTarget = diskImageService.GetAchievementIconCachePath(gameIdText, "own", AchievementIconVariant.Unlocked);
                 Assert.AreEqual(ownTarget, own.UnlockedIconPath, "an icon of the game's own is still cached in its own folder");
                 Assert.IsTrue(File.Exists(ownTarget));
@@ -1630,26 +1610,6 @@ namespace PlayniteAchievements.Services.Images.Tests
             {
                 DeleteDirectory(tempDir);
             }
-        }
-
-        [TestMethod]
-        public void PersistedSettingsCloneAndCopy_PreservesSeparateLockedIconFlags()
-        {
-            var gameId = Guid.NewGuid();
-            var source = new PersistedSettings
-            {
-                UseSeparateLockedIconsWhenAvailable = true,
-                SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId }
-            };
-
-            var clone = source.Clone();
-            var copyTarget = new PersistedSettings();
-            copyTarget.CopyFrom(source);
-
-            Assert.IsTrue(clone.UseSeparateLockedIconsWhenAvailable);
-            Assert.IsTrue(clone.SeparateLockedIconEnabledGameIds.Contains(gameId));
-            Assert.IsTrue(copyTarget.UseSeparateLockedIconsWhenAvailable);
-            Assert.IsTrue(copyTarget.SeparateLockedIconEnabledGameIds.Contains(gameId));
         }
 
         [TestMethod]

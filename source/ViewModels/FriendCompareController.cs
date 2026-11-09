@@ -22,7 +22,8 @@ namespace PlayniteAchievements.ViewModels
     /// friend's unlock state onto the self display items' comparison fields. Selection is
     /// session-only and clears whenever the game changes.
     /// </summary>
-    public sealed class FriendCompareController : ObservableObject, IGridCompareSource
+    public sealed class FriendCompareController :
+        FriendCompareControllerBase<AchievementDisplayItem>, IGridCompareSource
     {
         public sealed class Option
         {
@@ -44,7 +45,6 @@ namespace PlayniteAchievements.ViewModels
         private List<Option> _options = new List<Option>();
         private Option _selected;
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
-        private readonly List<AchievementDisplayItem> _appliedItems = new List<AchievementDisplayItem>();
         private bool _availabilityPending;
         private bool _indexedAvailability;
 
@@ -351,23 +351,7 @@ namespace PlayniteAchievements.ViewModels
         // avatar appears without a restart.
         private Dictionary<string, FriendIdentity> LoadCurrentUsersByProvider()
         {
-            var map = new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                foreach (var identity in _friendCache?.LoadCurrentUserIdentities() ?? new List<FriendIdentity>())
-                {
-                    if (identity != null && !string.IsNullOrWhiteSpace(identity.ProviderKey))
-                    {
-                        map[identity.ProviderKey] = identity;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to load current user identities for compare.");
-            }
-
-            return map;
+            return LoadIdentitiesByProvider(() => _friendCache?.LoadCurrentUserIdentities(), _logger);
         }
 
         private void ApplySelection()
@@ -379,26 +363,13 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var compareRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in _friendRows)
-            {
-                if (row == null || string.IsNullOrWhiteSpace(row.ApiName))
-                {
-                    continue;
-                }
-
-                var key = FriendOverviewProjection.GetFriendScopeKey(row);
-                if (!string.Equals(key, _selected.Key, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (!compareRows.TryGetValue(row.ApiName, out var existing) ||
-                    (row.Unlocked && !existing.Unlocked))
-                {
-                    compareRows[row.ApiName] = row;
-                }
-            }
+            var selectedKey = _selected.Key;
+            var compareRows = BuildBestRowsByApiName(
+                _friendRows,
+                row => string.Equals(
+                    FriendOverviewProjection.GetFriendScopeKey(row),
+                    selectedKey,
+                    StringComparison.OrdinalIgnoreCase));
 
             foreach (var item in items)
             {
@@ -428,29 +399,8 @@ namespace PlayniteAchievements.ViewModels
                     compareRow?.Unlocked == true,
                     self?.DisplayName,
                     self?.AvatarPath);
-                _appliedItems.Add(item);
+                AppliedItems.Add(item);
             }
-        }
-
-        private void ClearApplied()
-        {
-            if (_appliedItems.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var item in _appliedItems)
-            {
-                item?.ClearComparison();
-            }
-
-            _appliedItems.Clear();
-        }
-
-        private void NotifyCompareStateChanged()
-        {
-            OnPropertyChanged(nameof(CompareSelectionText));
-            OnPropertyChanged(nameof(IsCompareAvailable));
         }
     }
 }

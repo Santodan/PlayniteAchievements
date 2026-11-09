@@ -589,7 +589,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 gameId => plugin?.OpenManageAchievementsView(gameId),
                 API.Instance,
                 plugin?.AchievementOverridesService,
-                plugin?.CacheManager,
                 LogManager.GetLogger(),
                 includeViewCaptures: true,
                 menuSource: row);

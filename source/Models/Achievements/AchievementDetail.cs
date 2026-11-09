@@ -154,6 +154,27 @@ namespace PlayniteAchievements.Models.Achievements
         public string ProviderCategoryKind { get; set; }
 
         /// <summary>
+        /// Runtime-only: the platform's own values for this achievement, which the cache stores
+        /// in its definition row. Null on a row no store or refresh has layered yet.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues PlatformLayer { get; set; }
+
+        /// <summary>
+        /// Runtime-only: the values metadata sources supplied, stored apart from the platform's.
+        /// Null or empty when no source supplied any.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues MetadataLayer { get; set; }
+
+        /// <summary>
+        /// Runtime-only: the values the user's override supplies, set on each hydration. Never
+        /// stored in the cache; custom data is its own store.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues CustomLayer { get; set; }
+
+        /// <summary>
         /// Runtime-only category art path for theme/display bindings: custom override when
         /// set, otherwise the provider default. Null when neither exists; consumers choose
         /// the game icon/cover fallback.

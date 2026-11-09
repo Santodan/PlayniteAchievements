@@ -183,7 +183,6 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showLockedTrophy = true;
         private bool _showLockedPoints = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
-        private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private string _lockedFallbackIconPath = null;
         private string _hiddenFallbackIconPath = null;
         private bool _modernCompactListShowRarityGlow = true;
@@ -269,14 +268,6 @@ namespace PlayniteAchievements.Models.Settings
         private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
-        private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
-        private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
-        private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
-        private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
-        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryOverrides =
-            new Dictionary<Guid, Dictionary<string, string>>();
-        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryTypeOverrides =
-            new Dictionary<Guid, Dictionary<string, string>>();
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private CompactListSortMode _compactListSortMode = CompactListSortMode.None;
@@ -2193,33 +2184,6 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Game IDs that always use separate locked icons when available, regardless of the global default.
-        /// When absent, the game falls back to the global UseSeparateLockedIconsWhenAvailable setting.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> SeparateLockedIconEnabledGameIds
-        {
-            get => _separateLockedIconEnabledGameIds;
-            set => SetValue(ref _separateLockedIconEnabledGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Resolves whether a game should use separate locked icons after applying the per-game override.
-        /// </summary>
-        public bool ShouldUseSeparateLockedIcons(Guid? playniteGameId)
-        {
-            if (UseSeparateLockedIconsWhenAvailable)
-            {
-                return true;
-            }
-
-            return playniteGameId.HasValue &&
-                   playniteGameId.Value != Guid.Empty &&
-                   SeparateLockedIconEnabledGameIds?.Contains(playniteGameId.Value) == true;
-        }
-
-        /// <summary>
         /// Absolute path to the user's image for locked achievements, or null for the built-in
         /// placeholder. When set it replaces both the masked-locked placeholder and the
         /// grayscaled-unlocked fallback, so a locked achievement shows either a provider-supplied
@@ -3088,82 +3052,6 @@ namespace PlayniteAchievements.Models.Settings
 
         #region User Preferences (Survive Cache Clear)
 
-        /// <summary>
-        /// Game IDs that the user has explicitly excluded from achievement tracking.
-        /// These exclusions persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> ExcludedGameIds
-        {
-            get => _excludedGameIds;
-            set => SetValue(ref _excludedGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Game IDs that are excluded from all summary surfaces.
-        /// These exclusions persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> ExcludedFromSummariesGameIds
-        {
-            get => _excludedFromSummariesGameIds;
-            set => SetValue(ref _excludedFromSummariesGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Manual capstone selections. Key = Playnite Game ID, Value = Achievement ApiName.
-        /// These selections persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, string> ManualCapstones
-        {
-            get => _manualCapstones;
-            set => SetValue(ref _manualCapstones, value ?? new Dictionary<Guid, string>());
-        }
-
-        /// <summary>
-        /// Manual achievement order per game.
-        /// Key = Playnite Game ID, Value = full ordered list of achievement ApiName values.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, List<string>> AchievementOrderOverrides
-        {
-            get => _achievementOrderOverrides;
-            set => SetValue(ref _achievementOrderOverrides, NormalizeAchievementOrderOverrides(value));
-        }
-
-        /// <summary>
-        /// Manual achievement category overrides per game.
-        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> Category.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryOverrides
-        {
-            get => _achievementCategoryOverrides;
-            set => SetValue(ref _achievementCategoryOverrides, NormalizeAchievementCategoryOverrides(value));
-        }
-
-        /// <summary>
-        /// Manual achievement category type overrides per game.
-        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> CategoryType.
-        /// Allowed values: Base, DLC, Singleplayer, Multiplayer.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryTypeOverrides
-        {
-            get => _achievementCategoryTypeOverrides;
-            set => SetValue(ref _achievementCategoryTypeOverrides, NormalizeAchievementCategoryTypeOverrides(value));
-        }
-
         #endregion
 
         #region Tagging Settings
@@ -3600,41 +3488,6 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase),
 
                 // User Preferences (Survive Cache Clear)
-                ExcludedGameIds = this.ExcludedGameIds != null
-                    ? new HashSet<Guid>(this.ExcludedGameIds)
-                    : new HashSet<Guid>(),
-                ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
-                    ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
-                    : new HashSet<Guid>(),
-                SeparateLockedIconEnabledGameIds = this.SeparateLockedIconEnabledGameIds != null
-                    ? new HashSet<Guid>(this.SeparateLockedIconEnabledGameIds)
-                    : new HashSet<Guid>(),
-                ManualCapstones = this.ManualCapstones != null
-                    ? new Dictionary<Guid, string>(this.ManualCapstones)
-                    : new Dictionary<Guid, string>(),
-                AchievementOrderOverrides = this.AchievementOrderOverrides != null
-                    ? this.AchievementOrderOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new List<string>(kvp.Value)
-                            : new List<string>())
-                    : new Dictionary<Guid, List<string>>(),
-                AchievementCategoryOverrides = this.AchievementCategoryOverrides != null
-                    ? this.AchievementCategoryOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                    : new Dictionary<Guid, Dictionary<string, string>>(),
-                AchievementCategoryTypeOverrides = this.AchievementCategoryTypeOverrides != null
-                    ? this.AchievementCategoryTypeOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                    : new Dictionary<Guid, Dictionary<string, string>>(),
-
-                // Tagging Settings
                 TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
             };
         }
@@ -3656,7 +3509,6 @@ namespace PlayniteAchievements.Models.Settings
             ShowLockedPoints = defaults.ShowLockedPoints;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
-            SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
             LockedFallbackIconPath = defaults.LockedFallbackIconPath;
             HiddenFallbackIconPath = defaults.HiddenFallbackIconPath;
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
@@ -4306,99 +4158,6 @@ namespace PlayniteAchievements.Models.Settings
 
         private static string NormalizeNullableString(string value) =>
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-        private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(
-            Dictionary<Guid, List<string>> value)
-        {
-            var normalized = new Dictionary<Guid, List<string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var pair in value)
-            {
-                var order = Services.Achievements.AchievementOrderHelper.NormalizeApiNames(pair.Value);
-                if (order.Count > 0)
-                {
-                    normalized[pair.Key] = order;
-                }
-            }
-
-            return normalized;
-        }
-
-        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryOverrides(
-            Dictionary<Guid, Dictionary<string, string>> value)
-        {
-            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var gamePair in value)
-            {
-                var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                if (gamePair.Value != null)
-                {
-                    foreach (var categoryPair in gamePair.Value)
-                    {
-                        var key = (categoryPair.Key ?? string.Empty).Trim();
-                        var category = (categoryPair.Value ?? string.Empty).Trim();
-                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(category))
-                        {
-                            continue;
-                        }
-
-                        categories[key] = category;
-                    }
-                }
-
-                if (categories.Count > 0)
-                {
-                    normalized[gamePair.Key] = categories;
-                }
-            }
-
-            return normalized;
-        }
-
-        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryTypeOverrides(
-            Dictionary<Guid, Dictionary<string, string>> value)
-        {
-            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var gamePair in value)
-            {
-                var categoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                if (gamePair.Value != null)
-                {
-                    foreach (var categoryTypePair in gamePair.Value)
-                    {
-                        var key = (categoryTypePair.Key ?? string.Empty).Trim();
-                        var categoryType = (categoryTypePair.Value ?? string.Empty).Trim();
-                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(categoryType))
-                        {
-                            continue;
-                        }
-
-                        categoryTypes[key] = categoryType;
-                    }
-                }
-
-                if (categoryTypes.Count > 0)
-                {
-                    normalized[gamePair.Key] = categoryTypes;
-                }
-            }
-
-            return normalized;
-        }
 
         #endregion
     }

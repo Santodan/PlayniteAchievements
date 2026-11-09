@@ -19,8 +19,8 @@ namespace PlayniteAchievements.Services.Cache
     internal interface IMetadataStateDatabase
     {
         /// <summary>
-        /// Raised after <see cref="ICacheManager.ClearCache"/> has deleted and recreated the
-        /// database, which removes every metadata state row.
+        /// Raised after <see cref="ICacheManager.ClearCache"/> has deleted every platform and
+        /// metadata row, metadata state included.
         /// </summary>
         event EventHandler MetadataStateCleared;
 

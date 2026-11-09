@@ -464,8 +464,6 @@ namespace PlayniteAchievements.Services.Friends
         /// </summary>
         FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope);
 
-        FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit);
-
         // Current-user games (with the servicing provider label stored at scan time) used to resolve a
         // friend's games against the local library without re-deriving platform from Source/Platform.
         IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels();

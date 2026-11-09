@@ -25,7 +25,7 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class ViewFriendsAchievementsViewModel : ObservableObject, IDisposable
+    public sealed class ViewFriendsAchievementsViewModel : ObservableObject, IDisposable, IFriendSummariesFilterSource
     {
         private readonly Guid _gameId;
         private readonly FriendGameAchievementsDataCoordinator _dataCoordinator;
@@ -484,33 +484,7 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
         {
-            var controlBar = new GridControlBarViewModel
-            {
-                Search = new GridSearchControl(
-                    this,
-                    nameof(FriendSearchText),
-                    () => FriendSearchText,
-                    value => FriendSearchText = value,
-                    GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
-                    ClearFriendSearch)
-                {
-                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
-                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
-                }
-            };
-            controlBar.Items.Add(new GridToggleFilter(
-                this,
-                nameof(FavoritesOnly),
-                L("LOCPlayAch_RefreshModeShort_Favorites"),
-                () => FavoritesOnly,
-                value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite)
-            {
-                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
-                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
-                ClearedValue = false
-            });
-            return controlBar;
+            return FriendSurfaceControlBars.CreateFriendSummariesControlBar(this);
         }
 
         private void ApplySnapshot(FriendsOverviewSnapshot snapshot)
@@ -558,16 +532,10 @@ namespace PlayniteAchievements.ViewModels
         // Friends other than the selected one that have cached rows for this window's game.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
-            if (SelectedFriend == null)
-            {
-                return Array.Empty<FriendSummaryItem>();
-            }
-
-            return _allFriends
-                .Where(friend => friend != null &&
-                    !FriendOverviewProjection.IsSameFriend(friend, SelectedFriend) &&
-                    _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)))
-                .ToList();
+            return FriendSurfaceControlBars.GetCompareFriendOptions(
+                _allFriends,
+                SelectedFriend,
+                friend => _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)));
         }
 
         // Mirrors the Friends Overview game-summary pair: the aggregate all-friends row when no

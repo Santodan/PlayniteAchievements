@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.PlayniteGameId = playniteGameId;
             normalized.ExcludedFromRefreshes = normalized.ExcludedFromRefreshes == true ? true : (bool?)null;
             normalized.ExcludedFromSummaries = normalized.ExcludedFromSummaries == true ? true : (bool?)null;
+            normalized.ExcludedFromMetadata = normalized.ExcludedFromMetadata == true ? true : (bool?)null;
             normalized.RuleClaims = NormalizeRuleClaims(normalized.RuleClaims);
             normalized.UserPinnedFields = NormalizeRuleFieldList(normalized.UserPinnedFields);
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
@@ -92,8 +93,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
-            // Schema 8 fold: the parallel maps above become one record per achievement. Both
-            // shapes are then kept in sync, so a writer targeting either is still correct.
+            // Schema 8 fold: the parallel maps above become one record per achievement, and the
+            // maps are dropped. Only portable packages still carry them, for older versions.
             var legacyTypesByCategory = CollectLegacyTypesByCategory(
                 splitLegacyTypes ? normalized.AchievementOverrides : null,
                 normalized.AchievementCategoryOverrides,
@@ -108,12 +109,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.AchievementNotes,
                 normalized.AchievementUnlockedIconOverrides,
                 normalized.AchievementLockedIconOverrides));
-            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryOverrides = null;
             normalized.AchievementCategoryTypeOverrides = null;
             normalized.AchievementCategoryKinds = LegacyCategoryTypes.PromoteKinds(normalized.AchievementCategoryKinds, legacyTypesByCategory);
-            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
-            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
-            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
+            normalized.AchievementNotes = null;
+            normalized.AchievementUnlockedIconOverrides = null;
+            normalized.AchievementLockedIconOverrides = null;
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
@@ -204,6 +205,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.ExcludedFromRefreshes == true ||
                    data.ExcludedFromSummaries == true ||
+                   data.ExcludedFromMetadata == true ||
                    // A claim alone must survive: it holds the status to restore when the rule lets go.
                    (data.RuleClaims != null && data.RuleClaims.Count > 0) ||
                    (data.UserPinnedFields != null && data.UserPinnedFields.Count > 0) ||
@@ -361,6 +363,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 PlayniteGameId = existing.PlayniteGameId != Guid.Empty ? existing.PlayniteGameId : legacy.PlayniteGameId,
                 ExcludedFromRefreshes = existing.ExcludedFromRefreshes ?? legacy.ExcludedFromRefreshes,
                 ExcludedFromSummaries = existing.ExcludedFromSummaries ?? legacy.ExcludedFromSummaries,
+                ExcludedFromMetadata = existing.ExcludedFromMetadata ?? legacy.ExcludedFromMetadata,
                 RuleClaims = GameCustomDataFile.CloneRuleClaims(existing.RuleClaims ?? legacy.RuleClaims),
                 UserPinnedFields = existing.UserPinnedFields != null
                     ? new List<string>(existing.UserPinnedFields)

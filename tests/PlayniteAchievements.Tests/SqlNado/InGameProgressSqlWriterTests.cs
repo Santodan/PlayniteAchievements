@@ -73,14 +73,14 @@ namespace PlayniteAchievements.SqlNado.Tests
 
                 Assert.AreEqual(
                     3L,
-                    db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementDefinitions;"));
+                    db.ExecuteScalar<long>("SELECT COUNT(*) FROM PlatformDefinitions;"));
                 Assert.AreEqual(
                     "Old Name|old-unlocked.png|old-locked.png|12.5|Missable",
                     db.ExecuteScalar<string>(
                         @"SELECT DisplayName || '|' || UnlockedIconPath || '|' ||
                                  LockedIconPath || '|' || GlobalPercentUnlocked || '|' ||
                                  Tags
-                          FROM AchievementDefinitions
+                          FROM PlatformDefinitions
                           WHERE ApiName = 'ACH_OLD';"));
                 Assert.AreEqual(
                     2L,
@@ -137,7 +137,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 db.ExecuteNonQuery(
                     "UPDATE Games SET ProviderKey = 'RetroAchievements' WHERE Id = 10;");
                 db.ExecuteNonQuery(
-                    @"UPDATE AchievementDefinitions
+                    @"UPDATE PlatformDefinitions
                       SET Tags = 'Progression|Softcore'
                       WHERE ApiName = 'ACH_NEW';");
 
@@ -158,7 +158,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.IsTrue(result.Success);
                 var tags = db.ExecuteScalar<string>(
                     @"SELECT Tags
-                      FROM AchievementDefinitions
+                      FROM PlatformDefinitions
                       WHERE ApiName = 'ACH_NEW';");
                 StringAssert.Contains(tags, "Progression");
                 StringAssert.Contains(tags, "Hardcore");
@@ -211,7 +211,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     fromLog.NewlyUnlockedKeys.ToArray());
 
                 var categoryAfterLog = db.ExecuteScalar<string>(
-                    @"SELECT Tags FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';");
+                    @"SELECT Tags FROM PlatformDefinitions WHERE ApiName = 'ACH_NEW';");
 
                 var fromFeed = InGameProgressSqlWriter.Apply(
                     db,
@@ -242,7 +242,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual(
                     categoryAfterLog,
                     db.ExecuteScalar<string>(
-                        @"SELECT Tags FROM AchievementDefinitions WHERE ApiName = 'ACH_NEW';"));
+                        @"SELECT Tags FROM PlatformDefinitions WHERE ApiName = 'ACH_NEW';"));
                 Assert.AreEqual(
                     2L,
                     db.ExecuteScalar<long>(
@@ -259,7 +259,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             WithSeededDatabase(db =>
             {
                 var beforeDefinitions = db.ExecuteScalar<long>(
-                    "SELECT COUNT(*) FROM AchievementDefinitions;");
+                    "SELECT COUNT(*) FROM PlatformDefinitions;");
                 var beforeProgress = db.ExecuteScalar<long>(
                     "SELECT COUNT(*) FROM UserAchievements;");
 
@@ -281,7 +281,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual(
                     beforeDefinitions,
                     db.ExecuteScalar<long>(
-                        "SELECT COUNT(*) FROM AchievementDefinitions;"));
+                        "SELECT COUNT(*) FROM PlatformDefinitions;"));
                 Assert.AreEqual(
                     beforeProgress,
                     db.ExecuteScalar<long>(
@@ -343,7 +343,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     UpdatedUtc TEXT
                   );");
             db.ExecuteNonQuery(
-                @"CREATE TABLE AchievementDefinitions (
+                @"CREATE TABLE PlatformDefinitions (
                     Id INTEGER PRIMARY KEY,
                     GameId INTEGER NOT NULL,
                     ApiName TEXT NOT NULL,
@@ -379,7 +379,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                   VALUES
                     (20, 1, 10, 'game-key', 1, 'old', 'old');");
             db.ExecuteNonQuery(
-                @"INSERT INTO AchievementDefinitions
+                @"INSERT INTO PlatformDefinitions
                     (Id, GameId, ApiName, DisplayName, UnlockedIconPath, LockedIconPath,
                      GlobalPercentUnlocked, Tags, UpdatedUtc)
                   VALUES

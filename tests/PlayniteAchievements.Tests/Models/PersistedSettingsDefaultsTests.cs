@@ -1866,27 +1866,6 @@ namespace PlayniteAchievements.Models.Tests
                         MigratedAtUtc = new DateTime(2026, 1, 1)
                     }
                 },
-                ExcludedGameIds = new HashSet<Guid> { excludedGameId },
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId },
-                ManualCapstones = new Dictionary<Guid, string> { [gameId] = "capstone" },
-                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
-                {
-                    [gameId] = new List<string> { "first", "second" }
-                },
-                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["first"] = "DLC"
-                    }
-                },
-                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["first"] = "Base"
-                    }
-                },
                 WindowPlacements = new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["overview"] = new WindowPlacementState
@@ -2133,14 +2112,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsTrue(settings.FirstTimeSetupCompleted);
             Assert.IsTrue(settings.SeenThemeMigration);
             Assert.AreEqual("2.0", settings.ThemeMigrationVersionCache["theme"].MigratedThemeVersion);
-            Assert.IsTrue(settings.ExcludedGameIds.Contains(excludedGameId));
-            Assert.IsTrue(settings.ExcludedFromSummariesGameIds.Contains(gameId));
-            Assert.AreEqual("capstone", settings.ManualCapstones[gameId]);
-            CollectionAssert.AreEqual(
-                new List<string> { "first", "second" },
-                settings.AchievementOrderOverrides[gameId]);
-            Assert.AreEqual("DLC", settings.AchievementCategoryOverrides[gameId]["first"]);
-            Assert.AreEqual("Base", settings.AchievementCategoryTypeOverrides[gameId]["first"]);
             Assert.AreEqual(900d, settings.WindowPlacements["overview"].Width);
             Assert.IsTrue(settings.WindowPlacements["overview"].IsMaximized);
             Assert.IsTrue(settings.TaggingSettings.EnableTagging);

@@ -98,7 +98,6 @@
     <Compile Include="..\..\source\Providers\Steam\SteamAppIds.cs" Link="Source\Providers\Steam\SteamAppIds.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSourceGameSearch.cs" Link="Source\Providers\Manual\ManualSourceGameSearch.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamGameIdentity.cs" Link="Source\Providers\Steam\SteamGameIdentity.cs" />
-    <Compile Include="..\..\source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" Link="Source\Providers\Steam\SteamExophaseFriendOwnershipMapper.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamSettings.cs" Link="Source\Providers\Steam\SteamSettings.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamIdHelper.cs" Link="Source\Providers\Steam\Local\SteamIdHelper.cs" />
     <Compile Include="..\..\source\Providers\Steam\Local\SteamInstallLocator.cs" Link="Source\Providers\Steam\Local\SteamInstallLocator.cs" />
@@ -231,6 +230,13 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementCategoryHelper.cs" Link="Source\Services\Achievements\AchievementCategoryHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\CategoryKindHelper.cs" Link="Source\Services\Achievements\CategoryKindHelper.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementTagHelper.cs" Link="Source\Services\Achievements\AchievementTagHelper.cs" />
+    <Compile Include="..\..\source\Models\Achievements\AchievementField.cs" Link="Source\Models\Achievements\AchievementField.cs" />
+    <Compile Include="..\..\source\Models\Achievements\AchievementLayerValues.cs" Link="Source\Models\Achievements\AchievementLayerValues.cs" />
+    <Compile Include="..\..\source\Services\Achievements\LayerResolver.cs" Link="Source\Services\Achievements\LayerResolver.cs" />
+    <Compile Include="..\..\source\Services\Achievements\AchievementLayers.cs" Link="Source\Services\Achievements\AchievementLayers.cs" />
+    <Compile Include="..\..\source\Services\Database\AchievementLayerSql.cs" Link="Source\Services\Database\AchievementLayerSql.cs" />
+    <Compile Include="..\..\source\Services\Database\SqlNadoSchemaManager.cs" Link="Source\Services\Database\SqlNadoSchemaManager.cs" />
+    <Compile Include="..\..\source\Services\Database\Rows\CacheMetadataRow.cs" Link="Source\Services\Database\Rows\CacheMetadataRow.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementTagRegistry.cs" Link="Source\Services\Achievements\AchievementTagRegistry.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementClassificationFilter.cs" Link="Source\Services\Achievements\AchievementClassificationFilter.cs" />
     <Compile Include="..\..\source\Services\Achievements\LegacyCategoryTypes.cs" Link="Source\Services\Achievements\LegacyCategoryTypes.cs" />
@@ -408,6 +414,7 @@
     <Compile Include="..\..\source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" Link="Source\Providers\Exophase\ExophaseFriendPlatformMatcher.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseGameNameMatcher.cs" Link="Source\Providers\Exophase\ExophaseGameNameMatcher.cs" />
     <Compile Include="..\..\source\Common\StringSimilarity.cs" Link="Source\Common\StringSimilarity.cs" />
+    <Compile Include="..\..\source\Common\StringCoalesce.cs" Link="Source\Common\StringCoalesce.cs" />
     <Compile Include="..\..\source\Common\KeySequenceMatcher.cs" Link="Source\Common\KeySequenceMatcher.cs" />
     <Compile Include="..\..\source\Common\LruCache.cs" Link="Source\Common\LruCache.cs" />
     <Compile Include="..\..\source\Common\GameNameNormalizer.cs" Link="Source\Common\GameNameNormalizer.cs" />
@@ -489,11 +496,13 @@
     <Compile Include="..\..\source\Models\Settings\PersistedSettingsSubscription.cs" Link="Source\Models\Settings\PersistedSettingsSubscription.cs" />
     <Compile Include="..\..\source\Models\Settings\UnlockSoundTier.cs" Link="Source\Models\Settings\UnlockSoundTier.cs" />
     <Compile Include="..\..\source\ViewModels\FriendsOverviewViewModel.cs" Link="Source\ViewModels\FriendsOverviewViewModel.cs" />
+    <Compile Include="..\..\source\ViewModels\FriendSurfaceControlBars.cs" Link="Source\ViewModels\FriendSurfaceControlBars.cs" />
     <Compile Include="..\..\source\ViewModels\Items\CategoryStatsScope.cs" Link="Source\ViewModels\Items\CategoryStatsScope.cs" />
     <Compile Include="..\..\source\ViewModels\Items\CategoryTreeShape.cs" Link="Source\ViewModels\Items\CategoryTreeShape.cs" />
     <Compile Include="..\..\source\ViewModels\Items\GameSummaryItem.cs" Link="Source\ViewModels\Items\GameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\AchievementGridControlBarAdapter.cs" Link="Source\ViewModels\AchievementGridControlBarAdapter.cs" />
     <Compile Include="..\..\source\ViewModels\FriendCompareController.cs" Link="Source\ViewModels\FriendCompareController.cs" />
+    <Compile Include="..\..\source\ViewModels\FriendCompareControllerBase.cs" Link="Source\ViewModels\FriendCompareControllerBase.cs" />
     <Compile Include="..\..\source\ViewModels\IGridCompareSource.cs" Link="Source\ViewModels\IGridCompareSource.cs" />
     <Compile Include="..\..\source\ViewModels\FriendVsFriendCompareController.cs" Link="Source\ViewModels\FriendVsFriendCompareController.cs" />
     <Compile Include="..\..\source\ViewModels\CrossGameAchievementControlBarAdapter.cs" Link="Source\ViewModels\CrossGameAchievementControlBarAdapter.cs" />
@@ -659,7 +668,6 @@
     <Compile Include="..\..\source\Services\Showcase\GameCapstoneRarityResolver.cs" Link="Source\Services\Showcase\GameCapstoneRarityResolver.cs" />
     <Compile Include="..\..\source\Models\Settings\AchievementOverride.cs" Link="Source\Models\Settings\AchievementOverride.cs" />
     <Compile Include="..\..\source\Models\Achievements\IAchievementOverrideTarget.cs" Link="Source\Models\Achievements\IAchievementOverrideTarget.cs" />
-    <Compile Include="..\..\source\Services\Achievements\AchievementOverrideApplier.cs" Link="Source\Services\Achievements\AchievementOverrideApplier.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\AchievementEditorFieldRules.cs" Link="Source\ViewModels\ManageAchievements\AchievementEditorFieldRules.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\AchievementCustomization.cs" Link="Source\ViewModels\ManageAchievements\AchievementCustomization.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\ManageOverviewSummaryBuilder.cs" Link="Source\ViewModels\ManageAchievements\ManageOverviewSummaryBuilder.cs" />
@@ -779,6 +787,7 @@
     <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshCoordinator.cs" Link="Source\Services\Refresh\FriendRefreshCoordinator.cs" />
     <Compile Include="..\..\source\Services\Refresh\FriendRefreshWorkPolicy.cs" Link="Source\Services\Refresh\FriendRefreshWorkPolicy.cs" />
+    <Compile Include="..\..\source\Services\Refresh\SteamExophaseOwnershipSupplement.cs" Link="Source\Services\Refresh\SteamExophaseOwnershipSupplement.cs" />
     <Compile Include="..\..\source\Services\Refresh\RefreshStateManager.cs" Link="Source\Services\Refresh\RefreshStateManager.cs" />
     <Compile Include="..\..\source\Services\Refresh\TargetSelectionResolver.cs" Link="Source\Services\Refresh\TargetSelectionResolver.cs" />
     <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />

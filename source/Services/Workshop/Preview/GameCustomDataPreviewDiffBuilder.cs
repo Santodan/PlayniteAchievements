@@ -245,8 +245,8 @@ namespace PlayniteAchievements.Services.Workshop.Preview
                 source.GameId,
                 resolved,
                 source.ManagedCustomIconService,
-                () => predicted.AchievementUnlockedIconOverrides,
-                () => predicted.AchievementLockedIconOverrides);
+                () => AchievementOverride.Project(predicted.AchievementOverrides, o => o.UnlockedIconPath),
+                () => AchievementOverride.Project(predicted.AchievementOverrides, o => o.LockedIconPath));
             data.Achievements ??= new List<AchievementDetail>();
 
             // After hydration, so custom achievements projected from the record are covered too.

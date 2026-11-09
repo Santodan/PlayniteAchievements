@@ -170,25 +170,11 @@ namespace PlayniteAchievements.Views
             return FriendsAchievementsGrid?.OpenFocusedControlBarMenuForController() == true;
         }
 
-        private void GameSummaryRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (TryResolveContextMenuRow(sender, e, out var row))
-            {
-                e.Handled = true;
-                _pendingSummaryRightClickRow = row;
-            }
-        }
+        private void GameSummaryRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) =>
+            DataGridRowInteraction.BeginRowRightClick(DataGridRowInteraction.ResolveRow(sender, e), e, ref _pendingSummaryRightClickRow);
 
-        private void GameSummaryRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (TryResolveContextMenuRow(sender, e, out var row))
-            {
-                e.Handled = true;
-                var targetRow = _pendingSummaryRightClickRow ?? row;
-                _pendingSummaryRightClickRow = null;
-                OpenGameSummaryContextMenu(targetRow);
-            }
-        }
+        private void GameSummaryRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e) =>
+            DataGridRowInteraction.CompleteRowRightClick(DataGridRowInteraction.ResolveRow(sender, e), e, ref _pendingSummaryRightClickRow, OpenGameSummaryContextMenu);
 
         private void OpenGameSummaryContextMenu(DataGridRow row)
         {
@@ -205,7 +191,6 @@ namespace PlayniteAchievements.Views
                 gameId => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(gameId),
                 _playniteApi,
                 _achievementOverridesService,
-                _cacheManager,
                 _logger,
                 menuSource: row);
             if (menu == null || menu.Items.Count == 0)
@@ -238,7 +223,7 @@ namespace PlayniteAchievements.Views
             }
 
             var grid = VisualTreeHelpers.FindVisualParent<DataGrid>(row);
-            if (grid == null || !IsSelectedRow(row, grid))
+            if (grid == null || !DataGridRowInteraction.IsSelectedRow(row, grid))
             {
                 return;
             }
@@ -248,37 +233,8 @@ namespace PlayniteAchievements.Views
                 ViewModel.SelectedFriend = null;
             }
 
-            ClearGridSelection(grid);
+            DataGridRowInteraction.ClearGridSelection(grid);
             e.Handled = true;
-        }
-
-        private static bool IsSelectedRow(DataGridRow row, DataGrid grid)
-        {
-            return row != null &&
-                   grid != null &&
-                   (row.IsSelected ||
-                   ReferenceEquals(grid.SelectedItem, row.DataContext) ||
-                   ReferenceEquals(grid.CurrentItem, row.DataContext));
-        }
-
-        private static void ClearGridSelection(DataGrid grid)
-        {
-            if (grid == null)
-            {
-                return;
-            }
-
-            try
-            {
-                grid.SelectedItem = null;
-                grid.UnselectAll();
-                grid.CurrentItem = null;
-                Keyboard.ClearFocus();
-            }
-            catch
-            {
-                // Best effort; focus clearing should not break row toggling.
-            }
         }
 
         private void FriendRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -372,9 +328,7 @@ namespace PlayniteAchievements.Views
             MouseButtonEventArgs e,
             out DataGridRow row)
         {
-            row = sender as DataGridRow
-                  ?? e?.Source as DataGridRow
-                  ?? VisualTreeHelpers.FindVisualParent<DataGridRow>(e?.OriginalSource as DependencyObject);
+            row = DataGridRowInteraction.ResolveRow(sender, e);
             return row != null;
         }
     }

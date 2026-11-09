@@ -239,53 +239,10 @@ namespace PlayniteAchievements
                     };
                 }
 
-                yield return new GameMenuItem
+                foreach (var item in MaintenanceMenuItems(selectedGames))
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearData"),
-                    MenuSection = PluginGameMaintenanceSection,
-                    Action = (a) =>
-                    {
-                        ClearSelectedGamesData(selectedGames);
-                    }
-                };
-
-                var allExcludedFromSummaries = selectedGames.All(g => IsGameExcludedFromSummaries(g.Id));
-                yield return new GameMenuItem
-                {
-                    Description = allExcludedFromSummaries
-                        ? ResourceProvider.GetString("LOCPlayAch_Common_Action_IncludeInSummaries")
-                        : ResourceProvider.GetString("LOCPlayAch_Common_Action_ExcludeFromSummaries"),
-                    MenuSection = PluginGameMaintenanceSection,
-                    Action = (a) =>
-                    {
-                        ToggleExcludedFromSummaries(selectedGames);
-                    }
-                };
-
-                var allExcludedFromRefreshes = selectedGames.All(g => IsGameExcluded(g.Id));
-                yield return new GameMenuItem
-                {
-                    Description = allExcludedFromRefreshes
-                        ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInRefreshes")
-                        : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromRefreshes"),
-                    MenuSection = PluginGameMaintenanceSection,
-                    Action = (a) =>
-                    {
-                        ToggleExcludedFromRefreshes(selectedGames, clearDataWhenExcluding: false, confirmWhenClearingData: false);
-                    }
-                };
-
-                yield return new GameMenuItem
-                {
-                    Description = allExcludedFromRefreshes
-                        ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInRefreshesAndRefresh")
-                        : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData"),
-                    MenuSection = PluginGameMaintenanceSection,
-                    Action = (a) =>
-                    {
-                        ToggleExcludedFromRefreshesAndRefresh(selectedGames);
-                    }
-                };
+                    yield return item;
+                }
 
                 yield break;
             }
@@ -373,52 +330,60 @@ namespace PlayniteAchievements
                 }
             };
 
+            foreach (var item in MaintenanceMenuItems(new List<Game> { game }))
+            {
+                yield return item;
+            }
+        }
+
+        /// <summary>The game menu's Maintenance submenu: the per-layer clears, then the exclusions.</summary>
+        private IEnumerable<GameMenuItem> MaintenanceMenuItems(List<Game> games)
+        {
+            var targets = games.Select(game => (Id: game.Id, Name: game.Name)).ToList();
+            foreach (var kind in DataClears)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString(ClearLabelKey(kind)),
+                    MenuSection = PluginGameMaintenanceSection,
+                    Action = (a) => ClearData(kind, targets)
+                };
+            }
+
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearData"),
-                MenuSection = PluginGameMaintenanceSection,
-                Action = (a) =>
-                {
-                    ClearSingleGameData(game);
-                }
+                Description = "-",
+                MenuSection = PluginGameMaintenanceSection
             };
 
-            var excludedFromSummaries = IsGameExcludedFromSummaries(game.Id);
+            var excludedFromSummaries = games.All(g => IsGameExcludedFromSummaries(g.Id));
             yield return new GameMenuItem
             {
                 Description = excludedFromSummaries
                     ? ResourceProvider.GetString("LOCPlayAch_Common_Action_IncludeInSummaries")
                     : ResourceProvider.GetString("LOCPlayAch_Common_Action_ExcludeFromSummaries"),
                 MenuSection = PluginGameMaintenanceSection,
-                Action = (a) =>
-                {
-                    ToggleExcludedFromSummaries(new[] { game });
-                }
+                Action = (a) => ToggleExcludedFromSummaries(games)
             };
 
-            var excludedFromRefreshes = IsGameExcluded(game.Id);
+            var excludedFromRefreshes = games.All(g => IsGameExcluded(g.Id));
             yield return new GameMenuItem
             {
                 Description = excludedFromRefreshes
                     ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInRefreshes")
                     : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromRefreshes"),
                 MenuSection = PluginGameMaintenanceSection,
-                Action = (a) =>
-                {
-                    ToggleExcludedFromRefreshes(new[] { game }, clearDataWhenExcluding: false, confirmWhenClearingData: false);
-                }
+                Action = (a) => ToggleExcludedFromRefreshes(games)
             };
 
+            var excludedFromMetadata = games.All(g => IsGameExcludedFromMetadata(g.Id));
             yield return new GameMenuItem
             {
-                Description = excludedFromRefreshes
-                    ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInRefreshesAndRefresh")
-                    : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData"),
+                Description = excludedFromMetadata
+                    ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInMetadata")
+                    : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromMetadata"),
                 MenuSection = PluginGameMaintenanceSection,
-                Action = (a) =>
-                {
-                    ToggleExcludedFromRefreshesAndRefresh(new[] { game });
-                }
+                Action = (a) => SetExcludedFromMetadata(games.Select(g => g.Id).ToList(), !excludedFromMetadata)
             };
         }
 
@@ -431,58 +396,6 @@ namespace PlayniteAchievements
                 .ToList() ?? new List<Game>();
         }
 
-        private void ExcludeGamesFromSummaries(IEnumerable<Game> games)
-        {
-            var targets = GetDistinctValidGames(games);
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var game in targets)
-            {
-                _achievementOverridesService.SetExcludedFromSummaries(game.Id, true);
-            }
-        }
-
-        private void ExcludeGamesFromRefreshes(
-            IEnumerable<Game> games,
-            bool clearDataWhenExcluding,
-            bool confirmWhenClearingData)
-        {
-            var targets = GetDistinctValidGames(games);
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            if (clearDataWhenExcluding && confirmWhenClearingData)
-            {
-                var confirmText = targets.Count == 1
-                    ? string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), targets[0].Name)
-                    : string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSelected"), targets.Count);
-
-                var result = PlayniteApi?.Dialogs?.ShowMessage(
-                    confirmText,
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            foreach (var game in targets)
-            {
-                _achievementOverridesService.SetExcludedByUser(
-                    game.Id,
-                    excluded: true,
-                    clearCachedDataWhenExcluding: clearDataWhenExcluding);
-            }
-        }
-
         private void ToggleExcludedFromSummaries(IEnumerable<Game> games)
         {
             var targets = GetDistinctValidGames(games);
@@ -493,191 +406,12 @@ namespace PlayniteAchievements
             }
         }
 
-        private void ToggleExcludedFromRefreshes(IEnumerable<Game> games, bool clearDataWhenExcluding, bool confirmWhenClearingData)
+        private void ToggleExcludedFromRefreshes(IEnumerable<Game> games)
         {
-            var targets = GetDistinctValidGames(games);
-            foreach (var game in targets)
+            foreach (var game in GetDistinctValidGames(games))
             {
-                var isExcluded = IsGameExcluded(game.Id);
-                if (isExcluded)
-                {
-                    _achievementOverridesService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
-                }
-                else
-                {
-                    if (clearDataWhenExcluding && confirmWhenClearingData)
-                    {
-                        var confirmText = string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), game.Name);
-                        var result = PlayniteApi?.Dialogs?.ShowMessage(
-                            confirmText,
-                            ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                            MessageBoxButton.YesNo,
-                            MessageBoxImage.Warning) ?? MessageBoxResult.None;
-                        if (result != MessageBoxResult.Yes) continue;
-                    }
-                    _achievementOverridesService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: clearDataWhenExcluding);
-                }
+                _achievementOverridesService.SetExcludedByUser(game.Id, !IsGameExcluded(game.Id), clearCachedDataWhenExcluding: false);
             }
-        }
-
-        private void ToggleExcludedFromRefreshesAndRefresh(IEnumerable<Game> games)
-        {
-            var targets = GetDistinctValidGames(games);
-            var gameIdsToRefresh = new List<Guid>();
-            var gamesToExclude = new List<Game>();
-
-            // First pass: categorize games
-            foreach (var game in targets)
-            {
-                var isExcluded = IsGameExcluded(game.Id);
-                if (isExcluded)
-                {
-                    _achievementOverridesService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
-                    gameIdsToRefresh.Add(game.Id);
-                }
-                else
-                {
-                    gamesToExclude.Add(game);
-                }
-            }
-
-            // Single batch confirmation for all exclusions
-            if (gamesToExclude.Count > 0)
-            {
-                var confirmText = gamesToExclude.Count == 1
-                    ? string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), gamesToExclude[0].Name)
-                    : string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSelected"), gamesToExclude.Count);
-                var result = PlayniteApi?.Dialogs?.ShowMessage(
-                    confirmText,
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    foreach (var game in gamesToExclude)
-                    {
-                        _achievementOverridesService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: true);
-                    }
-                }
-            }
-
-            // Refresh un-excluded games
-            if (gameIdsToRefresh.Count == 1)
-            {
-                var gameId = gameIdsToRefresh[0];
-                _ = StartMenuRefreshAsync(
-                    new RefreshRequest
-                    {
-                        Mode = RefreshModeType.Single,
-                        SingleGameId = gameId,
-                        SurfaceUserNotices = true
-                    },
-                    gameId);
-            }
-            else if (gameIdsToRefresh.Count > 1)
-            {
-                _ = StartMenuRefreshAsync(new RefreshRequest { GameIds = gameIdsToRefresh });
-            }
-        }
-
-        private void ClearSingleGameData(Game game)
-        {
-            if (game == null || game.Id == Guid.Empty)
-            {
-                return;
-            }
-
-            var result = PlayniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSingle"), game.Name),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                if (_achievementOverridesService != null)
-                {
-                    _achievementOverridesService.ClearGameData(game.Id, game.Name);
-                }
-                else
-                {
-                    _cacheManager.RemoveGameCache(game.Id);
-                }
-
-                PlayniteApi?.Dialogs?.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed to clear cached data for game '{game.Name}' ({game.Id}).");
-                PlayniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-
-        private void ClearSelectedGamesData(IEnumerable<Game> selectedGames)
-        {
-            var targets = selectedGames?
-                .Where(g => g != null && g.Id != Guid.Empty)
-                .GroupBy(g => g.Id)
-                .Select(g => g.First())
-                .ToList() ?? new List<Game>();
-
-            if (targets.Count == 0)
-            {
-                return;
-            }
-
-            var result = PlayniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSelected"), targets.Count),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            var clearedCount = 0;
-            foreach (var game in targets)
-            {
-                try
-                {
-                    if (_achievementOverridesService != null)
-                    {
-                        _achievementOverridesService.ClearGameData(game.Id, game.Name);
-                    }
-                    else
-                    {
-                        _cacheManager.RemoveGameCache(game.Id);
-                    }
-
-                    clearedCount++;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"Failed to clear cached data for game '{game.Name}' ({game.Id}).");
-                }
-            }
-
-            PlayniteApi?.Dialogs?.ShowMessage(
-                ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
         }
 
         public bool IsGameExcluded(Guid gameId)
@@ -694,31 +428,6 @@ namespace PlayniteAchievements
                 gameId,
                 _settingsViewModel?.Settings?.Persisted,
                 _gameCustomDataStore);
-        }
-
-        public void ToggleGameExclusion(Guid gameId)
-        {
-            var isExcluded = IsGameExcluded(gameId);
-
-            // Only show confirmation when excluding (not when including)
-            if (!isExcluded)
-            {
-                var game = PlayniteApi?.Database?.Games?.Get(gameId);
-                var gameName = game?.Name ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame");
-
-                var result = PlayniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), gameName),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            _achievementOverridesService.SetExcludedByUser(gameId, !isExcluded, clearCachedDataWhenExcluding: !isExcluded);
         }
 
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)

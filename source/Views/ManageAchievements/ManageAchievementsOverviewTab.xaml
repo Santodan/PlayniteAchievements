@@ -150,10 +150,14 @@
                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                 <Button.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearData}"
-                                                  Command="{Binding ClearGameDataCommand}" />
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearPlatformData}"
+                                                  Command="{Binding ClearPlatformDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearMetadata}"
+                                                  Command="{Binding ClearMetadataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearCustomData}"
                                                   Command="{Binding ClearCustomDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearAllData}"
+                                                  Command="{Binding ClearAllDataCommand}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>
@@ -356,12 +360,18 @@
                             <TextBlock Style="{StaticResource SettingLabelStyle}"
                                        Text="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks}"
                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help}" />
+                            <!-- Off keeps the choices and links below, greyed out, for when it is on again. -->
+                            <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Overview_UseMetadata}"
+                                      IsChecked="{Binding UsesMetadata}"
+                                      Margin="0,4,0,0" />
                             <!-- The game's own source per field; "Default" follows its platform. -->
                             <metadata:MetadataChoicesGrid DataContext="{Binding ChoiceRows}"
+                                                          IsEnabled="{Binding DataContext.UsesMetadata, RelativeSource={RelativeSource AncestorType=StackPanel}}"
                                                           ShowsRarity="False"
                                                           ShowsPlatform="False"
                                                           Margin="0,4,0,8" />
-                            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True">
+                            <ItemsControl ItemsSource="{Binding Rows}" Focusable="False" Grid.IsSharedSizeScope="True"
+                                          IsEnabled="{Binding UsesMetadata}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <!-- One column per part, sized across all rows, so every row's

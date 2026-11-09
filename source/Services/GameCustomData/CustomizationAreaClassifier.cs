@@ -53,8 +53,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             var areas = CustomizationArea.None;
 
             if (data.UseSeparateLockedIconsOverride == true ||
-                AnyUserKey(data.AchievementUnlockedIconOverrides, HasText) ||
-                AnyUserKey(data.AchievementLockedIconOverrides, HasText) ||
                 AnyOverride(o => HasText(o.UnlockedIconPath) || HasText(o.LockedIconPath)) ||
                 AnyCustom(c => HasText(c.UnlockedIconPath) || HasText(c.LockedIconPath)))
             {
@@ -80,15 +78,13 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Text;
             }
 
-            if (AnyUserKey(data.AchievementNotes, HasText) || AnyOverride(o => HasText(o.Note)))
+            if (AnyOverride(o => HasText(o.Note)))
             {
                 areas |= CustomizationArea.Notes;
             }
 
             // Only a named category counts: an achievement filed under Default has none.
-            if (AnyUserKey(data.AchievementCategoryOverrides, Named) ||
-                AnyUserKey(data.AchievementCategoryTypeOverrides, HasText) ||
-                data.AchievementCategoryOrder?.Any(Named) == true ||
+            if (data.AchievementCategoryOrder?.Any(Named) == true ||
                 data.AchievementCategoryImageOverrides?.Keys.Any(Named) == true ||
                 data.AchievementCategoryKinds?.Keys.Any(Named) == true ||
                 data.GameSummaryCategory != null ||
@@ -137,7 +133,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 data.ForceUseExophase == true ||
                 HasText(data.ExophaseSlugOverride) ||
                 GameCustomDataNormalizer.HasUserMetadataLink(data.MetadataLinks) ||
-                data.MetadataChoices?.IsEmpty() == false)
+                data.MetadataChoices?.IsEmpty() == false ||
+                data.ExcludedFromMetadata == true)
             {
                 areas |= CustomizationArea.Source;
             }

@@ -18,10 +18,16 @@ using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views.Controls
 {
-    public partial class FriendSummariesGridControl : UserControl, IDisposable
+    public partial class FriendSummariesGridControl : SummaryGridControlBase, IDisposable
     {
+        static FriendSummariesGridControl()
+        {
+            ColumnSettingsKeyProperty.OverrideMetadata(
+                typeof(FriendSummariesGridControl),
+                new PropertyMetadata("FriendsOverviewFriendSummaries"));
+        }
+
         private static readonly ILogger Logger = LogManager.GetLogger();
-        private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
         private PersistedSettingsSubscription _persistedSubscription;
 
@@ -108,80 +114,12 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(SelectedItemProperty, value);
         }
 
-        public static readonly DependencyProperty ColumnSettingsKeyProperty =
-            DependencyProperty.Register(
-                nameof(ColumnSettingsKey),
-                typeof(string),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata("FriendsOverviewFriendSummaries", (d, e) => ((FriendSummariesGridControl)d).UpdateControlBarOptions()));
-
         // The bar leaves out the items this grid's Display Settings hide.
         private void UpdateControlBarOptions()
         {
             ControlBarHost.GridOptions = Helpers.GridSurfaceOptions.Resolve(
                 Settings.Controls.GridOptionKind.FriendSummaries,
                 ColumnSettingsKey);
-        }
-
-        public string ColumnSettingsKey
-        {
-            get => (string)GetValue(ColumnSettingsKeyProperty);
-            set => SetValue(ColumnSettingsKeyProperty, value);
-        }
-
-        /// <summary>
-        /// When false, the grid offers no "Display settings…" entry.
-        /// </summary>
-        public static readonly DependencyProperty AllowDisplaySettingsMenuProperty =
-            DependencyProperty.Register(
-                nameof(AllowDisplaySettingsMenu),
-                typeof(bool),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(true));
-
-        public bool AllowDisplaySettingsMenu
-        {
-            get => (bool)GetValue(AllowDisplaySettingsMenuProperty);
-            set => SetValue(AllowDisplaySettingsMenuProperty, value);
-        }
-
-        public static readonly DependencyProperty FixedRowHeightProperty =
-            DependencyProperty.Register(
-                nameof(FixedRowHeight),
-                typeof(double?),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(null, OnRowSizingChanged));
-
-        public double? FixedRowHeight
-        {
-            get => (double?)GetValue(FixedRowHeightProperty);
-            set => SetValue(FixedRowHeightProperty, value);
-        }
-
-        public static readonly DependencyProperty ShowColumnHeadersProperty =
-            DependencyProperty.Register(
-                nameof(ShowColumnHeaders),
-                typeof(bool),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(true, OnShowColumnHeadersChanged));
-
-        public bool ShowColumnHeaders
-        {
-            get => (bool)GetValue(ShowColumnHeadersProperty);
-            set => SetValue(ShowColumnHeadersProperty, value);
-        }
-
-        public static readonly DependencyProperty DelayInitialRenderUntilNormalizedProperty =
-            DependencyProperty.Register(
-                nameof(DelayInitialRenderUntilNormalized),
-                typeof(bool),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(false, OnDelayInitialRenderUntilNormalizedChanged));
-
-        public bool DelayInitialRenderUntilNormalized
-        {
-            get => (bool)GetValue(DelayInitialRenderUntilNormalizedProperty);
-            set => SetValue(DelayInitialRenderUntilNormalizedProperty, value);
         }
 
         public static readonly DependencyProperty DateDisplayModeProperty =
@@ -197,74 +135,7 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(DateDisplayModeProperty, value);
         }
 
-        public static readonly DependencyProperty ControlBarProperty =
-            DependencyProperty.Register(
-                nameof(ControlBar),
-                typeof(GridControlBarViewModel),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(null));
-
-        public GridControlBarViewModel ControlBar
-        {
-            get => (GridControlBarViewModel)GetValue(ControlBarProperty);
-            set => SetValue(ControlBarProperty, value);
-        }
-
-        public static readonly DependencyProperty ShowControlBarProperty =
-            DependencyProperty.Register(
-                nameof(ShowControlBar),
-                typeof(bool),
-                typeof(FriendSummariesGridControl),
-                new PropertyMetadata(true));
-
-        public bool ShowControlBar
-        {
-            get => (bool)GetValue(ShowControlBarProperty);
-            set => SetValue(ShowControlBarProperty, value);
-        }
-
         public event SelectionChangedEventHandler SelectionChanged;
-
-        public event EventHandler<DataGridSortingEventArgs> Sorting;
-
-        public static readonly RoutedEvent RowPreviewMouseLeftButtonDownEvent =
-            EventManager.RegisterRoutedEvent(
-                nameof(RowPreviewMouseLeftButtonDown),
-                RoutingStrategy.Bubble,
-                typeof(MouseButtonEventHandler),
-                typeof(FriendSummariesGridControl));
-
-        public event MouseButtonEventHandler RowPreviewMouseLeftButtonDown
-        {
-            add => AddHandler(RowPreviewMouseLeftButtonDownEvent, value);
-            remove => RemoveHandler(RowPreviewMouseLeftButtonDownEvent, value);
-        }
-
-        public static readonly RoutedEvent RowPreviewMouseRightButtonDownEvent =
-            EventManager.RegisterRoutedEvent(
-                nameof(RowPreviewMouseRightButtonDown),
-                RoutingStrategy.Bubble,
-                typeof(MouseButtonEventHandler),
-                typeof(FriendSummariesGridControl));
-
-        public event MouseButtonEventHandler RowPreviewMouseRightButtonDown
-        {
-            add => AddHandler(RowPreviewMouseRightButtonDownEvent, value);
-            remove => RemoveHandler(RowPreviewMouseRightButtonDownEvent, value);
-        }
-
-        public static readonly RoutedEvent RowPreviewMouseRightButtonUpEvent =
-            EventManager.RegisterRoutedEvent(
-                nameof(RowPreviewMouseRightButtonUp),
-                RoutingStrategy.Bubble,
-                typeof(MouseButtonEventHandler),
-                typeof(FriendSummariesGridControl));
-
-        public event MouseButtonEventHandler RowPreviewMouseRightButtonUp
-        {
-            add => AddHandler(RowPreviewMouseRightButtonUpEvent, value);
-            remove => RemoveHandler(RowPreviewMouseRightButtonUpEvent, value);
-        }
 
         public FriendSummariesGridControl()
         {
@@ -272,7 +143,14 @@ namespace PlayniteAchievements.Views.Controls
             UpdateColumnHeadersVisibility();
         }
 
-        public DataGrid InternalDataGrid => FriendSummariesGrid;
+        private protected override DataGrid SummaryGrid => FriendSummariesGrid;
+
+        private protected override GridControlBarControl ControlBarElement => ControlBarHost;
+
+        private protected override void OnColumnSettingsKeyChanged(DependencyPropertyChangedEventArgs e)
+        {
+            UpdateControlBarOptions();
+        }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
@@ -457,92 +335,9 @@ namespace PlayniteAchievements.Views.Controls
         private Dictionary<string, GridAlignment> GetHeaderAlignments(PlayniteAchievementsSettings settings) =>
             GetColumnLayoutOptions(settings)?.HeaderAlignments;
 
-        private static void OnShowColumnHeadersChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is FriendSummariesGridControl control)
-            {
-                control.UpdateColumnHeadersVisibility();
-            }
-        }
-
-        private static void OnDelayInitialRenderUntilNormalizedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is FriendSummariesGridControl control && control._columnPersistence != null)
-            {
-                control._columnPersistence.DelayInitialRenderUntilNormalized = e.NewValue is bool value && value;
-            }
-        }
-
-        private static void OnRowSizingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is FriendSummariesGridControl control)
-            {
-                control.UpdateRealizedRowHeights();
-            }
-        }
-
-        private void UpdateColumnHeadersVisibility()
-        {
-            if (FriendSummariesGrid != null)
-            {
-                FriendSummariesGrid.HeadersVisibility = ShowColumnHeaders
-                    ? DataGridHeadersVisibility.Column
-                    : DataGridHeadersVisibility.None;
-            }
-        }
-
         private void FriendSummariesGrid_LoadingRow(object sender, DataGridRowEventArgs e)
         {
             ApplyFixedRowHeight(e.Row);
-        }
-
-        private void UpdateRealizedRowHeights()
-        {
-            if (FriendSummariesGrid == null)
-            {
-                return;
-            }
-
-            foreach (var item in FriendSummariesGrid.Items)
-            {
-                if (FriendSummariesGrid.ItemContainerGenerator.ContainerFromItem(item) is DataGridRow row)
-                {
-                    ApplyFixedRowHeight(row);
-                }
-            }
-        }
-
-        private void ApplyFixedRowHeight(DataGridRow row)
-        {
-            if (row == null)
-            {
-                return;
-            }
-
-            var fixedHeight = ResolveFixedRowHeight();
-            if (fixedHeight.HasValue)
-            {
-                row.Height = fixedHeight.Value;
-                row.MinHeight = fixedHeight.Value;
-                return;
-            }
-
-            row.ClearValue(FrameworkElement.HeightProperty);
-            row.ClearValue(FrameworkElement.MinHeightProperty);
-        }
-
-        private double? ResolveFixedRowHeight()
-        {
-            var height = FixedRowHeight;
-            if (!height.HasValue ||
-                double.IsNaN(height.Value) ||
-                double.IsInfinity(height.Value) ||
-                height.Value <= 0)
-            {
-                return null;
-            }
-
-            return Math.Max(PersistedSettings.MinimumGridRowHeight, height.Value);
         }
 
         private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
@@ -572,145 +367,9 @@ namespace PlayniteAchievements.Views.Controls
             SelectionChanged?.Invoke(sender, e);
         }
 
-        private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)
-        {
-            Sorting?.Invoke(sender, e);
-            if (e.Handled)
-            {
-                return;
-            }
-
-            DataGridSortingHelper.ApplyCollectionViewSorting(sender, e, FriendSummariesGrid);
-        }
-
         private void DataGridRow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             ForwardRowMouseEvent(e, RowPreviewMouseLeftButtonDownEvent, sender);
-        }
-
-        private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            ForwardRowMouseEvent(e, RowPreviewMouseRightButtonDownEvent, sender);
-        }
-
-        private void DataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            ForwardRowMouseEvent(e, RowPreviewMouseRightButtonUpEvent, sender);
-            if (e.Handled)
-            {
-                return;
-            }
-
-            // Hosts that build a row menu append the display settings item themselves. Where a
-            // host offers no row menu, offer the display settings on their own.
-            GridDisplaySettingsMenuBuilder.TryOpenRowFallbackMenu(this, sender as DataGridRow, e);
-        }
-
-        private void ForwardRowMouseEvent(MouseButtonEventArgs sourceEvent, RoutedEvent routedEvent, object source)
-        {
-            var forwardedEvent = new MouseButtonEventArgs(
-                sourceEvent.MouseDevice,
-                sourceEvent.Timestamp,
-                sourceEvent.ChangedButton)
-            {
-                RoutedEvent = routedEvent,
-                Source = source
-            };
-            RaiseEvent(forwardedEvent);
-            if (forwardedEvent.Handled)
-            {
-                sourceEvent.Handled = true;
-            }
-        }
-
-        /// <summary>
-        /// Tunnels ahead of the row handlers, so it must decline a row hit and leave the row menu
-        /// to run. Handles a column header hit, then falls back to the display settings menu for a
-        /// click on the grid itself.
-        /// </summary>
-        private void DataGrid_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (!(sender is DataGrid grid))
-            {
-                return;
-            }
-
-            var header = VisualTreeHelpers.FindVisualParent<DataGridColumnHeader>(
-                e.OriginalSource as DependencyObject);
-            if (header?.Column != null)
-            {
-                e.Handled = true;
-                OpenColumnVisibilityMenu(grid, header, useControllerPlacement: false);
-                return;
-            }
-
-            GridDisplaySettingsMenuBuilder.TryOpenFallbackMenu(this, grid, e);
-        }
-
-        public bool OpenColumnVisibilityMenuForController()
-        {
-            var header = FullscreenControllerNavigationService.GetFocusedDataGridColumnHeader(FriendSummariesGrid);
-            if (header == null)
-            {
-                return false;
-            }
-
-            return OpenColumnVisibilityMenu(FriendSummariesGrid, header, useControllerPlacement: true);
-        }
-
-        public bool IsColumnHeaderFocusedForController()
-        {
-            return FullscreenControllerNavigationService.IsFocusWithinDataGridColumnHeader(FriendSummariesGrid);
-        }
-
-        public bool ActivateFocusedColumnHeaderForController()
-        {
-            return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(FriendSummariesGrid);
-        }
-
-        public bool OpenFocusedControlBarMenuForController()
-        {
-            return ControlBarHost?.OpenFocusedSelectorForController() == true;
-        }
-
-        public bool IsControlBarFocusedForController()
-        {
-            return ControlBarHost?.IsKeyboardFocusWithin == true;
-        }
-
-        public IList<UIElement> GetControlBarControllerElements()
-        {
-            return ControlBarHost?.GetControllerElements() ?? new List<UIElement>();
-        }
-
-        private bool OpenColumnVisibilityMenu(DataGrid grid, FrameworkElement owner, bool useControllerPlacement)
-        {
-            if (grid == null || owner == null)
-            {
-                return false;
-            }
-
-            var menu = _columnPersistence?.BuildColumnVisibilityMenu((owner as DataGridColumnHeader)?.Column);
-            if (menu == null || menu.Items.Count == 0)
-            {
-                return false;
-            }
-
-            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(owner, menu);
-            if (useControllerPlacement)
-            {
-                return FullscreenControllerNavigationService.OpenContextMenu(owner, menu);
-            }
-
-            menu.Placement = PlacementMode.Bottom;
-            menu.PlacementTarget = owner;
-            menu.IsOpen = true;
-            return true;
-        }
-
-        public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
-        {
-            DataGridSortingHelper.SetSortIndicator(FriendSummariesGrid, sortMemberPath, direction);
         }
 
         public void Refresh()

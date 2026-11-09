@@ -1,7 +1,7 @@
 namespace PlayniteAchievements.Services.GameCustomData
 {
     /// <summary>
-    /// One row of the CapstoneArtRecords table in game_custom_data.db: the capstone art recorded
+    /// One row of the CapstoneArtRecords table: the capstone art recorded
     /// for one achievement of a game. Stored beside, not inside, the GameCustomData payload, so
     /// it is not part of portable packages.
     /// </summary>

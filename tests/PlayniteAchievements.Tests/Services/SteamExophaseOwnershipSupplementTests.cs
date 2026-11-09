@@ -1,15 +1,14 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Friends;
-using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.Friends;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PlayniteAchievements.Steam.Tests
+namespace PlayniteAchievements.Services.Refresh.Tests
 {
     [TestClass]
-    public class SteamExophaseFriendOwnershipMapperTests
+    public class SteamExophaseOwnershipSupplementTests
     {
         [TestMethod]
         public void MapToSteamOwnership_TranslatesMappedExophaseRowsToSteamRows()
@@ -17,7 +16,7 @@ namespace PlayniteAchievements.Steam.Tests
             var playniteGameId = Guid.NewGuid();
             var lastPlayed = new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc);
 
-            var result = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
+            var result = SteamExophaseOwnershipSupplement.MapToSteamOwnership(
                 "76561198000000001",
                 new[]
                 {
@@ -68,7 +67,7 @@ namespace PlayniteAchievements.Steam.Tests
         [TestMethod]
         public void MapToSteamOwnership_SkipsRowsWithoutSteamAppMapping()
         {
-            var result = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
+            var result = SteamExophaseOwnershipSupplement.MapToSteamOwnership(
                 "76561198000000001",
                 new[]
                 {
@@ -89,7 +88,7 @@ namespace PlayniteAchievements.Steam.Tests
         [TestMethod]
         public void MapToSteamOwnership_UsesIncomingSteamAppIdForProviderOnlyRows()
         {
-            var result = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
+            var result = SteamExophaseOwnershipSupplement.MapToSteamOwnership(
                 "76561198000000001",
                 new[]
                 {
@@ -123,7 +122,7 @@ namespace PlayniteAchievements.Steam.Tests
         {
             var playniteGameId = Guid.NewGuid();
 
-            var result = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
+            var result = SteamExophaseOwnershipSupplement.MapToSteamOwnership(
                 "76561198000000001",
                 new[]
                 {
@@ -160,7 +159,7 @@ namespace PlayniteAchievements.Steam.Tests
         {
             var playniteGameId = Guid.NewGuid();
 
-            var result = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
+            var result = SteamExophaseOwnershipSupplement.MapToSteamOwnership(
                 "steam-id",
                 new[]
                 {

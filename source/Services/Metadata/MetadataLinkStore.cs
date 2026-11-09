@@ -75,12 +75,6 @@ namespace PlayniteAchievements.Services.Metadata
         [JsonProperty("iconApiNames")]
         public List<string> IconApiNames { get; set; }
 
-        /// <summary>
-        /// ApiNames among <see cref="IconApiNames"/> whose borrowed icon failed to download, so the
-        /// cached file holds the game's own icon until a later download succeeds.
-        /// </summary>
-        [JsonProperty("iconFallbackApiNames")]
-        public List<string> IconFallbackApiNames { get; set; }
     }
 
     /// <summary>One game of a collection's platinum, borrowed for the category its list matched.</summary>
@@ -209,6 +203,30 @@ namespace PlayniteAchievements.Services.Metadata
             return gameId != Guid.Empty && _customData != null && _customData.TryLoad(gameId, out var data)
                 ? data?.MetadataChoices?.Clone()
                 : null;
+        }
+
+        /// <summary>Whether no metadata source supplies the game.</summary>
+        public bool IsExcludedFromMetadata(Guid gameId)
+        {
+            return gameId != Guid.Empty && _customData != null && _customData.TryLoad(gameId, out var data) &&
+                   data?.ExcludedFromMetadata == true;
+        }
+
+        /// <summary>Excludes the game from metadata, or includes it again; its own choices stay stored.</summary>
+        public bool SetExcludedFromMetadata(Guid gameId, bool excluded)
+        {
+            if (gameId == Guid.Empty || _customData == null || IsExcludedFromMetadata(gameId) == excluded)
+            {
+                return false;
+            }
+
+            _customData.Update(
+                gameId,
+                data => data.ExcludedFromMetadata = excluded ? true : (bool?)null,
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
+            LinkChanged?.Invoke(gameId);
+            return true;
         }
 
         /// <summary>Stores the game's own metadata choices; empty ones are removed, so the game follows its platform.</summary>
@@ -351,6 +369,23 @@ namespace PlayniteAchievements.Services.Metadata
             });
         }
 
+        /// <summary>
+        /// Forgets what metadata was applied to the game and its automatic links, so the next
+        /// overlay searches every source again. Links the user set are kept.
+        /// </summary>
+        public void ForgetApplied(Guid gameId)
+        {
+            foreach (var pair in GetAll(gameId))
+            {
+                if (pair.Value?.Origin == MetadataLinkOrigin.Auto)
+                {
+                    Clear(gameId, pair.Key);
+                }
+            }
+
+            RecordApplied(gameId, null, null);
+        }
+
         public bool Clear(Guid gameId, string sourceKey)
         {
             if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(sourceKey) || _customData == null)
@@ -416,14 +451,6 @@ namespace PlayniteAchievements.Services.Metadata
 
         /// <summary>A copy of what the last overlay applied to the game, or null.</summary>
         public MetadataAppliedState GetApplied(Guid gameId) => _state?.GetApplied(gameId);
-
-        /// <summary>The borrowed icons that fell back to the game's own at the last refresh.</summary>
-        public IReadOnlyCollection<string> GetIconFallbacks(Guid gameId) =>
-            _state?.GetIconFallbacks(gameId) ?? Array.Empty<string>();
-
-        /// <summary>Records which borrowed icons fell back to the game's own, returning the ones recorded before.</summary>
-        public IReadOnlyCollection<string> ReplaceIconFallbacks(Guid gameId, IEnumerable<string> apiNames) =>
-            _state?.ReplaceIconFallbacks(gameId, apiNames) ?? Array.Empty<string>();
 
         // The search inputs each automatic link was found from, kept beside the sources' page records
         // in the cache database: one record per game, one "site" per source key.

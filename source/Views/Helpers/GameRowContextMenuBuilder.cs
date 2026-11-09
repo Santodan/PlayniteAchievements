@@ -5,7 +5,6 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
@@ -32,7 +31,6 @@ namespace PlayniteAchievements.Views.Helpers
             Action<Guid> openManageAchievements,
             IPlayniteAPI playniteApi,
             AchievementOverridesService overridesService,
-            ICacheManager cacheManager,
             ILogger logger,
             DependencyObject menuSource,
             bool includeViewCaptures = false)
@@ -113,15 +111,12 @@ namespace PlayniteAchievements.Views.Helpers
 
                 menu.Items.Add(CreateMaintenanceMenu(
                     resourceOwner,
+                    menuGameId,
+                    ResolveGameName(data, playniteApi?.Database?.Games?.Get(menuGameId)),
                     excludedFromSummaries,
                     excludedFromRefreshes,
-                    () => ClearGameData(data, playniteApi, overridesService, cacheManager, logger),
                     () => SetExcludedFromSummaries(data, overridesService, excluded: !excludedFromSummaries),
-                    () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
-                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: false, refreshGameCommand: null),
-                    () => SetExcludedFromRefreshes(data, playniteApi, overridesService,
-                        excluded: !excludedFromRefreshes, clearDataWhenExcluding: true,
-                        refreshGameCommand: refreshGameCommand)));
+                    () => SetExcludedFromRefreshes(data, overridesService, excluded: !excludedFromRefreshes)));
             }
 
             // Required rather than optional: a call site that forgets the row would lose the
@@ -131,24 +126,30 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// The Maintenance submenu shared by every game row menu, grouping the destructive and
-        /// rarely-used data actions. Each host supplies its own actions; the grouping, order and
-        /// toggle labels live only here.
+        /// The Maintenance submenu shared by every game row menu: the per-layer clears, then the
+        /// exclusions. The clears run through the plugin, the same as the game menu's.
         /// </summary>
         public static MenuItem CreateMaintenanceMenu(
             FrameworkElement resourceOwner,
+            Guid gameId,
+            string gameName,
             bool excludedFromSummaries,
             bool excludedFromRefreshes,
-            Action clearData,
             Action toggleExcludedFromSummaries,
-            Action toggleExcludedFromRefreshes,
-            Action toggleExcludedFromRefreshesWithData)
+            Action toggleExcludedFromRefreshes)
         {
             var maintenance = new MenuItem
             {
                 Header = ResolveHeader(resourceOwner, "LOCPlayAch_Settings_Maintenance_Title")
             };
-            maintenance.Items.Add(CreateMenuItem(resourceOwner, "LOCPlayAch_Menu_ClearData", clearData));
+            var target = new[] { (Id: gameId, Name: gameName) };
+            foreach (var kind in PlayniteAchievementsPlugin.DataClears)
+            {
+                maintenance.Items.Add(CreateMenuItem(resourceOwner, PlayniteAchievementsPlugin.ClearLabelKey(kind),
+                    () => PlayniteAchievementsPlugin.Instance?.ClearData(kind, target)));
+            }
+
+            maintenance.Items.Add(new Separator());
             maintenance.Items.Add(CreateMenuItem(resourceOwner,
                 excludedFromSummaries
                     ? "LOCPlayAch_Common_Action_IncludeInSummaries"
@@ -159,11 +160,12 @@ namespace PlayniteAchievements.Views.Helpers
                     ? "LOCPlayAch_Menu_IncludeInRefreshes"
                     : "LOCPlayAch_Menu_ExcludeFromRefreshes",
                 toggleExcludedFromRefreshes));
+            var excludedFromMetadata = PlayniteAchievementsPlugin.Instance?.IsGameExcludedFromMetadata(gameId) == true;
             maintenance.Items.Add(CreateMenuItem(resourceOwner,
-                excludedFromRefreshes
-                    ? "LOCPlayAch_Menu_IncludeInRefreshesAndRefresh"
-                    : "LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData",
-                toggleExcludedFromRefreshesWithData));
+                excludedFromMetadata
+                    ? "LOCPlayAch_Menu_IncludeInMetadata"
+                    : "LOCPlayAch_Menu_ExcludeFromMetadata",
+                () => PlayniteAchievementsPlugin.Instance?.SetExcludedFromMetadata(new[] { gameId }, !excludedFromMetadata)));
             return maintenance;
         }
 
@@ -296,63 +298,6 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private static void ClearGameData(
-            object data,
-            IPlayniteAPI playniteApi,
-            AchievementOverridesService overridesService,
-            ICacheManager cacheManager,
-            ILogger logger)
-        {
-            if (!TryGetGameId(data, out var gameId))
-            {
-                return;
-            }
-
-            var game = playniteApi?.Database?.Games?.Get(gameId);
-            var gameName = ResolveGameName(data, game);
-            var result = playniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSingle"), gameName),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo, MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                if (overridesService != null)
-                {
-                    overridesService.ClearGameData(gameId, gameName);
-                }
-                else
-                {
-                    cacheManager?.RemoveGameCache(gameId);
-                }
-
-                // A removed game can never refresh again, and its custom achievements would
-                // otherwise keep the row alive.
-                if (game == null)
-                {
-                    PlayniteAchievementsPlugin.Instance?.GameCustomDataStore?.Delete(gameId);
-                }
-
-                playniteApi?.Dialogs?.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                logger?.Error(ex, $"Failed to clear data for game '{gameName}' ({gameId}).");
-                playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
         private static void SetExcludedFromSummaries(object data, AchievementOverridesService overridesService, bool excluded)
         {
             if (!TryGetGameId(data, out var gameId))
@@ -363,52 +308,12 @@ namespace PlayniteAchievements.Views.Helpers
             overridesService?.SetExcludedFromSummaries(gameId, excluded);
         }
 
-        private static void SetExcludedFromRefreshes(
-            object data,
-            IPlayniteAPI playniteApi,
-            AchievementOverridesService overridesService,
-            bool excluded,
-            bool clearDataWhenExcluding,
-            ICommand refreshGameCommand)
+        private static void SetExcludedFromRefreshes(object data, AchievementOverridesService overridesService, bool excluded)
         {
-            if (!TryGetGameId(data, out var gameId))
+            if (TryGetGameId(data, out var gameId))
             {
-                return;
+                overridesService?.SetExcludedByUser(gameId, excluded, clearCachedDataWhenExcluding: false);
             }
-
-            if (!excluded)
-            {
-                overridesService?.SetExcludedByUser(gameId, excluded: false, clearCachedDataWhenExcluding: false);
-
-                // "Include in Refreshes and Refresh" re-includes then refreshes the game.
-                if (refreshGameCommand != null)
-                {
-                    ExecuteCommand(refreshGameCommand, data);
-                }
-
-                return;
-            }
-
-            if (clearDataWhenExcluding)
-            {
-                var result = playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"),
-                        ResolveGameName(data, playniteApi?.Database?.Games?.Get(gameId))),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            overridesService?.SetExcludedByUser(
-                gameId,
-                excluded: true,
-                clearCachedDataWhenExcluding: clearDataWhenExcluding);
         }
     }
 }
