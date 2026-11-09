@@ -22,6 +22,28 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExcludedFromMetadata_SurvivesNormalizing_AndAnImport_AndKeepsTheRecord()
+        {
+            var gameId = Guid.NewGuid();
+            var stored = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                ExcludedFromMetadata = true,
+                MetadataChoices = new MetadataChoices { Icons = MetadataChoices.Exophase }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(stored, gameId);
+            Assert.AreEqual(true, normalized.ExcludedFromMetadata);
+            Assert.AreEqual(MetadataChoices.Exophase, normalized.MetadataChoices.Icons, "the game's own choices stay");
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(new GameCustomDataFile { ExcludedFromMetadata = true }));
+
+            // A package never carries it, so an import keeps this machine's choice.
+            var imported = GameCustomDataFile.FromPortable(normalized.ToPortable(), gameId, null, null);
+            PortablePersonalState.CarryLocal(normalized, imported);
+            Assert.AreEqual(true, imported.ExcludedFromMetadata);
+        }
+
+        [TestMethod]
         public void HasVisibleCustomization_ExclusionsOnly_ReturnsFalse()
         {
             var data = new GameCustomDataFile
