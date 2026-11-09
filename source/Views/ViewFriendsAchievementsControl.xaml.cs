@@ -191,7 +191,6 @@ namespace PlayniteAchievements.Views
                 gameId => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(gameId),
                 _playniteApi,
                 _achievementOverridesService,
-                _cacheManager,
                 _logger,
                 menuSource: row);
             if (menu == null || menu.Items.Count == 0)
