@@ -788,8 +788,8 @@ namespace PlayniteAchievements.Views
                 menuSource: menuSource);
 
             // Unowned (provider-only) friend games have no Playnite Guid, so the shared builder
-            // offers them only Refresh. Add a Clear Data item that removes the game's cached
-            // friend data across all friends, mirroring the owned-game Clear Data action.
+            // offers them only Refresh. Add a Clear Platform Data item that removes the game's cached
+            // friend data across all friends, mirroring the owned-game Clear Platform Data action.
             var addedMaintenanceSeparator = false;
             void EnsureMaintenanceSeparator()
             {
@@ -822,7 +822,7 @@ namespace PlayniteAchievements.Views
                 EnsureMaintenanceSeparator();
                 menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(
                     this,
-                    "LOCPlayAch_Menu_ClearData",
+                    "LOCPlayAch_Menu_ClearPlatformData",
                     () => ClearUnownedGame(unownedGame)));
             }
 
@@ -1000,7 +1000,7 @@ namespace PlayniteAchievements.Views
 
             var name = string.IsNullOrWhiteSpace(game.GameName) ? game.ProviderGameKey : game.GameName;
             var message = string.Format(
-                GetText("LOCPlayAch_Menu_ClearData_ConfirmSingle", "Clear cached data for {0}?"),
+                GetText("LOCPlayAch_Menu_ClearPlatformData_ConfirmSingle", "Clear platform data for {0}?"),
                 name);
 
             var result = _playniteApi?.Dialogs?.ShowMessage(
