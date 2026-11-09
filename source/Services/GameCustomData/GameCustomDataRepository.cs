@@ -15,6 +15,11 @@ namespace PlayniteAchievements.Services.GameCustomData
         private const string TableName = "GameCustomData";
         private const string CapstoneArtTableName = "CapstoneArtRecords";
 
+        // Custom data had its own database file before it moved into the plugin's one database.
+        private const string LegacyDatabaseFileName = "game_custom_data.db";
+        private const string MovedInMarkerKey = "custom_data_moved_in";
+        private const int BusyTimeoutMs = 5000;
+
         private sealed class GameCustomDataRow
         {
             public string PlayniteGameId { get; set; }
@@ -661,6 +666,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     if (!_schemaInitialized || !databaseExists)
                     {
                         EnsureSchema(db);
+                        MoveInLegacyDatabase(db);
                         _schemaInitialized = true;
                     }
 
@@ -691,7 +697,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 options |= SQLiteOpenOptions.SQLITE_OPEN_CREATE;
             }
 
-            return new SQLiteDatabase(_databasePath, options);
+            // The achievement cache writes to this database on its own connection.
+            return new SQLiteDatabase(_databasePath, options) { BusyTimeout = BusyTimeoutMs };
         }
 
         private void EnsureParentDirectory()
@@ -707,6 +714,11 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             db.ExecuteNonQuery("PRAGMA journal_mode = WAL;");
             db.ExecuteNonQuery("PRAGMA synchronous = NORMAL;");
+            CreateTables(db);
+        }
+
+        private static void CreateTables(SQLiteDatabase db)
+        {
             db.ExecuteNonQuery(
                 @"CREATE TABLE IF NOT EXISTS GameCustomData (
                     PlayniteGameId TEXT PRIMARY KEY NOT NULL,
@@ -727,6 +739,86 @@ namespace PlayniteAchievements.Services.GameCustomData
                     WriteUtc TEXT NULL,
                     PRIMARY KEY (PlayniteGameId, ApiName)
                 );");
+        }
+
+        /// <summary>
+        /// Copies the separate custom data file's tables into this database once, in one
+        /// transaction with a marker, then moves the file into the migration backups. A
+        /// <c>GameCustomData</c> table an older version left in this database is stale and is
+        /// replaced, not merged.
+        /// </summary>
+        private void MoveInLegacyDatabase(SQLiteDatabase db)
+        {
+            var root = Path.GetDirectoryName(_databasePath) ?? string.Empty;
+            var legacyPath = Path.Combine(root, LegacyDatabaseFileName);
+            if (!File.Exists(legacyPath))
+            {
+                return;
+            }
+
+            db.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS CacheMetadata (Key TEXT PRIMARY KEY NOT NULL, Value TEXT NOT NULL);");
+            if (db.ExecuteScalar<long>("SELECT COUNT(1) FROM CacheMetadata WHERE Key = ?;", MovedInMarkerKey) == 0)
+            {
+                db.ExecuteNonQuery("ATTACH DATABASE ? AS legacy;", legacyPath);
+                try
+                {
+                    bool LegacyHas(string table) => db.ExecuteScalar<long>(
+                        "SELECT COUNT(1) FROM legacy.sqlite_master WHERE type = 'table' AND name = ?;", table) > 0;
+
+                    db.RunTransaction(() =>
+                    {
+                        db.ExecuteNonQuery("DROP TABLE IF EXISTS main.GameCustomDataAchievementFilter;");
+                        db.ExecuteNonQuery("DROP TABLE IF EXISTS main." + TableName + ";");
+                        db.ExecuteNonQuery("DROP TABLE IF EXISTS main." + CapstoneArtTableName + ";");
+                        CreateTables(db);
+                        if (LegacyHas(TableName))
+                        {
+                            db.ExecuteNonQuery(
+                                "INSERT INTO main." + TableName + " (PlayniteGameId, PayloadJson, UpdatedUtc) " +
+                                "SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM legacy." + TableName + ";");
+                        }
+
+                        if (LegacyHas(CapstoneArtTableName))
+                        {
+                            db.ExecuteNonQuery(
+                                "INSERT INTO main." + CapstoneArtTableName +
+                                " (PlayniteGameId, ApiName, Title, Description, Source, Path, Length, WriteUtc) " +
+                                "SELECT PlayniteGameId, ApiName, Title, Description, Source, Path, Length, WriteUtc FROM legacy." +
+                                CapstoneArtTableName + ";");
+                        }
+
+                        db.ExecuteNonQuery(
+                            "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
+                            MovedInMarkerKey,
+                            DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+                    });
+                }
+                finally
+                {
+                    db.ExecuteNonQuery("DETACH DATABASE legacy;");
+                }
+
+                _logger?.Info(
+                    $"[GameCustomData] Moved {db.ExecuteScalar<long>("SELECT COUNT(1) FROM " + TableName + ";")} " +
+                    $"games of custom data from {LegacyDatabaseFileName} into {Path.GetFileName(_databasePath)}.");
+            }
+
+            // The marker keeps a file that cannot be moved from being copied in again.
+            try
+            {
+                var files = new[] { legacyPath, legacyPath + "-wal", legacyPath + "-shm" };
+                var backupPath = BackupHelper.CreateBackup(root, "customdata-file", files);
+                foreach (var file in files.Where(File.Exists))
+                {
+                    File.Delete(file);
+                }
+
+                _logger?.Info($"[GameCustomData] Moved {LegacyDatabaseFileName} to {backupPath}.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[GameCustomData] Failed to move {LegacyDatabaseFileName} into the backups.");
+            }
         }
 
         private static string ToGuidText(Guid playniteGameId)
