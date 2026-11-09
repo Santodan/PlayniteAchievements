@@ -416,7 +416,7 @@ namespace PlayniteAchievements.Services.Database
         private readonly object _readSync = new object();
         private SQLiteDatabase _readDb;
         private bool _readInitialized;
-        private const int ReadConnectionBusyTimeoutMs = 5000;
+        private const int ConnectionBusyTimeoutMs = 5000;
 
         public string DatabasePath { get; }
 
@@ -425,7 +425,7 @@ namespace PlayniteAchievements.Services.Database
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
             _pluginUserDataPath = baseDir ?? string.Empty;
-            DatabasePath = Path.Combine(_pluginUserDataPath, "achievement_cache.db");
+            DatabasePath = Path.Combine(_pluginUserDataPath, SqlNadoSchemaManager.DatabaseFileName);
             _schemaManager = new SqlNadoSchemaManager(logger, DatabasePath, baseDir);
             _csvExporter = new CacheCsvExporter(this);
             _summaryReader = new SummaryCacheReader(this);
@@ -5728,52 +5728,26 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        /// <summary>
+        /// Clears the platform data of every game, with the metadata stored against it, in one
+        /// transaction. The custom data shares this database and is kept.
+        /// </summary>
         public void ClearCacheData()
         {
-            // Close the read-only connection first so it does not hold a handle to the file
-            // being deleted below. Done before the _sync block to avoid nesting the two locks.
-            DisposeReadConnection();
+            WithDb(db => db.RunTransaction(() =>
+            {
+                foreach (var table in SqlNadoSchemaManager.PlatformAndMetadataTables)
+                {
+                    db.ExecuteNonQuery("DELETE FROM " + table + ";");
+                }
+            }));
 
             lock (_sync)
             {
-                // Close the database connection
-                if (_db is IDisposable disposable)
-                {
-                    try
-                    {
-                        disposable.Dispose();
-                    }
-                    catch { }
-                }
-                _db = null;
-                _initialized = false;
                 _cachedCurrentUsersByProvider.Clear();
-
-                // Delete the database file and WAL-related files
-                try
-                {
-                    var dbPath = DatabasePath;
-                    var filesToDelete = new[]
-                    {
-                        dbPath,
-                        dbPath + "-wal",
-                        dbPath + "-shm"
-                    };
-
-                    foreach (var file in filesToDelete)
-                    {
-                        if (File.Exists(file))
-                        {
-                            File.Delete(file);
-                            _logger?.Info($"Deleted database file: {file}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed to delete database files: {DatabasePath}");
-                }
             }
+
+            _logger?.Info("Cleared the platform data and metadata of every game.");
         }
 
         /// <summary>
@@ -6702,6 +6676,8 @@ namespace PlayniteAchievements.Services.Database
                     SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
 
                 _db.EnableStatementsCache = true;
+                // The custom data store writes to this database on its own connection.
+                _db.BusyTimeout = ConnectionBusyTimeoutMs;
                 _schemaManager.EnsureSchema(_db);
                 EnsureLegacyAchievementPercentNormalization(_db);
                 _initialized = true;
@@ -6839,7 +6815,7 @@ namespace PlayniteAchievements.Services.Database
                 SQLiteOpenOptions.SQLITE_OPEN_READONLY |
                 SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
             _readDb.EnableStatementsCache = true;
-            _readDb.BusyTimeout = ReadConnectionBusyTimeoutMs;
+            _readDb.BusyTimeout = ConnectionBusyTimeoutMs;
 
             // Pragmas are per-connection, so the ones EnsureSchema applies to the write
             // connection never reached this one -- and this is the connection that runs the
