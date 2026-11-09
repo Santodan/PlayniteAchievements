@@ -306,8 +306,12 @@ namespace PlayniteAchievements.Services.Database
                 ExecuteSafe(db, "DROP VIEW IF EXISTS " + view + ";");
             }
 
-            ExecuteSafe(db, "ALTER TABLE AchievementDefinitions RENAME TO PlatformDefinitions;");
-            _logger?.Info("[Schema] Renamed AchievementDefinitions to PlatformDefinitions.");
+            string backupPath = null;
+            ExecuteSchemaChangeWithBackup(
+                db,
+                "ALTER TABLE AchievementDefinitions RENAME TO PlatformDefinitions;",
+                ref backupPath,
+                "Renamed AchievementDefinitions to PlatformDefinitions.");
         }
 
         private void ExecuteSafe(SQLiteDatabase db, string sql)
