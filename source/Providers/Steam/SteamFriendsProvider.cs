@@ -6,6 +6,7 @@ using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata;
 using PlayniteAchievements.Providers.Steam.Models;
+using PlayniteAchievements.Services.Metadata;
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
@@ -556,6 +557,7 @@ namespace PlayniteAchievements.Providers.Steam
             string providerGameKey,
             int appId,
             string gameName,
+            bool mappedToLibrary,
             CancellationToken cancel)
         {
             if (appId <= 0)
@@ -580,12 +582,16 @@ namespace PlayniteAchievements.Providers.Steam
 
                 // Friends refreshes never download default category art (playniteGameId: null):
                 // provider-only friend games have no Playnite id to key art files by, and mapped
-                // games get their art from the owner's own library scan. The category labels/types
-                // set here do persist for mapped games (seed/backfill at definition-save time).
+                // games get their art from the owner's own library scan. Steam's own category
+                // labels/types set here do persist for mapped games (seed/backfill at definition-save
+                // time); SteamHunters applies to provider-only games only, as their metadata layer.
                 await _scanner
                     .ApplyCategoriesAsync(appId, gameName, achievements, schema, playniteGameId: null, cancel)
                     .ConfigureAwait(false);
-                await ApplySteamHuntersAsync(appId, gameName, achievements, schema, cancel).ConfigureAwait(false);
+                if (!mappedToLibrary)
+                {
+                    await ApplySteamHuntersAsync(appId, gameName, achievements, cancel).ConfigureAwait(false);
+                }
 
                 var status = achievements.Count > 0
                     ? FriendGameDefinitionStatus.Ok
@@ -612,54 +618,43 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <summary>
-        /// SteamHunters' grouping for a friend's game definition, which the metadata overlay never
-        /// sees, by the user's Steam-level choices: the fields not chosen keep Steam's own, and
-        /// archived achievements stay Unobtainable. A miss leaves Steam's sets.
+        /// SteamHunters' grouping for a provider-only friend game, which the metadata overlay never
+        /// sees, as each row's metadata layer by the user's Steam-level choices: Steam's values stay
+        /// in the platform layer, the fields not chosen keep them, and archived achievements stay
+        /// Unobtainable through the platform's tags. A miss leaves the rows unlayered, so the stored
+        /// layer is kept.
         /// </summary>
         private async Task ApplySteamHuntersAsync(
             int appId,
             string gameName,
             IList<AchievementDetail> achievements,
-            SchemaAndPercentages schema,
             CancellationToken cancel)
         {
             var choices = _settings?.Persisted?.ResolveMetadataChoices("Steam");
             var categories = string.Equals(choices?.Categories, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
             var tags = string.Equals(choices?.Tags, MetadataChoices.SteamHunters, StringComparison.OrdinalIgnoreCase);
-            if (_steamHuntersCategoryEnricher == null || (!categories && !tags) || achievements == null)
+            if (achievements == null)
             {
                 return;
             }
 
-            var own = achievements
-                .Where(achievement => achievement != null)
-                .Select(achievement => (achievement, achievement.Category, achievement.CategoryKind, achievement.Tags))
-                .ToList();
+            // Not chosen: the rows are layered with no metadata, so a stored layer is removed.
+            if (_steamHuntersCategoryEnricher == null || (!categories && !tags))
+            {
+                MetadataOverlayRun.LayerByApiName(achievements, null, false, false);
+                return;
+            }
 
-            var applied = await _steamHuntersCategoryEnricher
-                .EnrichAsync(appId, gameName, achievements, null, cancel)
+            var rows = SteamHuntersCategoryEnricher.OwnRowsFor(achievements);
+            var applied = rows.Count > 0 && await _steamHuntersCategoryEnricher
+                .EnrichAsync(appId, gameName, rows, null, cancel)
                 .ConfigureAwait(false);
             if (!applied)
             {
                 return;
             }
 
-            foreach (var (achievement, category, kind, ownTags) in own)
-            {
-                if (!categories)
-                {
-                    achievement.Category = category;
-                    achievement.CategoryKind = kind;
-                }
-
-                if (!tags)
-                {
-                    achievement.Tags = ownTags;
-                }
-            }
-
-            // SteamHunters grouping resets types, so archived flags are applied again.
-            SteamAchievementSetMapper.ApplyArchived(achievements, schema);
+            MetadataOverlayRun.LayerByApiName(achievements, rows, categories, tags);
         }
 
         private static bool IsUsableCommunityPage(SteamPageResult page)
