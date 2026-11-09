@@ -5778,12 +5778,15 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>
         /// Deletes the metadata layer of the given games, or of every game when
-        /// <paramref name="playniteGameIds"/> is null, and returns the games that had one. The
-        /// platform's definitions are untouched, so the games read their own values again.
+        /// <paramref name="playniteGameIds"/> is null, and returns the Playnite games that had one.
+        /// The library-wide clear also deletes the layers of games with no Playnite id (provider-only
+        /// friend games), reported by <paramref name="clearedUnmapped"/>. The platform's definitions
+        /// are untouched, so the games read their own values again.
         /// </summary>
-        public List<Guid> ClearMetadataLayers(IReadOnlyCollection<Guid> playniteGameIds)
+        public List<Guid> ClearMetadataLayers(IReadOnlyCollection<Guid> playniteGameIds, out bool clearedUnmapped)
         {
-            return WithDb(db =>
+            var unmapped = false;
+            var result = WithDb(db =>
             {
                 var wanted = playniteGameIds == null ? null : new HashSet<Guid>(playniteGameIds);
                 var cleared = db.Load<FriendDataGameIdRow>(
@@ -5795,7 +5798,9 @@ namespace PlayniteAchievements.Services.Database
                     .Select(row => Guid.TryParse(row?.PlayniteGameId, out var id) ? id : Guid.Empty)
                     .Where(id => id != Guid.Empty && (wanted == null || wanted.Contains(id)))
                     .ToList();
-                if (cleared.Count == 0)
+                var clearAll = wanted == null &&
+                               db.ExecuteScalar<long>("SELECT COUNT(1) FROM AchievementMetadataLayer;") > 0;
+                if (cleared.Count == 0 && !clearAll)
                 {
                     return cleared;
                 }
@@ -5815,10 +5820,19 @@ namespace PlayniteAchievements.Services.Database
                             "UPDATE Games SET MetadataFields = 0 WHERE PlayniteGameId = ?;",
                             gameId.ToString());
                     }
+
+                    // What remains after the Playnite games belongs to games with no Playnite id.
+                    if (clearAll)
+                    {
+                        unmapped = db.ExecuteScalar<long>("SELECT COUNT(1) FROM AchievementMetadataLayer;") > 0;
+                        db.ExecuteNonQuery("DELETE FROM AchievementMetadataLayer;");
+                    }
                 });
 
                 return cleared;
             });
+            clearedUnmapped = unmapped;
+            return result;
         }
 
         public void RemoveGameData(Guid playniteGameId)
