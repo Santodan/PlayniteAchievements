@@ -6,17 +6,96 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.GameCustomData;
 using Playnite.SDK;
-using Playnite.SDK.Models;
 
 namespace PlayniteAchievements
 {
+    /// <summary>What a maintenance clear removes from a game.</summary>
+    internal enum DataClear
+    {
+        /// <summary>The cached achievements and icons, with the metadata stored against them.</summary>
+        Platform,
+
+        /// <summary>The values taken from metadata sources, fetched again by a refresh.</summary>
+        Metadata,
+
+        /// <summary>The user's custom data.</summary>
+        Custom,
+
+        /// <summary>Platform data, metadata and custom data.</summary>
+        All
+    }
+
     /// <summary>
-    /// Per-layer maintenance: clearing a game's metadata or its custom data, shared by the game
-    /// menu, Settings and Manage Achievements.
+    /// Per-layer maintenance: clearing a game's platform data, metadata, custom data or all of it,
+    /// shared by the game menu, the plugin's game row menus, Settings and Manage Achievements.
     /// </summary>
     public partial class PlayniteAchievementsPlugin
     {
         private const string ManualProviderKey = "Manual";
+
+        /// <summary>Every clear with its menu label, in layer order, for each Maintenance menu.</summary>
+        internal static readonly IReadOnlyList<(DataClear Kind, string LabelKey)> DataClears = new[]
+        {
+            (DataClear.Platform, "LOCPlayAch_Menu_ClearPlatformData"),
+            (DataClear.Metadata, "LOCPlayAch_Menu_ClearMetadata"),
+            (DataClear.Custom, "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton"),
+            (DataClear.All, "LOCPlayAch_Menu_ClearAllData")
+        };
+
+        /// <summary>
+        /// Asks to confirm <paramref name="kind"/> for <paramref name="games"/> and runs it.
+        /// Returns whether it ran.
+        /// </summary>
+        internal bool ClearData(DataClear kind, IReadOnlyCollection<(Guid Id, string Name)> games)
+        {
+            var targets = (games ?? Array.Empty<(Guid Id, string Name)>())
+                .Where(game => game.Id != Guid.Empty)
+                .GroupBy(game => game.Id)
+                .Select(group => group.First())
+                .ToList();
+            if (kind == DataClear.Custom)
+            {
+                return ClearCustomData(targets);
+            }
+
+            if (targets.Count == 0)
+            {
+                return false;
+            }
+
+            var keys = kind == DataClear.Platform ? "LOCPlayAch_Menu_ClearPlatformData"
+                : kind == DataClear.Metadata ? "LOCPlayAch_Menu_ClearMetadata"
+                : "LOCPlayAch_Menu_ClearAllData";
+            if (!ConfirmMaintenance(targets.Count == 1
+                    ? string.Format(ResourceProvider.GetString(keys + "_ConfirmSingle"), targets[0].Name)
+                    : string.Format(ResourceProvider.GetString(keys + "_ConfirmSelected"), targets.Count)))
+            {
+                return false;
+            }
+
+            var ids = targets.Select(game => game.Id).ToList();
+            return RunMaintenance(() =>
+            {
+                switch (kind)
+                {
+                    case DataClear.Platform:
+                        ids.ForEach(id => _cacheManager?.RemoveGameCache(id));
+                        break;
+                    case DataClear.Metadata:
+                        ClearMetadataAndRefetch(ids);
+                        break;
+                    default:
+                        foreach (var id in ids)
+                        {
+                            _cacheManager?.RemoveGameCache(id);
+                            _refreshService?.MetadataOverlay?.Links?.ForgetApplied(id);
+                            DeleteGameCustomData(id);
+                        }
+
+                        break;
+                }
+            }, "clear " + kind.ToString().ToLowerInvariant() + " data");
+        }
 
         /// <summary>
         /// Clears the metadata layer of <paramref name="gameIds"/>, or of every game when null,
@@ -46,8 +125,7 @@ namespace PlayniteAchievements
         /// </summary>
         internal bool ClearGameCustomData(Guid gameId, string gameName, Models.Settings.GameCustomDataFile current)
         {
-            var store = GameCustomDataStore;
-            if (store == null || current == null)
+            if (GameCustomDataStore == null || current == null)
             {
                 return false;
             }
@@ -57,16 +135,7 @@ namespace PlayniteAchievements
                 _achievementOverridesService?.ClearGameData(gameId, gameName);
             }
 
-            store.Delete(gameId);
-            try
-            {
-                GameDataLinks?.Unlink(gameId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed ending the Workshop record of gameId={gameId}.");
-            }
-
+            DeleteGameCustomData(gameId);
             return CustomDataTransition.Analyze(current, null).RequiresRefresh;
         }
 
@@ -83,19 +152,7 @@ namespace PlayniteAchievements
                    string.Equals(raw.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
         }
 
-        private void ClearMetadataFromMenu(IReadOnlyList<Game> games)
-        {
-            if (games.Count == 0 || !ConfirmMaintenance(games.Count == 1
-                    ? string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearMetadata_ConfirmSingle"), games[0].Name)
-                    : string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearMetadata_ConfirmSelected"), games.Count)))
-            {
-                return;
-            }
-
-            RunMaintenance(() => ClearMetadataAndRefetch(games.Select(game => game.Id).ToList()), "clear metadata");
-        }
-
-        private void ClearCustomDataFromMenu(IReadOnlyList<Game> games)
+        private bool ClearCustomData(IReadOnlyList<(Guid Id, string Name)> games)
         {
             var store = GameCustomDataStore;
             var targets = games
@@ -104,7 +161,7 @@ namespace PlayniteAchievements
                 .ToList();
             if (targets.Count == 0)
             {
-                return;
+                return false;
             }
 
             var strands = targets.Any(target => WouldStrandManualAchievements(target.Game.Id, target.Data));
@@ -121,10 +178,10 @@ namespace PlayniteAchievements
                     targets.Count);
             if (!ConfirmMaintenance(message))
             {
-                return;
+                return false;
             }
 
-            RunMaintenance(() =>
+            return RunMaintenance(() =>
             {
                 var refresh = targets
                     .Where(target => ClearGameCustomData(target.Game.Id, target.Game.Name, target.Data))
@@ -137,6 +194,19 @@ namespace PlayniteAchievements
             }, "clear custom data");
         }
 
+        private void DeleteGameCustomData(Guid gameId)
+        {
+            GameCustomDataStore?.Delete(gameId);
+            try
+            {
+                GameDataLinks?.Unlink(gameId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed ending the Workshop record of gameId={gameId}.");
+            }
+        }
+
         internal bool ConfirmMaintenance(string message)
         {
             return (PlayniteApi?.Dialogs?.ShowMessage(
@@ -146,11 +216,12 @@ namespace PlayniteAchievements
                 MessageBoxImage.Warning) ?? MessageBoxResult.None) == MessageBoxResult.Yes;
         }
 
-        internal void RunMaintenance(Action action, string what)
+        internal bool RunMaintenance(Action action, string what)
         {
             try
             {
                 action();
+                return true;
             }
             catch (Exception ex)
             {
@@ -160,6 +231,7 @@ namespace PlayniteAchievements
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+                return false;
             }
         }
     }
