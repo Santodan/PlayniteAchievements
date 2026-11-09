@@ -160,6 +160,12 @@ namespace PlayniteAchievements.Views.Helpers
                     ? "LOCPlayAch_Menu_IncludeInRefreshes"
                     : "LOCPlayAch_Menu_ExcludeFromRefreshes",
                 toggleExcludedFromRefreshes));
+            var excludedFromMetadata = PlayniteAchievementsPlugin.Instance?.IsGameExcludedFromMetadata(gameId) == true;
+            maintenance.Items.Add(CreateMenuItem(resourceOwner,
+                excludedFromMetadata
+                    ? "LOCPlayAch_Menu_IncludeInMetadata"
+                    : "LOCPlayAch_Menu_ExcludeFromMetadata",
+                () => PlayniteAchievementsPlugin.Instance?.SetExcludedFromMetadata(new[] { gameId }, !excludedFromMetadata)));
             return maintenance;
         }
 
