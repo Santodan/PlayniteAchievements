@@ -95,6 +95,12 @@ namespace PlayniteAchievements.Models.Settings
         public bool? ExcludedFromSummaries { get; set; }
 
         /// <summary>
+        /// True when no metadata source supplies this game. The game's own metadata choices stay
+        /// stored for when it is included again. Local state: never exported in a .pa package.
+        /// </summary>
+        public bool? ExcludedFromMetadata { get; set; }
+
+        /// <summary>
         /// Values an automatic rule wrote and still owns, one per field. Local state: never
         /// exported in a .pa package.
         /// </summary>
@@ -267,6 +273,7 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 ExcludedFromRefreshes = ExcludedFromRefreshes,
                 ExcludedFromSummaries = ExcludedFromSummaries,
+                ExcludedFromMetadata = ExcludedFromMetadata,
                 RuleClaims = CloneRuleClaims(RuleClaims),
                 UserPinnedFields = UserPinnedFields != null
                     ? new List<string>(UserPinnedFields)
