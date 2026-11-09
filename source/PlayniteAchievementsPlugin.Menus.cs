@@ -843,7 +843,7 @@ namespace PlayniteAchievements
                                     CancellationToken.None).ConfigureAwait(false);
                                 PlayniteApi.Notifications.Add(
                                     "PlayAch_BattleNetGamesProbe",
-                                    $"Battle.net probe finished. Send this file back: {zipPath}",
+                                    $"Battle.net probe finished. Send back {System.IO.Path.GetFileName(zipPath)} from {System.IO.Path.GetDirectoryName(zipPath)}",
                                     NotificationType.Info);
                                 System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + zipPath + "\"");
                             }
