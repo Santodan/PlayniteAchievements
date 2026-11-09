@@ -278,6 +278,35 @@ namespace PlayniteAchievements.SqlNado.Tests
             }
         }
 
+        [TestMethod]
+        public void EveryTable_IsClearedWithThePlatformLayer_OrKept()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-tables-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    new SqlNadoSchemaManager(null, path, dir).EnsureSchema(db);
+                    var tables = db.Load<SqlRow>("SELECT name AS Sql FROM sqlite_master WHERE type = 'table';")
+                        .Select(row => row.Sql)
+                        .ToList();
+
+                    // Custom data's mirror, the capture index and the schema's own bookkeeping.
+                    var kept = new[] { "CacheMetadata", "AchievementOverrides", "GameCustomState", "AchievementCategories", "AchievementCaptures", "sqlite_sequence" };
+                    CollectionAssert.AreEquivalent(
+                        tables,
+                        SqlNadoSchemaManager.PlatformAndMetadataTables.Concat(kept).ToList(),
+                        "a new table has to be placed in a layer");
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
         private static SQLiteDatabase Open(string path) => new SQLiteDatabase(
             path,
             SQLiteOpenOptions.SQLITE_OPEN_READWRITE | SQLiteOpenOptions.SQLITE_OPEN_CREATE | SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
