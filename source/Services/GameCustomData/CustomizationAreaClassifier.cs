@@ -133,7 +133,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 data.ForceUseExophase == true ||
                 HasText(data.ExophaseSlugOverride) ||
                 GameCustomDataNormalizer.HasUserMetadataLink(data.MetadataLinks) ||
-                data.MetadataChoices?.IsEmpty() == false)
+                data.MetadataChoices?.IsEmpty() == false ||
+                data.ExcludedFromMetadata == true)
             {
                 areas |= CustomizationArea.Source;
             }
