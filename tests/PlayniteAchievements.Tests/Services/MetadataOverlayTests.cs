@@ -107,6 +107,37 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task ExcludedGame_TakesNothingFromAnySource_AndKeepsItsChoices()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            var gameId = data.PlayniteGameId.Value;
+            overlay.Links.SetChoices(gameId, new MetadataChoices { Icons = "PlayStation" });
+
+            Assert.IsTrue(overlay.Links.SetExcludedFromMetadata(gameId, true));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("steam.png", data.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual(0, playstation.BeginCount, "no source is asked");
+            Assert.AreEqual("PlayStation", overlay.Links.GetChoices(gameId).Icons);
+
+            Assert.IsTrue(overlay.Links.SetExcludedFromMetadata(gameId, false));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath, "included again, the choice applies");
+        }
+
+        [TestMethod]
         public async Task CategoryArt_IsSavedOnlyForCategoriesTheSourceGave()
         {
             var source = new FakeSource("SteamHunters", MetadataField.Categories)
