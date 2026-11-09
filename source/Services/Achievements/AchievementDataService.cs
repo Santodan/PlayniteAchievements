@@ -1614,15 +1614,8 @@ namespace PlayniteAchievements.Services.Achievements
                 changedGameId == Guid.Empty ? null : new[] { changedGameId });
         }
 
-        // A full cache invalidation may follow ClearCache(), which deletes the whole database
-        // file including the filter mirror; resync heals it (a cheap no-op when unchanged).
         private void OnCacheInvalidatedForOverview(object sender, CacheInvalidatedEventArgs e)
         {
-            if (e?.IsFull != false)
-            {
-                SyncAllAchievementFiltersFromCustomData();
-            }
-
             // The editor raises a scoped invalidation for its own game on top of the store's
             // CustomDataChanged, and it is the only route by which an edit that does not affect
             // summary data reaches the overview. Honouring the scope here is what stops that
