@@ -669,6 +669,7 @@ namespace PlayniteAchievements.Providers.Exophase
             string providerGameKey,
             int appId,
             string gameName,
+            bool mappedToLibrary,
             CancellationToken cancel)
         {
             var parsed = ExophaseFriendGameKey.Parse(providerGameKey);
