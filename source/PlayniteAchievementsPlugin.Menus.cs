@@ -817,6 +817,49 @@ namespace PlayniteAchievements
                 };
             }
 
+            // Developer-only, hidden unless the hardcoded BattleNetFlavorProbe.Enabled flag is on.
+            // Deliberately not localized. Runs on a tester's machine and zips its report to send back.
+            if (global::PlayniteAchievements.Providers.BattleNet.BattleNetFlavorProbe.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Probe Battle.net game flavors",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "battlenet-flavors");
+                        PlayniteApi.Notifications.Add(
+                            "PlayAch_BattleNetFlavorProbe",
+                            "Battle.net probe running. A folder opens when it finishes.",
+                            NotificationType.Info);
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var zipPath = await global::PlayniteAchievements.Providers.BattleNet.BattleNetFlavorProbe.RunAsync(
+                                    PlayniteApi,
+                                    _logger,
+                                    folder,
+                                    CancellationToken.None).ConfigureAwait(false);
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_BattleNetFlavorProbe",
+                                    $"Battle.net probe finished. Send this file back: {zipPath}",
+                                    NotificationType.Info);
+                                System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + zipPath + "\"");
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.Warn(ex, "Battle.net flavor probe failed.");
+                                PlayniteApi.Notifications.Add(
+                                    "PlayAch_BattleNetFlavorProbe",
+                                    $"Battle.net probe failed: {ex.Message}",
+                                    NotificationType.Error);
+                            }
+                        });
+                    }
+                };
+            }
+
             // Developer-only, hidden unless the hardcoded ExophaseCollectionProbe.Enabled flag is on.
             // Deliberately not localized. Probes a fixed list of Steam collections, plus the games
             // selected in the library.
