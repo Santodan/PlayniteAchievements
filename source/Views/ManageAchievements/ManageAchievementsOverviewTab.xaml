@@ -154,7 +154,7 @@
                                                   Command="{Binding ClearPlatformDataCommand}" />
                                         <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearMetadata}"
                                                   Command="{Binding ClearMetadataCommand}" />
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearCustomData}"
                                                   Command="{Binding ClearCustomDataCommand}" />
                                         <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearAllData}"
                                                   Command="{Binding ClearAllDataCommand}" />
