@@ -205,6 +205,30 @@ namespace PlayniteAchievements.Services.Metadata
                 : null;
         }
 
+        /// <summary>Whether no metadata source supplies the game.</summary>
+        public bool IsExcludedFromMetadata(Guid gameId)
+        {
+            return gameId != Guid.Empty && _customData != null && _customData.TryLoad(gameId, out var data) &&
+                   data?.ExcludedFromMetadata == true;
+        }
+
+        /// <summary>Excludes the game from metadata, or includes it again; its own choices stay stored.</summary>
+        public bool SetExcludedFromMetadata(Guid gameId, bool excluded)
+        {
+            if (gameId == Guid.Empty || _customData == null || IsExcludedFromMetadata(gameId) == excluded)
+            {
+                return false;
+            }
+
+            _customData.Update(
+                gameId,
+                data => data.ExcludedFromMetadata = excluded ? true : (bool?)null,
+                affectsSummaryData: false,
+                affectsOverrideMirror: false);
+            LinkChanged?.Invoke(gameId);
+            return true;
+        }
+
         /// <summary>Stores the game's own metadata choices; empty ones are removed, so the game follows its platform.</summary>
         public bool SetChoices(Guid gameId, MetadataChoices choices)
         {
