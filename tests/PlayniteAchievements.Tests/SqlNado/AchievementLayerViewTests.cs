@@ -226,47 +226,61 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void RenamingTheOldDefinitionsTable_CarriesForeignKeysAndTriggers()
+        public void UpgradingAV21Database_RenamesTheTable_KeepsTheRows_AndBacksUpFirst()
         {
-            var path = Path.Combine(Path.GetTempPath(), "playach-rename-" + Guid.NewGuid().ToString("N") + ".db");
+            var dir = Path.Combine(Path.GetTempPath(), "playach-upgrade-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "achievement_cache.db");
+            var schema = new SqlNadoSchemaManager(null, path, dir);
             try
             {
-                using (var db = new SQLiteDatabase(
-                    path,
-                    SQLiteOpenOptions.SQLITE_OPEN_READWRITE | SQLiteOpenOptions.SQLITE_OPEN_CREATE | SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX))
+                using (var db = Open(path))
                 {
-                    // The v21 shape: the definitions table, an unlock table pointing at it, and the
-                    // metadata layer with its delete trigger.
-                    db.ExecuteNonQuery("CREATE TABLE AchievementDefinitions (Id INTEGER PRIMARY KEY AUTOINCREMENT, ApiName TEXT NOT NULL);");
-                    db.ExecuteNonQuery(@"CREATE TABLE UserAchievements (Id INTEGER PRIMARY KEY, AchievementDefinitionId INTEGER NOT NULL,
-                        FOREIGN KEY (AchievementDefinitionId) REFERENCES AchievementDefinitions(Id) ON DELETE CASCADE);");
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql.Replace("PlatformDefinitions", "AchievementDefinitions"));
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql.Replace("PlatformDefinitions", "AchievementDefinitions"));
-                    db.ExecuteNonQuery("INSERT INTO AchievementDefinitions (Id, ApiName) VALUES (1, 'a');");
-                    db.ExecuteNonQuery(AchievementLayerSql.InsertSql, 1L, "Borrowed", null, null, null, null, null, null, null, null, null, null, null, 0L);
+                    // A current database turned back into the v21 shape: no views, and the
+                    // platform's definitions in the AchievementDefinitions table.
+                    schema.EnsureSchema(db);
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
+                    Definition(db, "a", "Platform name", null, null, "Default", null, null, null, "Common");
+                    var id = db.ExecuteScalar<long>("SELECT Id FROM PlatformDefinitions WHERE ApiName = 'a';");
+                    db.ExecuteNonQuery(AchievementLayerSql.InsertSql, id, "Borrowed", null, null, null, null, null, null, null, null, null, null, null, 0L);
+                    foreach (var view in AchievementLayerSql.AllViewNames)
+                    {
+                        db.ExecuteNonQuery("DROP VIEW IF EXISTS " + view + ";");
+                    }
 
-                    // The schema manager's rename.
-                    db.ExecuteNonQuery("PRAGMA legacy_alter_table = OFF;");
-                    db.ExecuteNonQuery("ALTER TABLE AchievementDefinitions RENAME TO PlatformDefinitions;");
-
-                    string SqlOf(string name) =>
-                        db.Load<SqlRow>("SELECT sql AS Sql FROM sqlite_master WHERE name = ?;", name).Single().Sql;
-                    StringAssert.Contains(SqlOf("UserAchievements"), "PlatformDefinitions");
-                    StringAssert.Contains(SqlOf("AchievementMetadataLayer"), "PlatformDefinitions");
-                    StringAssert.Contains(SqlOf("TR_AchievementDefinitions_DeleteMetadataLayer"), "PlatformDefinitions");
-
-                    db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE Id = 1;");
-                    Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementMetadataLayer;"), "the trigger follows the table");
+                    db.ExecuteNonQuery("ALTER TABLE PlatformDefinitions RENAME TO AchievementDefinitions;");
+                    db.ExecuteNonQuery("UPDATE CacheMetadata SET Value = '21' WHERE Key = 'schema_version';");
                 }
+
+                using (var db = Open(path))
+                {
+                    schema.EnsureSchema(db);
+
+                    string TypeOf(string name) =>
+                        db.Load<SqlRow>("SELECT type AS Sql FROM sqlite_master WHERE name = ?;", name).Single().Sql;
+                    Assert.AreEqual("table", TypeOf("PlatformDefinitions"));
+                    Assert.AreEqual("view", TypeOf("AchievementDefinitions"));
+                    Assert.AreEqual("Borrowed", db.ExecuteScalar<string>("SELECT DisplayName FROM AchievementDefinitions WHERE ApiName = 'a';"));
+                    Assert.AreEqual("22", db.ExecuteScalar<string>("SELECT Value FROM CacheMetadata WHERE Key = 'schema_version';"));
+
+                    // The metadata layer's foreign key and delete trigger follow the renamed table.
+                    db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE ApiName = 'a';");
+                    Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementMetadataLayer;"));
+                }
+
+                var backups = Directory.GetDirectories(dir, "db-schema-*", SearchOption.AllDirectories);
+                Assert.AreEqual(1, backups.Length, "one backup, made before the rename");
+                Assert.IsTrue(File.Exists(Path.Combine(backups[0], "achievement_cache.db")));
             }
             finally
             {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
+                try { Directory.Delete(dir, true); } catch (IOException) { }
             }
         }
+
+        private static SQLiteDatabase Open(string path) => new SQLiteDatabase(
+            path,
+            SQLiteOpenOptions.SQLITE_OPEN_READWRITE | SQLiteOpenOptions.SQLITE_OPEN_CREATE | SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
 
         private static void Definition(
             SQLiteDatabase db, string apiName, string name, string description, int? points,
