@@ -76,52 +76,12 @@ namespace PlayniteAchievements.Views.Settings.General
         // Cache actions
         // -----------------------------
 
-        private void WipeCache_Click(object sender, RoutedEventArgs e)
+        /// <summary>Clears the layer named by the button's Tag for every game.</summary>
+        private void ClearLayer_Click(object sender, RoutedEventArgs e)
         {
-            string message = null;
-            var image = MessageBoxImage.Information;
-            Exception operationError = null;
-            var progressText = L("LOCPlayAch_Settings_Cache_ProgressClearing");
-
-            RunMaintenanceProgress(
-                progressText,
-                isIndeterminate: true,
-                operation: progress =>
-                {
-                    try
-                    {
-                        _plugin.RefreshRuntime.Cache.ClearCache();
-                        message = L("LOCPlayAch_Status_Succeeded");
-                        image = MessageBoxImage.Information;
-                    }
-                    catch (Exception ex)
-                    {
-                        operationError = ex;
-                    }
-                });
-
-            if (operationError != null)
+            if (Enum.TryParse((sender as FrameworkElement)?.Tag as string, out DataClear kind))
             {
-                _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", operationError.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                return;
-            }
-
-            _plugin.PlayniteApi.Dialogs.ShowMessage(
-                message ?? L("LOCPlayAch_Status_Succeeded"),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                image);
-        }
-
-        private void ClearMetadata_Click(object sender, RoutedEventArgs e)
-        {
-            if (_plugin.ConfirmMaintenance(L("LOCPlayAch_Settings_ClearMetadata_Confirm")))
-            {
-                _plugin.RunMaintenance(() => _plugin.ClearMetadataAndRefetch(null), "clear metadata");
+                _plugin.ClearData(kind, null);
             }
         }
 
