@@ -1375,16 +1375,18 @@ namespace PlayniteAchievements.Services.Cache
 
         /// <summary>
         /// Clears the metadata layer of the given games, or of every game when
-        /// <paramref name="playniteGameIds"/> is null, and returns the games that had one. Their
-        /// memory copies are dropped so the next read shows the platform's values.
+        /// <paramref name="playniteGameIds"/> is null (provider-only friend games included), and
+        /// returns the Playnite games that had one. Their memory copies are dropped so the next read
+        /// shows the platform's values.
         /// </summary>
         public IReadOnlyList<Guid> ClearMetadataLayers(IReadOnlyCollection<Guid> playniteGameIds = null)
         {
             List<Guid> cleared;
+            bool clearedUnmapped;
             lock (_sync)
             {
                 EnsureReady_Locked("ClearMetadataLayers");
-                cleared = _store.ClearMetadataLayers(playniteGameIds);
+                cleared = _store.ClearMetadataLayers(playniteGameIds, out clearedUnmapped);
                 foreach (var gameId in cleared)
                 {
                     RemoveMemoryGameData_Locked(UserKey(gameId.ToString()));
@@ -1394,6 +1396,12 @@ namespace PlayniteAchievements.Services.Cache
             if (cleared.Count > 0)
             {
                 RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(cleared));
+            }
+
+            // Provider-only friend games have no Playnite id to scope; the friend views reload.
+            if (clearedUnmapped)
+            {
+                RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
             }
 
             return cleared;
