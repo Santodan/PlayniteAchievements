@@ -817,41 +817,41 @@ namespace PlayniteAchievements
                 };
             }
 
-            // Developer-only, hidden unless the hardcoded BattleNetFlavorProbe.Enabled flag is on.
+            // Developer-only, hidden unless the hardcoded BattleNetGamesProbe.Enabled flag is on.
             // Deliberately not localized. Runs on a tester's machine and zips its report to send back.
-            if (global::PlayniteAchievements.Providers.BattleNet.BattleNetFlavorProbe.Enabled)
+            if (global::PlayniteAchievements.Providers.BattleNet.BattleNetGamesProbe.Enabled)
             {
                 yield return new MainMenuItem
                 {
-                    Description = "Probe Battle.net game flavors",
+                    Description = "Probe Battle.net games",
                     MenuSection = PluginMainMenuSection,
                     Action = (a) =>
                     {
-                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "battlenet-flavors");
+                        var folder = System.IO.Path.Combine(GetPluginUserDataPath(), "diagnostics", "battlenet-probe");
                         PlayniteApi.Notifications.Add(
-                            "PlayAch_BattleNetFlavorProbe",
+                            "PlayAch_BattleNetGamesProbe",
                             "Battle.net probe running. A folder opens when it finishes.",
                             NotificationType.Info);
                         _ = Task.Run(async () =>
                         {
                             try
                             {
-                                var zipPath = await global::PlayniteAchievements.Providers.BattleNet.BattleNetFlavorProbe.RunAsync(
+                                var zipPath = await global::PlayniteAchievements.Providers.BattleNet.BattleNetGamesProbe.RunAsync(
                                     PlayniteApi,
                                     _logger,
                                     folder,
                                     CancellationToken.None).ConfigureAwait(false);
                                 PlayniteApi.Notifications.Add(
-                                    "PlayAch_BattleNetFlavorProbe",
+                                    "PlayAch_BattleNetGamesProbe",
                                     $"Battle.net probe finished. Send this file back: {zipPath}",
                                     NotificationType.Info);
                                 System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + zipPath + "\"");
                             }
                             catch (Exception ex)
                             {
-                                _logger?.Warn(ex, "Battle.net flavor probe failed.");
+                                _logger?.Warn(ex, "Battle.net probe failed.");
                                 PlayniteApi.Notifications.Add(
-                                    "PlayAch_BattleNetFlavorProbe",
+                                    "PlayAch_BattleNetGamesProbe",
                                     $"Battle.net probe failed: {ex.Message}",
                                     NotificationType.Error);
                             }
