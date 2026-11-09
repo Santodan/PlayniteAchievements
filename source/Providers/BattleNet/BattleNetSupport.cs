@@ -128,10 +128,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             return NameHasWowAnd(game?.Name, "forever");
         }
 
-        private static bool NameHasWowAnd(string name, string flavor)
+        private static bool NameHasWowAnd(string name, string version)
         {
             return !string.IsNullOrWhiteSpace(name) &&
-                name.IndexOf(flavor, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                name.IndexOf(version, StringComparison.OrdinalIgnoreCase) >= 0 &&
                 (name.IndexOf("warcraft", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  name.StartsWith("wow ", StringComparison.OrdinalIgnoreCase) ||
                  name.StartsWith("wow:", StringComparison.OrdinalIgnoreCase));
