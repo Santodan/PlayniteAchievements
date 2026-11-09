@@ -1784,12 +1784,13 @@ namespace PlayniteAchievements.Services.Refresh
             var sample = ownershipRows?.FirstOrDefault(item => item != null);
             var appId = Math.Max(0, sample?.AppId ?? 0);
             var gameName = ResolveOwnershipGameName(ownershipRows, providerKey, providerGameKey);
+            var mappedToLibrary = ownershipRows?.Any(item => item != null && IsPlayniteLibraryFriendGame(providerKey, item)) == true;
             progress?.ReportDefinitionCheckActive(gameName);
 
             await limiter.DelayBeforeNextAsync(cancel).ConfigureAwait(false);
             _logger?.Info($"[FriendRefresh] Fetching game definition {fetchLogLabel} for {providerKey}/{providerGameKey} ('{gameName}').");
             var definitionResult = await limiter.ExecuteWithRetryAsync(
-                () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, cancel),
+                () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, mappedToLibrary, cancel),
                 FriendRefreshWorkPolicy.IsTransientError,
                 cancel).ConfigureAwait(false);
 
