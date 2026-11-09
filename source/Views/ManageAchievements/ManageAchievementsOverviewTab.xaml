@@ -150,10 +150,14 @@
                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                 <Button.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearData}"
-                                                  Command="{Binding ClearGameDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearPlatformData}"
+                                                  Command="{Binding ClearPlatformDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearMetadata}"
+                                                  Command="{Binding ClearMetadataCommand}" />
                                         <MenuItem Header="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton}"
                                                   Command="{Binding ClearCustomDataCommand}" />
+                                        <MenuItem Header="{DynamicResource LOCPlayAch_Menu_ClearAllData}"
+                                                  Command="{Binding ClearAllDataCommand}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>
