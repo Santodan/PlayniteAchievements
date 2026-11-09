@@ -48,6 +48,18 @@ namespace PlayniteAchievements.Services.Database
             "FriendOwnership",
             "ProviderGameDefinitionState"
         };
+
+        /// <summary>Deletes every row of <see cref="PlatformAndMetadataTables"/> in one transaction.</summary>
+        internal static void ClearPlatformAndMetadata(SQLiteDatabase db)
+        {
+            db.RunTransaction(() =>
+            {
+                foreach (var table in PlatformAndMetadataTables)
+                {
+                    db.ExecuteNonQuery("DELETE FROM " + table + ";");
+                }
+            });
+        }
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
