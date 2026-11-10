@@ -24,8 +24,8 @@ namespace PlayniteAchievements.Views.Controls
     /// <remarks>
     /// <see cref="Styles"/> is the global detail priority (the enabled styles of
     /// <see cref="PersistedSettings.ProgressDetails"/>), empty while the grid's spot is off.
-    /// The element shows the first style the achievement has data for after passing over
-    /// <see cref="Skip"/> of them, and measures to nothing when none is left.
+    /// The element shows the first style the achievement has data for, and measures to nothing
+    /// when it has none, so the name and description spots always show the same detail.
     /// Rarity and trophy draw their badge; points draw the family's icon, the value and a dash.
     /// Text takes the font and color the hosting TextBlock passes down, so a points value reads
     /// as part of the name. The DataContext is the row's <see cref="AchievementDisplayItem"/>,
@@ -44,7 +44,6 @@ namespace PlayniteAchievements.Views.Controls
         private double _iconSize;
 
         public static readonly DependencyProperty StylesProperty = Register(nameof(Styles), typeof(IReadOnlyList<ProgressDetailStyle>), null);
-        public static readonly DependencyProperty SkipProperty = Register(nameof(Skip), typeof(int), 0);
         public static readonly DependencyProperty RarityProperty = Register(nameof(Rarity), typeof(RarityTier), RarityTier.Common);
         public static readonly DependencyProperty HasRarityProperty = Register(nameof(HasRarity), typeof(bool), false);
         public static readonly DependencyProperty ShowsRarityProperty = Register(nameof(ShowsRarity), typeof(bool), false);
@@ -66,13 +65,6 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (IReadOnlyList<ProgressDetailStyle>)GetValue(StylesProperty);
             set => SetValue(StylesProperty, value);
-        }
-
-        /// <summary>How many styles with data to pass over; the description spot skips the name's.</summary>
-        public int Skip
-        {
-            get => (int)GetValue(SkipProperty);
-            set => SetValue(SkipProperty, value);
         }
 
         public RarityTier Rarity
@@ -164,7 +156,7 @@ namespace PlayniteAchievements.Views.Controls
 
         protected override Size MeasureOverride(Size availableSize)
         {
-            _style = ProgressDetailOrder.PickInline(Styles, HasData, Skip);
+            _style = ProgressDetailOrder.PickInline(Styles, HasData);
             _image = null;
             _text = null;
 
