@@ -452,6 +452,20 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void WowCharacterSource_ChoosesAccountOrTypedCharacterWithForeverAlwaysAccount()
+        {
+            var settings = new BattleNetSettings();
+            Assert.AreEqual(WowCharacterSource.Account, settings.WowCharacterSource);
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Retail));
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Classic));
+
+            settings.WowCharacterSource = WowCharacterSource.Character;
+            Assert.IsFalse(WowGameStrategy.UsesAccount(settings, WowVersion.Retail));
+            Assert.IsFalse(WowGameStrategy.UsesAccount(settings, WowVersion.Classic));
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Forever));
+        }
+
+        [TestMethod]
         public void WowRealmIndexUrl_UsesTheVersionDynamicNamespace()
         {
             Assert.AreEqual(
