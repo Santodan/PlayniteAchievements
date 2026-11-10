@@ -319,26 +319,54 @@ namespace PlayniteAchievements.Providers.BattleNet
                 var accounts = TryParse(body)?["wow_accounts"] as JArray;
                 ctx.Report.AppendLine($"wow_accounts={accounts?.Count ?? 0}, characters={accounts?.Sum(a => (a?["characters"] as JArray)?.Count ?? 0) ?? 0}");
 
-                // Highest-level characters first: they are the ones most likely to have earned something.
                 var catalogIds = new HashSet<int>(((TryParse(achievementIndex)?["achievements"] as JArray) ?? new JArray())
                     .Select(a => a?.Value<int?>("id") ?? 0));
-                var accountCharacters = (accounts ?? new JArray())
+                var allCharacters = (accounts ?? new JArray())
                     .SelectMany(a => (a?["characters"] as JArray) ?? new JArray())
-                    .Where(c => !string.IsNullOrWhiteSpace(c?.Value<string>("name")) && !string.IsNullOrWhiteSpace(c?["realm"]?.Value<string>("slug")))
-                    .OrderByDescending(c => c.Value<int?>("level") ?? 0)
-                    .Take(2)
+                    .OfType<JObject>()
                     .ToList();
+
+                // Field names and presence counts only, never values, so a version whose character
+                // entries differ from retail shows which fields it has.
+                var first = allCharacters.FirstOrDefault();
+                if (first != null)
+                {
+                    ctx.Report.AppendLine($"character fields: {string.Join(",", first.Properties().Select(p => p.Name))}");
+                    ctx.Report.AppendLine($"character realm fields: {string.Join(",", ((first["realm"] as JObject)?.Properties() ?? Enumerable.Empty<JProperty>()).Select(p => p.Name))}");
+                    ctx.Report.AppendLine(
+                        $"characters with name={allCharacters.Count(c => StringField(c, "name") != null)}, " +
+                        $"realm.slug={allCharacters.Count(c => StringField(c["realm"] as JObject, "slug") != null)}, " +
+                        $"character.key.href={allCharacters.Count(c => CharacterHref(c) != null)}");
+                }
+
+                // Highest-level characters first: they are the ones most likely to have earned something.
                 var accountIndex = 0;
-                foreach (var character in accountCharacters)
+                foreach (var character in allCharacters.OrderByDescending(c => c.Value<int?>("level") ?? 0).Take(2))
                 {
                     accountIndex++;
-                    var realm = Uri.EscapeDataString(character["realm"].Value<string>("slug").ToLowerInvariant());
-                    var name = Uri.EscapeDataString(character.Value<string>("name").ToLowerInvariant());
+                    var slug = StringField(character["realm"] as JObject, "slug");
+                    var name = StringField(character, "name");
+                    var href = CharacterHref(character);
+                    string url;
+                    if (slug != null && name != null)
+                    {
+                        url = $"{host}/profile/wow/character/{Uri.EscapeDataString(slug.ToLowerInvariant())}/{Uri.EscapeDataString(name.ToLowerInvariant())}/achievements?namespace={profileNs}&locale={Locale}";
+                    }
+                    else if (href != null)
+                    {
+                        url = href.Split('?')[0].TrimEnd('/') + $"/achievements?namespace={profileNs}&locale={Locale}";
+                    }
+                    else
+                    {
+                        ctx.Report.AppendLine($"account character {accountIndex}: no realm slug, name or profile link");
+                        continue;
+                    }
+
                     var achievements = await ctx.GetAsync(
-                        $"{host}/profile/wow/character/{realm}/{name}/achievements?namespace={profileNs}&locale={Locale}",
+                        url,
                         saveAs: null,
                         ct,
-                        shownAs: $"/profile/wow/character/<account character {accountIndex}, level {character.Value<int?>("level")}>/achievements").ConfigureAwait(false);
+                        shownAs: $"/profile/wow/character/<account character {accountIndex}, level {character.Value<int?>("level")}, via {(slug != null && name != null ? "slug" : "href")}>/achievements").ConfigureAwait(false);
                     var root = TryParse(achievements);
                     var completed = ((root?["achievements"] as JArray) ?? new JArray())
                         .Where(a => a?["completed_timestamp"] != null)
@@ -652,6 +680,17 @@ namespace PlayniteAchievements.Providers.BattleNet
             {
                 return null;
             }
+        }
+
+        private static string StringField(JObject obj, string key)
+        {
+            var value = (obj?[key] as JValue)?.Value as string;
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        private static string CharacterHref(JObject character)
+        {
+            return StringField((character?["character"] as JObject)?["key"] as JObject, "href");
         }
 
         private static int CountArray(string body, string key)
