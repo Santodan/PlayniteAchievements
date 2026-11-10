@@ -47,6 +47,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty SkipProperty = Register(nameof(Skip), typeof(int), 0);
         public static readonly DependencyProperty RarityProperty = Register(nameof(Rarity), typeof(RarityTier), RarityTier.Common);
         public static readonly DependencyProperty HasRarityProperty = Register(nameof(HasRarity), typeof(bool), false);
+        public static readonly DependencyProperty ShowsRarityProperty = Register(nameof(ShowsRarity), typeof(bool), false);
         public static readonly DependencyProperty TrophyTypeProperty = Register(nameof(TrophyType), typeof(string), null);
         public static readonly DependencyProperty PointsTextProperty = Register(nameof(PointsText), typeof(string), null);
         public static readonly DependencyProperty HasPointsProperty = Register(nameof(HasPoints), typeof(bool), false);
@@ -80,10 +81,21 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(RarityProperty, value);
         }
 
+        /// <summary>Whether the achievement has a rarity percent.</summary>
         public bool HasRarity
         {
             get => (bool)GetValue(HasRarityProperty);
             set => SetValue(HasRarityProperty, value);
+        }
+
+        /// <summary>
+        /// Whether the game's provider supplies rarity (a tier or a percent), so a tier without a
+        /// percent is real rather than the Common default.
+        /// </summary>
+        public bool ShowsRarity
+        {
+            get => (bool)GetValue(ShowsRarityProperty);
+            set => SetValue(ShowsRarityProperty, value);
         }
 
         /// <summary>The resolved grade: <see cref="AchievementDisplayItem.MaskedTrophyType"/> while masked.</summary>
@@ -140,7 +152,7 @@ namespace PlayniteAchievements.Views.Controls
             switch (style)
             {
                 case ProgressDetailStyle.Rarity:
-                    return HasRarity;
+                    return HasRarity || ShowsRarity;
                 case ProgressDetailStyle.Trophy:
                     return !string.IsNullOrWhiteSpace(TrophyType);
                 case ProgressDetailStyle.Points:
