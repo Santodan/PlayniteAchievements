@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
@@ -62,6 +63,33 @@ namespace PlayniteAchievements.Tests.Services.Summaries
             var mixedCategory = (CategorySummaryItem)mixed.Single();
             Assert.IsNull(mixedCategory.GameLogo);
             Assert.IsNull(mixedCategory.GameCoverPath);
+        }
+
+        [TestMethod]
+        public void Build_SharedProviderFamilySetsThePointsFamily()
+        {
+            AchievementDisplayItem WithProvider(string providerKey)
+            {
+                var item = DisplayItem("DLC", unlocked: true);
+                item.ProviderKey = providerKey;
+                return item;
+            }
+
+            // Xbox and Xenia fold into one family; a member with no family does not break it.
+            var shared = (CategorySummaryItem)CategorySummaryBuilder.Build(new List<AchievementDisplayItem>
+            {
+                WithProvider("Xbox"),
+                WithProvider("Xenia"),
+                WithProvider(null)
+            }).Single();
+            Assert.AreEqual(PointsFamilies.Xbox, shared.PointsFamily);
+
+            var mixed = (CategorySummaryItem)CategorySummaryBuilder.Build(new List<AchievementDisplayItem>
+            {
+                WithProvider("Xbox"),
+                WithProvider("PSN")
+            }).Single();
+            Assert.IsNull(mixed.PointsFamily);
         }
 
         [TestMethod]
