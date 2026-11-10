@@ -156,7 +156,7 @@ namespace PlayniteAchievements.Services.Images
                 return rest.Length == 0 ? root : Path.Combine(root, rest);
             }
 
-            if (Path.IsPathRooted(trimmed))
+            if (IsRooted(trimmed))
             {
                 return trimmed;
             }
@@ -173,7 +173,7 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var trimmed = absolutePath.Trim();
-            if (!Path.IsPathRooted(trimmed))
+            if (!IsRooted(trimmed))
             {
                 if (TryStripLogicalPrefix(trimmed, out var rest))
                 {
@@ -220,7 +220,7 @@ namespace PlayniteAchievements.Services.Images
         internal static bool TryRebase(string path, string oldRoot, string newRoot, out string rebased)
         {
             rebased = path;
-            if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path.Trim()))
+            if (string.IsNullOrWhiteSpace(path) || !IsRooted(path.Trim()))
             {
                 return false;
             }
@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Services.Images
         internal static bool TryStripLogicalPrefix(string relativePath, out string rest)
         {
             rest = null;
-            if (string.IsNullOrEmpty(relativePath) || Path.IsPathRooted(relativePath))
+            if (string.IsNullOrEmpty(relativePath) || IsRooted(relativePath))
             {
                 return false;
             }
@@ -271,10 +271,22 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var withoutTrailing = trimmed.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var root = Path.GetPathRoot(trimmed) ?? string.Empty;
+            var root = IsRooted(trimmed) ? Path.GetPathRoot(trimmed) ?? string.Empty : string.Empty;
             return withoutTrailing.Length < root.TrimEnd(Path.DirectorySeparatorChar).Length + 1 && root.Length > 0
                 ? root
                 : withoutTrailing;
+        }
+
+        // Path.IsPathRooted throws on characters a path cannot hold, such as a quote in a note.
+        // Stored text that is not a path is never rooted.
+        internal static bool IsRooted(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+            {
+                return false;
+            }
+
+            return Path.IsPathRooted(value);
         }
 
         internal static bool PathsEqual(string a, string b)
