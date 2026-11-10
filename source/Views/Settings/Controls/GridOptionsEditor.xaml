@@ -19,13 +19,14 @@
 
             <converters:AchievementTagDisplayTextConverter x:Key="AchievementTagDisplayTextConverter"/>
 
-            <!-- One option row, laid out like the showcase widget settings rows: a semibold label
+            <!-- One option row, laid out like the showcase widget settings rows: a label
                  in the left two fifths, the control in the right three. The header wraps, so a
                  long label grows only its own row. -->
             <Style x:Key="OptionRowStyle" TargetType="HeaderedContentControl">
                 <Setter Property="Focusable" Value="False"/>
                 <Setter Property="IsTabStop" Value="False"/>
-                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                <Setter Property="Margin" Value="{DynamicResource PlayAch.Thickness.OptionRow}"/>
+                <Setter Property="MinHeight" Value="{DynamicResource PlayAch.Size.OptionRow.MinHeight}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="HeaderedContentControl">
@@ -36,7 +37,6 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
                                            Margin="0,0,8,0"
-                                           FontWeight="SemiBold"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"/>
@@ -61,7 +61,6 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
                                            Margin="0,0,8,0"
-                                           FontWeight="SemiBold"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"/>
