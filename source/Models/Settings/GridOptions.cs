@@ -468,8 +468,7 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _inlineDetailsBeforeName, value);
         }
 
-        // Same, in front of the description. With both on, the description takes the next detail
-        // the achievement has, so one detail never shows twice on a row.
+        // The same detail, in front of the description.
         public bool InlineDetailsBeforeDescription
         {
             get => _inlineDetailsBeforeDescription;
