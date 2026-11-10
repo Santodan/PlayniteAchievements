@@ -301,6 +301,7 @@
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSupport.cs" Link="Source\Providers\BattleNet\BattleNetSupport.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\WowGameStrategy.cs" Link="Source\Providers\BattleNet\WowGameStrategy.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\WowVersion.cs" Link="Source\Providers\BattleNet\WowVersion.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\Sc2GameStrategy.cs" Link="Source\Providers\BattleNet\Sc2GameStrategy.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothClient.cs" Link="Source\Providers\BattleNet\DataForAzerothClient.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\DataForAzerothSessionManager.cs" Link="Source\Providers\BattleNet\DataForAzerothSessionManager.cs" />
