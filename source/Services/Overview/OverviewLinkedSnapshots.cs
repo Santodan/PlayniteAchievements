@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -491,6 +492,19 @@ namespace PlayniteAchievements.Services.Overview
 
             var games = kept ?? Array.Empty<GameSummaryItem>();
             var snapshot = OverviewDataSnapshot.FromGameSummaries(games);
+
+            // A points score card narrowed by its control bar reads these, so the kept games'
+            // provider points are summed per family as the full library's are.
+            var points = new PlatformScoreTotals();
+            foreach (var game in games)
+            {
+                if (game != null)
+                {
+                    points.AddToFamily(game.PointsFamily, game.PlatformScorePoints, game.PlatformScorePointsTotal);
+                }
+            }
+
+            snapshot.ApplyPlatformScores(points);
             var ids = new HashSet<Guid>(games
                 .Where(game => game?.PlayniteGameId.HasValue == true)
                 .Select(game => game.PlayniteGameId.Value));
