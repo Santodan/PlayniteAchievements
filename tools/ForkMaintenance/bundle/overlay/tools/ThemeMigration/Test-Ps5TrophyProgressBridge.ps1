@@ -42,6 +42,14 @@ if (!$migrated.Contains('Uid="PlayAch.Ps5TrophyProgress"') -or $migrationArgs[1]
 $again = [object[]]@($xaml,0)
 if ($migration.Invoke($null,$again) -ne $xaml -or $again[1] -ne 0) { throw 'Migration not idempotent' }
 'Passed: theme loads before plugin; marked list displays 4/100 and 4%; refresh displays 19/67 and 28%; migration is idempotent.'
+$slotXaml = '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><!-- PS5AchGameRowTemplate --><ItemsControl ItemsSource="{Binding AchievementsViewModel.GameSlots}" /></Grid>'
+$slotArgs = [object[]]@($slotXaml,0)
+$slotMigrated = $migration.Invoke($null,$slotArgs)
+if (!$slotMigrated.Contains('Uid="PlayAch.Ps5TrophyProgress"') -or $slotArgs[1] -ne 1) { throw 'PS5Core 0.9.9 slot migration marker missing' }
+[Windows.Markup.XamlReader]::Parse($slotMigrated) | Out-Null
+$slotAgain = [object[]]@($slotMigrated,0)
+if ($migration.Invoke($null,$slotAgain) -ne $slotMigrated -or $slotAgain[1] -ne 0) { throw 'Slot migration not idempotent' }
+'Passed: PS5Core 0.9.9 game-slot migration parses and is idempotent.'
 
 $coreAssembly = [Reflection.Assembly]::LoadFrom('E:\Programs\PlaynitePortableClean\Extensions\PS5Core_84d85c00-14b1-4859-805f-6bd9d95fdae9\PS5Core.dll')
 $coreType = $coreAssembly.GetType('PS5Core.GameAchievementsItem')

@@ -857,6 +857,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
             return !string.IsNullOrEmpty(content) &&
                 (content.Contains(":Ps5TrophyProgress") || content.Contains("xmlns:playAchProgress=") ||
                  content.Contains("PlayAch.Ps5TrophyProgress.") || content.Contains(";component/Resources/Ps5TrophyProgress.xaml") ||
+                 (content.Contains("AchievementsViewModel.GameSlots") && content.Contains("PS5AchGameRowTemplate") &&
+                  !content.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")) ||
                  Regex.Matches(content, @"<ListBox\b[\s\S]*?</ListBox>").Cast<Match>().Any(match =>
                      match.Value.Contains("AchievementsViewModel.Games") && match.Value.Contains("Plugin=PS5Core") &&
                      !match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")));
@@ -866,6 +868,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             if (!NeedsPs5TrophyProgressMigration(content)) return content;
             var count = 0;
+            // PS5Core 0.9.9 renders game slots with an ItemsControl instead of a ListBox.
+            content = Regex.Replace(content, @"<ItemsControl\b[^>]*>", match =>
+            {
+                if (!match.Value.Contains("AchievementsViewModel.GameSlots") ||
+                    !content.Contains("PS5AchGameRowTemplate") || Regex.IsMatch(match.Value, @"\bUid\s*=")) return match.Value;
+                count++;
+                return match.Value.Insert("<ItemsControl".Length, " Uid=\"PlayAch.Ps5TrophyProgress\"");
+            });
             content = Regex.Replace(content,
                 @"<ResourceDictionary\s+Source=""[^""]*;component/Resources/Ps5TrophyProgress\.xaml""\s*/>",
                 match => { count++; return string.Empty; });

@@ -46,3 +46,36 @@ if ($unlockedButton.IsEnabled) { throw 'Unlocked filter button remained enabled 
 $state.Unlocked = $true
 $method.Invoke($null,$arguments) | Out-Null
 'Passed: live Unlocked filter button binding follows synchronized state changes.'
+
+# A fresh database has no legacy CategoryType column, so PS5Core 0.9.9
+# fails its SELECT and leaves the detail collection empty.
+$items.Clear()
+$data.ProviderKey = 'Steam'
+if ($method.Invoke($null,$arguments) -or $items.Count -ne 0) { throw 'Empty non-Local list was replaced' }
+$data.ProviderKey = 'Local'
+$state.DisplayName = 'Recovered Local achievement'
+$state.Description = 'Recovered description'
+$state.Category = 'Default'
+$state.GlobalPercentUnlocked = 12.5
+if (!$method.Invoke($null,$arguments)) { throw 'Empty Local list was not recovered' }
+if ($items.Count -ne 1 -or $items[0].Name -ne $state.DisplayName -or !$items[0].IsUnlocked -or $items[0].GlobalPercent -ne 12.5) { throw 'Recovered Local metadata or state is incorrect' }
+if ($method.Invoke($null,$arguments) -or $items.Count -ne 1) { throw 'Recovery duplicated items' }
+$items.Clear()
+$state.IsFiltered = $true
+if ($method.Invoke($null,$arguments) -or $items.Count -ne 0) { throw 'Recovery exposed a filtered achievement' }
+'Passed: empty Local list recovery, metadata, unlock state, idempotence, provider isolation, and hidden-by-user filtering.'
+
+$bridge = $fork.GetType('PlayniteAchievements.Services.ThemeMigration.Ps5TrophyProgressBridge')
+$staticFlags = [Reflection.BindingFlags]'NonPublic,Static'
+$bridge.GetField('_enableNamedList',$staticFlags).SetValue($null,$true)
+$nativeRow = [Activator]::CreateInstance($core.GetType('PS5Core.GameAchievementsItem'))
+$nativeRow.BronzeCount = 4; $nativeRow.Total = 10
+$progressText = New-Object Windows.Controls.TextBlock
+$progressText.DataContext = $nativeRow.PSObject.BaseObject
+[Windows.Data.BindingOperations]::SetBinding($progressText,[Windows.Controls.TextBlock]::TextProperty,[Windows.Data.Binding]::new('ProgressText')) | Out-Null
+$loadedArgs = [Windows.RoutedEventArgs]::new([Windows.FrameworkElement]::LoadedEvent,$progressText)
+$bridge.GetMethod('Register',$staticFlags).Invoke($null,@()) | Out-Null
+$progressText.RaiseEvent($loadedArgs)
+$application.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ApplicationIdle)
+if ($progressText.Text -ne '4/10') { throw "Native game-slot progress incorrect: $($progressText.Text)" }
+'Passed: actual PS5Core game-slot row receives progress binding outside a ListBox.'

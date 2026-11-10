@@ -615,6 +615,16 @@ Primary fork areas:
   name, without rewriting the database or PS5Core.dll. Unmatched or ambiguous
   API names are left untouched. Reapply PS5Core's filter/sorting after changes,
   and notify `CanSelectUnlocked` and `CanSelectLocked` so the filter buttons update.
+- PS5Core 0.9.9 can fail its detail query on the removed `ad.CategoryType`
+  column. Recover an empty Local list from hydrated fork data, preserving
+  metadata, unlock dates, user filtering, and filter/sort refresh. Do not replace
+  nonempty lists or empty non-Local lists, add legacy DB columns, or patch the
+  theme assembly. Repeated synchronization must not duplicate recovered items.
+- Recognize PS5Core 0.9.9's `AchievementsViewModel.GameSlots` ItemsControl during
+  migration and mark it with `Uid="PlayAch.Ps5TrophyProgress"`. Correct progress
+  bindings for native `GameAchievementsItem` rows outside a ListBox. Migration
+  must remain idempotent and XAML must load without plugin assemblies. Reapply
+  migration and restart after updating the theme; live verification is pending.
 - With 11 unlocked achievements out of 100, All shows the correct states,
   Unlocked is enabled and lists the 11 earned achievements, and Locked lists
   the remaining 89. The user confirmed the fix on 2026-10-08. Cover changed

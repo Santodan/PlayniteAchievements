@@ -17336,7 +17336,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..51213769c994f7cb664d718823e5cbc0
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeaee2c33b82 100644
+index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..40763a65a0bd1cf87965470e79c57cf0810302f6 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -1,3 +1,4 @@
@@ -17691,7 +17691,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
  
              // Convert DataContext bindings to use PluginSettings with our exposed properties
              // {Binding SelectedGame.DisplayBackgroundImageObject} -> {PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameBackgroundPath}
-@@ -613,9 +790,250 @@ private string ApplyReplacements(string content, string originalContent, ref int
+@@ -613,9 +790,260 @@ private string ApplyReplacements(string content, string originalContent, ref int
              result = result.Replace("&#xE820;", "&#xEDD7;");
              replacements += CountOccurrences(originalContent, "&#xE820;");
  
@@ -17762,6 +17762,8 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
 +            return !string.IsNullOrEmpty(content) &&
 +                (content.Contains(":Ps5TrophyProgress") || content.Contains("xmlns:playAchProgress=") ||
 +                 content.Contains("PlayAch.Ps5TrophyProgress.") || content.Contains(";component/Resources/Ps5TrophyProgress.xaml") ||
++                 (content.Contains("AchievementsViewModel.GameSlots") && content.Contains("PS5AchGameRowTemplate") &&
++                  !content.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")) ||
 +                 Regex.Matches(content, @"<ListBox\b[\s\S]*?</ListBox>").Cast<Match>().Any(match =>
 +                     match.Value.Contains("AchievementsViewModel.Games") && match.Value.Contains("Plugin=PS5Core") &&
 +                     !match.Value.Contains("Uid=\"PlayAch.Ps5TrophyProgress\"")));
@@ -17771,6 +17773,14 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
 +        {
 +            if (!NeedsPs5TrophyProgressMigration(content)) return content;
 +            var count = 0;
++            // PS5Core 0.9.9 renders game slots with an ItemsControl instead of a ListBox.
++            content = Regex.Replace(content, @"<ItemsControl\b[^>]*>", match =>
++            {
++                if (!match.Value.Contains("AchievementsViewModel.GameSlots") ||
++                    !content.Contains("PS5AchGameRowTemplate") || Regex.IsMatch(match.Value, @"\bUid\s*=")) return match.Value;
++                count++;
++                return match.Value.Insert("<ItemsControl".Length, " Uid=\"PlayAch.Ps5TrophyProgress\"");
++            });
 +            content = Regex.Replace(content,
 +                @"<ResourceDictionary\s+Source=""[^""]*;component/Resources/Ps5TrophyProgress\.xaml""\s*/>",
 +                match => { count++; return string.Empty; });
@@ -17942,7 +17952,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
          /// <summary>
          /// Applies modernization replacements: selected control element names and binding paths.
          /// </summary>
-@@ -637,6 +1055,21 @@ private string ApplyModernizationReplacements(
+@@ -637,6 +1065,21 @@ private string ApplyModernizationReplacements(
                  controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
              }
  
@@ -17964,7 +17974,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
              // Replace LegacyData binding paths with Theme binding paths
              // These appear in XAML as {Binding LegacyData.HasData} etc.
              if (ShouldModernizeBindings(mode, customSelection))
-@@ -675,7 +1108,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -675,7 +1118,16 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
          {
              if (mode == MigrationMode.Full)
              {
@@ -17982,7 +17992,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..271edab40fe0678933a3bda8eb52eeae
              }
  
              if (mode != MigrationMode.Custom || customSelection == null)
-@@ -684,7 +1126,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
+@@ -684,7 +1136,54 @@ private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappi
              }
  
              return ControlMappings.LegacyToModernControlNames

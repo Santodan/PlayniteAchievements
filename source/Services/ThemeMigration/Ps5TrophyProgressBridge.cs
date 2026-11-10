@@ -74,7 +74,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private static void Discover(DependencyObject node)
         {
             if (_enableNamedList && node is Image completionImage) AdaptCompletionIcon(completionImage);
-            if (_enableNamedList && (node is TextBlock || node is Rectangle)) AdaptDetailHeader((FrameworkElement)node);
+            if (_enableNamedList && (node is TextBlock || node is Rectangle))
+                OnLoaded(node, new RoutedEventArgs(FrameworkElement.LoadedEvent, node));
             if (node is ListBox list && IsMigrated(list))
             {
                 OnListLoaded(list, null);
@@ -281,11 +282,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private static void OnLoaded(object sender, RoutedEventArgs args)
         {
             var control = sender as FrameworkElement;
-            if (control == null || args.OriginalSource != control) return;
+            if (control == null || (args.OriginalSource ?? args.Source) != control) return;
             if (_enableNamedList) AdaptDetailHeader(control);
             DependencyObject parent = control;
             while (parent != null && !(parent is ListBox)) parent = VisualTreeHelper.GetParent(parent);
-            if (!(parent is ListBox list) || !IsMigrated(list)) return;
+            var nativeRow = _enableNamedList && control.DataContext?.GetType().FullName == "PS5Core.GameAchievementsItem";
+            if (!nativeRow && (!(parent is ListBox list) || !IsMigrated(list))) return;
             var property = control is TextBlock ? TextBlock.TextProperty : FrameworkElement.WidthProperty;
             var path = BindingOperations.GetBinding(control, property)?.Path?.Path;
             if (path != "ProgressPercent" && path != "ProgressText") return;

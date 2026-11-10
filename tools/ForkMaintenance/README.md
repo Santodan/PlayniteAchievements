@@ -1,5 +1,30 @@
 # Fork maintenance bundle
 
+## PS5Core 0.9.9 Local achievements compatibility - 2026-11-10
+
+The clean installation's PS5Core log reports `no such column: ad.CategoryType`.
+Preserve empty Local detail-list recovery from hydrated fork data in
+`Ps5AchievementStateSynchronizer`, including metadata, unlock dates, user filters,
+and filter/sort refresh. Do not add legacy database columns or patch PS5Core.dll.
+Preserve migration of the new `AchievementsViewModel.GameSlots` ItemsControl and
+runtime progress bindings for `GameAchievementsItem` rows outside a ListBox.
+The adapter remains enabled by the migrated active theme's marker.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean three-way preflight and actual
+replay passed in a temporary baseline checkout: 226 overlays, three localization
+recipes, component hashes, and protected-file checks passed. All 382 compared
+source/overlay paths matched after text newline normalization where necessary.
+The complete export also includes the existing repository skills/source map and
+`opencode.json`. Working protected files and the real Git index were unchanged.
+
+Implementation validation earlier in this session: required Release rebuild
+passed with zero errors and two existing warnings; achievement-state recovery,
+native game-slot progress against the clean install's PS5Core 0.9.9 assembly, and
+the existing progress-bridge regression script passed. Live Playnite verification
+remains pending after installing the build, reapplying theme migration, and
+restarting. Historical validation snapshots were not changed.
+
 ## Explicit Local App ID override takes precedence - 2026-11-08
 
 Preserve the `!isAppIdOverridden` guard in `LocalSavesProvider.GetAchievementsAsync`:

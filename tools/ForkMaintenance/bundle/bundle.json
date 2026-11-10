@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-08T16:30:54.1468904Z",
+    "generatedUtc":  "2026-11-10T15:31:17.7707570Z",
     "baselineRef":  "v4.2.1",
     "baselineCommit":  "4b2f60f29aaa5a393664245547886262952b85c1",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "6856A72CF395A16314656639F912749A06B8A73BCE3C1F21DCE15974E2325027"
+                  "sha256":  "81E9E7F9377D88FCFD4C81E32F0B61149C4512EE6D0E5890D99C17B9A6A45BA0"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -20,6 +20,26 @@
                                 "entryCount":  491
                             },
     "overlayFiles":  [
+                         {
+                             "path":  ".agents/skills/santodan-fork-context/references/source-map.md",
+                             "sha256":  "27210AEA36B5474E5D3990C636ABF790CF229B58663D9CA3A747F96584747360"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-context/SKILL.md",
+                             "sha256":  "055593ED6852DD67950279A476C308983390DD0D05476CED5984D34A1B2F9E73"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-development/SKILL.md",
+                             "sha256":  "B4417BF8A2BF165EC6AC7734E0FF604BDD12581A2E0EEF96711E6480B0A6C934"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-maintenance/SKILL.md",
+                             "sha256":  "2577C416D3570C34147E4E9E803D3BFE70C7DBFFFB6712D2D3B38C80317F34A6"
+                         },
+                         {
+                             "path":  ".agents/skills/santodan-fork-upstream-update/SKILL.md",
+                             "sha256":  "50D7D5FD2C85B6C79E3315563C81E972A0A4DC6BC97DB57D4FFEE40869605754"
+                         },
                          {
                              "path":  "ACHIEVEMENT_NOTIFICATIONS_GUIDE.md",
                              "sha256":  "6A39FD788D91C704E254E2DFB5B2F63A1883F011CEDF7019977C0A90FA012694"
@@ -83,6 +103,10 @@
                          {
                              "path":  "LOCAL_PROVIDER_TROUBLESHOOTING.md",
                              "sha256":  "4D7A444D0F0E83DA41A5C42116BA11E460C557577FF02C49B7655BF8DCCAD107"
+                         },
+                         {
+                             "path":  "opencode.json",
+                             "sha256":  "28DF96D12DA1F8BAC2BB0B28CB8B7D1BA19AEFD811FCE5176962E924A394D279"
                          },
                          {
                              "path":  "source/Models/Achievements/ProviderKeyResolver.cs",
@@ -410,11 +434,11 @@
                          },
                          {
                              "path":  "source/Services/ThemeMigration/Ps5AchievementStateSynchronizer.cs",
-                             "sha256":  "115E728491088FEA6BF78FCE34BB663E6904A7C087EE9750781483E80917832A"
+                             "sha256":  "2608B9F800C42D89AF8CB8A3BBF43C16BC03CF4C61725D0E2A794B7812EFE2D6"
                          },
                          {
                              "path":  "source/Services/ThemeMigration/Ps5TrophyProgressBridge.cs",
-                             "sha256":  "365DC11EC1FB2CD774C1A334F571A2223A5810D14FC98D17D80C230CDDA07261"
+                             "sha256":  "3B0B1E3D85ADFFADBEDD7DABF75C5426ABC387D685BCFBD059A71F9EAF0F08F8"
                          },
                          {
                              "path":  "source/Services/ThemeMigration/StartPageCompatibilityService.cs",
@@ -886,7 +910,7 @@
                          },
                          {
                              "path":  "tools/ThemeMigration/Test-Ps5AchievementStates.ps1",
-                             "sha256":  "B599746B972EBDB61635691D4D8EA99E26197F73B97B2A89758BCA4A86176ACC"
+                             "sha256":  "57C0E5411A17C0835AA8A7F282AEC4EC4BE533277ABE8C5A8C11BA5AA4F30464"
                          },
                          {
                              "path":  "tools/ThemeMigration/Test-Ps5CompletionIcon.ps1",
@@ -898,7 +922,7 @@
                          },
                          {
                              "path":  "tools/ThemeMigration/Test-Ps5TrophyProgressBridge.ps1",
-                             "sha256":  "FAB18FB5E1EC093AFEF0D726737168D78DF47CDA11973D84E0F244AC312666EF"
+                             "sha256":  "6C8E474D3CEA0A4EEA3146DEA8A4DFD251579D5B206BCB0551C3F25B9E7B29DF"
                          }
                      ]
 }

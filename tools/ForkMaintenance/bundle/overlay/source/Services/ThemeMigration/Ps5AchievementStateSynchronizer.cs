@@ -23,6 +23,42 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 .GroupBy(item => item.ApiName, StringComparer.Ordinal)
                 .Where(group => group.Count() == 1).ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
             var changed = 0;
+            // PS5Core 0.9.9 still selects the removed CategoryType DB column.
+            // Recover an empty Local detail list from hydrated fork data instead
+            // of adding legacy columns or changing the theme's assembly.
+            if (items is IList list && list.Count == 0 &&
+                string.Equals(data.ProviderKey, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                var itemType = type.Assembly.GetType("PS5Core.AchievementItem");
+                if (itemType != null)
+                {
+                    foreach (var state in data.Achievements.Where(item => item != null && !item.IsFiltered))
+                    {
+                        var item = Activator.CreateInstance(itemType);
+                        Set(item, "ApiName", state.ApiName);
+                        Set(item, "Name", state.DisplayName);
+                        Set(item, "Description", state.Description);
+                        Set(item, "UnlockedIconPath", state.UnlockedIconPath);
+                        Set(item, "LockedIconPath", state.LockedIconPath);
+                        Set(item, "GlobalPercent", state.GlobalPercentUnlocked ?? 0d);
+                        Set(item, "IsHidden", state.Hidden);
+                        Set(item, "DbCategory", state.Category);
+                        Set(item, "DbCategoryType", state.CategoryType);
+                        Set(item, "DbRarity", state.Rarity.ToString());
+                        Set(item, "TrophyType", state.TrophyType);
+                        Set(item, "IsCapstone", state.IsCapstone);
+                        Set(item, "IsCustom", state.IsCustom);
+                        Set(item, "IsGoal", state.IsGoal);
+                        Set(item, "GoalOrder", state.GoalOrderIndex);
+                        Set(item, "ProgressCurrent", (double)(state.ProgressNum ?? 0));
+                        Set(item, "ProgressMax", (double)(state.ProgressDenom ?? 0));
+                        Set(item, "IsUnlocked", state.Unlocked);
+                        Set(item, "UnlockDate", state.Unlocked ? state.UnlockTimeUtc : null);
+                        list.Add(item);
+                        changed++;
+                    }
+                }
+            }
             foreach (var item in items)
             {
                 var itemType = item.GetType();
@@ -46,6 +82,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
             notify?.Invoke(viewModel, new object[] { "CanSelectLocked" });
             ForkLog.Wrap(logger)?.Info($"[PS5Progress] Synchronized achievement states from fork cache: matched={states.Count}, changed={changed}.");
             return true;
+        }
+
+        private static void Set(object item, string name, object value)
+        {
+            var property = item.GetType().GetProperty(name);
+            if (property?.CanWrite == true) property.SetValue(item, value);
         }
     }
 }
