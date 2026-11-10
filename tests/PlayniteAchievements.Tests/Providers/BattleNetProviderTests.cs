@@ -435,6 +435,31 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void WowAccountCharacters_SkipCharactersBelowTheProfileLevel()
+        {
+            var profile = JsonConvert.DeserializeObject<WowAccountProfileResponse>(@"{
+  ""wow_accounts"": [{ ""characters"": [
+    { ""name"": ""Alt"", ""realm"": { ""slug"": ""ravencrest"" }, ""level"": 9 },
+    { ""name"": ""Main"", ""realm"": { ""slug"": ""ravencrest"" }, ""level"": 10 }
+  ] }]
+}");
+
+            var characters = WowGameStrategy.ExtractAccountCharacters("eu", profile);
+
+            Assert.AreEqual(1, characters.Count);
+            Assert.AreEqual("Main", characters[0].CharacterName);
+            Assert.AreEqual(10, characters[0].Level);
+        }
+
+        [TestMethod]
+        public void WowRealmIndexUrl_UsesTheVersionDynamicNamespace()
+        {
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/realm/index?namespace=dynamic-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowRealmIndexUrl("eu", null, WowVersion.Classic.NamespacePrefix));
+        }
+
+        [TestMethod]
         public void WowRealmSlug_AcceptsTypedRealmNames()
         {
             Assert.AreEqual("tarren-mill", WowGameStrategy.NormalizeRealmSlug("  Tarren Mill "));
@@ -689,7 +714,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler();
@@ -730,7 +754,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler();
@@ -769,7 +792,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler { IncludeOfficialGuildAchievement = true };
@@ -802,7 +824,6 @@ namespace PlayniteAchievements.Tests.Providers
                 battleNetSettings.WowCharacter = "Noshotz";
                 battleNetSettings.BattleNetClientId = "client-id";
                 battleNetSettings.BattleNetClientSecret = "client-secret";
-                battleNetSettings.WowAggregateAccountCharacters = false;
                 registry.Save(battleNetSettings);
 
                 var firstHandler = new RecordingHandler();
@@ -858,7 +879,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var achievements = new List<AchievementDetail>
