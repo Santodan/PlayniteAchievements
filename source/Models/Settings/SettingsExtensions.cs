@@ -247,6 +247,7 @@ namespace PlayniteAchievements.Models.Settings
             target.IconScaleMode = source.IconScaleMode;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
+            target.ProgressDetailShownCount = source.ProgressDetailShownCount;
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;

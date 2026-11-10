@@ -176,6 +176,41 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void ProgressDetailShownCount_DefaultsToOneAndClampsToStyleCount()
+        {
+            var settings = new PersistedSettings();
+            Assert.AreEqual(1, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 0;
+            Assert.AreEqual(1, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 7;
+            Assert.AreEqual(3, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 2;
+            Assert.AreEqual(2, settings.ProgressDetailShownCount);
+        }
+
+        [TestMethod]
+        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndResets()
+        {
+            var source = new PersistedSettings { ProgressDetailShownCount = 3 };
+
+            var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<PersistedSettings>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(source));
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(3, loaded.ProgressDetailShownCount);
+            Assert.AreEqual(3, clone.ProgressDetailShownCount);
+            Assert.AreEqual(3, target.ProgressDetailShownCount);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(1, source.ProgressDetailShownCount);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
         {
             var source = new PersistedSettings

@@ -25,13 +25,17 @@ namespace PlayniteAchievements.Providers.BattleNet
             realmSlug: s => s.WowClassicRealmSlug,
             character: s => s.WowClassicCharacter);
 
+        /// <summary>
+        /// Forever has no named realms, so there is no configured character; its characters come
+        /// from the signed-in account, addressed through each character's profile link.
+        /// </summary>
         public static readonly WowVersion Forever = new WowVersion(
             BattleNetGameTitle.WowForever,
             namespacePrefix: "forever-",
             appIdSeed: "WoWForever",
             logTag: "[BattleNet/WoWForever]",
-            realmSlug: s => s.WowForeverRealmSlug,
-            character: s => s.WowForeverCharacter);
+            realmSlug: s => null,
+            character: s => null);
 
         private readonly Func<BattleNetSettings, string> _realmSlug;
         private readonly Func<BattleNetSettings, string> _character;

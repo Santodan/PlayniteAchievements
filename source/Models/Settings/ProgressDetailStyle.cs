@@ -34,7 +34,8 @@ namespace PlayniteAchievements.Models.Settings
     /// Defaults and normalization for the progress details priority list.
     /// </summary>
     /// <remarks>
-    /// The footer shows the first enabled style, in list order, that a game has data for.
+    /// The footer shows the first enabled styles, in list order, that a game has data for, up to
+    /// the persisted shown count.
     /// </remarks>
     public static class ProgressDetailOrder
     {
@@ -44,6 +45,16 @@ namespace PlayniteAchievements.Models.Settings
             ProgressDetailStyle.Trophy,
             ProgressDetailStyle.Points
         };
+
+        /// <summary>The fewest details a game shows: the first enabled style it has data for.</summary>
+        public const int MinShownCount = 1;
+
+        /// <summary>The most details a game shows: one of each style.</summary>
+        public static int MaxShownCount => AllStyles.Length;
+
+        /// <summary>Limits a shown count to <see cref="MinShownCount"/> through <see cref="MaxShownCount"/>.</summary>
+        public static int ClampShownCount(int count) =>
+            count < MinShownCount ? MinShownCount : count > MaxShownCount ? MaxShownCount : count;
 
         /// <summary>Rarity, Trophy, Points, with only Rarity enabled.</summary>
         public static List<ProgressDetailEntry> Default() =>

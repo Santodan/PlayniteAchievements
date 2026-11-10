@@ -29,6 +29,13 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
     }
 
     [DataContract]
+    public sealed class WowRealmIndexResponse
+    {
+        [DataMember(Name = "realms")]
+        public List<WowRealm> Realms { get; set; }
+    }
+
+    [DataContract]
     public sealed class WowAchievementsData
     {
         [DataMember(Name = "name")]
