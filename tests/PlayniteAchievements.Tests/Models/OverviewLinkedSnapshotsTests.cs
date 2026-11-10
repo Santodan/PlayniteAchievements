@@ -191,6 +191,25 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void NarrowToGames_SumsTheKeptGamesPointsForScoreCards()
+        {
+            var source = CreateSource();
+            foreach (var game in source.GameSummaries)
+            {
+                game.PointsFamily = "BattleNet";
+                game.PlatformScorePoints = game.PlayniteGameId == GameA ? 700 : 300;
+                game.PlatformScorePointsTotal = game.PlayniteGameId == GameA ? 900 : 500;
+            }
+
+            var keptA = source.GameSummaries.Where(game => game.PlayniteGameId == GameA).ToList();
+            var narrowed = OverviewLinkedSnapshots.NarrowToGames(source, keptA);
+            var card = PlayniteAchievements.Models.Achievements.Scoring.ScoreCardType.Points("BattleNet");
+
+            Assert.AreEqual(700, narrowed.GetScore(card));
+            Assert.AreEqual(900, narrowed.GetPossibleScore(card));
+        }
+
+        [TestMethod]
         public void ClipToAchievements_CountsUndatedUnlocksWithoutDayCounts()
         {
             var source = CreateSource();
