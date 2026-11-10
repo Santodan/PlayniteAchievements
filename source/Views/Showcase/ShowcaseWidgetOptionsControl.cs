@@ -129,10 +129,22 @@ namespace PlayniteAchievements.Views.Showcase
         {
             var panel = new StackPanel { Margin = margin };
             Grid.SetIsSharedSizeScope(panel, true);
+
+            // Every widget's rows sit under the same group headers. A grid widget's groups are its
+            // grid display editor's, so the widget's rows lead the grid rows under one header.
+            var gridEditor = CreateGridOptionsEditor();
+            var groups = (IOptionGroups)gridEditor ?? new OptionGroupsPanel();
+            panel.Children.Add((UIElement)groups);
+            var contentRows = groups.Content.Leading;
+            var appearanceRows = groups.Appearance.Leading;
+            var layoutRows = groups.Layout.Leading;
+            var sortingRows = groups.Sorting.Leading;
+            var barRows = groups.ControlBar.Leading;
+
             if (_backgroundDefault.HasValue)
             {
                 AddChoice(
-                    panel,
+                    appearanceRows,
                     Localize("LOCPlayAch_Settings_Display_Alignment"),
                     new[]
                     {
@@ -144,7 +156,7 @@ namespace PlayniteAchievements.Views.Showcase
                     value => ShowcaseWidgetOptions.SetTitleAlignment(_settings, value),
                     HorizontalAlignmentName);
                 AddToggle(
-                    panel,
+                    appearanceRows,
                     Localize("LOCPlayAch_Showcase_ShowBackground"),
                     ShowcaseWidgetOptions.GetShowBackground(_settings, _backgroundDefault.Value),
                     value => ShowcaseWidgetOptions.SetShowBackground(_settings, value));
@@ -152,14 +164,14 @@ namespace PlayniteAchievements.Views.Showcase
 
             if (_contentAfterSharedRows != null)
             {
-                panel.Children.Add(_contentAfterSharedRows);
+                contentRows.Children.Add(_contentAfterSharedRows);
             }
 
             switch (_settings.Kind)
             {
                 case ShowcaseWidgetKind.Profile:
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_ProfileMedals"),
                         new[]
                         {
@@ -172,7 +184,7 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetProfileMedalMode(_settings, value),
                         ProfileMedalModeName);
                     AddChoice(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Common_Layout"),
                         new[]
                         {
@@ -184,43 +196,43 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetProfileLayout(_settings, value),
                         ProfileLayoutName);
                     AddToggle(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_ProfileFullBleed"),
                         ShowcaseWidgetOptions.GetProfileFullBleed(_settings),
                         value => ShowcaseWidgetOptions.SetProfileFullBleed(_settings, value));
                     AddToggle(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_ProfileLinks"),
                         ShowcaseWidgetOptions.GetProfileShowLinks(_settings),
                         value => ShowcaseWidgetOptions.SetProfileShowLinks(_settings, value));
                     // Prefilled with the defaults; left at them, the picture follows the widget's
                     // density. Width and height are separate so the picture need not be square.
                     AddNumberRow(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_ProfileAvatarWidth") + " (px)",
                         () => ShowcaseWidgetOptions.GetProfileAvatarWidth(_settings),
                         value => ShowcaseWidgetOptions.SetProfileAvatarWidth(_settings, value));
                     AddNumberRow(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_ProfileAvatarHeight") + " (px)",
                         () => ShowcaseWidgetOptions.GetProfileAvatarHeight(_settings),
                         value => ShowcaseWidgetOptions.SetProfileAvatarHeight(_settings, value));
                     AddNumberRow(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_ProfileLinkIconSize") + " (px)",
                         () => ShowcaseWidgetOptions.GetProfileLinkIconSize(_settings),
                         value => ShowcaseWidgetOptions.SetProfileLinkIconSize(_settings, value));
-                    AddProfileStatSlots(panel);
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
-                    AddControlBarRows<StatisticsControlBarAdapter>(panel);
+                    AddProfileStatSlots(contentRows);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: false);
+                    AddControlBarRows<StatisticsControlBarAdapter>(barRows);
                     break;
                 case ShowcaseWidgetKind.Scores:
-                    AddScoreCardOptions(panel);
+                    AddScoreCardOptions(contentRows);
                     // A points card sums one provider's points, which its bar narrows to games;
                     // the library-wide Collection and Prestige cards have no bar.
                     var scoreBarRows = new StackPanel();
                     _scoreBarRows = scoreBarRows;
-                    panel.Children.Add(scoreBarRows);
+                    barRows.Children.Add(scoreBarRows);
                     AddControlBarRows<ChartControlBarAdapter>(scoreBarRows);
                     SyncScoreBarRows(ShowcaseWidgetOptions.GetScoreCardType(_settings));
                     break;
@@ -241,7 +253,7 @@ namespace PlayniteAchievements.Views.Showcase
                     }
 
                     AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Mode"),
                         new[]
                         {
@@ -259,7 +271,7 @@ namespace PlayniteAchievements.Views.Showcase
                         },
                         PieModeName);
                     pieCountRow = AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Variant"),
                         new[] { ShowcasePieCount.Achievements, ShowcasePieCount.CompletedGames },
                         ShowcaseWidgetOptions.GetPieCount(_settings),
@@ -273,7 +285,7 @@ namespace PlayniteAchievements.Views.Showcase
                             : "LOCPlayAch_Achievements"));
                     ApplyPieRows(ShowcaseWidgetOptions.GetPieMode(_settings));
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Settings_PieCenter"),
                         new[]
                         {
@@ -285,29 +297,29 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetPieCenterMode(_settings, value),
                         PieCenterModeName);
                     AddToggle(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_ShowLegend"),
                         ShowcaseWidgetOptions.GetShowLegend(_settings),
                         value => ShowcaseWidgetOptions.SetShowLegend(_settings, value));
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Settings_PieLegendPosition"),
                         new[] { PieLegendPosition.Left, PieLegendPosition.Right },
                         ShowcaseWidgetOptions.GetPieLegendPosition(_settings),
                         value => ShowcaseWidgetOptions.SetPieLegendPosition(_settings, value),
                         PieLegendPositionName);
                     AddToggle(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Settings_ShowOverviewPieIcons"),
                         ShowcaseWidgetOptions.GetPieShowIcons(_settings),
                         value => ShowcaseWidgetOptions.SetPieShowIcons(_settings, value));
                     AddToggle(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Settings_PieIncludeLocked"),
                         ShowcaseWidgetOptions.GetPieIncludeLocked(_settings),
                         value => ShowcaseWidgetOptions.SetPieIncludeLocked(_settings, value));
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Settings_OverviewPieSmallSliceMode"),
                         new[]
                         {
@@ -318,16 +330,16 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetPieSmallSliceMode(_settings),
                         value => ShowcaseWidgetOptions.SetPieSmallSliceMode(_settings, value),
                         SmallSliceModeName);
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
-                    _achievementFilterRows = AddControlBarRows<PieControlBarAdapter>(panel);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: false);
+                    _achievementFilterRows = AddControlBarRows<PieControlBarAdapter>(barRows);
                     ApplyAchievementFilterRows();
                     break;
                 case ShowcaseWidgetKind.Timeline:
-                    AddCountChoice(panel);
+                    AddCountChoice(contentRows);
 
-                    AddRangeChoice(panel);
+                    AddRangeChoice(contentRows);
                     AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Timeline_SplitBy"),
                         new[]
                         {
@@ -339,14 +351,14 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseTimelineOptions.GetSplit(_settings),
                         value => ShowcaseTimelineOptions.SetSplit(_settings, value),
                         TimelineSplitName);
-                    AddTimeControlRows(panel, includeSplit: true);
-                    _achievementFilterRows = AddControlBarRows<TimelineControlBarAdapter>(panel, header: false);
+                    AddTimeControlRows(barRows, includeSplit: true);
+                    _achievementFilterRows = AddControlBarRows<TimelineControlBarAdapter>(barRows, header: false);
                     ApplyAchievementFilterRows();
                     break;
                 case ShowcaseWidgetKind.Statistics:
-                    AddStatisticsSlots(panel);
+                    AddStatisticsSlots(contentRows);
                     AddChoice(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_HorizontalAlignment"),
                         new[]
                         {
@@ -358,7 +370,7 @@ namespace PlayniteAchievements.Views.Showcase
                         value => ShowcaseWidgetOptions.SetHorizontalAlignment(_settings, value),
                         HorizontalAlignmentName);
                     AddChoice(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_VerticalAlignment"),
                         new[]
                         {
@@ -369,31 +381,37 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetVerticalAlignment(_settings, ShowcaseVerticalAlignment.Top),
                         value => ShowcaseWidgetOptions.SetVerticalAlignment(_settings, value),
                         VerticalAlignmentName);
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
-                    AddControlBarRows<StatisticsControlBarAdapter>(panel);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: false);
+                    AddControlBarRows<StatisticsControlBarAdapter>(barRows);
                     break;
                 case ShowcaseWidgetKind.NativePoints:
                     AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Common_GroupBy"),
                         new[] { ShowcasePointsGrouping.Provider, ShowcasePointsGrouping.Game },
                         ShowcaseWidgetOptions.GetPointsGrouping(_settings),
                         value => ShowcaseWidgetOptions.SetPointsGrouping(_settings, value),
                         PointsGroupingName);
                     AddNumberRow(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_TopN"),
                         () => ShowcaseWidgetOptions.GetTopN(_settings),
                         value => ShowcaseWidgetOptions.SetTopN(_settings, value));
                     break;
                 case ShowcaseWidgetKind.IconMosaic:
                     // The collapsed Mosaic widget: the Content choice flips between the
-                    // achievement-icon rows and the game-cover rows; the count is shared.
-                    var achievementMosaicPanel = new StackPanel();
-                    var gameMosaicPanel = new StackPanel();
-                    // Each content has its own control bar, listed last.
-                    var achievementMosaicBarPanel = new StackPanel();
-                    var gameMosaicBarPanel = new StackPanel();
+                    // achievement-icon rows and the game-cover rows; the count is shared. Each
+                    // content has its own panel in every group, so its rows keep their headers.
+                    var achievementMosaicPanels = new List<UIElement>();
+                    var gameMosaicPanels = new List<UIElement>();
+                    StackPanel MosaicPanel(Panel group, List<UIElement> panels)
+                    {
+                        var modePanel = new StackPanel();
+                        group.Children.Add(modePanel);
+                        panels.Add(modePanel);
+                        return modePanel;
+                    }
+
                     void ApplyMosaicContent(ShowcaseMosaicContent content)
                     {
                         var achievements = content == ShowcaseMosaicContent.Achievements
@@ -402,14 +420,12 @@ namespace PlayniteAchievements.Views.Showcase
                         var games = content == ShowcaseMosaicContent.Games
                             ? Visibility.Visible
                             : Visibility.Collapsed;
-                        achievementMosaicPanel.Visibility = achievements;
-                        achievementMosaicBarPanel.Visibility = achievements;
-                        gameMosaicPanel.Visibility = games;
-                        gameMosaicBarPanel.Visibility = games;
+                        achievementMosaicPanels.ForEach(modePanel => modePanel.Visibility = achievements);
+                        gameMosaicPanels.ForEach(modePanel => modePanel.Visibility = games);
                     }
 
                     AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Mode"),
                         new[] { ShowcaseMosaicContent.Achievements, ShowcaseMosaicContent.Games },
                         ShowcaseWidgetOptions.GetMosaicContent(_settings),
@@ -419,14 +435,22 @@ namespace PlayniteAchievements.Views.Showcase
                             ApplyMosaicContent(value);
                         },
                         MosaicContentName);
-                    panel.Children.Add(achievementMosaicPanel);
-                    panel.Children.Add(gameMosaicPanel);
+                    var achievementMosaicContent = MosaicPanel(contentRows, achievementMosaicPanels);
+                    var gameMosaicContent = MosaicPanel(contentRows, gameMosaicPanels);
+                    var achievementMosaicAppearance = MosaicPanel(appearanceRows, achievementMosaicPanels);
+                    var gameMosaicAppearance = MosaicPanel(appearanceRows, gameMosaicPanels);
+                    var achievementMosaicLayout = MosaicPanel(layoutRows, achievementMosaicPanels);
+                    var gameMosaicLayout = MosaicPanel(layoutRows, gameMosaicPanels);
+                    var achievementMosaicSorting = MosaicPanel(sortingRows, achievementMosaicPanels);
+                    var gameMosaicSorting = MosaicPanel(sortingRows, gameMosaicPanels);
+                    var achievementMosaicBar = MosaicPanel(barRows, achievementMosaicPanels);
+                    var gameMosaicBar = MosaicPanel(barRows, gameMosaicPanels);
                     ApplyMosaicContent(ShowcaseWidgetOptions.GetMosaicContent(_settings));
 
                     var unlockNextRows = new List<FrameworkElement>();
                     var achievementSortRows = new List<FrameworkElement>();
                     AddToggle(
-                        achievementMosaicPanel,
+                        achievementMosaicContent,
                         MosaicSourceName(ShowcaseMosaicSource.UnlockNext),
                         ShowcaseWidgetOptions.GetMosaicSource(_settings) == ShowcaseMosaicSource.UnlockNext,
                         unlockNext =>
@@ -438,21 +462,21 @@ namespace PlayniteAchievements.Views.Showcase
 
                     // Unlock Next ranks during selection, so its criterion replaces the generic
                     // sort rows rather than stacking with them.
-                    unlockNextRows.AddRange(AddUnlockNextOptions(achievementMosaicPanel));
+                    unlockNextRows.AddRange(AddUnlockNextOptions(achievementMosaicContent));
 
 
                     AddToggle(
-                        achievementMosaicPanel,
+                        achievementMosaicAppearance,
                         Localize("LOCPlayAch_Settings_ToastShowRarityGlow"),
                         ShowcaseWidgetOptions.GetMosaicShowRarityGlow(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityGlow(_settings, value));
                     AddToggle(
-                        achievementMosaicPanel,
+                        achievementMosaicAppearance,
                         Localize("LOCPlayAch_Settings_ShowCompactListRarityBar"),
                         ShowcaseWidgetOptions.GetMosaicShowRarityBar(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     achievementSortRows.Add(AddChoice(
-                        achievementMosaicPanel,
+                        achievementMosaicSorting,
                         Localize("LOCPlayAch_Common_SortBy"),
                         new[]
                         {
@@ -463,7 +487,7 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicSort(_settings, value),
                         MosaicSortName));
-                    achievementSortRows.Add(AddSortDirectionChoice(achievementMosaicPanel));
+                    achievementSortRows.Add(AddSortDirectionChoice(achievementMosaicSorting));
                     ApplyUnlockNextVisibility(
                         unlockNextRows,
                         achievementSortRows,
@@ -471,7 +495,7 @@ namespace PlayniteAchievements.Views.Showcase
 
                     FrameworkElement finishNextOptions = null;
                     AddChoice(
-                        gameMosaicPanel,
+                        gameMosaicContent,
                         Localize("LOCPlayAch_Common_Source"),
                         new[]
                         {
@@ -491,35 +515,35 @@ namespace PlayniteAchievements.Views.Showcase
                             }
                         },
                         GameMosaicSourceName);
-                    finishNextOptions = AddFinishNextOptions(gameMosaicPanel);
+                    finishNextOptions = AddFinishNextOptions(gameMosaicContent);
                     finishNextOptions.Visibility = ShowcaseWidgetOptions.GetGameMosaicSource(_settings) ==
                         ShowcaseGameMosaicSource.FinishNext
                         ? Visibility.Visible
                         : Visibility.Collapsed;
                     AddToggle(
-                        gameMosaicPanel,
+                        gameMosaicAppearance,
                         Localize("LOCPlayAch_UseCoverImages"),
                         ShowcaseWidgetOptions.GetGameMosaicUseCovers(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicUseCovers(_settings, value));
                     AddToggle(
-                        gameMosaicPanel,
+                        gameMosaicAppearance,
                         Localize("LOCPlayAch_Settings_ShowCompletionGlow"),
                         ShowcaseWidgetOptions.GetGameMosaicShowCompletionGlow(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicShowCompletionGlow(_settings, value));
                     AddToggle(
-                        gameMosaicPanel,
+                        gameMosaicAppearance,
                         Localize("LOCPlayAch_Settings_ShowCompletionFrame"),
                         ShowcaseWidgetOptions.GetGameMosaicShowCompletionFrame(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicShowCompletionFrame(_settings, value));
                     // Completed games only: the capstone's rarity, or the rarest achievement
                     // when the game has no capstone.
                     AddToggle(
-                        gameMosaicPanel,
+                        gameMosaicAppearance,
                         Localize("LOCPlayAch_Settings_ShowCompactListRarityBar"),
                         ShowcaseWidgetOptions.GetMosaicShowRarityBar(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicShowRarityBar(_settings, value));
                     AddChoice(
-                        gameMosaicPanel,
+                        gameMosaicSorting,
                         Localize("LOCPlayAch_Common_SortBy"),
                         new[]
                         {
@@ -537,10 +561,10 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetGameMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicSort(_settings, value),
                         GameMosaicSortName);
-                    AddSortDirectionChoice(gameMosaicPanel);
+                    AddSortDirectionChoice(gameMosaicSorting);
 
                     AddNumberRow(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_ItemCount"),
                         () => ShowcaseWidgetOptions.GetMosaicCount(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCount(_settings, value));
@@ -549,47 +573,45 @@ namespace PlayniteAchievements.Views.Showcase
                     // the widget's density. Spacing is the gap around each tile. Both clamp on
                     // commit, and the box shows the stored value.
                     AddNumberRow(
-                        achievementMosaicPanel,
+                        achievementMosaicLayout,
                         Localize("LOCPlayAch_Common_Size") + " (px)",
                         () => ShowcaseWidgetOptions.GetMosaicIconSize(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicIconSize(_settings, value));
                     AddNumberRow(
-                        gameMosaicPanel,
+                        gameMosaicLayout,
                         Localize("LOCPlayAch_Common_Size") + " (px)",
                         () => ShowcaseWidgetOptions.GetMosaicCoverWidth(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicCoverWidth(_settings, value));
                     AddNumberRow(
-                        panel,
+                        layoutRows,
                         Localize("LOCPlayAch_Showcase_TileSpacing"),
                         () => ShowcaseWidgetOptions.GetMosaicSpacing(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicSpacing(_settings, value));
-                    panel.Children.Add(achievementMosaicBarPanel);
-                    panel.Children.Add(gameMosaicBarPanel);
-                    AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true);
-                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(achievementMosaicBarPanel);
-                    AddCollectionChoice(gameMosaicBarPanel, includeAchievementCollections: false);
-                    AddControlBarRows<GameSummaryGridControlBarAdapter>(gameMosaicBarPanel);
+                    AddCollectionChoice(achievementMosaicContent, includeAchievementCollections: true);
+                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(achievementMosaicBar);
+                    AddCollectionChoice(gameMosaicContent, includeAchievementCollections: false);
+                    AddControlBarRows<GameSummaryGridControlBarAdapter>(gameMosaicBar);
                     break;
                 case ShowcaseWidgetKind.ScreenshotSlideshow:
                     AddNumberRow(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Interval") + " (s)",
                         () => ShowcaseWidgetOptions.GetSlideshowIntervalSeconds(_settings),
                         value => ShowcaseWidgetOptions.SetSlideshowIntervalSeconds(_settings, value));
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_FitMode"),
                         new[] { ShowcaseImageFitMode.Fit, ShowcaseImageFitMode.Fill },
                         ShowcaseWidgetOptions.GetImageFitMode(_settings),
                         value => ShowcaseWidgetOptions.SetImageFitMode(_settings, value),
                         FitModeName);
                     AddToggle(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Shuffle"),
                         ShowcaseWidgetOptions.GetShuffle(_settings),
                         value => ShowcaseWidgetOptions.SetShuffle(_settings, value));
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_InfoPanel"),
                         new[]
                         {
@@ -601,34 +623,34 @@ namespace PlayniteAchievements.Views.Showcase
                         ShowcaseWidgetOptions.GetInfoPanelPosition(_settings),
                         value => ShowcaseWidgetOptions.SetInfoPanelPosition(_settings, value),
                         InfoPanelPositionName);
-                    AddCollectionChoice(panel, includeAchievementCollections: true);
-                    AddControlBarRows<SlideshowControlBarAdapter>(panel);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: true);
+                    AddControlBarRows<SlideshowControlBarAdapter>(barRows);
                     break;
                 case ShowcaseWidgetKind.Image:
                     ShowcaseProfileSettingsEditor.AddImagePicker(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Showcase_Widget_Image"),
                         () => ShowcaseWidgetOptions.GetImagePath(_settings),
                         value => ShowcaseWidgetOptions.SetImagePath(_settings, value),
                         Committed);
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_FitMode"),
                         new[] { ShowcaseImageFitMode.Fit, ShowcaseImageFitMode.Fill },
                         ShowcaseWidgetOptions.GetImageFitMode(_settings),
                         value => ShowcaseWidgetOptions.SetImageFitMode(_settings, value),
                         FitModeName);
-                    AddAlignmentChoices(panel);
+                    AddAlignmentChoices(layoutRows);
                     break;
                 case ShowcaseWidgetKind.Text:
                     AddMultilineText(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Settings_Appearance_Resource_Text"),
                         () => ShowcaseWidgetOptions.GetText(_settings),
                         value => ShowcaseWidgetOptions.SetText(_settings, value));
                     FrameworkElement textPixelSizeRow = null;
                     AddChoice(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_TextSize"),
                         new[]
                         {
@@ -651,22 +673,22 @@ namespace PlayniteAchievements.Views.Showcase
                         },
                         TextSizeName);
                     textPixelSizeRow = AddNumberRow(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_TextSize") + " (px)",
                         () => ShowcaseWidgetOptions.GetTextPixelSize(_settings),
                         value => ShowcaseWidgetOptions.SetTextPixelSize(_settings, value));
                     textPixelSizeRow.Visibility = ShowcaseWidgetOptions.GetTextSize(_settings) == ShowcaseTextSize.Custom
                         ? Visibility.Visible
                         : Visibility.Collapsed;
-                    AddFontFamilyChoice(panel);
-                    AddAlignmentChoices(panel);
+                    AddFontFamilyChoice(appearanceRows);
+                    AddAlignmentChoices(layoutRows);
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
                     // The collapsed Game Summaries Grid: progress and activity are its control
                     // bar's filters.
                     FrameworkElement gameGridFinishNextOptions = null;
                     AddChoice(
-                        panel,
+                        contentRows,
                         Localize("LOCPlayAch_Common_Source"),
                         new[]
                         {
@@ -687,20 +709,20 @@ namespace PlayniteAchievements.Views.Showcase
                         },
                         GameGridSourceName);
                     // Finish Next's options, the same set as on the Finish Next game mosaic.
-                    gameGridFinishNextOptions = AddFinishNextOptions(panel);
+                    gameGridFinishNextOptions = AddFinishNextOptions(contentRows);
                     gameGridFinishNextOptions.Visibility =
                         ShowcaseWidgetOptions.GetGameGridSource(_settings) == ShowcaseGameGridSource.FinishNext
                             ? Visibility.Visible
                             : Visibility.Collapsed;
-                    AddCollectionChoice(panel, includeAchievementCollections: false);
-                    AddControlBarRows<GameSummaryGridControlBarAdapter>(panel);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: false);
+                    AddControlBarRows<GameSummaryGridControlBarAdapter>(barRows);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every achievement, or the Unlock Next
                     // candidates; a collection limits either.
                     var achievementGridUnlockNextRows = new List<FrameworkElement>();
                     AddToggle(
-                        panel,
+                        contentRows,
                         AchievementGridSourceName(ShowcaseAchievementGridSource.UnlockNext),
                         ShowcaseWidgetOptions.GetAchievementGridSource(_settings) == ShowcaseAchievementGridSource.UnlockNext,
                         unlockNext =>
@@ -709,38 +731,43 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcaseWidgetOptions.SetAchievementGridSource(_settings, value);
                             ApplyAchievementGridSourceRows(achievementGridUnlockNextRows, value);
                         });
-                    achievementGridUnlockNextRows.AddRange(AddUnlockNextOptions(panel));
+                    achievementGridUnlockNextRows.AddRange(AddUnlockNextOptions(contentRows));
                     ApplyAchievementGridSourceRows(
                         achievementGridUnlockNextRows,
                         ShowcaseWidgetOptions.GetAchievementGridSource(_settings));
-                    AddCollectionChoice(panel, includeAchievementCollections: true);
-                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(panel);
+                    AddCollectionChoice(contentRows, includeAchievementCollections: true);
+                    AddControlBarRows<CrossGameAchievementControlBarAdapter>(barRows);
                     break;
                 case ShowcaseWidgetKind.ActivityCalendar:
-                    AddCountChoice(panel);
-                    AddRangeChoice(panel);
+                    AddCountChoice(contentRows);
+                    AddRangeChoice(contentRows);
                     AddToggle(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Showcase_ShowLegend"),
                         ShowcaseWidgetOptions.GetShowLegend(_settings),
                         value => ShowcaseWidgetOptions.SetShowLegend(_settings, value));
                     AddColorRow(
-                        panel,
+                        appearanceRows,
                         Localize("LOCPlayAch_Common_Color"),
                         () => ShowcaseWidgetOptions.GetActivityColor(_settings),
                         value => ShowcaseWidgetOptions.SetActivityColor(_settings, value));
-                    AddTimeControlRows(panel, includeSplit: false);
-                    _achievementFilterRows = AddControlBarRows<ActivityCalendarControlBarAdapter>(panel, header: false);
+                    AddTimeControlRows(barRows, includeSplit: false);
+                    _achievementFilterRows = AddControlBarRows<ActivityCalendarControlBarAdapter>(barRows, header: false);
                     ApplyAchievementFilterRows();
                     break;
             }
 
-            AppendGridOptionsEditor(panel);
+            if (gridEditor != null)
+            {
+                AppendCategoryGridEditor(panel, gridEditor.Options as AchievementGridOptions);
+            }
+
             return panel;
         }
 
         /// <summary>
-        /// Appends the shared grid display-options editor for the grid widget kinds. The editor
+        /// Creates the shared grid display-options editor for the grid widget kinds, or null for
+        /// the other kinds; its option groups hold the widget's own rows too. The editor
         /// binds the widget's LIVE catalog record (not the dialog's widget clone), so grid
         /// display edits are instant-apply, independent of the host's persist callback and of
         /// the dialog's Save/Cancel, which govern only the title and the widget's own option
@@ -748,17 +775,16 @@ namespace PlayniteAchievements.Views.Showcase
         /// record subscriptions), so edits only need persisting - debounced, because a full
         /// settings write per checkbox toggle makes the editor visibly laggy.
         /// </summary>
-        private void AppendGridOptionsEditor(Panel panel)
+        private GridOptionsEditor CreateGridOptionsEditor()
         {
             var catalog = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions;
             var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
             if (catalog == null || surfaceKey == null)
             {
-                return;
+                return null;
             }
 
             var editor = new GridOptionsEditor();
-            editor.SetResourceReference(MarginProperty, "PlayAch.Thickness.Top.Md");
             object options;
             if (ShowcaseGridSurfaces.IsAchievementSurface(surfaceKey))
             {
@@ -779,8 +805,7 @@ namespace PlayniteAchievements.Views.Showcase
             editor.Options = options;
             AttachGridOptionsPersist(options);
 
-            panel.Children.Add(editor);
-            AppendCategoryGridEditor(panel, catalog, surfaceKey, options as AchievementGridOptions);
+            return editor;
         }
 
         /// <summary>
@@ -788,12 +813,15 @@ namespace PlayniteAchievements.Views.Showcase
         /// settings popup shows for any achievement grid with category mode: hide the category grid
         /// after a selection, and the category grid's own display options.
         /// </summary>
-        private void AppendCategoryGridEditor(
-            Panel panel,
-            GridOptionsCatalog catalog,
-            string surfaceKey,
-            AchievementGridOptions achievementOptions)
+        private void AppendCategoryGridEditor(Panel panel, AchievementGridOptions achievementOptions)
         {
+            var catalog = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.GridOptions;
+            var surfaceKey = ShowcaseGridSurfaces.ResolveWidgetSurface(_settings.Kind, _settings.InstanceId);
+            if (catalog == null || surfaceKey == null)
+            {
+                return;
+            }
+
             var categorySurfaceKey = ShowcaseGridSurfaces.ResolveCategorySurface(surfaceKey);
             if (achievementOptions == null || categorySurfaceKey == null)
             {
