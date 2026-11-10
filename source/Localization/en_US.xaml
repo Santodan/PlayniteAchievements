@@ -177,6 +177,10 @@
     <sys:String x:Key="LOCPlayAch_Common_Advanced">Advanced</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Settings">Settings</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Layout">Layout</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Appearance">Appearance</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Content">Content</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ControlBar">Control Bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Sorting">Sorting</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Metadata">Metadata</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_FilterPresets">Filter presets</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Size">Size</sys:String>
