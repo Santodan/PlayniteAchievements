@@ -210,8 +210,7 @@
                                 <InlineUIContainer BaselineAlignment="Center">
                                     <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
                                                                       Styles="{Binding InlineNameDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
-                                </InlineUIContainer>
-                                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                                </InlineUIContainer><Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                                      FontStyle="Italic"
                                      Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
