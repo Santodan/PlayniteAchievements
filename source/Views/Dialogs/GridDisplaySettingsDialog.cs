@@ -226,15 +226,17 @@ namespace PlayniteAchievements.Views.Dialogs
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            panel.Children.Add(BuildOptionRow(
-                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
-                hideCategoryRowCheckBox));
-
             categoryEditor = new GridOptionsEditor
             {
                 SurfaceKind = GridOptionKind.CategorySummaries,
                 SurfaceKey = categorySurfaceKey
             };
+
+            // Hiding the category grid after a selection is a layout choice, so it leads the
+            // category grid's Layout group.
+            ((IOptionGroups)categoryEditor).Layout.Leading.Children.Add(BuildOptionRow(
+                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
+                hideCategoryRowCheckBox));
             panel.Children.Add(categoryEditor);
         }
 
