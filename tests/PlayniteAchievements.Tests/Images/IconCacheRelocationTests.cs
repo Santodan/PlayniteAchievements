@@ -127,6 +127,20 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public void Rebaser_SkipsTextThatCannotBeAPath()
+        {
+            // A note may hold characters no path can, which Path.IsPathRooted throws on.
+            var json = "{\"Note\":\"say \\\"hi\\\" <b>|</b>\",\"Ctrl\":\"a\\u0001b\"," +
+                       "\"Icon\":\"C:\\\\Data\\\\Plugin\\\\icon_cache\\\\a.png\"}";
+
+            Assert.IsTrue(IconCachePathRebaser.TryRebaseJson(json, @"C:\Data\Plugin\icon_cache", CustomRoot, out var rebased));
+            StringAssert.Contains(rebased, "\"Icon\":\"D:\\\\Icons\\\\a.png\"");
+            StringAssert.Contains(rebased, "<b>|</b>");
+            Assert.AreEqual("say \"hi\"", IconCachePathRebaser.RebasePath("say \"hi\"", @"C:\Data\Plugin\icon_cache", CustomRoot));
+            Assert.IsFalse(IconCacheLocation.IsRooted(@"C:\a<b"));
+        }
+
+        [TestMethod]
         public void Planner_RejectsUnsafeTargets()
         {
             var env = new FakeEnvironment();
