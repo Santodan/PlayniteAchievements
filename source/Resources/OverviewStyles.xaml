@@ -312,10 +312,12 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The detail row under the progress bar (rarity, trophy or points) is one drawn element,
+    <!-- The detail row under the progress bar (rarity, trophy and points) is one drawn element,
          controls:ProgressDetailStrip; it reads the same brush, glyph and font resource keys the
          former per-badge styles used. The footer templates below position it and, for the Left
-         and Center alignments, reverse its order. -->
+         and Center alignments, reverse its order. Each template gives the strip a star column so
+         it is measured against the space left beside the completion count and can drop the
+         detail groups that do not fit. -->
 
     <!-- Right alignment (default / legacy look): completed badge pinned far left, badge row
          pinned far right in descending-rarity order. -->
@@ -333,23 +335,32 @@
                                          HorizontalAlignment="Right"
                                          VerticalAlignment="Center"
                                          DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
         </Grid>
     </DataTemplate>
 
     <!-- Center alignment: a single centered row in ascending-rarity order (the strip reversed)
-         followed by the completed badge. -->
+         followed by the completed badge. The centered grid sizes to its content, so the star
+         column is exactly the strip's width. -->
     <DataTemplate x:Key="ProgressFooterCenterTemplate">
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-            <controls:ProgressDetailStrip VerticalAlignment="Center"
+        <Grid HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <controls:ProgressDetailStrip Grid.Column="0"
+                                         VerticalAlignment="Center"
                                          Reversed="True"
                                          DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
-            <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
-            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
-        </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+                <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
+            </StackPanel>
+        </Grid>
     </DataTemplate>
 
     <!-- Left alignment (inverse of Right): badge row pinned far left in ascending-rarity order
@@ -357,14 +368,15 @@
     <DataTemplate x:Key="ProgressFooterLeftTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <controls:ProgressDetailStrip Grid.Column="0"
                                          HorizontalAlignment="Left"
                                          VerticalAlignment="Center"
                                          Reversed="True"
                                          DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                 <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
