@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
@@ -211,6 +212,7 @@ namespace PlayniteAchievements.Services.Summaries
                     ChildCategoryCount = CategoryPathHelper.GetChildPaths(groups.Keys, node).Count,
                     DirectAchievementCount = directMembers?.Count ?? 0,
                     PlayniteGameId = ResolveSharedGameId(members),
+                    PointsFamily = ResolveSharedPointsFamily(members),
                     GameName = display,
                     SortingName = display,
                     // Sorting orders by the name shown, so a nested row needs its path on hover:
@@ -481,6 +483,34 @@ namespace PlayniteAchievements.Services.Summaries
             }
 
             return gameId;
+        }
+
+        /// <summary>
+        /// The points family every member's provider belongs to, so the row's summed points read
+        /// in one unit; null when members span families or none has one.
+        /// </summary>
+        private static string ResolveSharedPointsFamily(IReadOnlyList<AchievementDisplayItem> bucket)
+        {
+            string family = null;
+            foreach (var item in bucket)
+            {
+                var candidate = PointsFamilies.FromProviderKey(item?.ProviderKey);
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                if (family == null)
+                {
+                    family = candidate;
+                }
+                else if (!string.Equals(family, candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
+
+            return family;
         }
 
         private static string ResolveSharedImage(
