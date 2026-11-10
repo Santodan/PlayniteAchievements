@@ -35,12 +35,23 @@ namespace PlayniteAchievements.Views.Settings.Controls
     /// display settings popup. Setting a flag directly still works, but a later
     /// SurfaceKind/SurfaceKey change overwrites it.
     /// </summary>
-    public partial class GridOptionsEditor : UserControl
+    public partial class GridOptionsEditor : UserControl, IOptionGroups
     {
         public GridOptionsEditor()
         {
             InitializeComponent();
         }
+
+        // The groups the rows are declared in; hosts add their own rows to a group's Leading panel.
+        OptionGroup IOptionGroups.Content => ContentGroup;
+
+        OptionGroup IOptionGroups.Appearance => AppearanceGroup;
+
+        OptionGroup IOptionGroups.Layout => LayoutGroup;
+
+        OptionGroup IOptionGroups.Sorting => SortingGroup;
+
+        OptionGroup IOptionGroups.ControlBar => ControlBarGroup;
 
         public static readonly DependencyProperty OptionsProperty = DependencyProperty.Register(
             nameof(Options),
