@@ -101,13 +101,11 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// The style an inline detail spot shows: the first of <paramref name="styles"/> for which
-        /// <paramref name="hasData"/> is true, after passing over <paramref name="skip"/> such
-        /// styles. Null when no style is left.
+        /// <paramref name="hasData"/> is true, or null when there is none.
         /// </summary>
         public static ProgressDetailStyle? PickInline(
             IEnumerable<ProgressDetailStyle> styles,
-            System.Func<ProgressDetailStyle, bool> hasData,
-            int skip)
+            System.Func<ProgressDetailStyle, bool> hasData)
         {
             if (styles == null || hasData == null)
             {
@@ -116,17 +114,10 @@ namespace PlayniteAchievements.Models.Settings
 
             foreach (var style in styles)
             {
-                if (!hasData(style))
-                {
-                    continue;
-                }
-
-                if (skip <= 0)
+                if (hasData(style))
                 {
                     return style;
                 }
-
-                skip--;
             }
 
             return null;
