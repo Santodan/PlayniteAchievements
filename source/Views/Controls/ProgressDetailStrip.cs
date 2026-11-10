@@ -25,7 +25,9 @@ namespace PlayniteAchievements.Views.Controls
     /// </summary>
     /// <remarks>
     /// <see cref="DetailOrder"/> lists the enabled styles in priority order; the row shows the
-    /// first one the game has data for.
+    /// first <see cref="ShownCount"/> of them the game has data for, left to right in that order.
+    /// When the space is too narrow for all of them, trailing groups are dropped whole; the first
+    /// group always draws.
     ///
     /// The element-per-badge template cost about 45 elements per row: eight StackPanels, eight
     /// Images each carrying its own shadow effect, eight TextBlocks with a per-tier color
@@ -43,6 +45,8 @@ namespace PlayniteAchievements.Views.Controls
         private const double TextGap = 3;
         private const double DefaultIconSize = 18;
         private const double DefaultFontSize = 12;
+        // Extra space between style groups, on top of the item margins.
+        private const double GroupGap = 6;
 
         // Rarity and trophy entries name resource keys; the points entry resolves its icon,
         // color and tooltip from the row's points family instead.
@@ -99,6 +103,7 @@ namespace PlayniteAchievements.Views.Controls
             public DetailSpec Spec;
             public FormattedText Text;
             public ImageSource Image;
+            public int Group;
             public double Left;
             public double Width;
         }
@@ -112,11 +117,27 @@ namespace PlayniteAchievements.Views.Controls
                     null,
                     FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
-        /// <summary>The enabled detail styles in priority order; the first the game has data for is shown.</summary>
+        /// <summary>The enabled detail styles in priority order; the first ones the game has data for are shown.</summary>
         public IReadOnlyList<ProgressDetailStyle> DetailOrder
         {
             get => (IReadOnlyList<ProgressDetailStyle>)GetValue(DetailOrderProperty);
             set => SetValue(DetailOrderProperty, value);
+        }
+
+        public static readonly DependencyProperty ShownCountProperty =
+            DependencyProperty.Register(
+                nameof(ShownCount),
+                typeof(int),
+                typeof(ProgressDetailStrip),
+                new FrameworkPropertyMetadata(
+                    ProgressDetailOrder.MinShownCount,
+                    FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
+
+        /// <summary>How many styles with data are shown side by side, at least one.</summary>
+        public int ShownCount
+        {
+            get => (int)GetValue(ShownCountProperty);
+            set => SetValue(ShownCountProperty, value);
         }
 
         public static readonly DependencyProperty ColorByRarityProperty =
@@ -316,30 +337,36 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private IEnumerable<DetailSpec> VisibleSpecs()
+        // The first ShownCount styles in DetailOrder that the game has data for.
+        private List<DetailSpec[]> VisibleGroups(GameSummaryItem item)
         {
-            var item = _item;
+            var groups = new List<DetailSpec[]>(ProgressDetailOrder.MaxShownCount);
             var order = DetailOrder;
-            if (item == null || order == null)
+            if (order == null)
             {
-                yield break;
+                return groups;
             }
 
-            DetailSpec[] specs = null;
+            var limit = ProgressDetailOrder.ClampShownCount(ShownCount);
             foreach (var style in order)
             {
-                if (HasData(item, style))
+                if (groups.Count >= limit)
                 {
-                    specs = SpecsFor(style);
                     break;
+                }
+
+                var specs = SpecsFor(style);
+                if (specs != null && HasData(item, style))
+                {
+                    groups.Add(specs);
                 }
             }
 
-            if (specs == null)
-            {
-                yield break;
-            }
+            return groups;
+        }
 
+        private IEnumerable<DetailSpec> VisibleSpecs(GameSummaryItem item, DetailSpec[] specs)
+        {
             var count = specs.Length;
             for (var step = 0; step < count; step++)
             {
@@ -426,7 +453,24 @@ namespace PlayniteAchievements.Views.Controls
             EnsureResources();
             var culture = FormattingCulture.Current ?? CultureInfo.CurrentCulture;
             var x = 0d;
-            foreach (var spec in VisibleSpecs())
+            var group = 0;
+            foreach (var specs in VisibleGroups(item))
+            {
+                // A group whose counts are all zero adds nothing, and no gap either.
+                var groupStart = _layout.Count;
+                var start = group > 0 ? x + GroupGap : x;
+                AddGroupLayout(item, specs, group, culture, ref start);
+                if (_layout.Count > groupStart)
+                {
+                    x = start;
+                    group++;
+                }
+            }
+        }
+
+        private void AddGroupLayout(GameSummaryItem item, DetailSpec[] specs, int group, CultureInfo culture, ref double x)
+        {
+            foreach (var spec in VisibleSpecs(item, specs))
             {
                 var tier = ColorByRarity ? ResolveTierBrush(spec, item) : null;
                 var brush = tier ?? _textBrush;
@@ -444,6 +488,7 @@ namespace PlayniteAchievements.Views.Controls
                     Spec = spec,
                     Text = text,
                     Image = ResolveImage(spec, item),
+                    Group = group,
                     Left = x,
                     Width = width
                 });
@@ -459,15 +504,41 @@ namespace PlayniteAchievements.Views.Controls
                 return new Size(0, 0);
             }
 
-            var width = 0d;
+            DropOverflowingGroups(availableSize.Width);
+            var last = _layout[_layout.Count - 1];
+            var width = last.Left + last.Width;
             var height = _iconSize;
             foreach (var badge in _layout)
             {
-                width += badge.Width;
                 height = Math.Max(height, badge.Text.Height);
             }
 
             return new Size(width, height);
+        }
+
+        // Removes whole trailing groups until the rest fits; the first group stays even when it
+        // alone is wider than the space, so the row never goes blank.
+        private void DropOverflowingGroups(double availableWidth)
+        {
+            if (double.IsInfinity(availableWidth) || double.IsNaN(availableWidth))
+            {
+                return;
+            }
+
+            while (_layout.Count > 0)
+            {
+                var last = _layout[_layout.Count - 1];
+                if (last.Group == 0 || last.Left + last.Width <= availableWidth)
+                {
+                    return;
+                }
+
+                var group = last.Group;
+                while (_layout.Count > 0 && _layout[_layout.Count - 1].Group == group)
+                {
+                    _layout.RemoveAt(_layout.Count - 1);
+                }
+            }
         }
 
         protected override void OnRender(DrawingContext drawingContext)
