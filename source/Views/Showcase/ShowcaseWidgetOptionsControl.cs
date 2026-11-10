@@ -1053,14 +1053,13 @@ namespace PlayniteAchievements.Views.Showcase
             IGridControlBarEntry entry = null)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -1188,12 +1187,11 @@ namespace PlayniteAchievements.Views.Showcase
             Action<TimelineGranularity> applyGranularity = null)
         {
             var container = new StackPanel();
-            container.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(container);
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 0, 4),
-                FontWeight = FontWeights.SemiBold
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             container.Children.Add(labelBlock);
@@ -1301,7 +1299,6 @@ namespace PlayniteAchievements.Views.Showcase
             var labelBlock = new TextBlock
             {
                 Text = Localize("LOCPlayAch_Showcase_Widget_Statistics"),
-                FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 4, 0, 2)
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
@@ -1474,14 +1471,13 @@ namespace PlayniteAchievements.Views.Showcase
         private Grid AddNumberRow(Panel panel, string label, Func<int> read, Action<int> apply)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
@@ -1758,12 +1754,11 @@ namespace PlayniteAchievements.Views.Showcase
         private void AddMultilineText(Panel panel, string label, Func<string> read, Action<string> apply)
         {
             var row = new StackPanel();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 0, 4),
-                FontWeight = FontWeights.SemiBold
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             row.Children.Add(labelBlock);
@@ -1813,14 +1808,13 @@ namespace PlayniteAchievements.Views.Showcase
         private void AddFontFamilyChoice(Panel panel)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = Localize("LOCPlayAch_Settings_Style_FontFamily"),
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
@@ -2083,14 +2077,13 @@ namespace PlayniteAchievements.Views.Showcase
             Func<T, string> display)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
@@ -2150,14 +2143,13 @@ namespace PlayniteAchievements.Views.Showcase
         private Grid AddToggle(Panel panel, string label, bool value, Action<bool> apply)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -2195,14 +2187,13 @@ namespace PlayniteAchievements.Views.Showcase
         private Grid AddColorRow(Panel panel, string label, Func<string> read, Action<string> apply)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
             var labelBlock = new TextBlock
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             };
