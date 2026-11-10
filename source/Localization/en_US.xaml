@@ -873,7 +873,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientId">Client ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientSecret">Client Secret</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_RedirectUri">Redirect URI</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">Combine achievements from every character on the account</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowCharacterHint">When signed in, achievements come from every character on the account and these fields can stay empty. Without signing in, choose a realm and character.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_OAuthHelp">Reading WoW achievements uses Blizzard's official API, which needs a free API client tied to your Battle.net account. You only have to set this up once:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. Open the {0} and create a new client (any name and details are fine).</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. Set the client's Redirect URI to exactly the value shown below (default http://127.0.0.1:55431/).</sys:String>
@@ -881,7 +881,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. Click Sign in below and approve access when your browser opens.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupSample">Need a walkthrough? See the {0}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowReady">Character ready</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">Missing character setup</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">Sign in, or choose a realm and character</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_MissingOAuthSetup">Missing Battle.net client credentials or redirect URI</sys:String>
 
     <!-- Provider: Epic -->
