@@ -25,6 +25,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         private string _wowRegion;
         private string _wowRealmSlug;
         private string _wowCharacter;
+        private WowCharacterSource _wowCharacterSource = WowCharacterSource.Account;
         private string _wowClassicRealmSlug;
         private string _wowClassicCharacter;
         private bool _useDataForAzerothForWowRarity = true;
@@ -120,6 +121,16 @@ namespace PlayniteAchievements.Providers.BattleNet
             set => SetValue(ref _wowCharacter, value);
         }
 
+        /// <summary>
+        /// Where WoW achievements come from. Account falls back to the typed characters while not
+        /// signed in; Forever always uses the account.
+        /// </summary>
+        public WowCharacterSource WowCharacterSource
+        {
+            get => _wowCharacterSource;
+            set => SetValue(ref _wowCharacterSource, value);
+        }
+
         /// <summary>WoW Classic realm slug; Classic shares the retail region.</summary>
         public string WowClassicRealmSlug
         {
@@ -160,5 +171,15 @@ namespace PlayniteAchievements.Providers.BattleNet
                 LegacyDefaultRedirectUri,
                 StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>Where World of Warcraft achievements come from.</summary>
+    public enum WowCharacterSource
+    {
+        /// <summary>Every character on the signed-in account.</summary>
+        Account = 0,
+
+        /// <summary>The realm and character typed for each version.</summary>
+        Character = 1
     }
 }
