@@ -261,11 +261,11 @@
                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                                <CheckBox Grid.Row="3"
-                                          Grid.Column="1"
-                                          Content="{DynamicResource LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters}"
-                                          IsChecked="{Binding Settings.WowAggregateAccountCharacters, Mode=TwoWay}"
-                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+                                <TextBlock Grid.Row="3"
+                                           Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacterHint}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                           TextWrapping="Wrap"/>
                             </Grid>
 
                             <Grid Margin="{StaticResource PlayAch.Thickness.Top.Md}">
@@ -289,11 +289,13 @@
                                            Grid.Column="0"
                                            Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowRealm}"
                                            Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <TextBox Grid.Row="1"
-                                         Grid.Column="1"
-                                         Text="{Binding Settings.WowClassicRealmSlug, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                         Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                <ComboBox Grid.Row="1"
+                                          Grid.Column="1"
+                                          x:Name="WowClassicRealmCombo"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="WowClassicRealm_SelectionChanged"
+                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                                 <TextBlock Grid.Row="2"
                                            Grid.Column="0"
