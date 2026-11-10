@@ -16,6 +16,8 @@
         "list": "value"
       },
       "HideCategorySummaryRow": "value",
+      "InlineDetailsBeforeDescription": "value",
+      "InlineDetailsBeforeName": "value",
       "MaxHeight": "value",
       "MaxRows": "value",
       "NameColor": "value",
