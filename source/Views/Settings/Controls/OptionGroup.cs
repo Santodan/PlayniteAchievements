@@ -28,11 +28,12 @@ namespace PlayniteAchievements.Views.Settings.Controls
         {
             _header = new TextBlock
             {
-                FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,
                 Visibility = Visibility.Collapsed
             };
-            _header.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text.Secondary");
+            _header.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.OptionGroupHeader");
+            _header.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             _header.SetResourceReference(MarginProperty, "PlayAch.Thickness.OptionGroupHeading");
             Children.Add(_header);
 
