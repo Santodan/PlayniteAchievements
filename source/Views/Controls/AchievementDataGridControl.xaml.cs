@@ -597,6 +597,46 @@ namespace PlayniteAchievements.Views.Controls
 
         public AchievementStatusColorMode StatusColor => (AchievementStatusColorMode)GetValue(StatusColorProperty);
 
+        private static readonly IReadOnlyList<ProgressDetailStyle> NoInlineDetails = new ProgressDetailStyle[0];
+
+        private static readonly DependencyPropertyKey InlineNameDetailStylesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(InlineNameDetailStyles), typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(NoInlineDetails));
+
+        /// <summary>
+        /// Identifies the InlineNameDetailStyles dependency property: the global detail priority
+        /// when this grid shows a detail before achievement names, otherwise empty.
+        /// </summary>
+        public static readonly DependencyProperty InlineNameDetailStylesProperty = InlineNameDetailStylesPropertyKey.DependencyProperty;
+
+        public IReadOnlyList<ProgressDetailStyle> InlineNameDetailStyles =>
+            (IReadOnlyList<ProgressDetailStyle>)GetValue(InlineNameDetailStylesProperty);
+
+        private static readonly DependencyPropertyKey InlineDescriptionDetailStylesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(InlineDescriptionDetailStyles), typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(NoInlineDetails));
+
+        /// <summary>
+        /// Identifies the InlineDescriptionDetailStyles dependency property: the global detail
+        /// priority when this grid shows a detail before descriptions, otherwise empty.
+        /// </summary>
+        public static readonly DependencyProperty InlineDescriptionDetailStylesProperty = InlineDescriptionDetailStylesPropertyKey.DependencyProperty;
+
+        public IReadOnlyList<ProgressDetailStyle> InlineDescriptionDetailStyles =>
+            (IReadOnlyList<ProgressDetailStyle>)GetValue(InlineDescriptionDetailStylesProperty);
+
+        private static readonly DependencyPropertyKey InlineDescriptionDetailSkipPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(InlineDescriptionDetailSkip), typeof(int),
+                typeof(AchievementDataGridControl), new PropertyMetadata(0));
+
+        /// <summary>
+        /// Identifies the InlineDescriptionDetailSkip dependency property: 1 while the name spot
+        /// is on, so the description shows the next detail rather than repeating the name's.
+        /// </summary>
+        public static readonly DependencyProperty InlineDescriptionDetailSkipProperty = InlineDescriptionDetailSkipPropertyKey.DependencyProperty;
+
+        public int InlineDescriptionDetailSkip => (int)GetValue(InlineDescriptionDetailSkipProperty);
+
         /// <summary>
         /// Identifies the ColorRarityColumnsByRarity dependency property.
         /// When true, rarity and rarity percent text in this grid are colored by rarity tier
@@ -3177,7 +3217,8 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.GridOptions))
+                e.PropertyName == nameof(PersistedSettings.GridOptions) ||
+                e.PropertyName == nameof(PersistedSettings.ProgressDetails))
             {
                 RefreshAppearance();
             }
@@ -3258,6 +3299,22 @@ namespace PlayniteAchievements.Views.Controls
             SetValue(NameColorPropertyKey, record?.NameColor ?? AchievementNameColorSource.None);
             SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.Icons);
             SetValue(StatusColorPropertyKey, record?.StatusColor ?? AchievementStatusColorMode.MissableUnobtainable);
+            RefreshInlineDetails(record);
+        }
+
+        // The order is the global detail priority; the grid's record only says which spots show it.
+        private void RefreshInlineDetails(AchievementGridOptions record)
+        {
+            var beforeName = record?.InlineDetailsBeforeName == true;
+            var beforeDescription = record?.InlineDetailsBeforeDescription == true;
+            var styles = beforeName || beforeDescription
+                ? ProgressDetailOrder.EnabledStyles(
+                    PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ProgressDetails ?? ProgressDetailOrder.Default())
+                : NoInlineDetails;
+
+            SetValue(InlineNameDetailStylesPropertyKey, beforeName ? styles : NoInlineDetails);
+            SetValue(InlineDescriptionDetailStylesPropertyKey, beforeDescription ? styles : NoInlineDetails);
+            SetValue(InlineDescriptionDetailSkipPropertyKey, beforeName ? 1 : 0);
         }
 
         // Reads without creating: GetAchievement would add a record for every unknown key.
@@ -3317,7 +3374,9 @@ namespace PlayniteAchievements.Views.Controls
             if (string.IsNullOrEmpty(e.PropertyName) ||
                 e.PropertyName == nameof(AchievementGridOptions.NameColor) ||
                 e.PropertyName == nameof(AchievementGridOptions.TagDisplay) ||
-                e.PropertyName == nameof(AchievementGridOptions.StatusColor))
+                e.PropertyName == nameof(AchievementGridOptions.StatusColor) ||
+                e.PropertyName == nameof(AchievementGridOptions.InlineDetailsBeforeName) ||
+                e.PropertyName == nameof(AchievementGridOptions.InlineDetailsBeforeDescription))
             {
                 RefreshAppearance();
             }
