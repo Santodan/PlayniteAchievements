@@ -22,14 +22,23 @@ namespace PlayniteAchievements.Views.Helpers
         bool WantsRayFrames { get; }
 
         void OnRayFrame();
+
+        /// <summary>
+        /// Keeps receiving frames while <see cref="GlowAnimationGate"/> is suspended (content shown
+        /// over a running game, such as the unlock notification card).
+        /// </summary>
+        bool IgnoresGlowGate { get; }
     }
 
     /// <summary>
-    /// The single composition tick behind every ray burst on screen.
+    /// The single composition tick behind every animated rarity glow on screen: the ray bursts and
+    /// the phase-locked glow pulse (<see cref="RarityGlowPulse"/>).
     ///
-    /// One hook for the whole application, attached when the first burst subscribes and detached the
+    /// One hook for the whole application, attached when the first target subscribes and detached the
     /// moment the last one leaves, so an application with the effect switched off — or simply scrolled
-    /// away from any qualifying row — is not paying for a per-frame callback at all.
+    /// away from any qualifying row — is not paying for a per-frame callback at all. It also detaches
+    /// while <see cref="GlowAnimationGate"/> is suspended and no exempt target remains, since a
+    /// subscribed Rendering handler alone keeps WPF composing at the display's refresh rate.
     ///
     /// The tick only invalidates. Phase comes from <see cref="GlowAnimationClock"/>, never accumulated
     /// across frames, which is what keeps separate bursts in step, lets a recycled row resume mid-cycle,
@@ -69,6 +78,17 @@ namespace PlayniteAchievements.Views.Helpers
         private static Dispatcher _owner;
         private static TimeSpan _lastRenderingTime = TimeSpan.MinValue;
         private static double _nextDueMs;
+        private static bool _hooked;
+
+        /// <summary>
+        /// Advances once per served tick. Targets that cache per-frame work key it on this value.
+        /// </summary>
+        internal static int FrameNumber { get; private set; }
+
+        static RayAnimationDriver()
+        {
+            GlowAnimationGate.Changed += (s, e) => UpdateHook();
+        }
 
         /// <summary>
         /// Targets currently on the render tick. This list holds strong references, and a WPF
@@ -94,15 +114,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             Subscribers.Add(target);
-            if (Subscribers.Count != 1)
-            {
-                return;
-            }
-
             _owner = dispatcher;
-            _lastRenderingTime = TimeSpan.MinValue;
-            _nextDueMs = GlowAnimationClock.ElapsedMilliseconds;
-            CompositionTarget.Rendering += OnRendering;
+            UpdateHook();
         }
 
         /// <summary>Raises the tick rate to the given track sampling rate for a recording's span.</summary>
@@ -123,13 +136,56 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            if (Subscribers.Count > 0)
+            if (Subscribers.Count == 0)
+            {
+                _owner = null;
+            }
+
+            UpdateHook();
+        }
+
+        private static bool WantsHook()
+        {
+            if (Subscribers.Count == 0)
+            {
+                return false;
+            }
+
+            if (!GlowAnimationGate.IsSuspended)
+            {
+                return true;
+            }
+
+            for (var i = 0; i < Subscribers.Count; i++)
+            {
+                if (Subscribers[i].IgnoresGlowGate)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void UpdateHook()
+        {
+            var wants = WantsHook();
+            if (wants == _hooked)
             {
                 return;
             }
 
-            CompositionTarget.Rendering -= OnRendering;
-            _owner = null;
+            _hooked = wants;
+            if (wants)
+            {
+                _lastRenderingTime = TimeSpan.MinValue;
+                _nextDueMs = GlowAnimationClock.ElapsedMilliseconds;
+                CompositionTarget.Rendering += OnRendering;
+            }
+            else
+            {
+                CompositionTarget.Rendering -= OnRendering;
+            }
         }
 
         /// <summary>Seconds for one full lap of the loop, from the shared glow speed setting.</summary>
@@ -184,9 +240,10 @@ namespace PlayniteAchievements.Views.Helpers
             }
             while (_nextDueMs <= nowMs);
 
-            // Bursts that share a shape build their arrow geometry once for the whole frame; this
-            // releases the previous frame's copies before they start.
-            Controls.RarityRayBurst.BeginFrame();
+            // Bursts that share a shape build their arrow geometry once for the whole frame, keyed
+            // on this number.
+            FrameNumber = unchecked(FrameNumber + 1);
+            var suspended = GlowAnimationGate.IsSuspended;
 
             // A target may unsubscribe itself while being served, so walk a copy.
             Dispatch.Clear();
@@ -199,6 +256,12 @@ namespace PlayniteAchievements.Views.Helpers
                 for (var i = 0; i < Dispatch.Count; i++)
                 {
                     var target = Dispatch[i];
+                    if (suspended && !target.IgnoresGlowGate)
+                    {
+                        // Held still, not dropped: it resumes when the gate opens.
+                        continue;
+                    }
+
                     if (target.WantsRayFrames)
                     {
                         target.OnRayFrame();
