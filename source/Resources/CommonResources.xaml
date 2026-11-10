@@ -34,6 +34,7 @@
     <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter"/>
     <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter"/>
     <converters:ImageFitDimensionConverter x:Key="ImageFitDimension"/>
+    <converters:BrushOpacityConverter x:Key="BrushOpacity"/>
     <converters:GameMetadataTextConverter x:Key="GameMetadataText"/>
     <converters:LocalDateTimeConverter x:Key="LocalDateTimeConverter"/>
     <converters:DateDisplayModeConverter x:Key="DateDisplayMode"/>
