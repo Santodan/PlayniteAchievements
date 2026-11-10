@@ -99,6 +99,39 @@ namespace PlayniteAchievements.Models.Settings
                 .Select(entry => entry.Style)
                 .ToList();
 
+        /// <summary>
+        /// The style an inline detail spot shows: the first of <paramref name="styles"/> for which
+        /// <paramref name="hasData"/> is true, after passing over <paramref name="skip"/> such
+        /// styles. Null when no style is left.
+        /// </summary>
+        public static ProgressDetailStyle? PickInline(
+            IEnumerable<ProgressDetailStyle> styles,
+            System.Func<ProgressDetailStyle, bool> hasData,
+            int skip)
+        {
+            if (styles == null || hasData == null)
+            {
+                return null;
+            }
+
+            foreach (var style in styles)
+            {
+                if (!hasData(style))
+                {
+                    continue;
+                }
+
+                if (skip <= 0)
+                {
+                    return style;
+                }
+
+                skip--;
+            }
+
+            return null;
+        }
+
         /// <summary>Whether the trophy style is enabled, which also moves a capstone platinum into the completion spot.</summary>
         public static bool IsTrophyEnabled(IEnumerable<ProgressDetailEntry> entries) =>
             entries != null && entries.Any(entry => entry != null && entry.Enabled && entry.Style == ProgressDetailStyle.Trophy);
