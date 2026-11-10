@@ -31,16 +31,6 @@ namespace PlayniteAchievements.Providers.BattleNet
             set => SetValue(WowConfiguredProperty, value);
         }
 
-        public static readonly DependencyProperty WowSignedInProperty =
-            DependencyProperty.Register(nameof(WowSignedIn), typeof(bool), typeof(BattleNetSettingsView), new PropertyMetadata(false));
-
-        /// <summary>Signed in, the WoW block shows the account note instead of the character fields.</summary>
-        public bool WowSignedIn
-        {
-            get => (bool)GetValue(WowSignedInProperty);
-            set => SetValue(WowSignedInProperty, value);
-        }
-
         public static readonly DependencyProperty WowStatusProperty =
             DependencyProperty.Register(nameof(WowStatus), typeof(string), typeof(BattleNetSettingsView), new PropertyMetadata(string.Empty));
 
@@ -170,6 +160,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 case nameof(BattleNetSettings.WowRegion):
                 case nameof(BattleNetSettings.WowRealmSlug):
                 case nameof(BattleNetSettings.WowCharacter):
+                case nameof(BattleNetSettings.WowCharacterSource):
                 case nameof(BattleNetSettings.BattleNetAccountId):
                 case nameof(BattleNetSettings.BattleNetAccessToken):
                 case nameof(BattleNetSettings.BattleNetBattleTag):
@@ -185,12 +176,14 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return;
             }
 
-            // Signed in, the account's characters are used and no character needs to be chosen.
-            var signedIn = BattleNetGameSupport.HasOAuthSession(_battleNetSettings);
-            var characterChosen = !string.IsNullOrWhiteSpace(_battleNetSettings.WowRegion) &&
+            // The account choice is ready once signed in; the character choice once a retail realm
+            // and character are filled in.
+            var useAccount = _battleNetSettings.WowCharacterSource == WowCharacterSource.Account;
+            var signedIn = useAccount && BattleNetGameSupport.HasOAuthSession(_battleNetSettings);
+            var characterChosen = !useAccount &&
+                !string.IsNullOrWhiteSpace(_battleNetSettings.WowRegion) &&
                 !string.IsNullOrWhiteSpace(_battleNetSettings.WowRealmSlug) &&
                 !string.IsNullOrWhiteSpace(_battleNetSettings.WowCharacter);
-            WowSignedIn = signedIn;
             WowConfigured = signedIn || characterChosen;
             if (signedIn)
             {
