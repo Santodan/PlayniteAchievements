@@ -351,6 +351,10 @@ namespace PlayniteAchievements.Tests.Providers
             settings.BattleNetClientId = "id";
             settings.BattleNetClientSecret = "secret";
             Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+
+            settings.BattleNetAccountId = "account";
+            settings.BattleNetAccessToken = "token";
             Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
         }
 
