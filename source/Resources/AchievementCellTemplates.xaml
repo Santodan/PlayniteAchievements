@@ -967,6 +967,7 @@
     <Style x:Key="AchievementInlineDetailStyle" TargetType="controls:AchievementInlineDetail">
         <Setter Property="Rarity" Value="{Binding Rarity, Mode=OneWay}"/>
         <Setter Property="HasRarity" Value="{Binding HasRarityPercent, Mode=OneWay}"/>
+        <Setter Property="ShowsRarity" Value="{Binding ShowsRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue=False}"/>
         <Setter Property="TrophyType" Value="{Binding TrophyTypeResolved, Mode=OneWay}"/>
         <Setter Property="PointsText" Value="{Binding PointsTextResolved, Mode=OneWay}"/>
         <Setter Property="HasPoints" Value="{Binding HasPoints, Mode=OneWay}"/>
