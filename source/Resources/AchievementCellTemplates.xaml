@@ -963,7 +963,9 @@
     </Style>
 
     <!-- The rarity, trophy or points detail in front of a name or description. The spot's
-         Styles binding is empty while the grid has that spot off, which measures it to nothing. -->
+         Styles binding is empty while the grid has that spot off, which measures it to nothing.
+         Its InlineUIContainer must touch the following Run: a line break between them renders
+         as a leading space. -->
     <Style x:Key="AchievementInlineDetailStyle" TargetType="controls:AchievementInlineDetail">
         <Setter Property="Rarity" Value="{Binding Rarity, Mode=OneWay}"/>
         <Setter Property="HasRarity" Value="{Binding HasRarityPercent, Mode=OneWay}"/>
@@ -986,8 +988,7 @@
                 <InlineUIContainer BaselineAlignment="Center">
                     <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
                                                       Styles="{Binding InlineNameDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
-                </InlineUIContainer>
-                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                </InlineUIContainer><Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                      FontStyle="Italic"
                      Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
@@ -998,7 +999,6 @@
             <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                        TextWrapping="Wrap"
                        TextTrimming="CharacterEllipsis"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
@@ -1013,11 +1013,13 @@
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
+                <!-- The text is dimmed through its brush rather than the TextBlock's Opacity, so the
+                     inline detail before it keeps full strength. -->
                 <InlineUIContainer BaselineAlignment="Center">
                     <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
                                                       Styles="{Binding InlineDescriptionDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
-                </InlineUIContainer>
-                <Run Text="{Binding DescriptionResolved, Mode=OneWay}"/>
+                </InlineUIContainer><Run Text="{Binding DescriptionResolved, Mode=OneWay}"
+                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}, Converter={StaticResource BrushOpacity}, ConverterParameter={StaticResource PlayAch.Opacity.Subtle}}"/>
             </TextBlock>
         </StackPanel>
     </DataTemplate>
