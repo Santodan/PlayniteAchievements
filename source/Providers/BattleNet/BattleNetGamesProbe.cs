@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers.BattleNet
     internal static class BattleNetGamesProbe
     {
         /// <summary>Hardcoded gate for the hidden probe menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         internal const string ZipName = "battlenet-probe.zip";
 
