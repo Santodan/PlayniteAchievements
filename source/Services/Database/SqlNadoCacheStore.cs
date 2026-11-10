@@ -823,6 +823,7 @@ namespace PlayniteAchievements.Services.Database
                         ) AS RowNum
                     FROM UserGameProgress ugp
                     INNER JOIN Users u ON u.Id = ugp.UserId
+                    INNER JOIN Games g ON g.Id = ugp.GameId
                     WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                       AND ugp.CacheKey IS NOT NULL
                       AND TRIM(ugp.CacheKey) <> ''

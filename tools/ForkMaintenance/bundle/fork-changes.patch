@@ -5901,7 +5901,7 @@ index 071d61b7b20fcaef5755b5bf43b03b2e9db385dd..17c50a97c1a4301ff93bf1a0aacc93a1
              IDictionary<string, long> existingDefinitionIdsByApiName,
              IEnumerable<string> incomingApiNames)
 diff --git a/source/Services/Database/SqlNadoCacheStore.cs b/source/Services/Database/SqlNadoCacheStore.cs
-index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f32f8fd024 100644
+index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..4bb62b9d23a8e26b259624375d4dc9d69936fe98 100644
 --- a/source/Services/Database/SqlNadoCacheStore.cs
 +++ b/source/Services/Database/SqlNadoCacheStore.cs
 @@ -40,6 +40,14 @@ internal sealed class SqlNadoCacheStore : IDisposable
@@ -5977,16 +5977,17 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
                        AND ugp.CacheKey IS NOT NULL
                        AND TRIM(ugp.CacheKey) <> ''
                  )
-@@ -811,7 +823,7 @@ PARTITION BY ugp.CacheKey
+@@ -811,7 +823,8 @@ PARTITION BY ugp.CacheKey
                          ) AS RowNum
                      FROM UserGameProgress ugp
                      INNER JOIN Users u ON u.Id = ugp.UserId
 -                    WHERE u.IsCurrentUser = 1
++                    INNER JOIN Games g ON g.Id = ugp.GameId
 +                    WHERE " + CurrentUserOrLegacyLocalPredicateSql + @"
                        AND ugp.CacheKey IS NOT NULL
                        AND TRIM(ugp.CacheKey) <> ''
                  )
-@@ -5618,7 +5630,7 @@ internal InGameProgressWriteResult ApplyInGameProgress(
+@@ -5618,7 +5631,7 @@ internal InGameProgressWriteResult ApplyInGameProgress(
  
          // Returns the ApiName renames applied while upserting definitions (old -> new), so the
          // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides).
@@ -5995,7 +5996,7 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
          {
              var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
              if (string.IsNullOrWhiteSpace(key))
-@@ -5708,7 +5720,8 @@ public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchiev
+@@ -5708,7 +5721,8 @@ public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchiev
                          achievements,
                          nowIso,
                          updatedIso,
@@ -6005,7 +6006,7 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
  
                      var existingRows = db.Load<UserAchievementRow>(
                          @"SELECT Id, UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, LastUpdatedUtc, CreatedUtc
-@@ -5764,6 +5777,17 @@ FROM UserAchievements
+@@ -5764,6 +5778,17 @@ FROM UserAchievements
  
                          existingRows.Remove(definitionId);
  
@@ -6023,7 +6024,7 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
                          // Progress is monotonic and null-preserving, matching the in-game fast
                          // writer (InGameProgressSqlWriter). Steam progress stats are increment-only,
                          // and a refresh can legitimately carry no progress (a community page that has
-@@ -5803,12 +5827,29 @@ FROM UserAchievements
+@@ -5803,12 +5828,29 @@ FROM UserAchievements
  
                      foreach (var stale in existingRows.Values)
                      {
@@ -6053,7 +6054,7 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
                      // Deduplication: When saving real provider data, remove Unmapped stubs for the same game
                      if (!string.Equals(effectiveProviderKey, "Unmapped", StringComparison.OrdinalIgnoreCase))
                      {
-@@ -7404,8 +7445,10 @@ FROM AchievementDefinitions
+@@ -7404,8 +7446,10 @@ FROM AchievementDefinitions
              // ambiguous, the count invariant never allows the prune, and legacy keys defer friend
              // saves forever. Friend unlock rows attached to pruned rows are re-derived from the next
              // earned fetch; current-user saves never pass authoritativeSource.
@@ -6066,7 +6067,7 @@ index 6306f3a1b77f3b2c772ab924ab8ca38b4c6bf340..1feca0dc7cd167f5289c73d9f68241f3
                  staleDefinitionIds.Count > 0)
              {
                  // Two statements per chunk, not two per id. Re-keying a proxy row makes the whole
-@@ -7662,6 +7705,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
+@@ -7662,6 +7706,12 @@ private ResolvedUser ResolveCurrentUser(string providerKey)
              {
                  externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
              }
@@ -24511,6 +24512,60 @@ index 9031ca875b900f2ceeded59f1b0274d30d9166c9..756d562b30fe00c73d9361a65d936e1b
        "SchemaVersion": "value",
        "ShadPS4MatchIdOverride": "value",
        "SummaryFilteredAchievementApiNames": {
+diff --git a/tests/PlayniteAchievements.Tests/SqlNado/AchievementFilterSummaryQueryTests.cs b/tests/PlayniteAchievements.Tests/SqlNado/AchievementFilterSummaryQueryTests.cs
+index b04ea2cff1a75b73e0b32ccae91627930fb1f76c..aeec27cbdba59ceb0467276fba88b1e2c24ca8c0 100644
+--- a/tests/PlayniteAchievements.Tests/SqlNado/AchievementFilterSummaryQueryTests.cs
++++ b/tests/PlayniteAchievements.Tests/SqlNado/AchievementFilterSummaryQueryTests.cs
+@@ -21,6 +21,49 @@ public class AchievementFilterSummaryQueryTests
+         private const string DecoyGameId = "22222222-2222-2222-2222-222222222222";
+         private const string GameCId = "33333333-3333-3333-3333-333333333333";
+ 
++        [TestMethod]
++        public void AllGamesAchievementDetails_SelectLatestPersonalAndLegacyLocalProgress()
++        {
++            // Execute the production detail CTE, including its shared predicate, so an
++            // unresolved table alias fails here instead of silently emptying theme data.
++            var source = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
++            var detailStart = source.IndexOf("var detailRows = !withAchievements", StringComparison.Ordinal);
++            Assert.IsTrue(detailStart >= 0);
++            var cteStart = source.IndexOf("WITH LatestProgress AS (", detailStart, StringComparison.Ordinal);
++            var cteEnd = source.IndexOf("\n                SELECT", cteStart, StringComparison.Ordinal);
++            var predicateStart = source.IndexOf("internal const string CurrentUserOrLegacyLocalPredicateSql =", StringComparison.Ordinal);
++            predicateStart = source.IndexOf('"', predicateStart) + 1;
++            var predicateEnd = source.IndexOf('"', predicateStart);
++            var predicate = source.Substring(predicateStart, predicateEnd - predicateStart);
++            var sql = source.Substring(cteStart, cteEnd - cteStart)
++                .Replace("\" + CurrentUserOrLegacyLocalPredicateSql + @\"", predicate)
++                + " SELECT UserGameProgressId FROM LatestProgress WHERE RowNum = 1;";
++
++            using (var db = new SQLiteDatabase(":memory:"))
++            {
++                db.ExecuteNonQuery("CREATE TABLE Users (Id INTEGER, IsCurrentUser INTEGER, ProviderKey TEXT);");
++                db.ExecuteNonQuery("CREATE TABLE Games (Id INTEGER, ProviderKey TEXT);");
++                db.ExecuteNonQuery("CREATE TABLE UserGameProgress (Id INTEGER, GameId INTEGER, UserId INTEGER, CacheKey TEXT, LastUpdatedUtc TEXT);");
++                db.ExecuteNonQuery("INSERT INTO Users VALUES (1, 1, 'Steam'), (2, 0, 'Steam'), (3, 0, 'Local');");
++                db.ExecuteNonQuery("INSERT INTO Games VALUES (1, 'Steam'), (2, 'Local');");
++                db.ExecuteNonQuery(@"INSERT INTO UserGameProgress VALUES
++                    (1, 1, 1, 'steam-game', '2026-01-01'),
++                    (2, 1, 1, 'steam-game', '2026-02-01'),
++                    (3, 1, 2, 'steam-game', '2026-03-01'),
++                    (4, 2, 3, 'local-game', '2026-01-01'),
++                    (5, 1, 3, 'wrong-provider', '2026-01-01'),
++                    (6, 1, 1, ' ', '2026-01-01');");
++
++                CollectionAssert.AreEquivalent(new long[] { 2, 4 },
++                    db.Load<AllGamesProgressTestRow>(sql).Select(row => row.UserGameProgressId).ToArray());
++            }
++        }
++
++        public sealed class AllGamesProgressTestRow
++        {
++            public long UserGameProgressId { get; set; }
++        }
++
+         [TestMethod]
+         public void GameSummaryRows_RecomputeHeadlineCountsAndLastUnlockPostFilter()
+         {
 diff --git a/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs b/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs
 index 478356567751b192d581932728d444d31a232065..655349c2181065a721a6b2f460a979d3c279cc48 100644
 --- a/tests/PlayniteAchievements.Tests/SqlNado/SqlNadoCacheBehaviorTests.cs

@@ -1,5 +1,24 @@
 # Fork maintenance bundle
 
+## All-games theme achievement query fix - 2026-11-10
+
+Preserve the `Games g` join inside the achievement-details `LatestProgress` CTE
+in `SqlNadoCacheStore.LoadAllCurrentUserGames`. Its shared current-user/legacy
+Local predicate references `g.ProviderKey`; omitting the join causes SQLite to
+reject the query and theme loading to receive an empty result. The regression
+test executes the production CTE and verifies latest personal progress, legacy
+Local inclusion, friend exclusion, and empty-cache-key exclusion.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean three-way preflight and actual
+replay passed in a temporary baseline checkout: 226 overlays, three localization
+recipes, component hashes, and protected-file checks passed. All 383 compared
+implementation/overlay files matched, normalizing text newlines where needed.
+Working protected files and the real Git index were unchanged. Implementation
+validation in this session: 18 targeted SQL tests passed, and the required Release
+rebuild passed with zero errors and two warnings. Live theme verification in
+Playnite remains pending. Historical validation snapshots were not changed.
+
 ## PS5Core 0.9.9 Local achievements compatibility - 2026-11-10
 
 The clean installation's PS5Core log reports `no such column: ad.CategoryType`.

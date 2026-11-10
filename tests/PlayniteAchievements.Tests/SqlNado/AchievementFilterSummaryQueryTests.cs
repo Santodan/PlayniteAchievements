@@ -22,6 +22,49 @@ namespace PlayniteAchievements.SqlNado.Tests
         private const string GameCId = "33333333-3333-3333-3333-333333333333";
 
         [TestMethod]
+        public void AllGamesAchievementDetails_SelectLatestPersonalAndLegacyLocalProgress()
+        {
+            // Execute the production detail CTE, including its shared predicate, so an
+            // unresolved table alias fails here instead of silently emptying theme data.
+            var source = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var detailStart = source.IndexOf("var detailRows = !withAchievements", StringComparison.Ordinal);
+            Assert.IsTrue(detailStart >= 0);
+            var cteStart = source.IndexOf("WITH LatestProgress AS (", detailStart, StringComparison.Ordinal);
+            var cteEnd = source.IndexOf("\n                SELECT", cteStart, StringComparison.Ordinal);
+            var predicateStart = source.IndexOf("internal const string CurrentUserOrLegacyLocalPredicateSql =", StringComparison.Ordinal);
+            predicateStart = source.IndexOf('"', predicateStart) + 1;
+            var predicateEnd = source.IndexOf('"', predicateStart);
+            var predicate = source.Substring(predicateStart, predicateEnd - predicateStart);
+            var sql = source.Substring(cteStart, cteEnd - cteStart)
+                .Replace("\" + CurrentUserOrLegacyLocalPredicateSql + @\"", predicate)
+                + " SELECT UserGameProgressId FROM LatestProgress WHERE RowNum = 1;";
+
+            using (var db = new SQLiteDatabase(":memory:"))
+            {
+                db.ExecuteNonQuery("CREATE TABLE Users (Id INTEGER, IsCurrentUser INTEGER, ProviderKey TEXT);");
+                db.ExecuteNonQuery("CREATE TABLE Games (Id INTEGER, ProviderKey TEXT);");
+                db.ExecuteNonQuery("CREATE TABLE UserGameProgress (Id INTEGER, GameId INTEGER, UserId INTEGER, CacheKey TEXT, LastUpdatedUtc TEXT);");
+                db.ExecuteNonQuery("INSERT INTO Users VALUES (1, 1, 'Steam'), (2, 0, 'Steam'), (3, 0, 'Local');");
+                db.ExecuteNonQuery("INSERT INTO Games VALUES (1, 'Steam'), (2, 'Local');");
+                db.ExecuteNonQuery(@"INSERT INTO UserGameProgress VALUES
+                    (1, 1, 1, 'steam-game', '2026-01-01'),
+                    (2, 1, 1, 'steam-game', '2026-02-01'),
+                    (3, 1, 2, 'steam-game', '2026-03-01'),
+                    (4, 2, 3, 'local-game', '2026-01-01'),
+                    (5, 1, 3, 'wrong-provider', '2026-01-01'),
+                    (6, 1, 1, ' ', '2026-01-01');");
+
+                CollectionAssert.AreEquivalent(new long[] { 2, 4 },
+                    db.Load<AllGamesProgressTestRow>(sql).Select(row => row.UserGameProgressId).ToArray());
+            }
+        }
+
+        public sealed class AllGamesProgressTestRow
+        {
+            public long UserGameProgressId { get; set; }
+        }
+
+        [TestMethod]
         public void GameSummaryRows_RecomputeHeadlineCountsAndLastUnlockPostFilter()
         {
             WithSeededDb(db =>
