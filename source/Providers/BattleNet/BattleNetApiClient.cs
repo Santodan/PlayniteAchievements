@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -34,6 +35,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         private const string WowAchievementCategoryIndexUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/index?namespace=static-{2}{0}&locale={1}";
         private const string WowAchievementCategoryUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/{1}?namespace=static-{3}{0}&locale={2}";
         private const string WowOfficialCharacterAchievementsUrl = "https://{0}.api.blizzard.com/profile/wow/character/{1}/{2}/achievements?namespace=profile-{4}{0}&locale={3}";
+        private const string WowRealmIndexUrl = "https://{0}.api.blizzard.com/data/wow/realm/index?namespace=dynamic-{2}{0}&locale={1}";
         private const string WowOfficialAccountProfileUrl = "https://{0}.api.blizzard.com/profile/user/wow?namespace=profile-{2}{0}&locale={1}";
         private const string WowGraphQlUrl = "https://worldofwarcraft.blizzard.com/graphql";
         private const string WowStatusUrl = "https://worldofwarcraft.blizzard.com/game/status";
@@ -565,6 +567,26 @@ namespace PlayniteAchievements.Providers.BattleNet
             return _cachedDataForAzerothWowRarity;
         }
 
+        /// <summary>
+        /// Realms from the official API in a version's dynamic namespace, sorted by name.
+        /// </summary>
+        public async Task<List<WowRealm>> GetWowOfficialRealmsAsync(
+            string region,
+            string locale,
+            string bearerToken,
+            CancellationToken ct,
+            string namespacePrefix = "")
+        {
+            var url = BuildWowRealmIndexUrl(region, locale, namespacePrefix);
+            var index = await RateLimiter.ExecuteWithRetryAsync(
+                async () => await GetJsonAsync<WowRealmIndexResponse>(url, ct, bearerToken).ConfigureAwait(false),
+                IsTransientError, ct).ConfigureAwait(false);
+            return (index?.Realms ?? new List<WowRealm>())
+                .Where(r => r != null && !string.IsNullOrWhiteSpace(r.Slug))
+                .OrderBy(r => r.Name ?? r.Slug, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        }
+
         public async Task<List<WowRealm>> GetWowRealmsAsync(string region, CancellationToken ct)
         {
             var hash = await GetWowSha256HashAsync(ct).ConfigureAwait(false);
@@ -633,6 +655,15 @@ namespace PlayniteAchievements.Providers.BattleNet
         internal static string BuildUserInfoUrl(string apiRegion)
         {
             return string.Format(UserInfoUrl, NormalizeApiRegion(apiRegion));
+        }
+
+        internal static string BuildWowRealmIndexUrl(string region, string locale, string namespacePrefix = "")
+        {
+            return string.Format(
+                WowRealmIndexUrl,
+                NormalizeApiRegion(region),
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
         internal static string BuildWowOfficialAccountProfileUrl(string region, string locale, string namespacePrefix = "")
