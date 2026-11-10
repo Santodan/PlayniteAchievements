@@ -76,7 +76,9 @@ namespace PlayniteAchievements.Providers.BattleNet
                 switch (forced)
                 {
                     case BattleNetGameTitle.Wow:
-                        return await _wow.FetchAchievementsAsync(game, locale, ct);
+                    case BattleNetGameTitle.WowClassic:
+                    case BattleNetGameTitle.WowForever:
+                        return await _wow.FetchAchievementsAsync(game, locale, WowVersion.ForTitle(forced), ct);
                     case BattleNetGameTitle.Sc2:
                         return await _sc2.FetchAchievementsAsync(game, locale, ct);
                     default:
@@ -84,10 +86,13 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
             }
 
-            switch (BattleNetGameSupport.ResolveTitleByName(game))
+            var title = BattleNetGameSupport.ResolveTitleByName(game);
+            switch (title)
             {
                 case BattleNetGameTitle.Wow:
-                    return await _wow.FetchAchievementsAsync(game, locale, ct);
+                case BattleNetGameTitle.WowClassic:
+                case BattleNetGameTitle.WowForever:
+                    return await _wow.FetchAchievementsAsync(game, locale, WowVersion.ForTitle(title), ct);
                 case BattleNetGameTitle.Sc2 when BattleNetGameSupport.IsSc2Enabled:
                     return await _sc2.FetchAchievementsAsync(game, locale, ct);
                 default:

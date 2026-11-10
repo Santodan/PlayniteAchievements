@@ -1,0 +1,89 @@
+using System;
+
+namespace PlayniteAchievements.Providers.BattleNet
+{
+    /// <summary>
+    /// One World of Warcraft game version and where its data lives. All versions share the retail
+    /// region and the account-character setting; each keeps its own realm and character.
+    /// </summary>
+    internal sealed class WowVersion
+    {
+        public static readonly WowVersion Retail = new WowVersion(
+            BattleNetGameTitle.Wow,
+            namespacePrefix: string.Empty,
+            appIdSeed: "WoW",
+            logTag: "[BattleNet/WoW]",
+            realmSlug: s => s.WowRealmSlug,
+            character: s => s.WowCharacter);
+
+        /// <summary>The progression Classic realms, served under the "classic-" namespaces.</summary>
+        public static readonly WowVersion Classic = new WowVersion(
+            BattleNetGameTitle.WowClassic,
+            namespacePrefix: "classic-",
+            appIdSeed: "WoWClassic",
+            logTag: "[BattleNet/WoWClassic]",
+            realmSlug: s => s.WowClassicRealmSlug,
+            character: s => s.WowClassicCharacter);
+
+        public static readonly WowVersion Forever = new WowVersion(
+            BattleNetGameTitle.WowForever,
+            namespacePrefix: "forever-",
+            appIdSeed: "WoWForever",
+            logTag: "[BattleNet/WoWForever]",
+            realmSlug: s => s.WowForeverRealmSlug,
+            character: s => s.WowForeverCharacter);
+
+        private readonly Func<BattleNetSettings, string> _realmSlug;
+        private readonly Func<BattleNetSettings, string> _character;
+
+        private WowVersion(
+            BattleNetGameTitle title,
+            string namespacePrefix,
+            string appIdSeed,
+            string logTag,
+            Func<BattleNetSettings, string> realmSlug,
+            Func<BattleNetSettings, string> character)
+        {
+            Title = title;
+            NamespacePrefix = namespacePrefix;
+            AppIdSeed = appIdSeed;
+            LogTag = logTag;
+            _realmSlug = realmSlug;
+            _character = character;
+        }
+
+        public BattleNetGameTitle Title { get; }
+
+        /// <summary>Inserted between "static-"/"profile-" and the region in API namespaces.</summary>
+        public string NamespacePrefix { get; }
+
+        public string AppIdSeed { get; }
+
+        public string LogTag { get; }
+
+        /// <summary>
+        /// Retail builds its catalog from the public worldofwarcraft.com character pages and uses Data
+        /// for Azeroth rarity; the other versions build theirs from the official API only.
+        /// </summary>
+        public bool IsRetail => NamespacePrefix.Length == 0;
+
+        public string RealmSlug(BattleNetSettings settings) => settings == null ? null : _realmSlug(settings);
+
+        public string Character(BattleNetSettings settings) => settings == null ? null : _character(settings);
+
+        public static WowVersion ForTitle(BattleNetGameTitle title)
+        {
+            switch (title)
+            {
+                case BattleNetGameTitle.Wow:
+                    return Retail;
+                case BattleNetGameTitle.WowClassic:
+                    return Classic;
+                case BattleNetGameTitle.WowForever:
+                    return Forever;
+                default:
+                    return null;
+            }
+        }
+    }
+}

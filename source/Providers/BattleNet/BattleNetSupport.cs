@@ -40,17 +40,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return false;
             }
 
-            switch (ResolveTitleByName(game))
-            {
-                case BattleNetGameTitle.Wow:
-                    return true;
-                case BattleNetGameTitle.Sc2:
-                    return IsSc2Enabled && HasSc2Prerequisites(settings);
-                default:
-                    // WoW Classic and WoW Forever are recognized so retail never claims them,
-                    // but no achievement source is wired for them yet.
-                    return false;
-            }
+            return IsTitleScannable(ResolveTitleByName(game), settings);
         }
 
         /// <summary>
@@ -93,14 +83,18 @@ namespace PlayniteAchievements.Providers.BattleNet
                 title != BattleNetGameTitle.None;
         }
 
-        // A forced title is scannable when its account-level prerequisites are met; WoW relies on the
-        // global region/realm/character, SC2 on credentials plus a profile or OAuth session.
+        // A title is scannable when its account-level prerequisites are met. Retail WoW relies on the
+        // global region/realm/character; Classic and Forever read the official API only, so they need
+        // credentials or a signed-in account; SC2 needs credentials plus a profile or OAuth session.
         private static bool IsTitleScannable(BattleNetGameTitle title, BattleNetSettings settings)
         {
             switch (title)
             {
                 case BattleNetGameTitle.Wow:
                     return true;
+                case BattleNetGameTitle.WowClassic:
+                case BattleNetGameTitle.WowForever:
+                    return HasApiCredentials(settings) || HasOAuthSession(settings);
                 case BattleNetGameTitle.Sc2:
                     return IsSc2Enabled && HasSc2Prerequisites(settings);
                 default:

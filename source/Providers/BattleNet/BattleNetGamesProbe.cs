@@ -690,7 +690,8 @@ namespace PlayniteAchievements.Providers.BattleNet
 
         private static string CharacterHref(JObject character)
         {
-            return StringField((character?["character"] as JObject)?["key"] as JObject, "href");
+            var link = character?["character"] as JObject;
+            return StringField(link, "href") ?? StringField(link?["key"] as JObject, "href");
         }
 
         private static int CountArray(string body, string key)
