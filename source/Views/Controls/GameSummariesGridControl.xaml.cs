@@ -548,6 +548,23 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ProgressDetailStylesProperty, value);
         }
 
+        public static readonly DependencyProperty ProgressDetailShownCountProperty =
+            DependencyProperty.Register(
+                nameof(ProgressDetailShownCount),
+                typeof(int),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(ProgressDetailOrder.MinShownCount));
+
+        /// <summary>
+        /// How many of <see cref="ProgressDetailStyles"/> each footer strip shows side by side,
+        /// resolved from the global setting.
+        /// </summary>
+        public int ProgressDetailShownCount
+        {
+            get => (int)GetValue(ProgressDetailShownCountProperty);
+            private set => SetValue(ProgressDetailShownCountProperty, value);
+        }
+
         public static readonly DependencyProperty ShowRarityBadgesBelowProgressProperty =
             DependencyProperty.Register(
                 nameof(ShowRarityBadgesBelowProgress),
@@ -1696,7 +1713,8 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.ProgressDetails))
+                e.PropertyName == nameof(PersistedSettings.ProgressDetails) ||
+                e.PropertyName == nameof(PersistedSettings.ProgressDetailShownCount))
             {
                 UpdateProgressDetails(PlayniteAchievementsPlugin.Instance?.Settings);
             }
@@ -1747,13 +1765,15 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// The global progress details priority list: the enabled styles for the footer strips,
-        /// and whether trophies are enabled for the completion badge's platinum swap.
+        /// The global progress details priority list: the enabled styles and shown count for the
+        /// footer strips, and whether trophies are enabled for the completion badge's platinum swap.
         /// </summary>
         private void UpdateProgressDetails(PlayniteAchievementsSettings settings)
         {
             var details = settings?.Persisted?.ProgressDetails ?? ProgressDetailOrder.Default();
             ProgressDetailStyles = ProgressDetailOrder.EnabledStyles(details);
+            ProgressDetailShownCount = ProgressDetailOrder.ClampShownCount(
+                settings?.Persisted?.ProgressDetailShownCount ?? ProgressDetailOrder.MinShownCount);
             PreferTrophyBadges = ProgressDetailOrder.IsTrophyEnabled(details);
         }
 
