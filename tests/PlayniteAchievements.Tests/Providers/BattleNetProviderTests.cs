@@ -347,6 +347,127 @@ namespace PlayniteAchievements.Tests.Providers
             var settings = new BattleNetSettings();
             Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
             Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+
+            settings.BattleNetClientId = "id";
+            settings.BattleNetClientSecret = "secret";
+            Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
+            Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+        }
+
+        [TestMethod]
+        public void WowVersion_PutsTheVersionPrefixIntoEveryNamespace()
+        {
+            Assert.AreSame(WowVersion.Classic, WowVersion.ForTitle(BattleNetGameTitle.WowClassic));
+            Assert.AreSame(WowVersion.Forever, WowVersion.ForTitle(BattleNetGameTitle.WowForever));
+            Assert.AreSame(WowVersion.Retail, WowVersion.ForTitle(BattleNetGameTitle.Wow));
+            Assert.IsNull(WowVersion.ForTitle(BattleNetGameTitle.Sc2));
+
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/achievement/index?namespace=static-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAchievementIndexUrl("eu", "en_US", WowVersion.Classic.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/achievement-category/15597?namespace=static-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildWowAchievementCategoryUrl("eu", 15597, "en_US", WowVersion.Forever.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/wow/character/shekzeer/eternal/achievements?namespace=profile-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialCharacterAchievementsUrl("eu", "shekzeer", "Eternal", "en_US", WowVersion.Classic.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/user/wow?namespace=profile-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAccountProfileUrl("eu", "en_US", WowVersion.Forever.NamespacePrefix));
+            Assert.AreEqual(
+                "https://us.api.blizzard.com/data/wow/achievement/index?namespace=static-us&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAchievementIndexUrl("us", "en_US"));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/media/achievement/62041?namespace=static-forever-eu",
+                WowGameStrategy.BuildOfficialAchievementMediaHref(null, "eu", 62041, WowVersion.Forever.NamespacePrefix));
+        }
+
+        [TestMethod]
+        public void WowApiClient_BuildsAchievementsUrlFromACharacterProfileLink()
+        {
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/wow/character/some-realm/name/achievements?namespace=profile-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(
+                    "https://eu.api.blizzard.com/profile/wow/character/some-realm/name?namespace=profile-forever-eu",
+                    "en_US"));
+            Assert.IsNull(BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(
+                "https://eu.api.blizzard.com/profile/user/wow/protected-character/1-2?namespace=profile-eu",
+                "en_US"));
+            Assert.IsNull(BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(null, "en_US"));
+        }
+
+        [TestMethod]
+        public void WowAccountCharacters_ReadNameAndRealmFromTheEntryWithTheLinkAsFallback()
+        {
+            var profile = JsonConvert.DeserializeObject<WowAccountProfileResponse>(@"{
+  ""wow_accounts"": [{
+    ""id"": 1,
+    ""characters"": [
+      {
+        ""character"": { ""href"": ""https://eu.api.blizzard.com/profile/wow/character/tarren-mill/cowkiri?namespace=profile-eu"" },
+        ""protected_character"": { ""href"": ""https://eu.api.blizzard.com/profile/user/wow/protected-character/1-2?namespace=profile-eu"" },
+        ""name"": ""Cowkiri"",
+        ""id"": 2,
+        ""realm"": { ""name"": ""Tarren Mill"", ""id"": 1084, ""slug"": ""tarren-mill"" },
+        ""level"": 90
+      },
+      {
+        ""character"": { ""href"": ""https://eu.api.blizzard.com/profile/wow/character/far-realm/linkonly?namespace=profile-forever-eu"" },
+        ""id"": 3
+      },
+      { ""id"": 4 }
+    ]
+  }]
+}");
+
+            var characters = WowGameStrategy.ExtractAccountCharacters("eu", profile);
+
+            Assert.AreEqual(2, characters.Count);
+            Assert.IsTrue(characters[0].HasRealmAndName);
+            Assert.AreEqual("tarren-mill", characters[0].RealmSlug);
+            Assert.AreEqual("Cowkiri", characters[0].CharacterName);
+            Assert.IsFalse(characters[1].HasRealmAndName);
+            StringAssert.Contains(characters[1].ProfileHref, "/linkonly?namespace=profile-forever-eu");
+        }
+
+        [TestMethod]
+        public void WowRealmSlug_AcceptsTypedRealmNames()
+        {
+            Assert.AreEqual("tarren-mill", WowGameStrategy.NormalizeRealmSlug("  Tarren Mill "));
+            Assert.AreEqual("shekzeer", WowGameStrategy.NormalizeRealmSlug("Shek'zeer"));
+            Assert.AreEqual("area-52", WowGameStrategy.NormalizeRealmSlug("area-52"));
+            Assert.IsNull(WowGameStrategy.NormalizeRealmSlug(" "));
+        }
+
+        [TestMethod]
+        public void WowCatalogFromCategories_NestsPathsAndSkipsGuildBranches()
+        {
+            var resources = JsonConvert.DeserializeObject<List<WowAchievementCategoryResource>>(@"[
+  { ""id"": 15568, ""name"": ""Classes"", ""achievements"": [] },
+  { ""id"": 15577, ""name"": ""Druid"", ""parent_category"": { ""id"": 15568, ""name"": ""Classes"" },
+    ""achievements"": [ { ""id"": 62100, ""name"": ""Shapeshifter"" }, { ""id"": 62101, ""name"": ""Bear Form"", ""points"": 10 } ] },
+  { ""id"": 15597, ""name"": ""Ranks"", ""parent_category"": { ""id"": 15590, ""name"": ""Player vs. Player"" },
+    ""achievements"": [ { ""id"": 62041, ""name"": ""Rank 3"" }, { ""id"": 62100, ""name"": ""Duplicate"" } ] },
+  { ""id"": 15088, ""name"": ""Guild"", ""is_guild_category"": true,
+    ""achievements"": [ { ""id"": 5000, ""name"": ""Guild Level"" } ] },
+  { ""id"": 15089, ""name"": ""Guild Dungeons"", ""parent_category"": { ""id"": 15088, ""name"": ""Guild"" },
+    ""achievements"": [ { ""id"": 5001, ""name"": ""Guild Run"" } ] }
+]");
+            var guildIds = new HashSet<int>();
+
+            var achievements = WowGameStrategy.BuildCatalogFromCategories(resources, guildIds);
+
+            CollectionAssert.AreEquivalent(new[] { "62041", "62100", "62101" }, achievements.Select(a => a.ApiName).ToList());
+            Assert.AreEqual(
+                CategoryPathHelper.JoinRaw("Classes", "Druid"),
+                achievements.Single(a => a.ApiName == "62100").Category);
+            Assert.AreEqual(
+                CategoryPathHelper.JoinRaw("Player vs. Player", "Ranks"),
+                achievements.Single(a => a.ApiName == "62041").Category);
+            Assert.AreEqual(10, achievements.Single(a => a.ApiName == "62101").Points);
+            Assert.IsNull(achievements.Single(a => a.ApiName == "62100").Points);
+            CollectionAssert.IsSubsetOf(new[] { 15088, 15089 }, guildIds.ToList());
+            Assert.IsTrue(achievements.All(a => !a.Unlocked));
         }
 
         [TestMethod]
