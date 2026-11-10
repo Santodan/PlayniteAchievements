@@ -29,12 +29,12 @@ namespace PlayniteAchievements.Providers.BattleNet
         private const string AuthorizeUrl = "https://{0}.battle.net/oauth/authorize";
         private const string UserInfoUrl = "https://{0}.battle.net/oauth/userinfo";
         private const string WowBaseAchievementUrl = "https://worldofwarcraft.blizzard.com/{0}/character/{1}/{2}/{3}/achievements/{4}";
-        private const string WowOfficialAchievementIndexUrl = "https://{0}.api.blizzard.com/data/wow/achievement/index?namespace=static-{0}&locale={1}";
-        private const string WowOfficialAchievementUrl = "https://{0}.api.blizzard.com/data/wow/achievement/{1}?namespace=static-{0}&locale={2}";
-        private const string WowAchievementCategoryIndexUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/index?namespace=static-{0}&locale={1}";
-        private const string WowAchievementCategoryUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/{1}?namespace=static-{0}&locale={2}";
-        private const string WowOfficialCharacterAchievementsUrl = "https://{0}.api.blizzard.com/profile/wow/character/{1}/{2}/achievements?namespace=profile-{0}&locale={3}";
-        private const string WowOfficialAccountProfileUrl = "https://{0}.api.blizzard.com/profile/user/wow?namespace=profile-{0}&locale={1}";
+        private const string WowOfficialAchievementIndexUrl = "https://{0}.api.blizzard.com/data/wow/achievement/index?namespace=static-{2}{0}&locale={1}";
+        private const string WowOfficialAchievementUrl = "https://{0}.api.blizzard.com/data/wow/achievement/{1}?namespace=static-{3}{0}&locale={2}";
+        private const string WowAchievementCategoryIndexUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/index?namespace=static-{2}{0}&locale={1}";
+        private const string WowAchievementCategoryUrl = "https://{0}.api.blizzard.com/data/wow/achievement-category/{1}?namespace=static-{3}{0}&locale={2}";
+        private const string WowOfficialCharacterAchievementsUrl = "https://{0}.api.blizzard.com/profile/wow/character/{1}/{2}/achievements?namespace=profile-{4}{0}&locale={3}";
+        private const string WowOfficialAccountProfileUrl = "https://{0}.api.blizzard.com/profile/user/wow?namespace=profile-{2}{0}&locale={1}";
         private const string WowGraphQlUrl = "https://worldofwarcraft.blizzard.com/graphql";
         private const string WowStatusUrl = "https://worldofwarcraft.blizzard.com/game/status";
         // One source of truth for the site lives on DataForAzerothClient; these aliases keep the
@@ -258,9 +258,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             string region,
             string bearerToken,
             string locale,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
-            var url = BuildWowOfficialAccountProfileUrl(region, locale);
+            var url = BuildWowOfficialAccountProfileUrl(region, locale, namespacePrefix);
             return await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<WowAccountProfileResponse>(url, ct, bearerToken).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
@@ -272,11 +273,60 @@ namespace PlayniteAchievements.Providers.BattleNet
             string character,
             string locale,
             string bearerToken,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
-            var url = BuildWowOfficialCharacterAchievementsUrl(region, realmSlug, character, locale);
+            var url = BuildWowOfficialCharacterAchievementsUrl(region, realmSlug, character, locale, namespacePrefix);
             return await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<WowCharacterAchievementsResponse>(url, ct, bearerToken).ConfigureAwait(false),
+                IsTransientError, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Character achievements addressed through the profile link an account entry carries, for
+        /// entries that do not spell out a realm slug and name.
+        /// </summary>
+        public async Task<WowCharacterAchievementsResponse> GetWowCharacterAchievementsByProfileHrefAsync(
+            string profileHref,
+            string locale,
+            string bearerToken,
+            CancellationToken ct)
+        {
+            var url = BuildCharacterAchievementsUrlFromProfileHref(profileHref, locale);
+            if (url == null)
+            {
+                return null;
+            }
+
+            return await RateLimiter.ExecuteWithRetryAsync(
+                async () => await GetJsonAsync<WowCharacterAchievementsResponse>(url, ct, bearerToken).ConfigureAwait(false),
+                IsTransientError, ct).ConfigureAwait(false);
+        }
+
+        public async Task<WowAchievementCategoryIndexResponse> GetWowAchievementCategoryIndexAsync(
+            string region,
+            string locale,
+            string bearerToken,
+            CancellationToken ct,
+            string namespacePrefix = "")
+        {
+            var url = BuildWowAchievementCategoryIndexUrl(region, locale, namespacePrefix);
+            return await RateLimiter.ExecuteWithRetryAsync(
+                async () => await GetJsonAsync<WowAchievementCategoryIndexResponse>(url, ct, bearerToken).ConfigureAwait(false),
+                IsTransientError, ct).ConfigureAwait(false);
+        }
+
+        public async Task<WowAchievementCategoryResource> GetWowAchievementCategoryAsync(
+            string region,
+            int categoryId,
+            string locale,
+            string bearerToken,
+            CancellationToken ct,
+            string namespacePrefix = "")
+        {
+            var url = BuildWowAchievementCategoryUrl(region, categoryId, locale, namespacePrefix);
+            return await RateLimiter.ExecuteWithRetryAsync(
+                async () => await GetJsonAsync<WowAchievementCategoryResource>(url, ct, bearerToken).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
         }
 
@@ -284,9 +334,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             string region,
             string locale,
             string bearerToken,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
-            var index = await GetWowOfficialAchievementIndexAsync(region, locale, bearerToken, ct).ConfigureAwait(false);
+            var index = await GetWowOfficialAchievementIndexAsync(region, locale, bearerToken, ct, namespacePrefix).ConfigureAwait(false);
             var definitions = new List<WowOfficialAchievementDefinition>();
 
             foreach (var reference in index?.Achievements ?? new List<WowOfficialAchievementReference>())
@@ -321,9 +372,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             string region,
             string locale,
             string bearerToken,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
-            var url = BuildWowOfficialAchievementIndexUrl(region, locale);
+            var url = BuildWowOfficialAchievementIndexUrl(region, locale, namespacePrefix);
             return await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<WowOfficialAchievementIndexResponse>(url, ct, bearerToken).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
@@ -334,14 +386,15 @@ namespace PlayniteAchievements.Providers.BattleNet
             int achievementId,
             string locale,
             string bearerToken,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
             if (achievementId <= 0)
             {
                 return null;
             }
 
-            var url = BuildWowOfficialAchievementDefinitionUrl(region, achievementId, locale);
+            var url = BuildWowOfficialAchievementDefinitionUrl(region, achievementId, locale, namespacePrefix);
             return await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<WowOfficialAchievementDefinition>(url, ct, bearerToken).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
@@ -351,16 +404,18 @@ namespace PlayniteAchievements.Providers.BattleNet
             string region,
             string locale,
             string bearerToken,
-            CancellationToken ct)
+            CancellationToken ct,
+            string namespacePrefix = "")
         {
             var apiRegion = NormalizeApiRegion(region);
+            var cacheKey = (namespacePrefix ?? string.Empty) + apiRegion;
             if (_cachedWowGuildCategoryIds != null &&
-                _cachedWowGuildCategoryIds.TryGetValue(apiRegion, out var cached))
+                _cachedWowGuildCategoryIds.TryGetValue(cacheKey, out var cached))
             {
                 return cached;
             }
 
-            var indexUrl = BuildWowAchievementCategoryIndexUrl(apiRegion, locale);
+            var indexUrl = BuildWowAchievementCategoryIndexUrl(apiRegion, locale, namespacePrefix);
             var index = await RateLimiter.ExecuteWithRetryAsync(
                 async () => await GetJsonAsync<WowAchievementCategoryIndexResponse>(indexUrl, ct, bearerToken).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
@@ -381,7 +436,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 var reference = pending.Dequeue();
                 var resourceUrl = !string.IsNullOrWhiteSpace(reference.Key?.Href)
                     ? AddLocaleToUrl(reference.Key.Href, locale)
-                    : BuildWowAchievementCategoryUrl(apiRegion, reference.Id, locale);
+                    : BuildWowAchievementCategoryUrl(apiRegion, reference.Id, locale, namespacePrefix);
 
                 WowAchievementCategoryResource resource = null;
                 try
@@ -409,8 +464,8 @@ namespace PlayniteAchievements.Providers.BattleNet
                 _cachedWowGuildCategoryIds = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
             }
 
-            _cachedWowGuildCategoryIds[apiRegion] = guildIds;
-            _logger?.Info($"[BattleNet/WoW] Loaded guild achievement category ids. count={guildIds.Count}, region={apiRegion}");
+            _cachedWowGuildCategoryIds[cacheKey] = guildIds;
+            _logger?.Info($"[BattleNet/WoW] Loaded guild achievement category ids. count={guildIds.Count}, scope={cacheKey}");
             return guildIds;
         }
 
@@ -580,63 +635,93 @@ namespace PlayniteAchievements.Providers.BattleNet
             return string.Format(UserInfoUrl, NormalizeApiRegion(apiRegion));
         }
 
-        internal static string BuildWowOfficialAccountProfileUrl(string region, string locale)
+        internal static string BuildWowOfficialAccountProfileUrl(string region, string locale, string namespacePrefix = "")
         {
             return string.Format(
                 WowOfficialAccountProfileUrl,
                 NormalizeApiRegion(region),
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
         internal static string BuildWowOfficialCharacterAchievementsUrl(
             string region,
             string realmSlug,
             string character,
-            string locale)
+            string locale,
+            string namespacePrefix = "")
         {
             return string.Format(
                 WowOfficialCharacterAchievementsUrl,
                 NormalizeApiRegion(region),
                 Uri.EscapeDataString((realmSlug ?? string.Empty).Trim().ToLowerInvariant()),
                 Uri.EscapeDataString((character ?? string.Empty).Trim().ToLowerInvariant()),
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
-        internal static string BuildWowOfficialAchievementIndexUrl(string region, string locale)
+        /// <summary>
+        /// Turns a character profile link (".../profile/wow/character/{realm}/{name}?namespace=...")
+        /// into its achievements URL, keeping the link's namespace.
+        /// </summary>
+        internal static string BuildCharacterAchievementsUrlFromProfileHref(string profileHref, string locale)
+        {
+            if (string.IsNullOrWhiteSpace(profileHref) ||
+                !Uri.TryCreate(profileHref, UriKind.Absolute, out var uri) ||
+                uri.AbsolutePath.IndexOf("/profile/wow/character/", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return null;
+            }
+
+            var path = uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
+            if (!path.EndsWith("/achievements", StringComparison.OrdinalIgnoreCase))
+            {
+                path += "/achievements";
+            }
+
+            return AddLocaleToUrl(path + uri.Query, string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale);
+        }
+
+        internal static string BuildWowOfficialAchievementIndexUrl(string region, string locale, string namespacePrefix = "")
         {
             return string.Format(
                 WowOfficialAchievementIndexUrl,
                 NormalizeApiRegion(region),
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
         internal static string BuildWowOfficialAchievementDefinitionUrl(
             string region,
             int achievementId,
-            string locale)
+            string locale,
+            string namespacePrefix = "")
         {
             return string.Format(
                 WowOfficialAchievementUrl,
                 NormalizeApiRegion(region),
                 achievementId,
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
-        internal static string BuildWowAchievementCategoryIndexUrl(string region, string locale)
+        internal static string BuildWowAchievementCategoryIndexUrl(string region, string locale, string namespacePrefix = "")
         {
             return string.Format(
                 WowAchievementCategoryIndexUrl,
                 NormalizeApiRegion(region),
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
-        internal static string BuildWowAchievementCategoryUrl(string region, int categoryId, string locale)
+        internal static string BuildWowAchievementCategoryUrl(string region, int categoryId, string locale, string namespacePrefix = "")
         {
             return string.Format(
                 WowAchievementCategoryUrl,
                 NormalizeApiRegion(region),
                 categoryId,
-                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale));
+                Uri.EscapeDataString(string.IsNullOrWhiteSpace(locale) ? DefaultApiLocale : locale),
+                namespacePrefix ?? string.Empty);
         }
 
         internal static string BuildDataForAzerothDynamicUrl(string path)
