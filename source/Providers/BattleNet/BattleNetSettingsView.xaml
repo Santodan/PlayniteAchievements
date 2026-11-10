@@ -305,44 +305,6 @@
                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             </Grid>
-
-                            <Grid Margin="{StaticResource PlayAch.Thickness.Top.Md}">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Row="0"
-                                           Grid.ColumnSpan="2"
-                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowForeverSection}"
-                                           FontWeight="SemiBold"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowRealm}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <TextBox Grid.Row="1"
-                                         Grid.Column="1"
-                                         Text="{Binding Settings.WowForeverRealmSlug, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                         Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-
-                                <TextBlock Grid.Row="2"
-                                           Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacter}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <TextBox Grid.Row="2"
-                                         Grid.Column="1"
-                                         Text="{Binding Settings.WowForeverCharacter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                         Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                            </Grid>
                         </StackPanel>
                     </Border>
 
