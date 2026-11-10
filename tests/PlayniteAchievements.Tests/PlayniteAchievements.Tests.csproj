@@ -208,6 +208,8 @@
     <Compile Include="..\..\source\Views\Helpers\AnimationFrameRate.cs" Link="Source\Views\Helpers\AnimationFrameRate.cs" />
     <Compile Include="..\..\source\Views\Helpers\RarityGlowPulse.cs" Link="Source\Views\Helpers\RarityGlowPulse.cs" />
     <Compile Include="..\..\source\Views\Helpers\GlowAnimationClock.cs" Link="Source\Views\Helpers\GlowAnimationClock.cs" />
+    <Compile Include="..\..\source\Views\Helpers\GlowAnimationGate.cs" Link="Source\Views\Helpers\GlowAnimationGate.cs" />
+    <Compile Include="..\..\source\Views\Helpers\RayAnimationDriver.cs" Link="Source\Views\Helpers\RayAnimationDriver.cs" />
     <Compile Include="..\..\source\Views\Helpers\Gif\GifCanvas.cs" Link="Source\Views\Helpers\Gif\GifCanvas.cs" />
     <Compile Include="..\..\source\Views\Helpers\Gif\GifFrameClock.cs" Link="Source\Views\Helpers\Gif\GifFrameClock.cs" />
     <Compile Include="..\..\source\Views\Helpers\Gif\GifImage.cs" Link="Source\Views\Helpers\Gif\GifImage.cs" />

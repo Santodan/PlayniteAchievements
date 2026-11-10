@@ -283,6 +283,8 @@ namespace PlayniteAchievements.Views.Controls
 
         bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
 
+        bool IRayAnimationTarget.IgnoresGlowGate => GlowAnimationGate.GetIsExempt(this);
+
         /// <summary>
         /// Whether any part of this burst falls inside the window. IsVisible stays true for an
         /// element scrolled out of its list's viewport - it is merely clipped - so without this a
@@ -673,11 +675,10 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly Dictionary<LayerGeometryKey, StreamGeometry[]> FrameGeometries =
             new Dictionary<LayerGeometryKey, StreamGeometry[]>();
 
-        /// <summary>
-        /// Drops the shared geometry built for the previous frame. Called once per tick by the
-        /// driver, so the cache holds at most the distinct burst shapes on screen.
-        /// </summary>
-        internal static void BeginFrame() => FrameGeometries.Clear();
+        // The driver frame FrameGeometries was built for. The first burst served on a new frame
+        // drops the previous frame's copies, so the cache holds at most the distinct burst shapes
+        // on screen.
+        private static int _frameGeometriesFrame;
 
         private StreamGeometry[] GetSharedLayerGeometries(
             RayArrowLayout.MappedTrack mapped,
@@ -697,6 +698,12 @@ namespace PlayniteAchievements.Views.Controls
                 Count = count,
                 Laps = laps
             };
+
+            if (_frameGeometriesFrame != RayAnimationDriver.FrameNumber)
+            {
+                FrameGeometries.Clear();
+                _frameGeometriesFrame = RayAnimationDriver.FrameNumber;
+            }
 
             if (FrameGeometries.TryGetValue(key, out var cached) && cached.Length == layerCount)
             {

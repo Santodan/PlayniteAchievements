@@ -1563,6 +1563,17 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>
+        /// Holds library glow animations still while any game runs; Playnite sits behind the game,
+        /// and the animations would keep it redrawing at the display's refresh rate.
+        /// </summary>
+        private void UpdateGlowGateForGames()
+        {
+            GlowAnimationGate.Post(
+                PlayniteApi?.MainView?.UIDispatcher ?? System.Windows.Application.Current?.Dispatcher,
+                () => GlowAnimationGate.SetGameRunning(AnyGameRunning()));
+        }
+
         public override void OnGameStarted(OnGameStartedEventArgs args)
         {
             try
@@ -1570,6 +1581,7 @@ namespace PlayniteAchievements
                 TrackStartedGame(args?.Game, args?.StartedProcessId);
                 _windowTracker?.OnGameStarted(args?.Game, args?.StartedProcessId);
                 _libraryProjectionService?.SetGameSessionActive(true);
+                UpdateGlowGateForGames();
                 _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
                 _inGameMonitor?.Start(args?.Game);
                 _unlockRecordings?.OnGameStarted(args?.Game);
@@ -1602,6 +1614,7 @@ namespace PlayniteAchievements
                 }
 
                 _libraryProjectionService?.SetGameSessionActive(AnyGameRunning());
+                UpdateGlowGateForGames();
                 if (args?.Game != null)
                 {
                     _toastNotifications?.ClearPending(args.Game.Id);
@@ -1808,6 +1821,12 @@ namespace PlayniteAchievements
                 }
 
                 StartLibraryMigration();
+
+                // Hold looping glow animations still while Playnite is minimized or in the tray.
+                GlowAnimationGate.Post(
+                    PlayniteApi?.MainView?.UIDispatcher ?? System.Windows.Application.Current?.Dispatcher,
+                    () => GlowAnimationGate.TrackMainWindow(System.Windows.Application.Current?.MainWindow));
+
                 // The friends overview snapshot is intentionally NOT warmed here: it is built
                 // on demand by the first consumer (friends view or a theme friend binding) and
                 // released when the last consumer detaches, so it only occupies memory while
