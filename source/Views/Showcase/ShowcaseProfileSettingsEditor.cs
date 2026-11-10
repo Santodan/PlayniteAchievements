@@ -10,6 +10,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Controls;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
 
 namespace PlayniteAchievements.Views.Showcase
@@ -122,7 +123,7 @@ namespace PlayniteAchievements.Views.Showcase
         private UIElement BuildAddLinkRow()
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -323,7 +324,7 @@ namespace PlayniteAchievements.Views.Showcase
         internal static void AddImagePicker(Panel panel, string label, Func<string> read, Action<string> apply, Action onChanged)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -430,7 +431,7 @@ namespace PlayniteAchievements.Views.Showcase
             Action onCommit = null)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var labelBlock = CreateLabel(label);
@@ -486,7 +487,6 @@ namespace PlayniteAchievements.Views.Showcase
             var block = new TextBlock
             {
                 Text = text,
-                FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 12, 0, 4)
             };
             block.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
