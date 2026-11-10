@@ -25,7 +25,6 @@ namespace PlayniteAchievements.Providers.BattleNet
         private string _wowRegion;
         private string _wowRealmSlug;
         private string _wowCharacter;
-        private bool _wowAggregateAccountCharacters = true;
         private string _wowClassicRealmSlug;
         private string _wowClassicCharacter;
         private bool _useDataForAzerothForWowRarity = true;
@@ -119,12 +118,6 @@ namespace PlayniteAchievements.Providers.BattleNet
         {
             get => _wowCharacter;
             set => SetValue(ref _wowCharacter, value);
-        }
-
-        public bool WowAggregateAccountCharacters
-        {
-            get => _wowAggregateAccountCharacters;
-            set => SetValue(ref _wowAggregateAccountCharacters, value);
         }
 
         /// <summary>WoW Classic realm slug; Classic shares the retail region.</summary>
