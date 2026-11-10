@@ -966,7 +966,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes">Hours and minutes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly">Hours only</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProgressDetails">Progress bar details</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressDetails_Help">Drag to set priority. Each game shows the first enabled style it has data for.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProgressDetails_Help">Drag to set priority. Each game shows the first enabled styles it has data for, up to the number of details per game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProgressDetailShownCount">Details per game</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge">Category completion badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadgeMode_First">First</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn">Category column</sys:String>
