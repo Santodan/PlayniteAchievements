@@ -625,18 +625,6 @@ namespace PlayniteAchievements.Views.Controls
         public IReadOnlyList<ProgressDetailStyle> InlineDescriptionDetailStyles =>
             (IReadOnlyList<ProgressDetailStyle>)GetValue(InlineDescriptionDetailStylesProperty);
 
-        private static readonly DependencyPropertyKey InlineDescriptionDetailSkipPropertyKey =
-            DependencyProperty.RegisterReadOnly(nameof(InlineDescriptionDetailSkip), typeof(int),
-                typeof(AchievementDataGridControl), new PropertyMetadata(0));
-
-        /// <summary>
-        /// Identifies the InlineDescriptionDetailSkip dependency property: 1 while the name spot
-        /// is on, so the description shows the next detail rather than repeating the name's.
-        /// </summary>
-        public static readonly DependencyProperty InlineDescriptionDetailSkipProperty = InlineDescriptionDetailSkipPropertyKey.DependencyProperty;
-
-        public int InlineDescriptionDetailSkip => (int)GetValue(InlineDescriptionDetailSkipProperty);
-
         /// <summary>
         /// Identifies the ColorRarityColumnsByRarity dependency property.
         /// When true, rarity and rarity percent text in this grid are colored by rarity tier
@@ -3314,7 +3302,6 @@ namespace PlayniteAchievements.Views.Controls
 
             SetValue(InlineNameDetailStylesPropertyKey, beforeName ? styles : NoInlineDetails);
             SetValue(InlineDescriptionDetailStylesPropertyKey, beforeDescription ? styles : NoInlineDetails);
-            SetValue(InlineDescriptionDetailSkipPropertyKey, beforeName ? 1 : 0);
         }
 
         // Reads without creating: GetAchievement would add a record for every unknown key.
