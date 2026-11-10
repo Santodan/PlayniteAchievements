@@ -962,6 +962,17 @@
         </Style.Triggers>
     </Style>
 
+    <!-- The rarity, trophy or points detail in front of a name or description. The spot's
+         Styles binding is empty while the grid has that spot off, which measures it to nothing. -->
+    <Style x:Key="AchievementInlineDetailStyle" TargetType="controls:AchievementInlineDetail">
+        <Setter Property="Rarity" Value="{Binding Rarity, Mode=OneWay}"/>
+        <Setter Property="HasRarity" Value="{Binding HasRarityPercent, Mode=OneWay}"/>
+        <Setter Property="TrophyType" Value="{Binding TrophyTypeResolved, Mode=OneWay}"/>
+        <Setter Property="PointsText" Value="{Binding PointsTextResolved, Mode=OneWay}"/>
+        <Setter Property="HasPoints" Value="{Binding HasPoints, Mode=OneWay}"/>
+        <Setter Property="ProviderKey" Value="{Binding ProviderKey, Mode=OneWay}"/>
+    </Style>
+
     <!-- Achievement Info Template with Hidden Styling -->
     <DataTemplate x:Key="AchievementInfoTemplate">
         <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
@@ -971,6 +982,10 @@
                        TextWrapping="Wrap"
                        Style="{StaticResource AchievementNameTextStyle}"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                <InlineUIContainer BaselineAlignment="Center">
+                    <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
+                                                      Styles="{Binding InlineNameDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
+                </InlineUIContainer>
                 <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                      FontStyle="Italic"
@@ -979,8 +994,7 @@
                      FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                      Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
             </TextBlock>
-            <TextBlock Text="{Binding DescriptionResolved}"
-                       FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+            <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
                        Foreground="{DynamicResource PlayAch.Brush.Text}"
                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
@@ -998,6 +1012,12 @@
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
+                <InlineUIContainer BaselineAlignment="Center">
+                    <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
+                                                      Styles="{Binding InlineDescriptionDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                                      Skip="{Binding InlineDescriptionDetailSkip, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
+                </InlineUIContainer>
+                <Run Text="{Binding DescriptionResolved, Mode=OneWay}"/>
             </TextBlock>
         </StackPanel>
     </DataTemplate>

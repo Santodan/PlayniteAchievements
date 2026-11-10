@@ -345,6 +345,8 @@ namespace PlayniteAchievements.Models.Settings
         private double? _maxHeight;
         private bool _startInCategoryMode;
         private bool _hideCategorySummaryRow;
+        private bool _inlineDetailsBeforeName;
+        private bool _inlineDetailsBeforeDescription;
 
         public bool UseCoverImages
         {
@@ -458,6 +460,22 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _hideCategorySummaryRow, value);
         }
 
+        // Show the first detail of the global detail priority (PersistedSettings.ProgressDetails)
+        // that each achievement has, in front of its name.
+        public bool InlineDetailsBeforeName
+        {
+            get => _inlineDetailsBeforeName;
+            set => SetValue(ref _inlineDetailsBeforeName, value);
+        }
+
+        // Same, in front of the description. With both on, the description takes the next detail
+        // the achievement has, so one detail never shows twice on a row.
+        public bool InlineDetailsBeforeDescription
+        {
+            get => _inlineDetailsBeforeDescription;
+            set => SetValue(ref _inlineDetailsBeforeDescription, value);
+        }
+
         public AchievementGridOptions Clone()
         {
             var clone = new AchievementGridOptions();
@@ -474,6 +492,8 @@ namespace PlayniteAchievements.Models.Settings
             clone.MaxHeight = MaxHeight;
             clone.StartInCategoryMode = StartInCategoryMode;
             clone.HideCategorySummaryRow = HideCategorySummaryRow;
+            clone.InlineDetailsBeforeName = InlineDetailsBeforeName;
+            clone.InlineDetailsBeforeDescription = InlineDetailsBeforeDescription;
             return clone;
         }
     }

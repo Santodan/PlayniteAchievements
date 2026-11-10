@@ -180,6 +180,18 @@
                         <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Tag}" Tag="{x:Static settings:AchievementNameColorSource.Tag}"/>
                     </ComboBox>
                 </HeaderedContentControl>
+                <!-- The detail shown is picked by the global detail priority (Settings > Display);
+                     these only choose where it goes. -->
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_InlineDetailBeforeName}"
+                                        Style="{StaticResource OptionRowStyle}">
+                    <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding AchievementOptions.InlineDetailsBeforeName, ElementName=EditorRoot}"/>
+                </HeaderedContentControl>
+                <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_InlineDetailBeforeDescription}"
+                                        Style="{StaticResource OptionRowStyle}">
+                    <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                              IsChecked="{Binding AchievementOptions.InlineDetailsBeforeDescription, ElementName=EditorRoot}"/>
+                </HeaderedContentControl>
                 <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ColorRarityTextByRarity}"
                                         Style="{StaticResource OptionRowStyle}">
                     <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
