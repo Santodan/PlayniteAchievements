@@ -28,8 +28,6 @@ namespace PlayniteAchievements.Providers.BattleNet
         private bool _wowAggregateAccountCharacters = true;
         private string _wowClassicRealmSlug;
         private string _wowClassicCharacter;
-        private string _wowForeverRealmSlug;
-        private string _wowForeverCharacter;
         private bool _useDataForAzerothForWowRarity = true;
         private string _dataForAzerothUserId;
 
@@ -140,19 +138,6 @@ namespace PlayniteAchievements.Providers.BattleNet
         {
             get => _wowClassicCharacter;
             set => SetValue(ref _wowClassicCharacter, value);
-        }
-
-        /// <summary>WoW Forever realm slug; Forever shares the retail region.</summary>
-        public string WowForeverRealmSlug
-        {
-            get => _wowForeverRealmSlug;
-            set => SetValue(ref _wowForeverRealmSlug, value);
-        }
-
-        public string WowForeverCharacter
-        {
-            get => _wowForeverCharacter;
-            set => SetValue(ref _wowForeverCharacter, value);
         }
 
         /// <summary>
