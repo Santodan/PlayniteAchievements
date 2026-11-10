@@ -1015,8 +1015,7 @@
                 </TextBlock.Style>
                 <InlineUIContainer BaselineAlignment="Center">
                     <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
-                                                      Styles="{Binding InlineDescriptionDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
-                                                      Skip="{Binding InlineDescriptionDetailSkip, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
+                                                      Styles="{Binding InlineDescriptionDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
                 </InlineUIContainer>
                 <Run Text="{Binding DescriptionResolved, Mode=OneWay}"/>
             </TextBlock>
