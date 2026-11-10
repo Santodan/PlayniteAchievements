@@ -42,6 +42,7 @@ namespace PlayniteAchievements.Views.Controls
         private ImageSource _image;
         private FormattedText _text;
         private double _iconSize;
+        private double _iconWidth;
 
         public static readonly DependencyProperty StylesProperty = Register(nameof(Styles), typeof(IReadOnlyList<ProgressDetailStyle>), null);
         public static readonly DependencyProperty RarityProperty = Register(nameof(Rarity), typeof(RarityTier), RarityTier.Common);
@@ -197,11 +198,17 @@ namespace PlayniteAchievements.Views.Controls
                     break;
             }
 
+            // The height is fixed to the text line; the width keeps the image's own proportions, so
+            // a badge that is not square is not stretched into one.
+            _iconWidth = _image != null && _image.Height > 0
+                ? Math.Round(_iconSize * _image.Width / _image.Height)
+                : _iconSize;
+
             // The badge shadow the rarity and trophy columns use; points text stays unshadowed.
             Effect = _style.Value == ProgressDetailStyle.Points ? null : TryFindResource("BadgeShadow") as Effect;
             Cursor = IsMasked ? Cursors.Hand : null;
 
-            var width = _iconSize + (_text != null ? TextGap + _text.WidthIncludingTrailingWhitespace : IconGap);
+            var width = _iconWidth + (_text != null ? TextGap + _text.WidthIncludingTrailingWhitespace : IconGap);
             var height = Math.Max(_iconSize, _text?.Height ?? 0);
             return new Size(width, height);
         }
@@ -216,12 +223,12 @@ namespace PlayniteAchievements.Views.Controls
             var height = RenderSize.Height;
             if (_image != null)
             {
-                drawingContext.DrawImage(_image, new Rect(0, (height - _iconSize) / 2, _iconSize, _iconSize));
+                drawingContext.DrawImage(_image, new Rect(0, (height - _iconSize) / 2, _iconWidth, _iconSize));
             }
 
             if (_text != null)
             {
-                drawingContext.DrawText(_text, new Point(_iconSize + TextGap, (height - _text.Height) / 2));
+                drawingContext.DrawText(_text, new Point(_iconWidth + TextGap, (height - _text.Height) / 2));
             }
         }
 
