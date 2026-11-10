@@ -23,13 +23,14 @@ namespace PlayniteAchievements.Providers.BattleNet
     /// Developer-only check of which Blizzard API surfaces serve StarCraft II, WoW Classic and WoW
     /// Forever achievement data, and which Data for Azeroth versions serve rarity. Built to run on a
     /// tester's machine: it uses the tester's saved client credentials, discovers public players from
-    /// ladders and leaderboards instead of reading anyone's own account, and never writes the client
-    /// secret, a token, an account id or a cookie value. Writes report.txt plus raw public JSON
-    /// samples, then zips the folder into one file to send back.
+    /// ladders and leaderboards, and reads the tester's own signed-in account for counts only. It
+    /// never writes the client secret, a token, an account id, a character or realm name, or a cookie
+    /// value. Writes report.txt plus raw public JSON samples, then zips the folder into one file to
+    /// send back.
     /// </summary>
     internal static class BattleNetGamesProbe
     {
-        /// <summary>Hardcoded gate for the hidden probe menu item. Off in shipped builds.</summary>
+        /// <summary>Hardcoded gate for the probe menu item. Turn off before a release.</summary>
         internal static readonly bool Enabled = true;
 
         internal const string ZipName = "battlenet-probe.zip";
@@ -178,23 +179,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 var profileBody = await ctx.GetAsync($"{host}/sc2/profile/{path}?locale={Locale}", $"sc2-profile-{index}.json", ct).ConfigureAwait(false);
                 await ctx.GetAsync($"{host}/sc2/legacy/profile/{path}?locale={Locale}", $"sc2-legacy-profile-{index}.json", ct).ConfigureAwait(false);
 
-                var profile = TryDeserialize<Sc2ProfileResponse>(profileBody);
-                if (profile == null || definitions == null)
-                {
-                    ctx.Report.AppendLine("mapping skipped: catalog or profile did not parse");
-                    continue;
-                }
-
-                var rows = Sc2GameStrategy.BuildAchievements(definitions, profile);
-                var unlocked = rows.Where(r => r.Unlocked).ToList();
-                ctx.Report.AppendLine(
-                    $"mapped: rows={rows.Count}, unlocked={unlocked.Count}, unlockedWithTime={unlocked.Count(r => r.UnlockTimeUtc.HasValue)}, " +
-                    $"earnedListed={profile.EarnedAchievements?.Count ?? 0}, profilePoints={profile.Summary?.TotalAchievementPoints ?? 0}, " +
-                    $"mappedPoints={unlocked.Sum(r => r.Points ?? 0)}");
-                foreach (var row in unlocked.OrderByDescending(r => r.UnlockTimeUtc).Take(5))
-                {
-                    ctx.Report.AppendLine($"  {row.ApiName} | {row.DisplayName} | {row.Category} | {row.UnlockTimeUtc:yyyy-MM-dd}");
-                }
+                ReportSc2Mapping(ctx, definitions, TryDeserialize<Sc2ProfileResponse>(profileBody), sampleRows: true);
             }
 
             if (BattleNetGameSupport.HasOAuthSession(ctx.Settings))
@@ -207,9 +192,51 @@ namespace PlayniteAchievements.Providers.BattleNet
                     bearer: ctx.Settings.BattleNetAccessToken).ConfigureAwait(false);
                 var profiles = TryDeserialize<List<Sc2PlayerProfile>>(body);
                 ctx.Report.AppendLine($"account profiles={profiles?.Count ?? 0}, regions={string.Join(",", (profiles ?? new List<Sc2PlayerProfile>()).Select(p => p?.RegionId ?? 0).Distinct())}");
+
+                var chosen = Sc2GameStrategy.ChooseProfile(profiles, region);
+                if (chosen != null)
+                {
+                    var profileHost = $"https://{BattleNetApiClient.MapSc2RegionIdToApiRegion(chosen.RegionId)}.api.blizzard.com";
+                    var profileBody = await ctx.GetAsync(
+                        $"{profileHost}/sc2/profile/{chosen.RegionId}/{chosen.RealmId}/{chosen.ProfileId}?locale={Locale}",
+                        saveAs: null,
+                        ct,
+                        shownAs: $"/sc2/profile/<account profile, region id {chosen.RegionId}>").ConfigureAwait(false);
+                    ReportSc2Mapping(ctx, definitions, TryDeserialize<Sc2ProfileResponse>(profileBody), sampleRows: false);
+                }
             }
 
             ctx.Report.AppendLine();
+        }
+
+        /// <summary>
+        /// Runs a parsed profile through the provider's mapping and reports the counts. Sample rows
+        /// are for public ladder players only; the tester's own profile reports counts.
+        /// </summary>
+        private static void ReportSc2Mapping(ProbeContext ctx, Sc2AchievementDefinitionsResponse definitions, Sc2ProfileResponse profile, bool sampleRows)
+        {
+            if (profile == null || definitions == null)
+            {
+                ctx.Report.AppendLine("mapping skipped: catalog or profile did not parse");
+                return;
+            }
+
+            var rows = Sc2GameStrategy.BuildAchievements(definitions, profile);
+            var unlocked = rows.Where(r => r.Unlocked).ToList();
+            ctx.Report.AppendLine(
+                $"mapped: rows={rows.Count}, unlocked={unlocked.Count}, unlockedWithTime={unlocked.Count(r => r.UnlockTimeUtc.HasValue)}, " +
+                $"withCategory={rows.Count(r => !string.IsNullOrWhiteSpace(r.Category))}, " +
+                $"earnedListed={profile.EarnedAchievements?.Count ?? 0}, profilePoints={profile.Summary?.TotalAchievementPoints ?? 0}, " +
+                $"mappedPoints={unlocked.Sum(r => r.Points ?? 0)}");
+            if (!sampleRows)
+            {
+                return;
+            }
+
+            foreach (var row in unlocked.OrderByDescending(r => r.UnlockTimeUtc).Take(5))
+            {
+                ctx.Report.AppendLine($"  {row.ApiName} | {row.DisplayName} | {row.Category} | {row.UnlockTimeUtc:yyyy-MM-dd}");
+            }
         }
 
         private static IEnumerable<LadderMember> ReadLadderMembers(string body)
@@ -291,6 +318,36 @@ namespace PlayniteAchievements.Providers.BattleNet
                     bearer: ctx.Settings.BattleNetAccessToken).ConfigureAwait(false);
                 var accounts = TryParse(body)?["wow_accounts"] as JArray;
                 ctx.Report.AppendLine($"wow_accounts={accounts?.Count ?? 0}, characters={accounts?.Sum(a => (a?["characters"] as JArray)?.Count ?? 0) ?? 0}");
+
+                // Highest-level characters first: they are the ones most likely to have earned something.
+                var catalogIds = new HashSet<int>(((TryParse(achievementIndex)?["achievements"] as JArray) ?? new JArray())
+                    .Select(a => a?.Value<int?>("id") ?? 0));
+                var accountCharacters = (accounts ?? new JArray())
+                    .SelectMany(a => (a?["characters"] as JArray) ?? new JArray())
+                    .Where(c => !string.IsNullOrWhiteSpace(c?.Value<string>("name")) && !string.IsNullOrWhiteSpace(c?["realm"]?.Value<string>("slug")))
+                    .OrderByDescending(c => c.Value<int?>("level") ?? 0)
+                    .Take(2)
+                    .ToList();
+                var accountIndex = 0;
+                foreach (var character in accountCharacters)
+                {
+                    accountIndex++;
+                    var realm = Uri.EscapeDataString(character["realm"].Value<string>("slug").ToLowerInvariant());
+                    var name = Uri.EscapeDataString(character.Value<string>("name").ToLowerInvariant());
+                    var achievements = await ctx.GetAsync(
+                        $"{host}/profile/wow/character/{realm}/{name}/achievements?namespace={profileNs}&locale={Locale}",
+                        saveAs: null,
+                        ct,
+                        shownAs: $"/profile/wow/character/<account character {accountIndex}, level {character.Value<int?>("level")}>/achievements").ConfigureAwait(false);
+                    var root = TryParse(achievements);
+                    var completed = ((root?["achievements"] as JArray) ?? new JArray())
+                        .Where(a => a?["completed_timestamp"] != null)
+                        .Select(a => a.Value<int?>("id") ?? 0)
+                        .ToList();
+                    ctx.Report.AppendLine(
+                        $"achievements: total_quantity={root?.Value<int?>("total_quantity")}, total_points={root?.Value<int?>("total_points")}, " +
+                        $"listed={(root?["achievements"] as JArray)?.Count ?? 0}, completed={completed.Count}, completedInCatalog={completed.Count(catalogIds.Contains)}");
+                }
             }
 
             ctx.Report.AppendLine();
@@ -481,11 +538,12 @@ namespace PlayniteAchievements.Providers.BattleNet
             /// <summary>
             /// GETs a Blizzard URL with the client token (or the given user token), logs a one-line
             /// summary, and saves the body when a file name is given. Account calls pass no file name,
-            /// so their bodies are never written.
+            /// so their bodies are never written. Account calls also pass a shownAs label, so their
+            /// URLs, which carry realm, character and profile ids, never reach the report.
             /// </summary>
-            public async Task<string> GetAsync(string url, string saveAs, CancellationToken ct, string bearer = null)
+            public async Task<string> GetAsync(string url, string saveAs, CancellationToken ct, string bearer = null, string shownAs = null)
             {
-                var shownUrl = Redact(url, Settings);
+                var shownUrl = shownAs ?? Redact(url, Settings);
                 try
                 {
                     using (var request = new HttpRequestMessage(HttpMethod.Get, url))
