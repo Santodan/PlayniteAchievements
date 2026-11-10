@@ -48,9 +48,21 @@ namespace PlayniteAchievements.Providers.BattleNet
             var effectiveLocale = string.IsNullOrWhiteSpace(locale) ? "en-US" : locale;
             var apiLocale = BattleNetLocaleMapper.ToApiLocale(effectiveLocale);
 
+            if (!string.IsNullOrEmpty(region) && (string.IsNullOrEmpty(realmSlug) || string.IsNullOrEmpty(character)))
+            {
+                // Signed in without a typed character: the catalog pages come from the account's
+                // highest-level character instead.
+                var accountCharacter = await FindAccountCatalogCharacterAsync(settings, region, apiLocale, ct).ConfigureAwait(false);
+                if (accountCharacter != null)
+                {
+                    realmSlug = accountCharacter.RealmSlug;
+                    character = accountCharacter.CharacterName;
+                }
+            }
+
             if (string.IsNullOrEmpty(region) || string.IsNullOrEmpty(realmSlug) || string.IsNullOrEmpty(character))
             {
-                _logger?.Warn($"[BattleNet/WoW] Region, realm, or character not configured. region={Presence(region)}, realmSlug={Presence(realmSlug)}, character={Presence(character)}");
+                _logger?.Warn($"[BattleNet/WoW] Not signed in, and region, realm, or character not configured. region={Presence(region)}, realmSlug={Presence(realmSlug)}, character={Presence(character)}");
                 return null;
             }
 
@@ -143,6 +155,37 @@ namespace PlayniteAchievements.Providers.BattleNet
             await EnrichDataForAzerothRarityAsync(achievements, settings, ct).ConfigureAwait(false);
 
             return CreateDataOrNull(game, achievements);
+        }
+
+        /// <summary>
+        /// The signed-in account's highest-level retail character with a realm and name, or null when
+        /// not signed in or the account has none.
+        /// </summary>
+        private async Task<WowOfficialCharacterTarget> FindAccountCatalogCharacterAsync(
+            BattleNetSettings settings,
+            string region,
+            string apiLocale,
+            CancellationToken ct)
+        {
+            if (_sessionManager == null || !BattleNetGameSupport.HasOAuthSession(settings))
+            {
+                return null;
+            }
+
+            try
+            {
+                var token = await _sessionManager.GetAccessTokenAsync(ct).ConfigureAwait(false);
+                var profile = await _client.GetWowAccountProfileAsync(region, token, apiLocale, ct).ConfigureAwait(false);
+                return ExtractAccountCharacters(region, profile)
+                    .Where(c => c.HasRealmAndName)
+                    .OrderByDescending(c => c.Level)
+                    .FirstOrDefault();
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                _logger?.Warn(ex, "[BattleNet/WoW] Could not read the signed-in account's characters.");
+                return null;
+            }
         }
 
         /// <summary>
@@ -253,7 +296,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                         ct).ConfigureAwait(false);
                 }
 
-                if (_sessionManager?.IsAuthenticated == true)
+                if (_sessionManager != null && BattleNetGameSupport.HasOAuthSession(settings))
                 {
                     return await _sessionManager.GetAccessTokenAsync(ct).ConfigureAwait(false);
                 }
@@ -805,7 +848,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             var bearerToken = default(string);
             var characters = new List<WowOfficialCharacterTarget>();
 
-            if (settings.WowAggregateAccountCharacters && _sessionManager?.IsAuthenticated == true)
+            if (_sessionManager != null && BattleNetGameSupport.HasOAuthSession(settings))
             {
                 try
                 {
@@ -1274,6 +1317,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             return string.Join("-", slug.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
         }
 
+        internal const int MinimumProfileLevel = 10;
+
         internal static List<WowOfficialCharacterTarget> ExtractAccountCharacters(
             string region,
             WowAccountProfileResponse accountProfile)
@@ -1283,7 +1328,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             {
                 foreach (var entry in account?.Characters ?? Enumerable.Empty<WowAccountProfileCharacterEntry>())
                 {
-                    if (entry == null)
+                    // The profile API answers 404 for characters below level 10.
+                    if (entry == null || (entry.Level > 0 && entry.Level < MinimumProfileLevel))
                     {
                         continue;
                     }
@@ -1293,7 +1339,8 @@ namespace PlayniteAchievements.Providers.BattleNet
                         Region = region,
                         RealmSlug = entry.Realm?.Slug,
                         CharacterName = entry.Name,
-                        ProfileHref = entry.Character?.Href
+                        ProfileHref = entry.Character?.Href,
+                        Level = entry.Level
                     };
                     if (!target.HasRealmAndName && string.IsNullOrWhiteSpace(target.ProfileHref))
                     {
@@ -1507,6 +1554,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             public string RealmSlug { get; set; }
             public string CharacterName { get; set; }
             public string ProfileHref { get; set; }
+            public int Level { get; set; }
             public string SourceLabel { get; set; }
 
             public bool HasRealmAndName =>
