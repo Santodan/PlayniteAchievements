@@ -6,6 +6,7 @@
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -15,6 +16,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:EnumToBoolConverter x:Key="WowSourceToBool"/>
 
             <Style x:Key="BattleNetFieldLabelStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
@@ -58,6 +61,23 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <!-- The account's region: sign-in and every WoW lookup use it. -->
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Common_Region}"
+                                   Style="{StaticResource BattleNetFieldLabelStyle}"/>
+                        <ComboBox Grid.Column="1"
+                                  x:Name="WowRegionCombo"
+                                  SelectionChanged="WowRegion_SelectionChanged"
+                                  FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                    </Grid>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_OAuthHelp}"
@@ -215,47 +235,43 @@
                                            TextWrapping="Wrap"/>
                             </Grid>
 
-                            <!-- Region applies both ways: sign-in and account lookups use it too. -->
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Common_Region}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <ComboBox Grid.Column="1"
-                                          x:Name="WowRegionCombo"
-                                          SelectionChanged="WowRegion_SelectionChanged"
-                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                            </Grid>
-
-                            <!-- Signed in, every character on the account is used, so no character is chosen. -->
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                       TextWrapping="Wrap"
-                                       Margin="140,0,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding WowSignedIn, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         Value="False">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            <!-- Where WoW achievements come from: every character on the signed-in account, or one typed character per version. -->
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <RadioButton GroupName="WowCharacterSource"
+                                             Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceAccount}"
+                                             IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Account}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                             Margin="{StaticResource PlayAch.Thickness.Right.Lg}"/>
+                                <RadioButton GroupName="WowCharacterSource"
+                                             Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceCharacter}"
+                                             IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Character}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+                            </StackPanel>
 
                             <StackPanel>
                                 <StackPanel.Style>
                                     <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding WowSignedIn, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            <DataTrigger Binding="{Binding Settings.WowCharacterSource}" Value="Account">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Settings.WowCharacterSource}" Value="Character">
+                                                <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -263,7 +279,6 @@
 
                                 <Grid>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
@@ -295,11 +310,6 @@
                                              FontSize="{DynamicResource PlayAch.FontSize.Body}"
                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
-                                    <TextBlock Grid.Row="2"
-                                               Grid.Column="1"
-                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacterHint}"
-                                               Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
-                                               TextWrapping="Wrap"/>
                                 </Grid>
 
                                 <Grid Margin="{StaticResource PlayAch.Thickness.Top.Md}">
