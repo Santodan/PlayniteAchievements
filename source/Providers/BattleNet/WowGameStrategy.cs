@@ -48,10 +48,10 @@ namespace PlayniteAchievements.Providers.BattleNet
             var effectiveLocale = string.IsNullOrWhiteSpace(locale) ? "en-US" : locale;
             var apiLocale = BattleNetLocaleMapper.ToApiLocale(effectiveLocale);
 
-            if (!string.IsNullOrEmpty(region) && (string.IsNullOrEmpty(realmSlug) || string.IsNullOrEmpty(character)))
+            if (!string.IsNullOrEmpty(region) && UsesAccount(settings, WowVersion.Retail))
             {
-                // Signed in without a typed character: the catalog pages come from the account's
-                // highest-level character instead.
+                // The catalog pages come from the account's highest-level character; the typed
+                // character stays the fallback while not signed in.
                 var accountCharacter = await FindAccountCatalogCharacterAsync(settings, region, apiLocale, ct).ConfigureAwait(false);
                 if (accountCharacter != null)
                 {
@@ -848,7 +848,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             var bearerToken = default(string);
             var characters = new List<WowOfficialCharacterTarget>();
 
-            if (_sessionManager != null && BattleNetGameSupport.HasOAuthSession(settings))
+            if (_sessionManager != null && UsesAccount(settings, version) && BattleNetGameSupport.HasOAuthSession(settings))
             {
                 try
                 {
@@ -1318,6 +1318,14 @@ namespace PlayniteAchievements.Providers.BattleNet
         }
 
         internal const int MinimumProfileLevel = 10;
+
+        /// <summary>
+        /// Whether a version reads the signed-in account's characters. Forever has no named realms,
+        /// so it always does.
+        /// </summary>
+        internal static bool UsesAccount(BattleNetSettings settings, WowVersion version) =>
+            version == WowVersion.Forever ||
+            settings?.WowCharacterSource != WowCharacterSource.Character;
 
         internal static List<WowOfficialCharacterTarget> ExtractAccountCharacters(
             string region,
