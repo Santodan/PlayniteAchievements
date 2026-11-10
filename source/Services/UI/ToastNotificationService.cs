@@ -2694,6 +2694,9 @@ namespace PlayniteAchievements.Services.UI
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+
+            // The card shows over a running game, while the glow gate holds library glows still.
+            GlowAnimationGate.SetIsExempt(window, true);
             _activeWindow = window;
             _activeDwmComposed = visible;
             if (_activeDwmComposed)
