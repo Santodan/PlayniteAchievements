@@ -226,6 +226,7 @@ namespace PlayniteAchievements.Models.Settings
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
+        private int _progressDetailShownCount = ProgressDetailOrder.MinShownCount;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -2612,7 +2613,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// The progress column footer's detail styles in priority order, each enabled or not. A
-        /// game shows the first enabled style it has data for.
+        /// game shows the first enabled styles it has data for, up to
+        /// <see cref="ProgressDetailShownCount"/>.
         /// </summary>
         /// <remarks>
         /// Always exactly one entry per style (see <see cref="ProgressDetailOrder.Normalize"/>).
@@ -2623,6 +2625,17 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _progressDetails;
             set => SetValue(ref _progressDetails, ProgressDetailOrder.Normalize(value));
+        }
+
+        /// <summary>
+        /// How many of <see cref="ProgressDetails"/> a game shows side by side: the first enabled
+        /// styles it has data for, up to this many. One shows a single style with the later rows
+        /// as fallbacks.
+        /// </summary>
+        public int ProgressDetailShownCount
+        {
+            get => _progressDetailShownCount;
+            set => SetValue(ref _progressDetailShownCount, ProgressDetailOrder.ClampShownCount(value));
         }
 
         /// <summary>
@@ -3419,6 +3432,7 @@ namespace PlayniteAchievements.Models.Settings
                 IconScaleMode = this.IconScaleMode,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
+                ProgressDetailShownCount = this.ProgressDetailShownCount,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -3547,6 +3561,7 @@ namespace PlayniteAchievements.Models.Settings
             IconScaleMode = defaults.IconScaleMode;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressDetails = defaults.ProgressDetails;
+            ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
