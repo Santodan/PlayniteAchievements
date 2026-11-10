@@ -242,7 +242,7 @@
                                              Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceAccount}"
                                              IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Account}"
                                              FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                             Margin="{StaticResource PlayAch.Thickness.Right.Lg}"/>
+                                             Margin="{StaticResource PlayAch.Thickness.Right.Md}"/>
                                 <RadioButton GroupName="WowCharacterSource"
                                              Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceCharacter}"
                                              IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Character}"
