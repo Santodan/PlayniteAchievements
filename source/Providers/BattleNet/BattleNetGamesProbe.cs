@@ -347,6 +347,21 @@ namespace PlayniteAchievements.Providers.BattleNet
                     var slug = StringField(character["realm"] as JObject, "slug");
                     var name = StringField(character, "name");
                     var href = CharacterHref(character);
+                    if (href != null && (slug == null || name == null))
+                    {
+                        // The link's shape with the character name masked, so a version without
+                        // realms shows what stands in the realm position.
+                        var shape = href;
+                        if (name != null)
+                        {
+                            shape = shape.Replace(Uri.EscapeDataString(name.ToLowerInvariant()), "<name>")
+                                .Replace(name.ToLowerInvariant(), "<name>")
+                                .Replace(name, "<name>");
+                        }
+
+                        ctx.Report.AppendLine($"account character {accountIndex} link: {Redact(shape, ctx.Settings)}");
+                    }
+
                     string url;
                     if (slug != null && name != null)
                     {
