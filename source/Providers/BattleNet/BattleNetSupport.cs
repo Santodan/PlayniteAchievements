@@ -84,8 +84,9 @@ namespace PlayniteAchievements.Providers.BattleNet
         }
 
         // A title is scannable when its account-level prerequisites are met. Retail WoW relies on the
-        // global region/realm/character; Classic and Forever read the official API only, so they need
-        // credentials or a signed-in account; SC2 needs credentials plus a profile or OAuth session.
+        // global region/realm/character; Classic reads the official API only, so it needs credentials
+        // or a signed-in account; Forever has no named realms, so its characters come only from a
+        // signed-in account; SC2 needs credentials plus a profile or OAuth session.
         private static bool IsTitleScannable(BattleNetGameTitle title, BattleNetSettings settings)
         {
             switch (title)
@@ -93,8 +94,9 @@ namespace PlayniteAchievements.Providers.BattleNet
                 case BattleNetGameTitle.Wow:
                     return true;
                 case BattleNetGameTitle.WowClassic:
-                case BattleNetGameTitle.WowForever:
                     return HasApiCredentials(settings) || HasOAuthSession(settings);
+                case BattleNetGameTitle.WowForever:
+                    return HasOAuthSession(settings);
                 case BattleNetGameTitle.Sc2:
                     return IsSc2Enabled && HasSc2Prerequisites(settings);
                 default:
