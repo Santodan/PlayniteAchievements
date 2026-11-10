@@ -16,24 +16,16 @@ namespace PlayniteAchievements.Models.Tests
             ProgressDetailStyle.Points
         };
 
-        private static ProgressDetailStyle? Pick(IEnumerable<ProgressDetailStyle> styles, int skip, params ProgressDetailStyle[] withData) =>
-            ProgressDetailOrder.PickInline(styles, withData.Contains, skip);
+        private static ProgressDetailStyle? Pick(IEnumerable<ProgressDetailStyle> styles, params ProgressDetailStyle[] withData) =>
+            ProgressDetailOrder.PickInline(styles, withData.Contains);
 
         [TestMethod]
         public void PickInline_TakesFirstStyleWithData()
         {
             // A PSN row has trophies and rarity; a Steam row only rarity; an Xbox row rarity and points.
-            Assert.AreEqual(ProgressDetailStyle.Trophy, Pick(TrophyRarityPoints, 0, ProgressDetailStyle.Trophy, ProgressDetailStyle.Rarity));
-            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(TrophyRarityPoints, 0, ProgressDetailStyle.Rarity));
-            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(TrophyRarityPoints, 0, ProgressDetailStyle.Rarity, ProgressDetailStyle.Points));
-        }
-
-        [TestMethod]
-        public void PickInline_SkipPassesOverStylesWithData()
-        {
-            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(TrophyRarityPoints, 1, ProgressDetailStyle.Trophy, ProgressDetailStyle.Rarity));
-            Assert.AreEqual(ProgressDetailStyle.Points, Pick(TrophyRarityPoints, 1, ProgressDetailStyle.Rarity, ProgressDetailStyle.Points));
-            Assert.IsNull(Pick(TrophyRarityPoints, 1, ProgressDetailStyle.Rarity));
+            Assert.AreEqual(ProgressDetailStyle.Trophy, Pick(TrophyRarityPoints, ProgressDetailStyle.Trophy, ProgressDetailStyle.Rarity));
+            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(TrophyRarityPoints, ProgressDetailStyle.Rarity));
+            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(TrophyRarityPoints, ProgressDetailStyle.Rarity, ProgressDetailStyle.Points));
         }
 
         [TestMethod]
@@ -41,9 +33,9 @@ namespace PlayniteAchievements.Models.Tests
         {
             var rarityOnly = new[] { ProgressDetailStyle.Rarity };
 
-            Assert.IsNull(Pick(rarityOnly, 0, ProgressDetailStyle.Trophy, ProgressDetailStyle.Points));
-            Assert.IsNull(Pick(new ProgressDetailStyle[0], 0, ProgressDetailStyle.Rarity));
-            Assert.IsNull(ProgressDetailOrder.PickInline(null, style => true, 0));
+            Assert.IsNull(Pick(rarityOnly, ProgressDetailStyle.Trophy, ProgressDetailStyle.Points));
+            Assert.IsNull(Pick(new ProgressDetailStyle[0], ProgressDetailStyle.Rarity));
+            Assert.IsNull(ProgressDetailOrder.PickInline(null, style => true));
         }
 
         [TestMethod]
@@ -58,7 +50,7 @@ namespace PlayniteAchievements.Models.Tests
 
             var styles = ProgressDetailOrder.EnabledStyles(entries);
 
-            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(styles, 0, ProgressDetailStyle.Points, ProgressDetailStyle.Rarity));
+            Assert.AreEqual(ProgressDetailStyle.Rarity, Pick(styles, ProgressDetailStyle.Points, ProgressDetailStyle.Rarity));
         }
 
         [TestMethod]
