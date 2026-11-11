@@ -170,20 +170,7 @@ namespace PlayniteAchievements.Views.Showcase
             switch (_settings.Kind)
             {
                 case ShowcaseWidgetKind.Profile:
-                    AddChoice(
-                        appearanceRows,
-                        Localize("LOCPlayAch_Showcase_ProfileMedals"),
-                        new[]
-                        {
-                            ShowcaseProfileMedalMode.Rarity,
-                            ShowcaseProfileMedalMode.Trophy,
-                            ShowcaseProfileMedalMode.Both,
-                            ShowcaseProfileMedalMode.Points,
-                            ShowcaseProfileMedalMode.None
-                        },
-                        ShowcaseWidgetOptions.GetProfileMedalMode(_settings),
-                        value => ShowcaseWidgetOptions.SetProfileMedalMode(_settings, value),
-                        ProfileMedalModeName);
+                    AddProfileMedalRows(appearanceRows);
                     AddToggle(
                         appearanceRows,
                         Localize("LOCPlayAch_Column_Unlocks"),
@@ -1269,6 +1256,87 @@ namespace PlayniteAchievements.Views.Showcase
             {
                 ShowcaseConfigurationEvents.RaiseChanged();
             }
+        }
+
+        /// <summary>
+        /// The profile card's medal rows, shaped like the Achievement styles list: Rarity, Trophy
+        /// and Points, each ticked on or off and moved up or down to set the order the medals run in.
+        /// </summary>
+        private void AddProfileMedalRows(Panel panel)
+        {
+            var labelBlock = new TextBlock
+            {
+                Text = Localize("LOCPlayAch_Showcase_ProfileMedals"),
+                Margin = new Thickness(0, 4, 0, 2)
+            };
+            labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+            panel.Children.Add(labelBlock);
+
+            var rows = ShowcaseWidgetOptions.GetProfileMedalRows(_settings);
+            var list = new StackPanel();
+            panel.Children.Add(list);
+
+            void Store()
+            {
+                ShowcaseWidgetOptions.SetProfileMedalRows(_settings, rows);
+                _persist?.Invoke();
+                if (_publishChanges)
+                {
+                    ShowcaseConfigurationEvents.RaiseChanged();
+                }
+            }
+
+            void Move(int index, int direction)
+            {
+                var target = index + direction;
+                if (target < 0 || target >= rows.Count)
+                {
+                    return;
+                }
+
+                var row = rows[index];
+                rows.RemoveAt(index);
+                rows.Insert(target, row);
+                Store();
+                Render();
+            }
+
+            void Render()
+            {
+                list.Children.Clear();
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    var index = i;
+                    var entry = rows[i];
+                    var row = new Grid();
+                    row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var check = new CheckBox
+                    {
+                        Content = ProfileMedalRowName(entry.Style),
+                        IsChecked = entry.Enabled,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    check.Click += (_, __) =>
+                    {
+                        entry.Enabled = check.IsChecked == true;
+                        Store();
+                    };
+                    row.Children.Add(check);
+
+                    // IcoFont arrow-up and arrow-down, as the profile links use.
+                    ShowcaseProfileSettingsEditor.AddListRowButton(row, 1, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
+                        () => Move(index, -1));
+                    ShowcaseProfileSettingsEditor.AddListRowButton(row, 2, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < rows.Count - 1,
+                        () => Move(index, 1));
+                    list.Children.Add(row);
+                }
+            }
+
+            Render();
         }
 
         /// <summary>
