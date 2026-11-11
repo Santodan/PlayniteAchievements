@@ -52,20 +52,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
     }
 
-    /// <summary>A stat-strip tile: formatted value plus localized label.</summary>
-    public sealed class ProfileStatViewModel
-    {
-        public ProfileStatViewModel(string value, string label)
-        {
-            Value = value;
-            Label = label;
-        }
-
-        public string Value { get; }
-
-        public string Label { get; }
-    }
-
     /// <summary>
     /// Backs the Profile widget: avatar resolved from the provider identity with a manual
     /// override, the manual display name (none while blank) and background, plus a medal-count row (an optional
@@ -93,7 +79,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private bool _showSubtitle;
         private bool _showMedals;
         private bool _showStatStrip;
-        private int _statColumns = 4;
         private bool _isStacked;
         private bool _isCenteredRow;
         private bool _isFullBleed;
@@ -125,8 +110,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         public BulkObservableCollection<BadgeCountItem> Medals { get; } =
             new BulkObservableCollection<BadgeCountItem>();
 
-        public BulkObservableCollection<ProfileStatViewModel> Stats { get; } =
-            new BulkObservableCollection<ProfileStatViewModel>();
+        /// <summary>The stat strip: the same tiles the Statistics widget draws.</summary>
+        public StatBlockViewModel Stats { get; } = new StatBlockViewModel();
 
         public BulkObservableCollection<ProfileLinkViewModel> Links { get; } =
             new BulkObservableCollection<ProfileLinkViewModel>();
@@ -163,9 +148,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         public bool ShowStatStrip { get => _showStatStrip; private set => SetValue(ref _showStatStrip, value); }
 
-        /// <summary>Strip columns: one per stat up to four, balanced across rows past that.</summary>
-        public int StatColumns { get => _statColumns; private set => SetValue(ref _statColumns, value); }
-
         /// <summary>Stacked layout: avatar above the text, every line centered.</summary>
         public bool IsStacked
         {
@@ -175,26 +157,12 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 if (SetValueAndReturn(ref _isStacked, value))
                 {
                     OnPropertyChanged(nameof(TextAlignment));
-                    OnPropertyChanged(nameof(CenterStats));
                 }
             }
         }
 
         /// <summary>Centered layout: the left layout's blocks, unchanged, centered across the card.</summary>
-        public bool IsCenteredRow
-        {
-            get => _isCenteredRow;
-            private set
-            {
-                if (SetValueAndReturn(ref _isCenteredRow, value))
-                {
-                    OnPropertyChanged(nameof(CenterStats));
-                }
-            }
-        }
-
-        /// <summary>Both centered layouts center a short last row of stats under the full rows.</summary>
-        public bool CenterStats => IsStacked || IsCenteredRow;
+        public bool IsCenteredRow { get => _isCenteredRow; private set => SetValue(ref _isCenteredRow, value); }
 
         public TextAlignment TextAlignment => IsStacked ? TextAlignment.Center : TextAlignment.Left;
 
@@ -257,12 +225,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ? resolved.Links
                 : null);
 
-            Stats.ReplaceAll(BuildStatStrip());
-            ShowStatStrip = Stats.Count > 0;
-            // At most four per row, spread evenly across the rows: five stats read as 3 + 2
-            // rather than 4 + 1.
-            var statRows = Math.Max(1, (int)Math.Ceiling(Stats.Count / 4.0));
-            StatColumns = Math.Max(1, (int)Math.Ceiling(Stats.Count / (double)statRows));
+            Stats.TextAlignment = TextAlignment;
+            Stats.SetStatistics(SelectStripStatistics());
+            ShowStatStrip = Stats.HasTiles;
         }
 
         // Rebuilt only when the resolved links change, so an unrelated re-projection does not
@@ -343,25 +308,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             return medals;
         }
 
-        private IReadOnlyList<ProfileStatViewModel> BuildStatStrip()
+        // The instance's stat slots in slot order, skipping any statistic without a value.
+        private IReadOnlyList<ShowcaseStatistic> SelectStripStatistics()
         {
             var statistics = _scope.Statistics;
-            var tiles = new List<ProfileStatViewModel>();
+            var selected = new List<ShowcaseStatistic>();
             foreach (var key in ShowcaseWidgetOptions.GetProfileStatKeys(Projection?.Instance))
             {
                 var stat = statistics.FirstOrDefault(item =>
                     item != null && string.Equals(item.Key, key, StringComparison.Ordinal));
-                if (stat == null || !stat.HasValue)
+                if (stat != null && stat.HasValue)
                 {
-                    continue;
+                    selected.Add(stat);
                 }
-
-                tiles.Add(new ProfileStatViewModel(
-                    ShowcaseStatisticFormatter.Format(stat),
-                    ResourceProvider.GetString(stat.LabelKey)));
             }
 
-            return tiles;
+            return selected;
         }
     }
 }
