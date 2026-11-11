@@ -3657,26 +3657,6 @@ namespace PlayniteAchievements.ViewModels
             InvalidateLinkedSnapshots();
         }
 
-        private ISet<string> GetCompletedGamesPieProgressFilters()
-        {
-            if (_selectedCompletenessFilters == null || _selectedCompletenessFilters.Count == 0)
-            {
-                return null;
-            }
-
-            var noProgressLabel = L("LOCPlayAch_Filter_NoProgress");
-            if (_selectedCompletenessFilters.Contains(noProgressLabel))
-            {
-                return null;
-            }
-
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress")
-            };
-        }
-
         private GameSummaryItem ResolveSelectedGameForChartContext(OverviewDataSnapshot snapshot)
         {
             if (SelectedGame?.PlayniteGameId.HasValue != true)
