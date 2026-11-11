@@ -15,11 +15,11 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <!-- The Achievement styles priority every surface follows, and how many of them a
-         progress bar shows. Hosted on the General settings page. -->
+    <!-- The Achievement styles priority every surface follows. Hosted on the General
+         settings page. -->
     <StackPanel>
         <!-- Priority list: drag a row to reorder; each game shows the first enabled
-             styles it has data for, up to the details-per-game count below. Rarity's
+             styles it has data for, up to Display's progress bar details count. Rarity's
              checkbox is locked on. -->
         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AchievementStyles}"
                              Hint="{DynamicResource LOCPlayAch_Settings_AchievementStyles_Help}">
@@ -113,12 +113,6 @@
                     </Border>
                 </Popup>
             </Grid>
-        </controls:SettingRow>
-        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AchievementStyles_ProgressBarCount}">
-            <TextBox Text="{Binding Persisted.ProgressDetailShownCount, UpdateSourceTrigger=LostFocus}"
-                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
-                     HorizontalAlignment="Left"
-                     TextAlignment="Right"/>
         </controls:SettingRow>
     </StackPanel>
 </UserControl>
