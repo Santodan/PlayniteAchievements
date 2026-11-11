@@ -14,7 +14,7 @@ using PlayniteAchievements.Views.Settings.Controls;
 namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
-    /// The rarity, trophy and points priority list: drag rows to reorder, tick Trophy or Points
+    /// The Achievement styles list: the rarity, trophy and points priority: drag rows to reorder, tick Trophy or Points
     /// to use them. Rarity stays on. Edits write straight to the persisted list.
     /// </summary>
     public partial class ProgressDetailPriorityEditor : UserControl, IDisposable
