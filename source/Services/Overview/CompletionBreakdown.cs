@@ -23,8 +23,9 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
-        /// The finish badges in slice order: the platinum and mythic in detail priority order,
-        /// then the completed badge.
+        /// The finish badges in priority order: the platinum and mythic as the Achievement styles
+        /// order them, then the completed badge. The pie sorts its slices by count and falls back
+        /// to this order on ties.
         /// </summary>
         public IReadOnlyList<CompletionBadgeKind> FinishOrder { get; private set; } = CompletedOnly;
 
