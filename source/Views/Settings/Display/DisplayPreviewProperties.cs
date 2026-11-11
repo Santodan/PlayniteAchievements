@@ -24,6 +24,8 @@ namespace PlayniteAchievements.Views.Settings.Display
             nameof(PersistedSettings.ShowHiddenPoints),
             nameof(PersistedSettings.ShowLockedTrophy),
             nameof(PersistedSettings.ShowLockedPoints),
+            nameof(PersistedSettings.ShowHiddenRarity),
+            nameof(PersistedSettings.ShowLockedRarity),
             nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
             nameof(PersistedSettings.LockedFallbackIconPath),
             nameof(PersistedSettings.HiddenFallbackIconPath),
