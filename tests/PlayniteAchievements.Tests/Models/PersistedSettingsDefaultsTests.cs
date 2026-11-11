@@ -228,7 +228,7 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndDisplayReset()
+        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndResets()
         {
             var source = new PersistedSettings { ProgressDetailShownCount = 3 };
 
@@ -242,9 +242,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(3, clone.ProgressDetailShownCount);
             Assert.AreEqual(3, target.ProgressDetailShownCount);
 
-            // The priority lives on the General page, so the Display tab's reset keeps it.
             source.ResetDisplaySettingsToDefaults();
-            Assert.AreEqual(3, source.ProgressDetailShownCount);
+            Assert.AreEqual(1, source.ProgressDetailShownCount);
         }
 
         [TestMethod]
