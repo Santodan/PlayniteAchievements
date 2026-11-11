@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Services.Overview
                 return breakdown;
             }
 
-            breakdown.FinishOrder = OrderFor(detailOrder);
+            breakdown.FinishOrder = FinishOrderFor(detailOrder);
             var byGame = snapshot.CompletionsByGame;
             var counted = 0;
             var inProgress = 0;
@@ -106,7 +106,11 @@ namespace PlayniteAchievements.Services.Overview
             return breakdown;
         }
 
-        private static IReadOnlyList<CompletionBadgeKind> OrderFor(IReadOnlyList<ProgressDetailStyle> detailOrder)
+        /// <summary>
+        /// The finish badges <paramref name="detailOrder"/> allows, in its order: the platinum
+        /// for Trophy, the mythic for Points, then the completed badge.
+        /// </summary>
+        public static IReadOnlyList<CompletionBadgeKind> FinishOrderFor(IReadOnlyList<ProgressDetailStyle> detailOrder)
         {
             var order = new List<CompletionBadgeKind>();
             foreach (var style in detailOrder ?? Array.Empty<ProgressDetailStyle>())
