@@ -143,7 +143,8 @@ namespace PlayniteAchievements.Views.Showcase
 
             if (_backgroundDefault.HasValue)
             {
-                AddChoice(
+                // The custom title's alignment: shown only while the widget has a title to align.
+                _titleAlignmentRow = AddChoice(
                     appearanceRows,
                     Localize("LOCPlayAch_Settings_Display_Alignment"),
                     new[]
@@ -155,6 +156,7 @@ namespace PlayniteAchievements.Views.Showcase
                     ShowcaseWidgetOptions.GetTitleAlignment(_settings),
                     value => ShowcaseWidgetOptions.SetTitleAlignment(_settings, value),
                     HorizontalAlignmentName);
+                SetHasTitle(!string.IsNullOrWhiteSpace(_settings.CustomTitle));
                 AddToggle(
                     appearanceRows,
                     Localize("LOCPlayAch_Showcase_ShowBackground"),
@@ -1255,6 +1257,17 @@ namespace PlayniteAchievements.Views.Showcase
             if (_publishChanges)
             {
                 ShowcaseConfigurationEvents.RaiseChanged();
+            }
+        }
+
+        private FrameworkElement _titleAlignmentRow;
+
+        /// <summary>Shows the title alignment row while the host's title box holds a title.</summary>
+        internal void SetHasTitle(bool hasTitle)
+        {
+            if (_titleAlignmentRow != null)
+            {
+                _titleAlignmentRow.Visibility = hasTitle ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
