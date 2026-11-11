@@ -236,9 +236,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         Localize("LOCPlayAch_Common_Locked"));
                     break;
                 default:
-                    chart.SetCompletionData(
-                        CompletionBreakdown.From(snapshot, detailOrder),
-                        ShowcaseWidgetOptions.GetPieSplitIncomplete(Projection?.Instance));
+                    chart.SetCompletionData(CompletionBreakdown.From(snapshot, detailOrder));
                     break;
             }
 
