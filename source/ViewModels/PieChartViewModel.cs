@@ -309,14 +309,16 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Sets the pie chart data for completions: one slice per finish badge in the breakdown's
-        /// order (mythic, platinum, completed), then the open finishes, as one Incomplete slice
-        /// or split into In Progress and No Progress.
+        /// Sets the pie chart data for completions: one slice per finish badge, most finishes
+        /// first (ties keep the breakdown's priority order), then the open finishes, as one
+        /// Incomplete slice or split into In Progress and No Progress.
         /// </summary>
         public void SetCompletionData(CompletionBreakdown breakdown, bool splitIncomplete)
         {
             var dataPoints = new List<PieSliceInputData>();
-            foreach (var kind in breakdown?.FinishOrder ?? Array.Empty<CompletionBadgeKind>())
+            var finishOrder = (breakdown?.FinishOrder ?? Array.Empty<CompletionBadgeKind>())
+                .OrderByDescending(kind => breakdown.Finishes(kind));
+            foreach (var kind in finishOrder)
             {
                 var count = breakdown.Finishes(kind);
                 dataPoints.Add(new PieSliceInputData
