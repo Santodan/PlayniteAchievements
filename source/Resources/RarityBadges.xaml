@@ -223,6 +223,29 @@
     </DrawingImage.Drawing>
   </DrawingImage>
 
+  <!-- Masked rarity: the uniform hexagon, so the shape does not give the tier away, in the slate
+       fill and rim of the masked trophy (TrophyUnknown in TrophyBadges.xaml). Reached through the
+       runtime BadgeRarityUnknown alias, which swaps in TrophyUnknown when rarity draws as trophies. -->
+  <LinearGradientBrush x:Key="FillRarityUnknown" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Offset="0" Color="#3B414A"/>
+    <GradientStop Offset="1" Color="#2C3138"/>
+  </LinearGradientBrush>
+
+  <SolidColorBrush x:Key="RimRarityUnknown" Color="#8A939F"/>
+
+  <DrawingImage x:Key="BadgeUnknownHexagon">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource FillRarityUnknown}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimRarityUnknown}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource ShineOverlay}"/>
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
   <!-- Achievement-status checkmark (shared by the Status column and the grid control bar filter) -->
   <Geometry x:Key="GeoCheck">M 3,9 L 7,13 L 15,5</Geometry>
 
