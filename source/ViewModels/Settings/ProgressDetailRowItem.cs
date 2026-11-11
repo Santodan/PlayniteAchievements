@@ -5,7 +5,7 @@ using PlayniteAchievements.Models.Settings;
 namespace PlayniteAchievements.ViewModels.Settings
 {
     /// <summary>
-    /// One row of the rarity, trophy and points priority grid in General settings.
+    /// One row of the Achievement styles priority grid in General settings.
     /// </summary>
     /// <remarks>
     /// The grid writes edits straight to the persisted list; this row only mirrors it.
