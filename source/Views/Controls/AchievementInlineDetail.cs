@@ -48,6 +48,7 @@ namespace PlayniteAchievements.Views.Controls
         public static readonly DependencyProperty RarityProperty = Register(nameof(Rarity), typeof(RarityTier), RarityTier.Common);
         public static readonly DependencyProperty HasRarityProperty = Register(nameof(HasRarity), typeof(bool), false);
         public static readonly DependencyProperty ShowsRarityProperty = Register(nameof(ShowsRarity), typeof(bool), false);
+        public static readonly DependencyProperty IsRarityHiddenProperty = Register(nameof(IsRarityHidden), typeof(bool), false);
         public static readonly DependencyProperty TrophyTypeProperty = Register(nameof(TrophyType), typeof(string), null);
         public static readonly DependencyProperty PointsTextProperty = Register(nameof(PointsText), typeof(string), null);
         public static readonly DependencyProperty HasPointsProperty = Register(nameof(HasPoints), typeof(bool), false);
@@ -89,6 +90,13 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (bool)GetValue(ShowsRarityProperty);
             set => SetValue(ShowsRarityProperty, value);
+        }
+
+        /// <summary>Whether the rarity mask applies: the unknown-rarity badge stands in for the tier.</summary>
+        public bool IsRarityHidden
+        {
+            get => (bool)GetValue(IsRarityHiddenProperty);
+            set => SetValue(IsRarityHiddenProperty, value);
         }
 
         /// <summary>The resolved grade: <see cref="AchievementDisplayItem.MaskedTrophyType"/> while masked.</summary>
@@ -175,7 +183,7 @@ namespace PlayniteAchievements.Views.Controls
             switch (_style.Value)
             {
                 case ProgressDetailStyle.Rarity:
-                    _image = TryFindResource(RarityImageKey(Rarity)) as ImageSource;
+                    _image = TryFindResource(IsRarityHidden ? "BadgeRarityUnknown" : RarityImageKey(Rarity)) as ImageSource;
                     break;
                 case ProgressDetailStyle.Trophy:
                     _image = TryFindResource(TrophyImageKey(TrophyType)) as ImageSource;
@@ -233,6 +241,7 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         private bool IsMasked =>
+            (_style == ProgressDetailStyle.Rarity && IsRarityHidden) ||
             (_style == ProgressDetailStyle.Trophy &&
              string.Equals(TrophyType, AchievementDisplayItem.MaskedTrophyType, StringComparison.OrdinalIgnoreCase)) ||
             (_style == ProgressDetailStyle.Points &&
