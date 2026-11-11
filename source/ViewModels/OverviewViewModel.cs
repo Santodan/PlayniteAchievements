@@ -187,10 +187,16 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameAllAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
-            // Default the progress dropdown to the full completed + incomplete scope. Its label
-            // shows the placeholder until the first edit, then always lists the picks.
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete"));
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress"));
+            // Default the progress dropdown to every finish plus In Progress, leaving out games
+            // with no progress. Every finish key is held, offered or not, so a later Achievement
+            // styles change keeps those games. Its label shows the placeholder until the first
+            // edit, then always lists the picks.
+            foreach (var key in ProgressFilterChoices.AllFinishes)
+            {
+                _selectedCompletenessFilters.Add(key);
+            }
+
+            _selectedCompletenessFilters.Add(ProgressFilterChoices.InProgress);
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -337,7 +343,8 @@ namespace PlayniteAchievements.ViewModels
                 () => SelectedCompletenessFilterText,
                 () => CompletenessFilterOptions,
                 IsCompletenessFilterSelected,
-                SetCompletenessFilterSelected)
+                SetCompletenessFilterSelected,
+                ProgressFilterChoices.Label)
             {
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
@@ -742,12 +749,19 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _completenessFilterOptions, value);
         }
 
-        public string SelectedCompletenessFilterText => _completenessFilterEdited
-            ? GetSelectedFilterText(
-                _selectedCompletenessFilters,
-                CompletenessFilterOptions,
-                L("LOCPlayAch_Progress"))
-            : L("LOCPlayAch_Progress");
+        public string SelectedCompletenessFilterText
+        {
+            get
+            {
+                var picked = _completenessFilterEdited
+                    ? (CompletenessFilterOptions ?? new ObservableCollection<string>())
+                        .Where(_selectedCompletenessFilters.Contains)
+                        .Select(ProgressFilterChoices.Label)
+                        .ToList()
+                    : new List<string>();
+                return picked.Count == 0 ? L("LOCPlayAch_Progress") : string.Join(", ", picked);
+            }
+        }
 
         public bool IsCompletenessFilterSelected(string value)
         {
@@ -797,62 +811,38 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Toggles progress filters when a games pie slice is clicked.
-        /// The two-slice games pie maps Incomplete to both non-complete progress buckets.
+        /// Applies a Completions pie slice click to the Progress filter. The first click on the
+        /// untouched default keeps only that slice's choice; after that a click toggles it.
         /// </summary>
-        /// <param name="completenessLabel">The progress label from the clicked slice.</param>
-        public void ToggleCompletenessFilterFromPieChart(string completenessLabel)
+        /// <param name="key">The slice's <see cref="ProgressFilterChoices"/> key.</param>
+        public void ToggleCompletenessFilterFromPieChart(string key)
         {
-            if (string.IsNullOrWhiteSpace(completenessLabel))
+            if (string.IsNullOrWhiteSpace(key) || !CompletenessFilterOptions.Contains(key))
             {
                 return;
             }
 
-            var completeOption = L("LOCPlayAch_Filter_Complete");
-            var inProgressOption = L("LOCPlayAch_Filter_InProgress");
-            var noProgressOption = L("LOCPlayAch_Filter_NoProgress");
-            var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete");
-            var targetFilters = new List<string>();
-
-            if (string.Equals(completenessLabel, completeOption, StringComparison.OrdinalIgnoreCase))
+            if (!_completenessFilterEdited)
             {
-                targetFilters.Add(completeOption);
+                _selectedCompletenessFilters.Clear();
+                _selectedCompletenessFilters.Add(key);
             }
-            else if (string.Equals(completenessLabel, incompleteSliceLabel, StringComparison.OrdinalIgnoreCase))
+            else if (!_selectedCompletenessFilters.Remove(key))
             {
-                targetFilters.Add(inProgressOption);
-                targetFilters.Add(noProgressOption);
-            }
-            else if (string.Equals(completenessLabel, inProgressOption, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(completenessLabel, noProgressOption, StringComparison.OrdinalIgnoreCase))
-            {
-                // A split Incomplete's own slices toggle their one filter.
-                targetFilters.Add(string.Equals(completenessLabel, inProgressOption, StringComparison.OrdinalIgnoreCase)
-                    ? inProgressOption
-                    : noProgressOption);
-            }
-            else
-            {
-                return;
-            }
-
-            var shouldSelect = targetFilters.Any(filter => !_selectedCompletenessFilters.Contains(filter));
-            foreach (var filter in targetFilters)
-            {
-                if (shouldSelect)
-                {
-                    _selectedCompletenessFilters.Add(filter);
-                }
-                else
-                {
-                    _selectedCompletenessFilters.Remove(filter);
-                }
+                _selectedCompletenessFilters.Add(key);
             }
 
             _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             ScheduleFilterApply();
         }
+
+        // The games the Progress filter keeps, or null when it keeps every game.
+        private Func<GameSummaryItem, bool> CompletenessMatcher() =>
+            ProgressFilterChoices.Matcher(
+                _selectedCompletenessFilters,
+                CompletenessFilterOptions,
+                ProgressFilterChoices.CurrentOrder());
 
         public ObservableCollection<RefreshMode> RefreshModes { get; }
 
@@ -2474,15 +2464,11 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedProviderFilterText));
         }
 
+        // The Progress choices follow the Achievement styles; picks a style no longer offers are
+        // kept, unused, so turning it back on restores them.
         private void UpdateCompletenessFilterOptions()
         {
-            var options = new List<string>
-            {
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress"),
-                L("LOCPlayAch_Filter_NoProgress")
-            };
-
+            var options = ProgressFilterChoices.Keys(ProgressFilterChoices.CurrentOrder(), includeNoProgress: true);
             if (CompletenessFilterOptions == null)
             {
                 CompletenessFilterOptions = new ObservableCollection<string>(options);
@@ -2490,11 +2476,6 @@ namespace PlayniteAchievements.ViewModels
             else
             {
                 CollectionHelper.SynchronizeCollection(CompletenessFilterOptions, options);
-            }
-
-            if (PruneFilterSelections(_selectedCompletenessFilters, CompletenessFilterOptions))
-            {
-                ApplyLeftFilters();
             }
 
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
@@ -3614,12 +3595,14 @@ namespace PlayniteAchievements.ViewModels
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
                 _selectedPlayStatusFilters,
-                _selectedCompletenessFilters,
+                null,
                 L("LOCPlayAch_Filter_Played"),
-                L("LOCPlayAch_Filter_Unplayed"),
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress"),
-                L("LOCPlayAch_Filter_NoProgress"));
+                L("LOCPlayAch_Filter_Unplayed"));
+            var matchesProgress = CompletenessMatcher();
+            if (matchesProgress != null)
+            {
+                filtered = filtered.Where(matchesProgress);
+            }
 
             filtered = ApplyAchievementFiltersToGames(filtered);
 
