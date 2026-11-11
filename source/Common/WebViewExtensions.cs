@@ -68,6 +68,28 @@ namespace PlayniteAchievements.Common
             }
         }
 
+        /// <summary>
+        /// Takes a view off the page it has loaded, so the page's scripts, ads and media stop
+        /// instead of running until the view is disposed. For a shared view kept across reads; a
+        /// view disposed right after its read does not need it. Best effort: a failure is ignored,
+        /// since the next navigation replaces the page anyway.
+        /// </summary>
+        public static async Task LeavePageAsync(this IWebView webView)
+        {
+            if (webView == null)
+            {
+                return;
+            }
+
+            try
+            {
+                await webView.NavigateAndWaitAsync("about:blank", 3000).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         public static async Task NavigateAndWaitAsync(this IWebView webView, string url, int timeoutMs = DefaultNavigationTimeoutMs)
         {
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
