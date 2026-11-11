@@ -276,10 +276,30 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <Image Source="{Binding IconKey, Converter={StaticResource ShowcaseResourceKeyToImage}}"
-                                               Width="16"
+                                        <!-- A provider medal (Points mode) draws the platform icon
+                                             the Links row uses, tinted in the platform color. -->
+                                        <Image Width="16"
                                                Height="16"
-                                               VerticalAlignment="Center"/>
+                                               ToolTip="{Binding ToolTip}"
+                                               VerticalAlignment="Center">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Setter Property="Source" Value="{Binding IconKey, Converter={StaticResource ShowcaseResourceKeyToImage}}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsProvider}" Value="True">
+                                                            <Setter Property="Source">
+                                                                <Setter.Value>
+                                                                    <MultiBinding Converter="{StaticResource ShowcaseProviderIcon}">
+                                                                        <Binding Path="ProviderIconKey"/>
+                                                                        <Binding Path="ProviderColorHex"/>
+                                                                    </MultiBinding>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
                                         <TextBlock Text="{Binding CountText}"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
