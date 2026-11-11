@@ -255,6 +255,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 
         public string ListUrl(string slug) => $"https://{Host}/game/{Uri.EscapeDataString(slug)}/{ListPath}";
 
+        /// <summary>
+        /// A plain-text address on the site's origin with no scripts, ads or images: an offscreen
+        /// view opens it once, then reads the site's pages with in-page fetches from there.
+        /// </summary>
+        public string AnchorUrl => $"https://{Host}/robots.txt";
+
         /// <summary>The console a page slug's edition ending names ("Xbox One" for "BioShock-Xbox-One"); null for the plain slug.</summary>
         public string PlatformOf(string pageSlug)
         {

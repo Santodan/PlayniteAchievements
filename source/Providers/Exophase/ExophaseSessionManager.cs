@@ -20,6 +20,9 @@ namespace PlayniteAchievements.Providers.Exophase
     {
         private const string UrlLogin = "https://www.exophase.com/login";
         private const string UrlAccount = "https://www.exophase.com/account";
+        // Plain text on the account page's origin: the probe opens it, then reads the account
+        // page with an in-page fetch so the page itself is never rendered.
+        private const string UrlAnchor = "https://www.exophase.com/robots.txt";
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
 
         private (bool Success, string Username) _authResult;
@@ -306,6 +309,14 @@ namespace PlayniteAchievements.Providers.Exophase
             IWebView view,
             CancellationToken ct)
         {
+            // A signed-in answer from the fetch is final. Anything else (signed out, a challenge,
+            // a failed fetch) is confirmed by loading the page, as the probe always did.
+            var fetched = await TryVerifyAccountByFetchAsync(view, ct);
+            if (fetched != null)
+            {
+                return fetched;
+            }
+
             var result = new ExophaseAccountProbeResult();
 
             try
@@ -331,6 +342,46 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// The account page read with an in-page fetch from <see cref="UrlAnchor"/>; null unless it
+        /// shows a signed-in user. The page's username is server-rendered (window.me), so the
+        /// fetched source carries it without the page's scripts running.
+        /// </summary>
+        private async Task<ExophaseAccountProbeResult> TryVerifyAccountByFetchAsync(IWebView view, CancellationToken ct)
+        {
+            try
+            {
+                await view.NavigateAndWaitAsync(UrlAnchor, timeoutMs: 10000);
+                var response = await InPageFetch.FetchAsync(view, UrlAccount, ct, 10000);
+                if (response == null || !response.IsSuccess || IsLoginPageUrl(response.Url))
+                {
+                    return null;
+                }
+
+                var username = ExtractUsernameFromHtml(response.Body);
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    return null;
+                }
+
+                return new ExophaseAccountProbeResult
+                {
+                    Username = username,
+                    FinalUrl = response.Url,
+                    Cookies = ExophaseCookieSnapshotStore.FilterExophaseCookies(view.GetCookies())
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[ExophaseAuth] Account fetch failed; loading the page instead.");
+                return null;
+            }
         }
 
         private async Task ReplaceExophaseCookiesAsync(
