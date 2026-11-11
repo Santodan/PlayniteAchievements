@@ -331,10 +331,10 @@ namespace PlayniteAchievements.Services.Tagging
         {
             var active = _targets.Where(target => target.Enabled).ToList();
 
-            // Capture the old ids BEFORE resolving new ones, so items of renamed kinds are
-            // removed from games; the enabled kinds then get their items resolved or created,
-            // while disabled kinds are left alone. The removal set is the union, which also
-            // strips the items of kinds the user has since disabled.
+            // Capture the old ids BEFORE resolving new ones; the enabled kinds then get their
+            // items resolved, created or renamed in place, while disabled kinds are left alone.
+            // The removal set is the union, which strips the items of kinds the user has since
+            // disabled.
             var oldIds = new Dictionary<LibraryFieldSyncTarget, HashSet<Guid>>();
             var removeIds = new Dictionary<LibraryFieldSyncTarget, HashSet<Guid>>();
             foreach (var target in active)
