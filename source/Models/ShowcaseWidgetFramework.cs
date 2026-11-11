@@ -512,6 +512,7 @@ namespace PlayniteAchievements.Models
         private const string ProfileStats = "ProfileStats";
         private const string StatisticsStats = "StatisticsStats";
         private const string ProfileMedals = "ProfileMedals";
+        private const string ProfileMedalRows = "ProfileMedalRows";
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileLayoutOption = "ProfileLayout";
         private const string ProfileLinks = "ProfileLinks";
@@ -1199,16 +1200,93 @@ namespace PlayniteAchievements.Models
             }
         }
 
-        /// <summary>
-        /// Which counts the profile medal row shows. Trophy is only meaningful for a library
-        /// holding PlayStation-shaped games; every other library sums to zero and the row hides.
-        /// </summary>
-        public static ShowcaseProfileMedalMode GetProfileMedalMode(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, ProfileMedals, ShowcaseProfileMedalMode.Rarity);
+        private static readonly ProgressDetailStyle[] MedalRowStyles =
+        {
+            ProgressDetailStyle.Rarity,
+            ProgressDetailStyle.Trophy,
+            ProgressDetailStyle.Points
+        };
 
-        public static void SetProfileMedalMode(
+        /// <summary>
+        /// The profile card's medal rows in order, each on or off: Rarity (completions and rarity
+        /// tiers), Trophy (trophy grades) and Points (mythic finishes and each platform's points).
+        /// A row whose counts are all zero shows nothing. Unset, the rows follow the former single
+        /// Medals choice, which defaulted to rarity tiers.
+        /// </summary>
+        public static List<ProgressDetailEntry> GetProfileMedalRows(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Options != null &&
+                settings.Options.TryGetValue(ProfileMedalRows, out var raw) &&
+                !string.IsNullOrWhiteSpace(raw))
+            {
+                // Stored as "Rarity,-Trophy,Points": order, with "-" marking a row turned off.
+                return NormalizeMedalRows(raw.Split(',').Select(part =>
+                {
+                    var token = part.Trim();
+                    var enabled = !token.StartsWith("-", StringComparison.Ordinal);
+                    return Enum.TryParse(token.TrimStart('-'), out ProgressDetailStyle style)
+                        ? new ProgressDetailEntry { Style = style, Enabled = enabled }
+                        : null;
+                }));
+            }
+
+            switch (GetEnum(settings, ProfileMedals, ShowcaseProfileMedalMode.Rarity))
+            {
+                case ShowcaseProfileMedalMode.Trophy:
+                    return MedalRows((ProgressDetailStyle.Trophy, true));
+                case ShowcaseProfileMedalMode.Both:
+                    return MedalRows((ProgressDetailStyle.Rarity, true), (ProgressDetailStyle.Trophy, true));
+                case ShowcaseProfileMedalMode.Points:
+                    return MedalRows((ProgressDetailStyle.Points, true));
+                case ShowcaseProfileMedalMode.None:
+                    return MedalRows();
+                default:
+                    return MedalRows((ProgressDetailStyle.Rarity, true));
+            }
+        }
+
+        /// <summary>Stores the medal rows, replacing the former single Medals choice.</summary>
+        public static void SetProfileMedalRows(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseProfileMedalMode value) => settings?.SetOption(ProfileMedals, value);
+            IEnumerable<ProgressDetailEntry> rows)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            settings.SetOption(
+                ProfileMedalRows,
+                string.Join(",", NormalizeMedalRows(rows).Select(row => (row.Enabled ? string.Empty : "-") + row.Style)));
+            settings.Options?.Remove(ProfileMedals);
+        }
+
+        // The given rows first, in order, then the rest turned off.
+        private static List<ProgressDetailEntry> MedalRows(params (ProgressDetailStyle Style, bool Enabled)[] leading) =>
+            NormalizeMedalRows(leading.Select(row => new ProgressDetailEntry { Style = row.Style, Enabled = row.Enabled }));
+
+        // One entry per row style, in the given order; missing ones are appended turned off.
+        private static List<ProgressDetailEntry> NormalizeMedalRows(IEnumerable<ProgressDetailEntry> rows)
+        {
+            var result = new List<ProgressDetailEntry>();
+            foreach (var row in rows ?? Enumerable.Empty<ProgressDetailEntry>())
+            {
+                if (row != null && MedalRowStyles.Contains(row.Style) && result.All(entry => entry.Style != row.Style))
+                {
+                    result.Add(row.Clone());
+                }
+            }
+
+            foreach (var style in MedalRowStyles)
+            {
+                if (result.All(entry => entry.Style != style))
+                {
+                    result.Add(new ProgressDetailEntry { Style = style, Enabled = false });
+                }
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Whether the profile background fills the whole card, edge to edge, instead of sitting
@@ -2023,7 +2101,10 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.Profile:
                     // A new profile card starts blank and shows the provider identity until edited.
                     settings.Profile = new ShowcaseProfileSettings();
-                    ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
+                    ShowcaseWidgetOptions.SetProfileMedalRows(settings, new[]
+                    {
+                        new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = true }
+                    });
                     ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
                     ShowcaseWidgetOptions.SetProfileLayout(settings, ShowcaseProfileLayout.Left);
                     ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
