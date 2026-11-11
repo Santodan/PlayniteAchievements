@@ -884,6 +884,7 @@
     <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
     <Compile Include="..\..\source\Providers\Local\LocalSettings.cs" Link="Source\Providers\Local\LocalSettings.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\LocalOfflineSchemaCache.cs" Link="Source\Providers\Local\Santodan\LocalOfflineSchemaCache.cs" />
     <Compile Include="..\..\source\Providers\Local\NotificationProgressBarDefinition.cs" Link="Source\Providers\Local\NotificationProgressBarDefinition.cs" />
     <Compile Include="..\..\source\Services\Local\LocalAchievementScreenshotService.cs" Link="Source\Services\Local\LocalAchievementScreenshotService.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" Link="Source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" />

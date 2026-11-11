@@ -1,5 +1,31 @@
 # Fork maintenance bundle
 
+## Local Offline Cache - 2026-11-11
+
+Preserve Local > Offline Cache and its crossed-out Wi-Fi tab icon. Both
+`UseOfflineCachedSchemas` and `SkipUnavailableSchemaNetwork` default to enabled;
+settings use the normal edit copy, Save/Cancel behavior and polling configuration
+invalidation. Valid explicit custom schemas bypass online definition/category
+lookups without changing per-game settings. Other Local games automatically fall
+back to persistent definitions separated by Steam App ID, language and source
+preference, with unlock state read from local progress files. Preserve internal
+schema metadata, cached icon resolution, and persisted name-resolved identities
+for manual/LumaPlay games. Refresh online once to prepare the cache; unavailable
+icons are not downloaded during cached-schema refreshes. The short connectivity
+check is shared for 30 seconds and skips schema requests when unavailable.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean three-way preflight and actual
+replay passed in a temporary baseline clone: 230 overlays, three localization
+recipes, component hashes and replay protected-file checks passed. All 387
+captured paths matched the working tree after text newline normalization; all 39
+localization dictionaries matched by entry. Release manifests and the real Git
+index were unchanged. A concurrent root README changelog edit was preserved and
+remains excluded from replay. Implementation validation earlier in this session:
+required Release rebuild passed, and 11 focused cache/settings regression tests
+passed. Live offline game-session/notification verification remains pending.
+Historical validation snapshots were not changed.
+
 ## Fork release notification startup recovery - 2026-11-11
 
 Preserve construction of `ForkReleaseMonitor` after `NotificationPublisher` and

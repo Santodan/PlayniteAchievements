@@ -2520,6 +2520,20 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _steamSchemaPreference, value);
         }
 
+        private bool _useOfflineCachedSchemas = true;
+        public bool UseOfflineCachedSchemas
+        {
+            get => _useOfflineCachedSchemas;
+            set => SetValue(ref _useOfflineCachedSchemas, value);
+        }
+
+        private bool _skipUnavailableSchemaNetwork = true;
+        public bool SkipUnavailableSchemaNetwork
+        {
+            get => _skipUnavailableSchemaNetwork;
+            set => SetValue(ref _skipUnavailableSchemaNetwork, value);
+        }
+
         public LocalImportedGameLibraryTarget ImportedGameLibraryTarget
         {
             get => _importedGameLibraryTarget;

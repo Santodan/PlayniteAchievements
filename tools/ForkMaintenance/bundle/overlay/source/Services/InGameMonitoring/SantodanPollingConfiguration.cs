@@ -20,6 +20,8 @@ namespace PlayniteAchievements.Services.InGameMonitoring
                 settings?.SteamUserdataPath,
                 settings?.SteamAppCacheUserId,
                 settings?.SteamSchemaPreference,
+                settings?.UseOfflineCachedSchemas,
+                settings?.SkipUnavailableSchemaNetwork,
                 settings?.UseSteamHuntersForCategories,
                 settings?.UseCustomPollingMetadataCache,
                 SteamAppId = Read(settings?.SteamAppIdOverrides, gameId),

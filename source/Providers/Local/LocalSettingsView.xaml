@@ -445,6 +445,40 @@
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
+        <TabItem AutomationProperties.Name="Offline Cache">
+            <TabItem.Header>
+                <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                    <Grid Width="20" Height="20" VerticalAlignment="Center"
+                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
+                        <!-- IcoFont wifi, crossed out to indicate offline operation. -->
+                        <controls:GlyphIcon Style="{StaticResource HeaderGlyphStyle}" Glyph="&#xF02B;" Margin="0"/>
+                        <Line X1="2" Y1="18" X2="18" Y2="2"
+                              Stroke="{DynamicResource PlayAch.Brush.Text}" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Grid>
+                    <TextBlock Text="Offline Cache" VerticalAlignment="Center"/>
+                </StackPanel>
+            </TabItem.Header>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="20">
+                    <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
+                        <StackPanel>
+                            <TextBlock Text="Offline achievement definitions" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,12"/>
+                            <CheckBox Content="Use cached schemas when offline or online schema lookup fails"
+                                      IsChecked="{Binding Settings.UseOfflineCachedSchemas, Mode=TwoWay}" Margin="0,0,0,6"/>
+                            <TextBlock Text="Automatically saves successfully loaded definitions for Local games and reuses them across restarts. Names, descriptions, locked achievements and available cached icons stay usable; unlocks and progress still come from local save files. Refresh games online once to prepare their cache."
+                                       Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                            <CheckBox Content="Skip online lookups when internet access is unavailable"
+                                      IsChecked="{Binding Settings.SkipUnavailableSchemaNetwork, Mode=TwoWay}" Margin="0,0,0,6"/>
+                            <TextBlock Text="Uses a short connectivity check to avoid repeated schema request timeouts. Local files remain available even without a cached online schema."
+                                       Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+                            <TextBlock Text="Applies automatically to all Local games. No per-game Manage setup is required. Enabled custom schemas take priority and their settings are never changed automatically. Cached schemas are separated by Steam App ID, language and schema source preference. Icons must already have been downloaded to appear offline."
+                                       Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
         <TabItem AutomationProperties.Name="Import">
             <TabItem.Header>
                 <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">

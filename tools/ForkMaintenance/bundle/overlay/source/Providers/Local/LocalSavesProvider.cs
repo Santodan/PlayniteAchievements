@@ -464,6 +464,13 @@ namespace PlayniteAchievements.Providers.Local
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || iniPaths.Count > 0;
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
             var isLumaPlayContext = hasValidLumaPlayIniOverride;
+            // A valid explicit schema is authoritative and needs no online enrichment.
+            List<SchemaAchievement> explicitCustomRows = null;
+            if (hasEnabledCustomSchemaOverride && TryGetCustomSchemaPathOverride(game.Id, out var explicitCustomPath))
+                explicitCustomRows = TryLoadCustomSchemaAchievements(explicitCustomPath, out _);
+            var hasUsableCustomSchema = explicitCustomRows?.Count > 0;
+            var allowSchemaNetwork = !hasUsableCustomSchema && await CanUseLocalSchemaNetworkAsync().ConfigureAwait(false);
+            var usedOfflineSchema = false;
             var preferLocalizedSchemaText = ShouldPreferLocalizedSteamText();
 
             SchemaAndPercentages steamSchema = null;
@@ -473,9 +480,9 @@ namespace PlayniteAchievements.Providers.Local
             var schemaLookupByTitle = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
             int appIdInt = 0;
             int steamSchemaAppIdInt = 0;
-            if (!int.TryParse(appId, out appIdInt) && SupportsSchemaOnlyManualFallback(game) && !string.IsNullOrWhiteSpace(game?.Name))
+            if (!int.TryParse(appId, out appIdInt) && !hasUsableCustomSchema && SupportsSchemaOnlyManualFallback(game) && !string.IsNullOrWhiteSpace(game?.Name))
             {
-                var resolvedManualSchemaAppId = await TryResolveSteamAppIdByGameNameAsync(game.Name).ConfigureAwait(false);
+                var resolvedManualSchemaAppId = await ResolveLocalSchemaAppIdAsync(game, 0, allowSchemaNetwork).ConfigureAwait(false);
                 if (resolvedManualSchemaAppId > 0)
                 {
                     appIdInt = resolvedManualSchemaAppId;
@@ -496,9 +503,9 @@ namespace PlayniteAchievements.Providers.Local
                 // For LumaPlay (Uplay/Ubisoft Connect) games: the registry key uses a Uplay game ID,
                 // which differs from the Steam App ID. If no explicit schema override was set via Links
                 // or Notes, auto-resolve the correct Steam App ID by searching Steam Store by game name.
-                if (isLumaPlayContext && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
+                if (!hasUsableCustomSchema && isLumaPlayContext && !isAppIdOverridden && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
                 {
-                    var autoSteamAppId = await TryResolveSteamAppIdByGameNameAsync(game.Name).ConfigureAwait(false);
+                    var autoSteamAppId = await ResolveLocalSchemaAppIdAsync(game, appIdInt, allowSchemaNetwork).ConfigureAwait(false);
                     if (autoSteamAppId > 0 && autoSteamAppId != appIdInt)
                     {
                         steamSchemaAppIdInt = autoSteamAppId;
@@ -506,10 +513,14 @@ namespace PlayniteAchievements.Providers.Local
                     }
                 }
 
-                steamSchema = await TryGetSteamSchemaAsync(steamSchemaAppIdInt).ConfigureAwait(false);
-                steamSchemaSource = _steamSchemaSourceCache.TryGetValue(steamSchemaAppIdInt, out var resolvedSource)
-                    ? resolvedSource
-                    : null;
+                if (!hasUsableCustomSchema)
+                {
+                    var schemaResult = await GetLocalSchemaWithOfflineFallbackAsync(game, steamSchemaAppIdInt, allowSchemaNetwork).ConfigureAwait(false);
+                    steamSchema = schemaResult.Schema;
+                    usedOfflineSchema = schemaResult.FromOfflineCache;
+                    steamSchemaSource = usedOfflineSchema ? "offline-cache" :
+                        (_steamSchemaSourceCache.TryGetValue(steamSchemaAppIdInt, out var resolvedSource) ? resolvedSource : null);
+                }
                 if (steamSchema?.Achievements != null)
                 {
                     apiNameMap = steamSchema.Achievements
@@ -529,7 +540,8 @@ namespace PlayniteAchievements.Providers.Local
                 hasEnabledCustomSchemaOverride &&
                 TryGetCustomSchemaPathOverride(game.Id, out var customSchemaPath))
             {
-                var customSchemaAchievements = TryLoadCustomSchemaAchievements(customSchemaPath, out var customSchemaError);
+                var customSchemaError = string.Empty;
+                var customSchemaAchievements = explicitCustomRows ?? TryLoadCustomSchemaAchievements(customSchemaPath, out customSchemaError);
                 if (customSchemaAchievements != null && customSchemaAchievements.Count > 0)
                 {
                     if (shouldFetchIconsFromGame)
@@ -566,6 +578,8 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
+            var allowMetadataNetwork = allowSchemaNetwork && !usedOfflineSchema;
+            var resolveOfflineIcons = usedOfflineSchema || (!allowSchemaNetwork && !hasUsableCustomSchema);
             SteamLocalProgressSummary steamLocalProgress = null;
             if (appIdInt > 0)
             {
@@ -662,7 +676,7 @@ namespace PlayniteAchievements.Providers.Local
                         PreserveCachedLocalMetadata(data);
                         Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedEntries.Count}");
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
 
                     foreach (var kv in raw)
@@ -680,7 +694,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
                 }
 
@@ -707,7 +721,7 @@ namespace PlayniteAchievements.Providers.Local
                     }
 
                     Log($"SUCCESS: {game.Name} - Direct Local achievement file override produced {data.Achievements.Count} locked achievements; Steam local cache fallbacks were skipped. file={configuredFolderOverridePath}");
-                    return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                    return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                 }
 
                 if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
@@ -733,7 +747,7 @@ namespace PlayniteAchievements.Providers.Local
                         PreserveCachedLocalMetadata(data);
                         Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={steamAppCacheEntries.Count} matched={correlatedEntries.Count}");
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from Steam appcache stats. schemaSource={steamSchemaSource ?? "none"}");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
 
                     var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -754,7 +768,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam appcache stats.");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
                 }
 
@@ -780,7 +794,7 @@ namespace PlayniteAchievements.Providers.Local
                         PreserveCachedLocalMetadata(data);
                         Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={steamLibraryCacheEntries.Count} matched={correlatedEntries.Count}");
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from Steam local library cache. schemaSource={steamSchemaSource ?? "none"}");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
 
                     var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -801,7 +815,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam local library cache.");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
                 }
 
@@ -839,7 +853,7 @@ namespace PlayniteAchievements.Providers.Local
                     {
                         PreserveCachedLocalMetadata(data);
                         Log($"INFO: {game.Name} - Local folder found, loaded {data.Achievements.Count} achievement definitions from Steam schema.");
-                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt).ConfigureAwait(false);
+                        return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
                 }
 
@@ -855,9 +869,19 @@ namespace PlayniteAchievements.Providers.Local
 
         private async Task<GameAchievementData> EnrichSteamHuntersCategoriesAsync(
             GameAchievementData data,
-            int steamAppId)
+            int steamAppId,
+            bool allowNetwork = true,
+            bool resolveOfflineIcons = false)
         {
             var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (!allowNetwork)
+            {
+                if (resolveOfflineIcons) UseCachedLocalResultIcons(data);
+                var previous = data?.PlayniteGameId.HasValue == true ? TryLoadCachedLocalGameData(data.PlayniteGameId.Value) : null;
+                if (settings?.UseSteamHuntersForCategories == true && previous != null && data != null && previous.AppId == data.AppId)
+                    PlayniteAchievements.Providers.Metadata.SteamHuntersCategoryEnricher.ApplyCachedCategories(data.Achievements, previous.Achievements);
+                return data;
+            }
             if (settings?.UseSteamHuntersForCategories != true ||
                 steamAppId <= 0 ||
                 data?.Achievements == null ||
@@ -7566,6 +7590,7 @@ namespace PlayniteAchievements.Providers.Local
                 }
                 else
                 {
+                    if (!await CanUseLocalSchemaNetworkAsync().ConfigureAwait(false)) return null;
                     var identity = ResolveNemirtingasEpicIdentity(game, savePath);
                     schema = string.IsNullOrWhiteSpace(identity)
                         ? new List<SchemaAchievement>()
@@ -7662,6 +7687,7 @@ namespace PlayniteAchievements.Providers.Local
         {
             try
             {
+                if (!await CanUseLocalSchemaNetworkAsync().ConfigureAwait(false)) return;
                 var identity = ResolveNemirtingasEpicIdentity(game, savePath);
                 if (string.IsNullOrWhiteSpace(identity))
                 {

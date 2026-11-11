@@ -403,6 +403,25 @@ Primary fork areas:
 
 ## Local provider and game overrides
 
+- Local > Offline Cache has a crossed-out Wi-Fi icon. `UseOfflineCachedSchemas`
+  and `SkipUnavailableSchemaNetwork` default to true and retain transactional
+  Save/Cancel behavior. Both settings participate in polling invalidation.
+- Valid enabled custom schemas take priority without online definition/category
+  lookups or automatic changes to per-game Manage settings. Otherwise, Local
+  automatically saves/reuses persistent definitions by Steam App ID, language and
+  source preference when offline or online lookup fails. Unlock ownership stays
+  with local progress files; cached definitions include locked rows, group data,
+  internal keys, progress bounds, percentages and other schema metadata.
+- Keep `local_schema_cache` snapshots isolated from per-game custom rows and icon
+  substitutions. Invalid/empty refreshes must not overwrite good snapshots.
+  Name-resolved manual/LumaPlay identities survive restarts and are invalidated by
+  game identity/name or Local App ID changes; explicit schema/App ID overrides win.
+- Offline selection uses available cached icon files and skips optional category
+  requests and missing-icon downloads. Disk/install schemas still work without a
+  prior online cache. The network check has a two-second request cancellation and
+  30-second result reuse. Refresh online once to prepare definitions/icons; live
+  disconnected game-session notification checks remain necessary.
+
 - Excluded folders accepts all nine path variables and environment variables, with
   cursor-insertion buttons matching Custom folders. Discovery and schema scanning
   expand exclusions for the current game; missing context skips the path. Template

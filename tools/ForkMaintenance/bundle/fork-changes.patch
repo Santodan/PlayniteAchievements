@@ -23460,7 +23460,7 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index e4e570f07961d2ebbf1def33e1b683b08e50efd7..8f767e180169bf3421a6fa53fead2316c8d84338 100644
+index e4e570f07961d2ebbf1def33e1b683b08e50efd7..864033021fa493ccefdb7586dfb4027f24d8dbba 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -8,6 +8,17 @@
@@ -23608,11 +23608,12 @@ index e4e570f07961d2ebbf1def33e1b683b08e50efd7..8f767e180169bf3421a6fa53fead2316
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
-@@ -853,6 +883,10 @@
+@@ -853,6 +883,11 @@
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />
 +    <Compile Include="..\..\source\Providers\Local\LocalSettings.cs" Link="Source\Providers\Local\LocalSettings.cs" />
++    <Compile Include="..\..\source\Providers\Local\Santodan\LocalOfflineSchemaCache.cs" Link="Source\Providers\Local\Santodan\LocalOfflineSchemaCache.cs" />
 +    <Compile Include="..\..\source\Providers\Local\NotificationProgressBarDefinition.cs" Link="Source\Providers\Local\NotificationProgressBarDefinition.cs" />
 +    <Compile Include="..\..\source\Services\Local\LocalAchievementScreenshotService.cs" Link="Source\Services\Local\LocalAchievementScreenshotService.cs" />
 +    <Compile Include="..\..\source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" Link="Source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" />
