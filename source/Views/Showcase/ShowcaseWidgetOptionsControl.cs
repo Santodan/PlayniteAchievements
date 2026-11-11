@@ -246,11 +246,19 @@ namespace PlayniteAchievements.Views.Showcase
                     // Only a Provider pie can count games instead of achievements, and a pie
                     // counting games has no achievement filters.
                     FrameworkElement pieCountRow = null;
+                    FrameworkElement pieSplitRow = null;
                     void ApplyPieRows(ShowcasePieMode mode)
                     {
                         if (pieCountRow != null)
                         {
                             pieCountRow.Visibility = mode == ShowcasePieMode.Provider
+                                ? Visibility.Visible
+                                : Visibility.Collapsed;
+                        }
+
+                        if (pieSplitRow != null)
+                        {
+                            pieSplitRow.Visibility = mode == ShowcasePieMode.CompletedGames
                                 ? Visibility.Visible
                                 : Visibility.Collapsed;
                         }
@@ -289,6 +297,12 @@ namespace PlayniteAchievements.Views.Showcase
                         value => Localize(value == ShowcasePieCount.CompletedGames
                             ? "LOCPlayAch_Showcase_GameMosaicSource_Completed"
                             : "LOCPlayAch_Achievements"));
+                    // On, the Incomplete slice splits into In Progress and No Progress.
+                    pieSplitRow = AddToggle(
+                        contentRows,
+                        Localize("LOCPlayAch_Filter_NoProgress"),
+                        ShowcaseWidgetOptions.GetPieSplitIncomplete(_settings),
+                        value => ShowcaseWidgetOptions.SetPieSplitIncomplete(_settings, value));
                     ApplyPieRows(ShowcaseWidgetOptions.GetPieMode(_settings));
                     AddChoice(
                         appearanceRows,
