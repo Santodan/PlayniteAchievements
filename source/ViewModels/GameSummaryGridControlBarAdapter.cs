@@ -24,6 +24,9 @@ namespace PlayniteAchievements.ViewModels
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly bool _includeProgress;
         private readonly bool _includeNoProgress;
+
+        // Held so the weak subscription lives as long as this bar.
+        private readonly Action _onChoicesChanged;
         private string _searchText = string.Empty;
         private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
@@ -71,9 +74,22 @@ namespace PlayniteAchievements.ViewModels
                 UnplayedLabel
             };
             ControlBar = CreateControlBar();
+            _onChoicesChanged = OnProgressChoicesChanged;
+            ProgressFilterChoices.Subscribe(_onChoicesChanged);
         }
 
         public override GridControlBarViewModel ControlBar { get; }
+
+        // New Achievement styles change the choices offered and which games a pick keeps.
+        private void OnProgressChoicesChanged()
+        {
+            OnPropertyChanged(nameof(SelectedProgressFilterText));
+            ControlBar.Refresh();
+            if (_selectedProgressFilters.Count > 0)
+            {
+                RaiseFilterChanged();
+            }
+        }
 
         /// <summary>The bar's Tags filter; null for a bar without achievement filters.</summary>
         public TagControlBarFilter TagFilter { get; }
