@@ -134,6 +134,10 @@ namespace PlayniteAchievements.Models.Settings
         Stacked = 2
     }
 
+    /// <summary>
+    /// The profile card's former single Medals choice, read only to carry a saved choice into
+    /// its medal rows (ShowcaseWidgetOptions.GetProfileMedalRows).
+    /// </summary>
     public enum ShowcaseProfileMedalMode
     {
         Rarity = 0,
