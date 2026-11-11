@@ -720,8 +720,8 @@ namespace PlayniteAchievements.Models.Achievements
         }
 
         /// <summary>
-        /// The mythic badge, shown for a game with every point earned: a four-point star over a
-        /// shaded second star, in the completed colors with the completed badge's rim and shine.
+        /// The mythic badge, shown for a game with every point earned: a four-point star over the
+        /// outline of a second star, in the completed colors with the completed badge's rim and shine.
         /// It keeps its star shape when rarity draws as trophies, so it stays distinct from the
         /// completed trophy.
         /// </summary>
@@ -729,19 +729,20 @@ namespace PlayniteAchievements.Models.Achievements
         {
             var star = TryGetDefaultGeometry("GeoMythicStar");
             var back = TryGetDefaultGeometry("GeoMythicStarBack");
-            var inset = TryGetDefaultGeometry("GeoMythicStarInset");
-            if (star == null || back == null || inset == null)
+            if (star == null || back == null)
             {
                 return CreateCompletedBadgeImage(settings);
             }
 
             var fill = CreateCompletedGradientBrush(settings);
             var drawingGroup = new DrawingGroup();
-            drawingGroup.Children.Add(new GeometryDrawing { Geometry = back, Brush = fill });
             drawingGroup.Children.Add(new GeometryDrawing
             {
                 Geometry = back,
-                Brush = new SolidColorBrush(Color.FromArgb(0x4D, 0x00, 0x00, 0x00))
+                Pen = new Pen(fill, 6)
+                {
+                    LineJoin = PenLineJoin.Round
+                }
             });
             drawingGroup.Children.Add(new GeometryDrawing
             {
@@ -751,11 +752,6 @@ namespace PlayniteAchievements.Models.Achievements
                 {
                     LineJoin = PenLineJoin.Round
                 }
-            });
-            drawingGroup.Children.Add(new GeometryDrawing
-            {
-                Geometry = inset,
-                Brush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF))
             });
             drawingGroup.Children.Add(new GeometryDrawing
             {
