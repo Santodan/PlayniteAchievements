@@ -182,6 +182,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showHiddenPoints = true;
         private bool _showLockedTrophy = true;
         private bool _showLockedPoints = true;
+        private bool _showHiddenRarity = true;
+        private bool _showLockedRarity = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private string _lockedFallbackIconPath = null;
         private string _hiddenFallbackIconPath = null;
@@ -2175,6 +2177,24 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, the rarity of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenRarity
+        {
+            get => _showHiddenRarity;
+            set => SetValue(ref _showHiddenRarity, value);
+        }
+
+        /// <summary>
+        /// When true, the rarity of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedRarity
+        {
+            get => _showLockedRarity;
+            set => SetValue(ref _showLockedRarity, value);
+        }
+
+        /// <summary>
         /// When true, providers with distinct locked icons will cache and use them instead of grayscaling the unlocked icon.
         /// Changes apply on the next refresh for newly cached icons.
         /// </summary>
@@ -3388,6 +3408,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenPoints = this.ShowHiddenPoints,
                 ShowLockedTrophy = this.ShowLockedTrophy,
                 ShowLockedPoints = this.ShowLockedPoints,
+                ShowHiddenRarity = this.ShowHiddenRarity,
+                ShowLockedRarity = this.ShowLockedRarity,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 LockedFallbackIconPath = this.LockedFallbackIconPath,
                 HiddenFallbackIconPath = this.HiddenFallbackIconPath,
@@ -3521,6 +3543,8 @@ namespace PlayniteAchievements.Models.Settings
             ShowHiddenPoints = defaults.ShowHiddenPoints;
             ShowLockedTrophy = defaults.ShowLockedTrophy;
             ShowLockedPoints = defaults.ShowLockedPoints;
+            ShowHiddenRarity = defaults.ShowHiddenRarity;
+            ShowLockedRarity = defaults.ShowLockedRarity;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
             LockedFallbackIconPath = defaults.LockedFallbackIconPath;
