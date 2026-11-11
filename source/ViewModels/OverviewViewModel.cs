@@ -2468,7 +2468,11 @@ namespace PlayniteAchievements.ViewModels
         // kept, unused, so turning it back on restores them.
         private void UpdateCompletenessFilterOptions()
         {
-            var options = ProgressFilterChoices.Keys(ProgressFilterChoices.CurrentOrder(), includeNoProgress: true);
+            // Only the finishes some game shows, so a choice never empties the grid.
+            var options = ProgressFilterChoices.Keys(
+                ProgressFilterChoices.CurrentOrder(),
+                includeNoProgress: true,
+                _allGameSummaries);
             if (CompletenessFilterOptions == null)
             {
                 CompletenessFilterOptions = new ObservableCollection<string>(options);
