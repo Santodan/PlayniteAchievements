@@ -823,6 +823,14 @@ namespace PlayniteAchievements.ViewModels
                 targetFilters.Add(inProgressOption);
                 targetFilters.Add(noProgressOption);
             }
+            else if (string.Equals(completenessLabel, inProgressOption, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(completenessLabel, noProgressOption, StringComparison.OrdinalIgnoreCase))
+            {
+                // A split Incomplete's own slices toggle their one filter.
+                targetFilters.Add(string.Equals(completenessLabel, inProgressOption, StringComparison.OrdinalIgnoreCase)
+                    ? inProgressOption
+                    : noProgressOption);
+            }
             else
             {
                 return;
