@@ -2559,6 +2559,16 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 ApplyScoreCards();
                 _ = RefreshViewAsync();
+                UpdateCompletenessFilterOptions();
+                ApplyLeftFilters();
+                return;
+            }
+
+            if (propertyName == nameof(PersistedSettings.ProgressDetails))
+            {
+                // The Progress choices and each finished game's badge follow the Achievement
+                // styles; re-filtering also hands the linked widgets fresh snapshots.
+                UpdateCompletenessFilterOptions();
                 ApplyLeftFilters();
                 return;
             }
