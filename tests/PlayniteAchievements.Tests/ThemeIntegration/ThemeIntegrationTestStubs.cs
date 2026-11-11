@@ -422,6 +422,10 @@ namespace PlayniteAchievements.ViewModels
 
             public bool ShowLockedPoints { get; set; } = true;
 
+            public bool ShowHiddenRarity { get; set; } = true;
+
+            public bool ShowLockedRarity { get; set; } = true;
+
             public bool UseSeparateLockedIconsWhenAvailable { get; set; }
 
             public bool ShowRarityBar { get; set; }
