@@ -2410,6 +2410,8 @@ namespace PlayniteAchievements
                    propertyName == nameof(PersistedSettings.ShowHiddenPoints) ||
                    propertyName == nameof(PersistedSettings.ShowLockedTrophy) ||
                    propertyName == nameof(PersistedSettings.ShowLockedPoints) ||
+                   propertyName == nameof(PersistedSettings.ShowHiddenRarity) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedRarity) ||
                    propertyName == nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable) ||
                    propertyName == nameof(PersistedSettings.LockedFallbackIconPath) ||
                    propertyName == nameof(PersistedSettings.HiddenFallbackIconPath);
