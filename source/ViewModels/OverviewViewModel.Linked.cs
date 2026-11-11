@@ -376,8 +376,8 @@ namespace PlayniteAchievements.ViewModels
         }
 
         // The Games grid's filters (ApplyLeftFilters), less the ones the widget sets itself. A
-        // completions pie that leaves the progress filter out still keeps it to the games that
-        // could finish, as the overview's completions pie did.
+        // completions pie that leaves the progress filter out counts every game, so picking a
+        // slice never changes the games behind its percentage.
         private List<GameSummaryItem> FilterLinkedGames(List<GameSummaryItem> all, OverviewLinkedFilter exclude)
         {
             IEnumerable<GameSummaryItem> games = all;
@@ -397,7 +397,7 @@ namespace PlayniteAchievements.ViewModels
                 _selectedPlayStatusFilters,
                 (exclude & OverviewLinkedFilter.Completeness) == 0
                     ? _selectedCompletenessFilters
-                    : GetCompletedGamesPieProgressFilters(),
+                    : null,
                 L("LOCPlayAch_Filter_Played"),
                 L("LOCPlayAch_Filter_Unplayed"),
                 L("LOCPlayAch_Filter_Complete"),
