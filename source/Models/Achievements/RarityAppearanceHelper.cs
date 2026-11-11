@@ -148,6 +148,18 @@ namespace PlayniteAchievements.Models.Achievements
             return GetCompletedStartColor(persisted);
         }
 
+        /// <summary>
+        /// The mythic slice's color: the end of the completed gradient that the completed slice
+        /// does not use, so the two finishes stay apart in a pie.
+        /// </summary>
+        public static Color GetMythicColor(PersistedSettings settings = null)
+        {
+            var persisted = settings ?? _activeSettings;
+            return UsesDefaultCompletedColors(persisted)
+                ? GetCompletedStartColor(persisted)
+                : GetCompletedEndColor(persisted);
+        }
+
         public static SolidColorBrush GetCompletedBrush(PersistedSettings settings = null)
         {
             return CreateSolidBrush(GetCompletedColor(settings));
