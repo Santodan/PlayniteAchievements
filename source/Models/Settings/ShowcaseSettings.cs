@@ -139,7 +139,10 @@ namespace PlayniteAchievements.Models.Settings
         Rarity = 0,
         Trophy = 1,
         Both = 2,
-        None = 3
+        None = 3,
+
+        /// <summary>One medal per platform: its icon and the points earned there.</summary>
+        Points = 4
     }
 
     public enum ShowcasePointsGrouping
