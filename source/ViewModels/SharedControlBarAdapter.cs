@@ -375,8 +375,8 @@ namespace PlayniteAchievements.ViewModels
 
     /// <summary>
     /// A control bar's saved state. Platforms map a provider key to its selected platform names.
-    /// Progress and Activity hold option positions rather than labels, so the saved choice
-    /// survives a change of Playnite language.
+    /// Progress keys and Activity positions stand in for labels, so the saved choice survives a
+    /// change of Playnite language.
     /// </summary>
     public sealed class ControlBarFilterState
     {
@@ -393,7 +393,14 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The Screenshot Slideshow's screenshot style (a ShowcaseScreenshotVariant name); null for every style.</summary>
         public string Variant { get; set; }
 
+        /// <summary>
+        /// Progress positions in the former Complete, In Progress, No Progress options; read only
+        /// when <see cref="ProgressKeys"/> is absent.
+        /// </summary>
         public List<int> Progress { get; set; }
+
+        /// <summary>Selected Progress choices, as ProgressFilterChoices keys.</summary>
+        public List<string> ProgressKeys { get; set; }
 
         public List<int> Activity { get; set; }
 
