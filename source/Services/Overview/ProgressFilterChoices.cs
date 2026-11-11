@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Playnite.SDK;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -31,6 +33,99 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>The Achievement styles order from the current settings.</summary>
         public static IReadOnlyList<ProgressDetailStyle> CurrentOrder() =>
             ProgressDetailOrder.EnabledStyles(PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ProgressDetails);
+
+        // Listeners are held weakly: each subscriber keeps its own delegate alive for as long as
+        // it lives, so a discarded widget or control bar drops out on its own.
+        private static readonly List<WeakReference<Action>> Listeners = new List<WeakReference<Action>>();
+        private static PlayniteAchievementsSettings _watchedSettings;
+        private static PersistedSettings _watchedPersisted;
+
+        /// <summary>
+        /// Calls <paramref name="onChanged"/> whenever the Achievement styles change, including
+        /// when a cancelled settings edit swaps the persisted settings back. The caller must keep
+        /// a reference to the delegate.
+        /// </summary>
+        public static void Subscribe(Action onChanged)
+        {
+            if (onChanged == null)
+            {
+                return;
+            }
+
+            Listeners.Add(new WeakReference<Action>(onChanged));
+            Watch(PlayniteAchievementsPlugin.Instance?.Settings);
+        }
+
+        private static void Watch(PlayniteAchievementsSettings settings)
+        {
+            if (!ReferenceEquals(settings, _watchedSettings))
+            {
+                if (_watchedSettings != null)
+                {
+                    _watchedSettings.PropertyChanged -= OnSettingsPropertyChanged;
+                }
+
+                _watchedSettings = settings;
+                if (settings != null)
+                {
+                    settings.PropertyChanged += OnSettingsPropertyChanged;
+                }
+            }
+
+            var persisted = settings?.Persisted;
+            if (!ReferenceEquals(persisted, _watchedPersisted))
+            {
+                if (_watchedPersisted != null)
+                {
+                    _watchedPersisted.PropertyChanged -= OnPersistedPropertyChanged;
+                }
+
+                _watchedPersisted = persisted;
+                if (persisted != null)
+                {
+                    persisted.PropertyChanged += OnPersistedPropertyChanged;
+                }
+            }
+        }
+
+        private static void OnSettingsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
+            {
+                Watch(_watchedSettings);
+                Raise();
+            }
+        }
+
+        private static void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.ProgressDetails))
+            {
+                Raise();
+            }
+        }
+
+        private static void Raise()
+        {
+            var live = new List<Action>();
+            Listeners.RemoveAll(reference =>
+            {
+                if (reference.TryGetTarget(out var action))
+                {
+                    live.Add(action);
+                    return false;
+                }
+
+                return true;
+            });
+
+            foreach (var action in live)
+            {
+                action();
+            }
+        }
 
         /// <summary>The choices offered under <paramref name="order"/>, in display order.</summary>
         public static IReadOnlyList<string> Keys(IReadOnlyList<ProgressDetailStyle> order, bool includeNoProgress)
