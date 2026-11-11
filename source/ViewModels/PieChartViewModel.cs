@@ -336,8 +336,8 @@ namespace PlayniteAchievements.ViewModels
 
             if (breakdown != null)
             {
-                dataPoints.Add(OpenSlice(ResourceProvider.GetString("LOCPlayAch_Filter_InProgress"), breakdown.InProgress, InProgressIconKey));
-                dataPoints.Add(OpenSlice(ResourceProvider.GetString("LOCPlayAch_Filter_NoProgress"), breakdown.NoProgress, "BadgeLocked"));
+                dataPoints.Add(OpenSlice(ProgressFilterChoices.Label(ProgressFilterChoices.InProgress), breakdown.InProgress, InProgressIconKey));
+                dataPoints.Add(OpenSlice(ProgressFilterChoices.Label(ProgressFilterChoices.NoProgress), breakdown.NoProgress, "BadgeLocked"));
             }
 
             ApplySmallSliceMode(dataPoints);
@@ -360,19 +360,12 @@ namespace PlayniteAchievements.ViewModels
                 CountOnly = true
             };
 
-        /// <summary>The label a finish badge's completions slice is drawn under.</summary>
-        public static string CompletionLabel(CompletionBadgeKind kind)
-        {
-            switch (kind)
-            {
-                case CompletionBadgeKind.Platinum:
-                    return ResourceProvider.GetString("LOCPlayAch_Trophy_Platinum");
-                case CompletionBadgeKind.Mythic:
-                    return ResourceProvider.GetString("LOCPlayAch_Badge_Mythic");
-                default:
-                    return ResourceProvider.GetString("LOCPlayAch_Completed");
-            }
-        }
+        /// <summary>
+        /// The label a finish badge's completions slice is drawn under: its Progress filter
+        /// choice's, so a slice and the choice it stands for read the same.
+        /// </summary>
+        public static string CompletionLabel(CompletionBadgeKind kind) =>
+            ProgressFilterChoices.Label(ProgressFilterChoices.KeyOf(kind));
 
         private static string CompletionIconKey(CompletionBadgeKind kind)
         {
