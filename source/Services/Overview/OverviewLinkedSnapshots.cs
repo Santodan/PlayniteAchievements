@@ -22,18 +22,11 @@ namespace PlayniteAchievements.Services.Overview
 
     /// <summary>
     /// Slice identities a linked pie exchanges with the overview, independent of the labels
-    /// the chart displays. Provider slices use their provider key.
+    /// the chart displays. Provider slices use their provider key and Completions slices their
+    /// <see cref="ProgressFilterChoices"/> key.
     /// </summary>
     public static class OverviewLinkedSliceKeys
     {
-        public const string Complete = "Complete";
-        public const string Incomplete = "Incomplete";
-
-        /// <summary>The open finishes of games with an unlock, when the pie splits Incomplete.</summary>
-        public const string InProgress = "InProgress";
-
-        /// <summary>The open finishes of games with no unlock, when the pie splits Incomplete.</summary>
-        public const string NoProgress = "NoProgress";
         public const string Locked = "Locked";
     }
 
