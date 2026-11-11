@@ -5,7 +5,7 @@ using PlayniteAchievements.Models.Settings;
 namespace PlayniteAchievements.ViewModels.Settings
 {
     /// <summary>
-    /// One row of the Progress bar details priority grid in Display settings.
+    /// One row of the rarity, trophy and points priority grid in General settings.
     /// </summary>
     /// <remarks>
     /// The grid writes edits straight to the persisted list; this row only mirrors it.
@@ -21,6 +21,9 @@ namespace PlayniteAchievements.ViewModels.Settings
         }
 
         public ProgressDetailStyle Style { get; }
+
+        /// <summary>Rarity is always on; only Trophy and Points can be turned off.</summary>
+        public bool CanToggle => Style != ProgressDetailStyle.Rarity;
 
         public string DisplayName => ResourceProvider.GetString(GetNameKey(Style));
 
