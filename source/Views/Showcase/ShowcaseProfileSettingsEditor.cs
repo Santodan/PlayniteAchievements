@@ -243,12 +243,12 @@ namespace PlayniteAchievements.Views.Showcase
                 });
 
                 // IcoFont arrow-up, arrow-down, and trash, as mapped in Playnite's shipped icofont.ttf.
-                AddLinkButton(row, 2, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
+                AddListRowButton(row, 2, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
                     () => MoveLink(index, -1));
-                AddLinkButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
+                AddListRowButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
                     () => MoveLink(index, 1));
 
-                AddLinkButton(row, 4, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
+                AddListRowButton(row, 4, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
                 {
                     _links.RemoveAt(index);
                     CommitLinks();
@@ -284,7 +284,8 @@ namespace PlayniteAchievements.Views.Showcase
             caption.Visibility = string.IsNullOrEmpty(caption.Text) ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        private void AddLinkButton(Grid row, int column, string glyph, string toolTipKey, bool enabled, Action onClick)
+        // A list row's icon button; the stat list in widget settings shares it.
+        internal static void AddListRowButton(Grid row, int column, string glyph, string toolTipKey, bool enabled, Action onClick)
         {
             // No fixed width: the implicit button padding clipped the glyph out of a 30px box.
             var button = new Button
