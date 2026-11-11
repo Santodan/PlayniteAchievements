@@ -9,13 +9,17 @@ namespace PlayniteAchievements.Common
     /// <summary>The status and body an in-page <c>fetch()</c> returned.</summary>
     internal sealed class InPageFetchResult
     {
-        public InPageFetchResult(int status, string body)
+        public InPageFetchResult(int status, string url, string body)
         {
             Status = status;
+            Url = url ?? string.Empty;
             Body = body ?? string.Empty;
         }
 
         public int Status { get; }
+
+        /// <summary>The address the response came from, after any redirects.</summary>
+        public string Url { get; }
 
         public string Body { get; }
 
@@ -27,7 +31,8 @@ namespace PlayniteAchievements.Common
     /// loaded. The response comes back as a string: none of its scripts run and none of its
     /// images, frames or media load, so nothing is rendered. The view must already be on the
     /// URL's origin; the browser sends its own cookies and TLS fingerprint, which is what lets
-    /// these reads pass a WAF that rejects the .NET HTTP stack.
+    /// these reads pass a WAF that rejects the .NET HTTP stack. Cookies the response sets are
+    /// kept in the browser's store, as after a navigation.
     /// </summary>
     internal static class InPageFetch
     {
@@ -59,7 +64,7 @@ namespace PlayniteAchievements.Common
             var kickoff =
                 "(function(){try{window." + slot + "=undefined;" +
                 "fetch(" + JsString(url) + ",{credentials:'include'" + headers + "})" +
-                ".then(function(r){return r.text().then(function(t){window." + slot + "=r.status+'|'+t;});})" +
+                ".then(function(r){return r.text().then(function(t){window." + slot + "=r.status+'|'+encodeURIComponent(r.url||'')+'|'+t;});})" +
                 ".catch(function(){window." + slot + "='" + Failed + "';});return true;}" +
                 "catch(e){window." + slot + "='" + Failed + "';return false;}})()";
 
@@ -107,7 +112,10 @@ namespace PlayniteAchievements.Common
             return null;
         }
 
-        /// <summary>A stored "status|body" value as a result; null for a failed request.</summary>
+        /// <summary>
+        /// A stored "status|url|body" value as a result, the address percent-encoded so it holds no
+        /// bar; null for a failed request.
+        /// </summary>
         internal static InPageFetchResult Parse(string value)
         {
             if (string.IsNullOrEmpty(value) || value == Failed)
@@ -116,12 +124,15 @@ namespace PlayniteAchievements.Common
             }
 
             var bar = value.IndexOf('|');
-            if (bar <= 0 || !int.TryParse(value.Substring(0, bar), NumberStyles.Integer, CultureInfo.InvariantCulture, out var status))
+            var urlBar = bar < 0 ? -1 : value.IndexOf('|', bar + 1);
+            if (bar <= 0 || urlBar < 0 ||
+                !int.TryParse(value.Substring(0, bar), NumberStyles.Integer, CultureInfo.InvariantCulture, out var status))
             {
                 return null;
             }
 
-            return new InPageFetchResult(status, value.Substring(bar + 1));
+            var url = Uri.UnescapeDataString(value.Substring(bar + 1, urlBar - bar - 1));
+            return new InPageFetchResult(status, url, value.Substring(urlBar + 1));
         }
 
         /// <summary>A single-quoted JavaScript string literal for <paramref name="value"/>.</summary>
