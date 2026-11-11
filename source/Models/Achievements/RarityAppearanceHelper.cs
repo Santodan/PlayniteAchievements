@@ -509,6 +509,8 @@ namespace PlayniteAchievements.Models.Achievements
             // shadow "BadgeCompletedGame" with its static default; consuming this alias via
             // DynamicResource instead resolves the user-customized image at the application scope.
             resources["BadgeRarityCompleted"] = completedBadge;
+            // Runtime-only, like BadgeRarityCompleted: the mythic badge has no static image.
+            resources["BadgeRarityMythic"] = CreateMythicBadgeImage(settings);
             // Runtime-only alias for a masked rarity, for the same shadowing reason. It follows the
             // trophy shape when rarity draws as trophies, so a masked row matches its neighbours.
             var unknownBadge = settings?.UseTrophiesForRarity == true
@@ -705,6 +707,59 @@ namespace PlayniteAchievements.Models.Achievements
             drawingGroup.Children.Add(new GeometryDrawing
             {
                 Geometry = geometry,
+                Brush = TryGetDefaultBrush("ShineOverlay") ?? CreateShineOverlay()
+            });
+
+            var image = new DrawingImage(drawingGroup);
+            if (image.CanFreeze)
+            {
+                image.Freeze();
+            }
+
+            return image;
+        }
+
+        /// <summary>
+        /// The mythic badge, shown for a game with every point earned: a four-point star over a
+        /// shaded second star, in the completed colors with the completed badge's rim and shine.
+        /// It keeps its star shape when rarity draws as trophies, so it stays distinct from the
+        /// completed trophy.
+        /// </summary>
+        private static DrawingImage CreateMythicBadgeImage(PersistedSettings settings)
+        {
+            var star = TryGetDefaultGeometry("GeoMythicStar");
+            var back = TryGetDefaultGeometry("GeoMythicStarBack");
+            var inset = TryGetDefaultGeometry("GeoMythicStarInset");
+            if (star == null || back == null || inset == null)
+            {
+                return CreateCompletedBadgeImage(settings);
+            }
+
+            var fill = CreateCompletedGradientBrush(settings);
+            var drawingGroup = new DrawingGroup();
+            drawingGroup.Children.Add(new GeometryDrawing { Geometry = back, Brush = fill });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = back,
+                Brush = new SolidColorBrush(Color.FromArgb(0x4D, 0x00, 0x00, 0x00))
+            });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = star,
+                Brush = fill,
+                Pen = new Pen(CreateCompletedRimBrush(settings), 3)
+                {
+                    LineJoin = PenLineJoin.Round
+                }
+            });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = inset,
+                Brush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF))
+            });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = star,
                 Brush = TryGetDefaultBrush("ShineOverlay") ?? CreateShineOverlay()
             });
 

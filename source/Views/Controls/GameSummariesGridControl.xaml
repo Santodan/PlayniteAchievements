@@ -7,7 +7,7 @@
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
-             helpers:CompletionBadge.PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource Self}}"
+             helpers:CompletionBadge.DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource Self}}"
              Loaded="OnLoaded"
              Unloaded="OnUnloaded">
     <UserControl.Resources>

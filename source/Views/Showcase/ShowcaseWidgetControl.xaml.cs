@@ -146,9 +146,9 @@ namespace PlayniteAchievements.Views.Showcase
                 .BindSoftGlowTiers(this, SoftGlowTiersProperty);
             PlayniteAchievements.Models.Achievements.RarityAppearanceHelper
                 .BindRayGlowTiers(this, RayGlowTiersProperty);
-            // Inherited by the Game Mosaic's completion badges, which show the platinum in the
-            // completion spot under the same global choice as the game summaries grid.
-            PlayniteAchievements.Views.Helpers.CompletionBadge.BindPreferTrophyBadgesToSettings(this);
+            // Inherited by the Game Mosaic's completion badges, which follow each game's leading
+            // progress detail the same way the game summaries grid does.
+            PlayniteAchievements.Views.Helpers.CompletionBadge.BindDetailOrderToSettings(this);
             // Widget hosts are re-parented across dashboard rebuilds and page switches, which
             // re-fires Loaded without a guaranteed intervening Unloaded. Without the hooked
             // guard each such Loaded would stack another handler on the static event and root

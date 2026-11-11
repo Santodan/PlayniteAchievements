@@ -17,28 +17,29 @@
          COMPLETION BADGE AND FRAME
          ======================= -->
 
-    <!-- The finish badge, keyed off the row's own ShowCompletionBadge and
-         ShowPlatinumInCompletionSpot (GameSummaryItem). When the row's capstones are exactly its
-         platinum trophies and the host prefers trophy badges, the badge becomes the platinum
-         itself. The host states that preference once on its root through the inherited
-         helpers:CompletionBadge.PreferTrophyBadges, so the swap is a property trigger and the
-         style works under any host. Shared by the game summaries progress footer, the Cover
-         column's completion frame and the showcase Game Mosaic tiles; each sets its own size. -->
+    <!-- The finish badge, shown on the row's ShowCompletionBadge (GameSummaryItem). It follows
+         the row's leading progress detail: the platinum trophy when trophies lead and the row's
+         capstones are its platinums, the mythic badge when points lead and every point is
+         earned, and the completed badge otherwise. The host states the detail order once on its
+         root through the inherited helpers:CompletionBadge.DetailOrder, and TracksKind keeps
+         helpers:CompletionBadge.Kind current, so the swap is a property trigger and the style
+         works under any host. Shared by the game summaries progress footer, the Cover column's
+         completion frame and the showcase Game Mosaic tiles; each sets its own size. -->
     <Style x:Key="CompletionBadgeImageStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
         <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
         <Setter Property="Source" Value="{DynamicResource BadgeRarityCompleted}"/>
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Completed}"/>
         <Setter Property="Visibility" Value="{Binding ShowCompletionBadge, Converter={StaticResource BoolToVis}}"/>
-        <Setter Property="helpers:CompletionBadge.ShowsPlatinum" Value="{Binding ShowPlatinumInCompletionSpot}"/>
+        <Setter Property="helpers:CompletionBadge.TracksKind" Value="True"/>
         <Style.Triggers>
-            <MultiTrigger>
-                <MultiTrigger.Conditions>
-                    <Condition Property="helpers:CompletionBadge.ShowsPlatinum" Value="True"/>
-                    <Condition Property="helpers:CompletionBadge.PreferTrophyBadges" Value="True"/>
-                </MultiTrigger.Conditions>
+            <Trigger Property="helpers:CompletionBadge.Kind" Value="Platinum">
                 <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
                 <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Platinum}"/>
-            </MultiTrigger>
+            </Trigger>
+            <Trigger Property="helpers:CompletionBadge.Kind" Value="Mythic">
+                <Setter Property="Source" Value="{DynamicResource BadgeRarityMythic}"/>
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Badge_Mythic}"/>
+            </Trigger>
         </Style.Triggers>
     </Style>
 

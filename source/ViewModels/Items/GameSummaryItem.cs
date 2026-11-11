@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
@@ -245,19 +246,67 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _capstonesMatchPlatinums, value))
                 {
-                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                    OnPropertyChanged(nameof(IsPlatinumFinish));
                     OnPropertyChanged(nameof(HasTrophyTypes));
                 }
             }
         }
 
         /// <summary>
-        /// Whether the finish badge renders as the platinum trophy, which also takes the platinum
-        /// out of the trophy row so it appears once rather than twice. Whether trophy badges are
-        /// preferred at all is the host grid's business, so the templates pair this with that.
+        /// Whether this row's finish is its platinum trophy: its capstones are its platinums and
+        /// it has one. The finish badge shows the platinum when trophies are the leading detail
+        /// (<see cref="CompletionBadgeFor"/>).
         /// </summary>
-        public bool ShowPlatinumInCompletionSpot =>
+        public bool IsPlatinumFinish =>
             CapstonesMatchPlatinums && TrophyPlatinumTotal > 0;
+
+        /// <summary>
+        /// Whether every point of this row's points family is earned. The finish badge shows the
+        /// mythic badge when points are the leading detail (<see cref="CompletionBadgeFor"/>).
+        /// </summary>
+        public bool IsMythicFinish =>
+            HasProgressDetail(ProgressDetailStyle.Points) && PlatformScorePoints >= PlatformScorePointsTotal;
+
+        /// <summary>
+        /// Whether this row has data for a progress detail style. Totals, not earned counts, so a
+        /// row does not switch styles at its first unlock.
+        /// </summary>
+        public bool HasProgressDetail(ProgressDetailStyle style)
+        {
+            switch (style)
+            {
+                case ProgressDetailStyle.Rarity:
+                    return ShowsRarity && HasRarityPieChartData;
+                case ProgressDetailStyle.Trophy:
+                    return HasTrophyTypes;
+                case ProgressDetailStyle.Points:
+                    return PlatformScorePointsTotal > 0 && !string.IsNullOrWhiteSpace(PointsFamily);
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// What the finish badge shows under the enabled progress detail styles, in priority
+        /// order: the leading detail is the first style this row has data for, the same one its
+        /// detail strip shows first. A platinum finish counts as trophy data here even when it is
+        /// the row's only trophy, since the badge is where that platinum goes.
+        /// </summary>
+        public CompletionBadgeKind CompletionBadgeFor(IEnumerable<ProgressDetailStyle> detailOrder)
+        {
+            bool leads(ProgressDetailStyle style) =>
+                HasProgressDetail(style) || (style == ProgressDetailStyle.Trophy && IsPlatinumFinish);
+
+            switch (ProgressDetailOrder.PickInline(detailOrder, leads))
+            {
+                case ProgressDetailStyle.Trophy when IsPlatinumFinish:
+                    return CompletionBadgeKind.Platinum;
+                case ProgressDetailStyle.Points when IsMythicFinish:
+                    return CompletionBadgeKind.Mythic;
+                default:
+                    return CompletionBadgeKind.Completed;
+            }
+        }
 
         /// <summary>
         /// Whether the completion badge carries a number. One finish needs none, the badge itself
@@ -343,12 +392,32 @@ namespace PlayniteAchievements.ViewModels.Items
         // Points that count toward the game's points card: the same unlocked sum without
         // RetroAchievements softcore unlocks.
         private int _platformScorePoints;
-        public int PlatformScorePoints { get => _platformScorePoints; set => SetValue(ref _platformScorePoints, value); }
+        public int PlatformScorePoints
+        {
+            get => _platformScorePoints;
+            set
+            {
+                if (SetValueAndReturn(ref _platformScorePoints, value))
+                {
+                    OnPropertyChanged(nameof(IsMythicFinish));
+                }
+            }
+        }
 
         // Points of every achievement, unlocked or not: the most PlatformScorePoints can reach.
         // Also shown as the points segment of the Game column's metadata line.
         private int _platformScorePointsTotal;
-        public int PlatformScorePointsTotal { get => _platformScorePointsTotal; set => SetValue(ref _platformScorePointsTotal, value); }
+        public int PlatformScorePointsTotal
+        {
+            get => _platformScorePointsTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _platformScorePointsTotal, value))
+                {
+                    OnPropertyChanged(nameof(IsMythicFinish));
+                }
+            }
+        }
 
         // The points family PlatformScorePoints count toward (see PointsFamilies.FromProviderKey); null for none.
         public string PointsFamily { get; set; }
@@ -400,7 +469,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _trophyPlatinumTotal, value))
                 {
                     OnPropertyChanged(nameof(HasTrophyTypes));
-                    OnPropertyChanged(nameof(ShowPlatinumInCompletionSpot));
+                    OnPropertyChanged(nameof(IsPlatinumFinish));
                 }
             }
         }
@@ -457,7 +526,7 @@ namespace PlayniteAchievements.ViewModels.Items
         /// capstone is such a platinum, on games that have no other trophies at all.
         /// </remarks>
         public bool HasTrophyTypes =>
-            (TrophyPlatinumTotal > 0 && !ShowPlatinumInCompletionSpot) ||
+            (TrophyPlatinumTotal > 0 && !IsPlatinumFinish) ||
             TrophyGoldTotal > 0 || TrophySilverTotal > 0 || TrophyBronzeTotal > 0;
 
         public bool HasRarityPieChartData =>

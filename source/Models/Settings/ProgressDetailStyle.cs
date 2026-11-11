@@ -122,9 +122,5 @@ namespace PlayniteAchievements.Models.Settings
 
             return null;
         }
-
-        /// <summary>Whether the trophy style is enabled, which also moves a capstone platinum into the completion spot.</summary>
-        public static bool IsTrophyEnabled(IEnumerable<ProgressDetailEntry> entries) =>
-            entries != null && entries.Any(entry => entry != null && entry.Enabled && entry.Style == ProgressDetailStyle.Trophy);
     }
 }
