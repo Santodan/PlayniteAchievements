@@ -44,7 +44,7 @@ namespace PlayniteAchievements.Views.Settings.General
                     ResourceProvider.GetString("LOCPlayAch_Common_General"),
                     iconGlyph: "\uEF47",
                     viewFactory: () => _overviewSection =
-                        new GeneralOverviewSection(jumpToTab)),
+                        new GeneralOverviewSection(settings, jumpToTab)),
                 new SettingsNavigationItem(
                     "SyncUpdates",
                     ResourceProvider.GetString("LOCPlayAch_Section_SyncUpdates"),
@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Views.Settings.General
 
         public void Dispose()
         {
+            _overviewSection?.Dispose();
             _syncUpdatesSection?.Dispose();
             _hotkeySection?.Dispose();
         }
