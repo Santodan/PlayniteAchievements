@@ -515,6 +515,7 @@ namespace PlayniteAchievements.Models
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileLayoutOption = "ProfileLayout";
         private const string ProfileLinks = "ProfileLinks";
+        private const string ProfileUnlocksMedal = "ProfileUnlocksMedal";
         private const string MosaicIconSize = "MosaicIconSize";
         private const string ProfileAvatarWidth = "ProfileAvatarWidth";
         private const string ProfileAvatarHeight = "ProfileAvatarHeight";
@@ -1232,6 +1233,16 @@ namespace PlayniteAchievements.Models
 
         public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileLinks, value);
+
+        /// <summary>
+        /// Whether the profile medal row leads with the total unlocks medal. Independent of the
+        /// medal mode, so it also shows when the mode is None.
+        /// </summary>
+        public static bool GetProfileUnlocksMedal(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileUnlocksMedal, true) ?? true;
+
+        public static void SetProfileUnlocksMedal(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileUnlocksMedal, value);
 
         /// <summary>Standard-density profile picture size, shown in the editor when no size is set.</summary>
         public const int DefaultProfileAvatarSize = 72;
@@ -2016,6 +2027,7 @@ namespace PlayniteAchievements.Models
                     ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
                     ShowcaseWidgetOptions.SetProfileLayout(settings, ShowcaseProfileLayout.Left);
                     ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
+                    ShowcaseWidgetOptions.SetProfileUnlocksMedal(settings, true);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.FromPreset(TimelineRange.ThreeMonths));
