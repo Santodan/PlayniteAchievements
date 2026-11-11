@@ -28,6 +28,12 @@ namespace PlayniteAchievements.Services.Overview
     {
         public const string Complete = "Complete";
         public const string Incomplete = "Incomplete";
+
+        /// <summary>The open finishes of games with an unlock, when the pie splits Incomplete.</summary>
+        public const string InProgress = "InProgress";
+
+        /// <summary>The open finishes of games with no unlock, when the pie splits Incomplete.</summary>
+        public const string NoProgress = "NoProgress";
         public const string Locked = "Locked";
     }
 
@@ -166,6 +172,7 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             var completions = 0;
+            var completionsByGame = new Dictionary<Guid, int>();
             foreach (var game in games)
             {
                 if (!(game.PlayniteGameId is Guid gameId))
@@ -173,12 +180,18 @@ namespace PlayniteAchievements.Services.Overview
                     continue;
                 }
 
-                completions += game.CapstoneTotal > 0
+                var inSpan = game.CapstoneTotal > 0
                     ? (capstonesByGame.TryGetValue(gameId, out var capstones) ? capstones : 0)
                     : (completedGames.Contains(gameId) ? 1 : 0);
+                completions += inSpan;
+                if (inSpan > 0)
+                {
+                    completionsByGame[gameId] = (completionsByGame.TryGetValue(gameId, out var sum) ? sum : 0) + inSpan;
+                }
             }
 
             clipped.CompletionSpan = span;
+            clipped.CompletionsByGame = completionsByGame;
             clipped.Completions = completions;
             clipped.PossibleCompletions = completions;
             clipped.CompletedGames = completedGames.Count;
