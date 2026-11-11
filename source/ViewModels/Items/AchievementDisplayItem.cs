@@ -145,7 +145,18 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
-        public Guid? PlayniteGameId { get => _playniteGameId; set => SetValue(ref _playniteGameId, value); }
+        // Tag names and colors resolve per game, so a row reused for another game re-reads them.
+        public Guid? PlayniteGameId
+        {
+            get => _playniteGameId;
+            set
+            {
+                if (SetValueAndReturn(ref _playniteGameId, value))
+                {
+                    NotifyTagsChanged();
+                }
+            }
+        }
 
         public string ProviderKey
         {
@@ -486,13 +497,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(UnlockTimeUtc)))
                 {
-                    OnPropertyChanged(nameof(UnlockTimeText));
-                    OnPropertyChanged(nameof(UnlockTimeOfDayText));
-                    OnPropertyChanged(nameof(UnlockTimeLocal));
-                    OnPropertyChanged(nameof(DateUnlocked));
-                    OnPropertyChanged(nameof(UnlockTime));
-                    OnPropertyChanged(nameof(ShowUnlockDate));
-                    OnPropertyChanged(nameof(ShowLockedProgress));
+                    NotifyUnlockTimeChanged();
                 }
             }
         }
@@ -573,14 +578,10 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(Unlocked)))
                 {
-                    NotifyRevealStateChanged();
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
+                    NotifyMaskStateChanged();
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
                     OnPropertyChanged(nameof(IsUnlock));
-                    OnPropertyChanged(nameof(UnlockedForVisibility));
                 }
             }
         }
@@ -655,10 +656,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(Hidden)))
                 {
-                    NotifyRevealStateChanged();
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -894,17 +892,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _showFriendSpoilers, value))
                 {
-                    NotifyRevealStateChanged();
-                    OnPropertyChanged(nameof(IsIconHidden));
-                    OnPropertyChanged(nameof(IsLockedIconHidden));
-                    OnPropertyChanged(nameof(IsTitleHidden));
-                    OnPropertyChanged(nameof(IsDescriptionHidden));
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
-                    NotifyTrophyDisplayChanged();
-                    NotifyPointsDisplayChanged();
-                    NotifyRarityDisplayChanged();
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -938,35 +926,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _isRevealed, value))
                 {
-                    NotifyRevealStateChanged();
-                    OnPropertyChanged(nameof(IsIconHidden));
-                    OnPropertyChanged(nameof(IsLockedIconHidden));
-                    OnPropertyChanged(nameof(IsTitleHidden));
-                    OnPropertyChanged(nameof(IsDescriptionHidden));
-                    if (!ShowHiddenIcon || !ShowLockedIcon)
-                    {
-                        NotifyIconDisplayChanged();
-                    }
-                    if (!ShowHiddenTitle || !ShowLockedTitle)
-                    {
-                        NotifyTitleDisplayChanged();
-                    }
-                    if (!ShowHiddenDescription || !ShowLockedDescription)
-                    {
-                        NotifyDescriptionDisplayChanged();
-                    }
-                    if (!ShowHiddenTrophy || !ShowLockedTrophy)
-                    {
-                        NotifyTrophyDisplayChanged();
-                    }
-                    if (!ShowHiddenPoints || !ShowLockedPoints)
-                    {
-                        NotifyPointsDisplayChanged();
-                    }
-                    if (!ShowHiddenRarity || !ShowLockedRarity)
-                    {
-                        NotifyRarityDisplayChanged();
-                    }
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -1145,6 +1105,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _categoryLabel, value))
                 {
                     OnPropertyChanged(nameof(CategoryLabelDisplay));
+                    OnPropertyChanged(nameof(CategoryLabelPathDisplay));
                 }
             }
         }
@@ -2055,12 +2016,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(LockedIconPath));
             OnPropertyChanged(nameof(IconPath));
             OnPropertyChanged(nameof(UnlockTimeUtc));
-            OnPropertyChanged(nameof(UnlockTimeText));
-            OnPropertyChanged(nameof(UnlockTimeOfDayText));
-            OnPropertyChanged(nameof(DateUnlocked));
-            OnPropertyChanged(nameof(UnlockTime));
-            OnPropertyChanged(nameof(ShowUnlockDate));
-            OnPropertyChanged(nameof(ShowLockedProgress));
+            NotifyUnlockTimeChanged();
             OnPropertyChanged(nameof(GlobalPercentUnlocked));
             OnPropertyChanged(nameof(HasRarityPercent));
             OnPropertyChanged(nameof(GlobalPercentText));
@@ -2074,8 +2030,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Rarity));
             OnPropertyChanged(nameof(GamerScore));
             OnPropertyChanged(nameof(Unlocked));
-            OnPropertyChanged(nameof(ShowUnlockDate));
-            OnPropertyChanged(nameof(ShowLockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
@@ -2095,16 +2049,44 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ProgressPercent));
             OnPropertyChanged(nameof(TrophyType));
             OnPropertyChanged(nameof(HasTrophyType));
-            NotifyTrophyDisplayChanged();
-            NotifyRarityDisplayChanged();
+            NotifyMaskStateChanged();
+            NotifyIconPathChanged();
+        }
+
+        /// <summary>
+        /// Raises every property derived from the unlock time. Shared by the setter and the
+        /// source swap so a reused row cannot keep the previous achievement's date.
+        /// </summary>
+        private void NotifyUnlockTimeChanged()
+        {
+            OnPropertyChanged(nameof(UnlockTimeText));
+            OnPropertyChanged(nameof(UnlockTimeOfDayText));
+            OnPropertyChanged(nameof(UnlockTimeLocal));
+            OnPropertyChanged(nameof(DateUnlocked));
+            OnPropertyChanged(nameof(UnlockTime));
+            OnPropertyChanged(nameof(ShowUnlockDate));
+            OnPropertyChanged(nameof(ShowLockedProgress));
+        }
+
+        /// <summary>
+        /// Raises every property that depends on whether the row is masked. Called by each input
+        /// that can change the mask for all fields at once: unlock state, hidden flag, reveal,
+        /// friend spoilers, and a source swap.
+        /// </summary>
+        private void NotifyMaskStateChanged()
+        {
+            OnPropertyChanged(nameof(UnlockedForVisibility));
             NotifyRevealStateChanged();
             OnPropertyChanged(nameof(IsIconHidden));
             OnPropertyChanged(nameof(IsLockedIconHidden));
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
+            NotifyIconDisplayChanged();
             NotifyTitleDisplayChanged();
             NotifyDescriptionDisplayChanged();
-            NotifyIconPathChanged();
+            NotifyTrophyDisplayChanged();
+            NotifyPointsDisplayChanged();
+            NotifyRarityDisplayChanged();
         }
 
         private void NotifyIconPathChanged()
