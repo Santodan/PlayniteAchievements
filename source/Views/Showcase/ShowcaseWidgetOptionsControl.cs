@@ -1272,10 +1272,7 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         /// <summary>
-        /// The profile stat strip's slot editor: one combo per filled slot plus a trailing
-        /// empty one, each picking a single overall statistic. Choosing a stat in the trailing
-        /// combo appends a slot; choosing None in a filled combo removes it. Slots are
-        /// unbounded and stored in slot order.
+        /// The profile stat strip's statistics, edited as the shared stat list.
         /// </summary>
         private void AddProfileStatSlots(Panel panel)
         {
@@ -1297,10 +1294,18 @@ namespace PlayniteAchievements.Views.Showcase
                 keys => ShowcaseWidgetOptions.SetStatisticsKeys(_settings, keys));
         }
 
+        /// <summary>
+        /// An ordered stat list shaped like the profile links editor: one row per statistic with
+        /// move and remove buttons, and an add row offering the statistics not yet listed.
+        /// Every change stores the list in its new order.
+        /// </summary>
         private void AddStatSlots(Panel panel, IReadOnlyList<string> initial, Action<List<string>> save)
         {
             // Key/label catalog only; the empty snapshot's values are never shown.
             var catalog = ShowcaseWidgetProjectionService.BuildStatistics(null, DateTime.Now);
+            string LabelOf(string key) =>
+                Localize(catalog.FirstOrDefault(stat => string.Equals(stat.Key, key, StringComparison.Ordinal))?.LabelKey
+                    ?? key);
 
             var labelBlock = new TextBlock
             {
@@ -1310,13 +1315,33 @@ namespace PlayniteAchievements.Views.Showcase
             labelBlock.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             panel.Children.Add(labelBlock);
 
-            var slots = (initial ?? Array.Empty<string>()).ToList();
-            var grid = new System.Windows.Controls.Primitives.UniformGrid { Columns = 2 };
-            var rebuilding = false;
+            // Unknown keys (hand-edited settings) and repeats are dropped.
+            var slots = (initial ?? Array.Empty<string>())
+                .Where(key => catalog.Any(stat => string.Equals(stat.Key, key, StringComparison.Ordinal)))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            var list = new StackPanel();
+            panel.Children.Add(list);
+
+            var addRow = new Grid();
+            OptionRowLayout.Apply(addRow);
+            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            addRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var picker = new ComboBox { MinHeight = 30, DisplayMemberPath = nameof(Choice<string>.Label) };
+            addRow.Children.Add(picker);
+            var add = new Button
+            {
+                Content = Localize("LOCPlayAch_Common_Add"),
+                MinWidth = 82
+            };
+            add.SetResourceReference(MarginProperty, "PlayAch.Thickness.Left.Sm");
+            Grid.SetColumn(add, 1);
+            addRow.Children.Add(add);
+            panel.Children.Add(addRow);
 
             void Store()
             {
-                save(slots);
+                save(slots.ToList());
                 _persist?.Invoke();
                 if (_publishChanges)
                 {
@@ -1324,78 +1349,78 @@ namespace PlayniteAchievements.Views.Showcase
                 }
             }
 
-            void Rebuild()
+            void Render()
             {
-                rebuilding = true;
-                grid.Children.Clear();
-                for (var index = 0; index <= slots.Count; index++)
+                list.Children.Clear();
+                for (var i = 0; i < slots.Count; i++)
                 {
-                    var slotIndex = index;
-                    var combo = new ComboBox
+                    var index = i;
+                    var row = new Grid();
+                    row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Sm");
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var name = new TextBlock
                     {
-                        MinHeight = 30,
-                        Margin = new Thickness(0, 2, index % 2 == 0 ? 8 : 0, 2)
+                        Text = LabelOf(slots[i]),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis
                     };
-                    combo.Items.Add(new Choice<string>
+                    name.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
+                    row.Children.Add(name);
+
+                    // IcoFont arrow-up, arrow-down, and trash, as the profile links use.
+                    ShowcaseProfileSettingsEditor.AddListRowButton(row, 1, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
+                        () => Move(index, -1));
+                    ShowcaseProfileSettingsEditor.AddListRowButton(row, 2, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < slots.Count - 1,
+                        () => Move(index, 1));
+                    ShowcaseProfileSettingsEditor.AddListRowButton(row, 3, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
                     {
-                        Value = null,
-                        Label = Localize("LOCPlayAch_Common_None")
-                    });
-                    foreach (var stat in catalog)
-                    {
-                        combo.Items.Add(new Choice<string>
-                        {
-                            Value = stat.Key,
-                            Label = Localize(stat.LabelKey)
-                        });
-                    }
-
-                    combo.DisplayMemberPath = nameof(Choice<string>.Label);
-                    var current = slotIndex < slots.Count ? slots[slotIndex] : null;
-                    // Unknown keys (hand-edited settings) fall back to the None choice.
-                    combo.SelectedItem = combo.Items
-                        .OfType<Choice<string>>()
-                        .FirstOrDefault(choice => string.Equals(
-                            choice.Value,
-                            current,
-                            StringComparison.Ordinal))
-                        ?? combo.Items[0];
-                    combo.SelectionChanged += (_, __) =>
-                    {
-                        if (rebuilding || !(combo.SelectedItem is Choice<string> choice))
-                        {
-                            return;
-                        }
-
-                        if (slotIndex >= slots.Count)
-                        {
-                            if (choice.Value == null)
-                            {
-                                return;
-                            }
-
-                            slots.Add(choice.Value);
-                        }
-                        else if (choice.Value == null)
-                        {
-                            slots.RemoveAt(slotIndex);
-                        }
-                        else
-                        {
-                            slots[slotIndex] = choice.Value;
-                        }
-
+                        slots.RemoveAt(index);
                         Store();
-                        Rebuild();
-                    };
-                    grid.Children.Add(combo);
+                        Render();
+                    });
+                    list.Children.Add(row);
                 }
 
-                rebuilding = false;
+                picker.Items.Clear();
+                foreach (var stat in catalog.Where(stat => !slots.Contains(stat.Key, StringComparer.Ordinal)))
+                {
+                    picker.Items.Add(new Choice<string> { Value = stat.Key, Label = Localize(stat.LabelKey) });
+                }
+
+                picker.SelectedIndex = picker.Items.Count > 0 ? 0 : -1;
+                addRow.IsEnabled = picker.Items.Count > 0;
             }
 
-            Rebuild();
-            panel.Children.Add(grid);
+            void Move(int index, int direction)
+            {
+                var target = index + direction;
+                if (target < 0 || target >= slots.Count)
+                {
+                    return;
+                }
+
+                var key = slots[index];
+                slots.RemoveAt(index);
+                slots.Insert(target, key);
+                Store();
+                Render();
+            }
+
+            add.Click += (_, __) =>
+            {
+                if (picker.SelectedItem is Choice<string> choice && choice.Value != null)
+                {
+                    slots.Add(choice.Value);
+                    Store();
+                    Render();
+                }
+            };
+
+            Render();
         }
 
         /// <summary>
