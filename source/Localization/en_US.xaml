@@ -972,8 +972,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes">Hours and minutes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly">Hours only</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles">Achievement styles</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles_Help">Drag Rarity, Trophy and Points to choose which comes first when a game or achievement has more than one. Progress bars show the first ones each game has, up to the number below. Badges before achievement names and descriptions show the first one each achievement has. A finished game's badge and the Completed games pie show the platinum or mythic when trophies or points come first. Rarity is always on.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles_ProgressBarCount">Progress bar details per game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles_Help">Drag to choose which comes first on progress bars, badges and the Completions pie. Rarity is always on.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProgressBarDetailCount">Progress bar details per game</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge">Category completion badge</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadgeMode_First">First</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn">Category column</sys:String>
