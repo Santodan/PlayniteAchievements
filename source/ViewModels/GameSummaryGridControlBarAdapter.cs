@@ -38,6 +38,10 @@ namespace PlayniteAchievements.ViewModels
         /// and In Progress. Search, No Progress and activity are left out, and their saved state
         /// is not restored.
         /// </param>
+        /// <param name="includeNoProgress">
+        /// True to offer No Progress in a chart bar's progress filter too, after Complete and
+        /// In Progress so saved positions keep their meaning.
+        /// </param>
         /// <param name="includeProgress">False to leave the progress filter out as well.</param>
         /// <param name="achievementFilters">
         /// True to add the Tags filter after Game and the Rarity and Trophy filters last. They
@@ -45,7 +49,11 @@ namespace PlayniteAchievements.ViewModels
         /// and the widget counts the kept games' achievements through
         /// <see cref="MatchesAchievement"/> and <see cref="MatchesTally"/>.
         /// </param>
-        protected GameSummaryGridControlBarAdapter(bool chartFilters, bool includeProgress = true, bool achievementFilters = false)
+        protected GameSummaryGridControlBarAdapter(
+            bool chartFilters,
+            bool includeProgress = true,
+            bool achievementFilters = false,
+            bool includeNoProgress = false)
         {
             _chartFilters = chartFilters;
             _includeProgress = includeProgress;
@@ -58,7 +66,7 @@ namespace PlayniteAchievements.ViewModels
                 TierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             }
 
-            ProgressFilterOptions = chartFilters
+            ProgressFilterOptions = chartFilters && !includeNoProgress
                 ? new ObservableCollection<string> { CompleteLabel, InProgressLabel }
                 : new ObservableCollection<string> { CompleteLabel, InProgressLabel, NoProgressLabel };
             ActivityFilterOptions = new ObservableCollection<string>
