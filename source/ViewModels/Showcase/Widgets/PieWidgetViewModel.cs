@@ -362,25 +362,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         ? OverviewLinkedSliceKeys.Locked
                         : Chart?.GetProviderKeyFromLabel(label);
                 case ShowcasePieMode.CompletedGames:
-                    // Every finish badge's slice stands for the Complete filter.
-                    if (FinishLabels.Any(finish => string.Equals(label, finish, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        return OverviewLinkedSliceKeys.Complete;
-                    }
-
-                    if (string.Equals(label, Localize("LOCPlayAch_Filter_InProgress"), StringComparison.OrdinalIgnoreCase))
-                    {
-                        return OverviewLinkedSliceKeys.InProgress;
-                    }
-
-                    if (string.Equals(label, Localize("LOCPlayAch_Filter_NoProgress"), StringComparison.OrdinalIgnoreCase))
-                    {
-                        return OverviewLinkedSliceKeys.NoProgress;
-                    }
-
-                    return string.Equals(label, Localize("LOCPlayAch_Overview_Incomplete"), StringComparison.OrdinalIgnoreCase)
-                        ? OverviewLinkedSliceKeys.Incomplete
-                        : null;
+                    // Each slice is one of the Progress filter's choices, under the same label.
+                    return ProgressFilterChoices.KeyForLabel(label);
                 case ShowcasePieMode.Rarity:
                 case ShowcasePieMode.Trophy:
                     // The overview's rarity and trophy filters list these same labels.
@@ -397,10 +380,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
         }
 
-        private static IEnumerable<string> FinishLabels =>
-            new[] { CompletionBadgeKind.Completed, CompletionBadgeKind.Platinum, CompletionBadgeKind.Mythic }
-                .Select(PieChartViewModel.CompletionLabel);
-
         // The labels a linked slice key highlights; labels the chart does not draw are ignored.
         private static IEnumerable<string> LabelsForSliceKey(PieChartViewModel chart, ShowcasePieMode mode, string key)
         {
@@ -409,24 +388,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 case ShowcasePieMode.Provider:
                     return new[] { chart.GetLabelForProviderKey(key) };
                 case ShowcasePieMode.CompletedGames:
-                    switch (key)
-                    {
-                        case OverviewLinkedSliceKeys.Complete:
-                            return FinishLabels;
-                        case OverviewLinkedSliceKeys.Incomplete:
-                            return new[]
-                            {
-                                Localize("LOCPlayAch_Overview_Incomplete"),
-                                Localize("LOCPlayAch_Filter_InProgress"),
-                                Localize("LOCPlayAch_Filter_NoProgress")
-                            };
-                        case OverviewLinkedSliceKeys.InProgress:
-                            return new[] { Localize("LOCPlayAch_Filter_InProgress") };
-                        case OverviewLinkedSliceKeys.NoProgress:
-                            return new[] { Localize("LOCPlayAch_Filter_NoProgress") };
-                        default:
-                            return Array.Empty<string>();
-                    }
+                    return new[] { ProgressFilterChoices.Label(key) };
                 case ShowcasePieMode.Rarity:
                 case ShowcasePieMode.Trophy:
                     return new[] { key };
