@@ -3584,6 +3584,7 @@ namespace PlayniteAchievements.Models.Settings
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
+            ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
