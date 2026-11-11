@@ -127,10 +127,26 @@ namespace PlayniteAchievements.Services.Overview
             }
         }
 
-        /// <summary>The choices offered under <paramref name="order"/>, in display order.</summary>
-        public static IReadOnlyList<string> Keys(IReadOnlyList<ProgressDetailStyle> order, bool includeNoProgress)
+        /// <summary>
+        /// The choices offered under <paramref name="order"/>, in display order. Given
+        /// <paramref name="games"/>, only the finishes one of them shows are offered: with Rarity
+        /// ahead of Points, a game with rarity data shows the completed badge, never the mythic.
+        /// </summary>
+        public static IReadOnlyList<string> Keys(
+            IReadOnlyList<ProgressDetailStyle> order,
+            bool includeNoProgress,
+            IEnumerable<GameSummaryItem> games = null)
         {
-            var keys = CompletionBreakdown.FinishOrderFor(order).Select(KeyOf).ToList();
+            var finishes = CompletionBreakdown.FinishOrderFor(order).Select(KeyOf);
+            if (games != null)
+            {
+                var shown = new HashSet<string>(
+                    games.Where(game => game?.IsCompleted == true).Select(game => KeyFor(game, order)),
+                    StringComparer.Ordinal);
+                finishes = finishes.Where(shown.Contains);
+            }
+
+            var keys = finishes.ToList();
             keys.Add(InProgress);
             if (includeNoProgress)
             {
