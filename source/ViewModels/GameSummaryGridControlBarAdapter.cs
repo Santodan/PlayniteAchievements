@@ -68,6 +68,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _includeNoProgress = !chartFilters || includeNoProgress;
+            UpdateProgressOptions();
             ActivityFilterOptions = new ObservableCollection<string>
             {
                 PlayedLabel,
@@ -83,7 +84,7 @@ namespace PlayniteAchievements.ViewModels
         // New Achievement styles change the choices offered and which games a pick keeps.
         private void OnProgressChoicesChanged()
         {
-            OnPropertyChanged(nameof(SelectedProgressFilterText));
+            UpdateProgressOptions();
             ControlBar.Refresh();
             if (_selectedProgressFilters.Count > 0)
             {
@@ -174,11 +175,30 @@ namespace PlayniteAchievements.ViewModels
                 L("LOCPlayAch_Common_Platform"));
 
         /// <summary>
-        /// The Progress choices as keys: the finishes the Achievement styles allow, in their
+        /// The Progress choices as keys: the finishes the bar's games show, in Achievement styles
         /// order, then In Progress and (unless a chart bar leaves it out) No Progress.
         /// </summary>
-        public IReadOnlyList<string> ProgressFilterOptions =>
-            ProgressFilterChoices.Keys(ProgressFilterChoices.CurrentOrder(), _includeNoProgress);
+        public IReadOnlyList<string> ProgressFilterOptions => _progressOptions;
+
+        private IReadOnlyList<string> _progressOptions = Array.Empty<string>();
+        private List<GameSummaryItem> _progressGames;
+
+        // Rebuilds the choices; true when they changed.
+        private bool UpdateProgressOptions()
+        {
+            var options = ProgressFilterChoices.Keys(
+                ProgressFilterChoices.CurrentOrder(),
+                _includeNoProgress,
+                _progressGames);
+            if (options.SequenceEqual(_progressOptions, StringComparer.Ordinal))
+            {
+                return false;
+            }
+
+            _progressOptions = options;
+            OnPropertyChanged(nameof(SelectedProgressFilterText));
+            return true;
+        }
 
         public string SelectedProgressFilterText
         {
@@ -244,7 +264,9 @@ namespace PlayniteAchievements.ViewModels
             // from under an open dropdown, so a toggle there would land on a discarded group.
             GameFilter.UpdateGames(source);
             var games = (source ?? Enumerable.Empty<GameSummaryItem>()).ToList();
-            if (TierFilters?.UpdateGames(games) == true)
+            _progressGames = source == null ? null : games;
+            var progressChanged = UpdateProgressOptions();
+            if (TierFilters?.UpdateGames(games) == true || progressChanged)
             {
                 ControlBar.Refresh();
             }
