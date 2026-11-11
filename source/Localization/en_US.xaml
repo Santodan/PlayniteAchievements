@@ -116,6 +116,7 @@
     <sys:String x:Key="LOCPlayAch_Trophy_Gold">Gold</sys:String>
     <sys:String x:Key="LOCPlayAch_Trophy_Platinum">Platinum</sys:String>
     <sys:String x:Key="LOCPlayAch_Trophy_Silver">Silver</sys:String>
+    <sys:String x:Key="LOCPlayAch_Badge_Mythic">Mythic</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockTime">Unlock Time</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Add">Add</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">All</sys:String>

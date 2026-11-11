@@ -59,7 +59,8 @@ namespace PlayniteAchievements.Views.Controls
             public Func<GameSummaryItem, Brush> Brush;
             public Func<GameSummaryItem, string> Tooltip;
             public Func<GameSummaryItem, int> Count;
-            public Func<GameSummaryItem, bool> Hidden;
+            // Hidden when the finish badge shows this entry instead, so it appears once.
+            public CompletionBadgeKind? ShownByBadge;
             public bool ShowZero;
         }
 
@@ -74,8 +75,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private static readonly DetailSpec[] TrophySpecs =
         {
-            // The platinum steps aside when the finish badge is showing it.
-            new DetailSpec { ImageKey = "TrophyPlatinum", BrushKey = "PlayAch.Brush.Trophy.Platinum", TooltipKey = "LOCPlayAch_Trophy_Platinum", Count = item => item.TrophyPlatinumCount, Hidden = item => item.ShowPlatinumInCompletionSpot },
+            new DetailSpec { ImageKey = "TrophyPlatinum", BrushKey = "PlayAch.Brush.Trophy.Platinum", TooltipKey = "LOCPlayAch_Trophy_Platinum", Count = item => item.TrophyPlatinumCount, ShownByBadge = CompletionBadgeKind.Platinum },
             new DetailSpec { ImageKey = "TrophyGold", BrushKey = "PlayAch.Brush.Trophy.Gold", TooltipKey = "LOCPlayAch_Trophy_Gold", Count = item => item.TrophyGoldCount },
             new DetailSpec { ImageKey = "TrophySilver", BrushKey = "PlayAch.Brush.Trophy.Silver", TooltipKey = "LOCPlayAch_Trophy_Silver", Count = item => item.TrophySilverCount },
             new DetailSpec { ImageKey = "TrophyBronze", BrushKey = "PlayAch.Brush.Trophy.Bronze", TooltipKey = "LOCPlayAch_Trophy_Bronze", Count = item => item.TrophyBronzeCount }
@@ -305,23 +305,6 @@ namespace PlayniteAchievements.Views.Controls
             _images[spec.ImageKey] = TryFindResource(spec.ImageKey) as ImageSource;
         }
 
-        // Whether a game has data for a style. Totals, not earned counts, so a game does not
-        // switch styles at its first unlock.
-        private static bool HasData(GameSummaryItem item, ProgressDetailStyle style)
-        {
-            switch (style)
-            {
-                case ProgressDetailStyle.Rarity:
-                    return item.ShowsRarity && item.HasRarityPieChartData;
-                case ProgressDetailStyle.Trophy:
-                    return item.HasTrophyTypes;
-                case ProgressDetailStyle.Points:
-                    return item.PlatformScorePointsTotal > 0 && !string.IsNullOrWhiteSpace(item.PointsFamily);
-                default:
-                    return false;
-            }
-        }
-
         private static DetailSpec[] SpecsFor(ProgressDetailStyle style)
         {
             switch (style)
@@ -356,7 +339,7 @@ namespace PlayniteAchievements.Views.Controls
                 }
 
                 var specs = SpecsFor(style);
-                if (specs != null && HasData(item, style))
+                if (specs != null && item.HasProgressDetail(style))
                 {
                     groups.Add(specs);
                 }
@@ -367,12 +350,13 @@ namespace PlayniteAchievements.Views.Controls
 
         private IEnumerable<DetailSpec> VisibleSpecs(GameSummaryItem item, DetailSpec[] specs)
         {
+            var badge = item.CompletionBadgeFor(DetailOrder);
             var count = specs.Length;
             for (var step = 0; step < count; step++)
             {
                 var spec = specs[Reversed ? count - 1 - step : step];
                 var value = spec.Count(item);
-                if (value < 0 || (value == 0 && !spec.ShowZero) || spec.Hidden?.Invoke(item) == true)
+                if (value < 0 || (value == 0 && !spec.ShowZero) || spec.ShownByBadge == badge)
                 {
                     continue;
                 }

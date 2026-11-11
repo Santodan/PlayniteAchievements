@@ -514,23 +514,6 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ShowTreeOnlyProperty, value);
         }
 
-        public static readonly DependencyProperty PreferTrophyBadgesProperty =
-            DependencyProperty.Register(
-                nameof(PreferTrophyBadges),
-                typeof(bool),
-                typeof(GameSummariesGridControl),
-                new PropertyMetadata(true));
-
-        /// <summary>
-        /// Whether the trophy style is enabled in the global progress details list, which moves a
-        /// capstone platinum into the completion spot.
-        /// </summary>
-        public bool PreferTrophyBadges
-        {
-            get => (bool)GetValue(PreferTrophyBadgesProperty);
-            private set => SetValue(PreferTrophyBadgesProperty, value);
-        }
-
         public static readonly DependencyProperty ProgressDetailStylesProperty =
             DependencyProperty.Register(
                 nameof(ProgressDetailStyles),
@@ -1766,7 +1749,7 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// The global progress details priority list: the enabled styles and shown count for the
-        /// footer strips, and whether trophies are enabled for the completion badge's platinum swap.
+        /// footer strips. The enabled styles also decide each row's completion badge.
         /// </summary>
         private void UpdateProgressDetails(PlayniteAchievementsSettings settings)
         {
@@ -1774,7 +1757,6 @@ namespace PlayniteAchievements.Views.Controls
             ProgressDetailStyles = ProgressDetailOrder.EnabledStyles(details);
             ProgressDetailShownCount = ProgressDetailOrder.ClampShownCount(
                 settings?.Persisted?.ProgressDetailShownCount ?? ProgressDetailOrder.MinShownCount);
-            PreferTrophyBadges = ProgressDetailOrder.IsTrophyEnabled(details);
         }
 
         private void UpdateColorRarityColumnsByRarity(PlayniteAchievementsSettings settings)

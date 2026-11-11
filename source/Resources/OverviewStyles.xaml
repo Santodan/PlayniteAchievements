@@ -284,10 +284,9 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The finish badge at mini-badge size. When the row's capstones are exactly its platinum
-         trophies and the user has left trophy badges on, the badge becomes the platinum itself
-         (CompletionBadgeImageStyle) and the trophy row drops its own platinum, so the platinum is
-         shown once rather than twice. -->
+    <!-- The finish badge at mini-badge size. It follows the row's leading progress detail
+         (CompletionBadgeImageStyle); when it shows the platinum, the trophy row drops its own
+         platinum, so the platinum is shown once rather than twice. -->
     <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource CompletionBadgeImageStyle}">
         <Setter Property="Width" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
         <Setter Property="Height" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
@@ -300,11 +299,11 @@
     <Style x:Key="OverviewCompletedFooterTextStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextCompletedStyle}">
         <Setter Property="Visibility" Value="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"/>
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+        <Setter Property="helpers:CompletionBadge.TracksKind" Value="True"/>
         <Style.Triggers>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
-                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding (helpers:CompletionBadge.Kind), RelativeSource={RelativeSource Self}}" Value="Platinum"/>
                     <Condition Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
