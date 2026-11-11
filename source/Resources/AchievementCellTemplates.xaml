@@ -471,11 +471,15 @@
                             <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Common}">
                                 <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}"/>
                             </DataTrigger>
+                            <!-- Last, so the masked badge beats the tier triggers above. -->
+                            <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityUnknown}"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Image.Style>
             </Image>
-            <TextBlock Text="{Binding GlobalPercentText}"
+            <TextBlock Text="{Binding GlobalPercentTextResolved}"
                        FontWeight="SemiBold"
                        Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                 <TextBlock.Style>
@@ -484,6 +488,10 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
                                 <Setter Property="Foreground" Value="{Binding RarityBrush}"/>
+                            </DataTrigger>
+                            <!-- A masked rarity keeps the text color, which would otherwise name the tier. -->
+                            <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -523,6 +531,9 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Common}">
                             <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityUnknown}"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -902,7 +913,8 @@
 
     <!-- The achievement name text of the Achievement and Title columns. Its color follows the
          grid's NameColor source; a row the source gives no color keeps the text color. Trophy
-         switches on TrophyTypeResolved, so a masked trophy stays uncolored. -->
+         switches on TrophyTypeResolved, so a masked trophy stays uncolored; a masked rarity
+         likewise drops the rarity color. -->
     <Style x:Key="AchievementNameTextStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
@@ -919,6 +931,15 @@
                          Value="{x:Static settings:AchievementNameColorSource.Rarity}">
                 <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
             </DataTrigger>
+            <!-- A masked rarity keeps the text color, which would otherwise name the tier. -->
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                               Value="{x:Static settings:AchievementNameColorSource.Rarity}"/>
+                    <Condition Binding="{Binding IsRarityHidden}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+            </MultiDataTrigger>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
                     <Condition Binding="{Binding NameColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
@@ -969,6 +990,7 @@
     <Style x:Key="AchievementInlineDetailStyle" TargetType="controls:AchievementInlineDetail">
         <Setter Property="Rarity" Value="{Binding Rarity, Mode=OneWay}"/>
         <Setter Property="HasRarity" Value="{Binding HasRarityPercent, Mode=OneWay}"/>
+        <Setter Property="IsRarityHidden" Value="{Binding IsRarityHidden, Mode=OneWay}"/>
         <Setter Property="ShowsRarity" Value="{Binding ShowsRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue=False}"/>
         <Setter Property="TrophyType" Value="{Binding TrophyTypeResolved, Mode=OneWay}"/>
         <Setter Property="PointsText" Value="{Binding PointsTextResolved, Mode=OneWay}"/>
