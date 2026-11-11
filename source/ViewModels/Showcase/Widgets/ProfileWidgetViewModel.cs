@@ -217,7 +217,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             Medals.ReplaceAll(BuildMedals(
                 snapshot,
-                ShowcaseWidgetOptions.GetProfileMedalMode(Projection?.Instance),
+                ShowcaseWidgetOptions.GetProfileMedalRows(Projection?.Instance),
                 ShowcaseWidgetOptions.GetProfileUnlocksMedal(Projection?.Instance)));
             ShowMedals = Medals.Count > 0;
 
@@ -249,60 +249,63 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private static IReadOnlyList<BadgeCountItem> BuildMedals(
             OverviewDataSnapshot snapshot,
-            ShowcaseProfileMedalMode mode,
+            IReadOnlyList<ProgressDetailEntry> rows,
             bool showUnlocks)
         {
             var medals = new List<BadgeCountItem>();
-            // Independent of the mode, so it leads the row even when the mode is None.
+            // Independent of the rows, so it leads even when every row is off.
             if (showUnlocks)
             {
                 BadgeCountItem.Add(medals, "BadgeUnlocked", snapshot.TotalUnlocked);
             }
 
-            if (mode == ShowcaseProfileMedalMode.None)
+            foreach (var row in rows ?? Array.Empty<ProgressDetailEntry>())
             {
-                return medals;
-            }
-
-            if (mode == ShowcaseProfileMedalMode.Points)
-            {
-                // Points are not comparable across platforms, so each platform gets its own
-                // medal rather than one summed total.
-                foreach (var entry in ShowcaseWidgetProjectionService
-                    .SumPointsByProvider(snapshot.GameSummaries)
-                    .OrderByDescending(entry => entry.Value))
+                if (row == null || !row.Enabled)
                 {
-                    var (iconKey, colorHex) = ProviderRegistry.ResolveProviderVisualsOrFallback(entry.Key);
-                    var label = string.IsNullOrWhiteSpace(entry.LabelKey)
-                        ? entry.Label
-                        : ResourceProvider.GetString(entry.LabelKey);
-                    medals.Add(BadgeCountItem.ForProvider(iconKey, colorHex, entry.Value, label));
+                    continue;
                 }
 
-                return medals;
-            }
+                switch (row.Style)
+                {
+                    case ProgressDetailStyle.Rarity:
+                        // Completions, not completed games: a game with several capstones is
+                        // finished several times over, and the medal sits beside rarity counts
+                        // that are all totals of things earned rather than counts of games.
+                        BadgeCountItem.Add(medals, "BadgeCompletedGame", snapshot.Completions);
+                        medals.AddRange(BadgeCountItem.BuildRarity(
+                            snapshot.TotalUltraRare,
+                            snapshot.TotalRare,
+                            snapshot.TotalUncommon,
+                            snapshot.TotalCommon));
+                        break;
+                    case ProgressDetailStyle.Trophy:
+                        BadgeCountItem.Add(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
+                        BadgeCountItem.Add(medals, "TrophyGold", snapshot.TotalGold);
+                        BadgeCountItem.Add(medals, "TrophySilver", snapshot.TotalSilver);
+                        BadgeCountItem.Add(medals, "TrophyBronze", snapshot.TotalBronze);
+                        break;
+                    case ProgressDetailStyle.Points:
+                        // The games with every point earned lead, as the platinum leads the trophies.
+                        BadgeCountItem.Add(
+                            medals,
+                            "BadgeRarityMythic",
+                            (snapshot.GameSummaries ?? new List<GameSummaryItem>()).Count(game => game?.IsMythicFinish == true));
+                        // Points are not comparable across platforms, so each platform gets its
+                        // own medal rather than one summed total.
+                        foreach (var entry in ShowcaseWidgetProjectionService
+                            .SumPointsByProvider(snapshot.GameSummaries)
+                            .OrderByDescending(entry => entry.Value))
+                        {
+                            var (iconKey, colorHex) = ProviderRegistry.ResolveProviderVisualsOrFallback(entry.Key);
+                            var label = string.IsNullOrWhiteSpace(entry.LabelKey)
+                                ? entry.Label
+                                : ResourceProvider.GetString(entry.LabelKey);
+                            medals.Add(BadgeCountItem.ForProvider(iconKey, colorHex, entry.Value, label));
+                        }
 
-            if (mode != ShowcaseProfileMedalMode.Trophy)
-            {
-                // Completions, not completed games: a game with several capstones is finished
-                // several times over, and the medal sits beside rarity counts that are all totals
-                // of things earned rather than counts of games.
-                BadgeCountItem.Add(medals, "BadgeCompletedGame", snapshot.Completions);
-                medals.AddRange(BadgeCountItem.BuildRarity(
-                    snapshot.TotalUltraRare,
-                    snapshot.TotalRare,
-                    snapshot.TotalUncommon,
-                    snapshot.TotalCommon));
-            }
-
-            if (mode != ShowcaseProfileMedalMode.Rarity)
-            {
-                // Trophy grades alone skip the completions medal: they already carry the sense of
-                // a finished game through the platinum. Both keeps it from the rarity row.
-                BadgeCountItem.Add(medals, "TrophyPlatinum", snapshot.TotalPlatinum);
-                BadgeCountItem.Add(medals, "TrophyGold", snapshot.TotalGold);
-                BadgeCountItem.Add(medals, "TrophySilver", snapshot.TotalSilver);
-                BadgeCountItem.Add(medals, "TrophyBronze", snapshot.TotalBronze);
+                        break;
+                }
             }
 
             return medals;
