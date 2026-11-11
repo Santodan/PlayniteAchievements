@@ -147,6 +147,26 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveRaritySpoilerToggles()
+        {
+            var source = new PersistedSettings
+            {
+                ShowHiddenRarity = false,
+                ShowLockedRarity = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.IsFalse(copy.ShowHiddenRarity);
+                Assert.IsFalse(copy.ShowLockedRarity);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveProgressDetails()
         {
             var source = new PersistedSettings
@@ -1926,6 +1946,8 @@ namespace PlayniteAchievements.Models.Tests
                 ShowHiddenPoints = false,
                 ShowLockedTrophy = false,
                 ShowLockedPoints = false,
+                ShowHiddenRarity = false,
+                ShowLockedRarity = false,
                 OverviewRecentAchievementsShowRarityGlow = false,
                 OverviewSelectedGameShowRarityGlow = false,
                 ViewAchievementsAchievementGridShowRarityGlow = false,
@@ -2035,6 +2057,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowHiddenPoints, settings.ShowHiddenPoints);
             Assert.AreEqual(defaults.ShowLockedTrophy, settings.ShowLockedTrophy);
             Assert.AreEqual(defaults.ShowLockedPoints, settings.ShowLockedPoints);
+            Assert.AreEqual(defaults.ShowHiddenRarity, settings.ShowHiddenRarity);
+            Assert.AreEqual(defaults.ShowLockedRarity, settings.ShowLockedRarity);
             Assert.AreEqual(defaults.OverviewRecentAchievementsShowRarityGlow, settings.OverviewRecentAchievementsShowRarityGlow);
             Assert.AreEqual(defaults.OverviewSelectedGameShowRarityGlow, settings.OverviewSelectedGameShowRarityGlow);
             Assert.AreEqual(defaults.ViewAchievementsAchievementGridShowRarityGlow, settings.ViewAchievementsAchievementGridShowRarityGlow);
