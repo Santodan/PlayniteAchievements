@@ -202,6 +202,8 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenPoints = source.ShowHiddenPoints;
             target.ShowLockedTrophy = source.ShowLockedTrophy;
             target.ShowLockedPoints = source.ShowLockedPoints;
+            target.ShowHiddenRarity = source.ShowHiddenRarity;
+            target.ShowLockedRarity = source.ShowLockedRarity;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
             target.LockedFallbackIconPath = source.LockedFallbackIconPath;
             target.HiddenFallbackIconPath = source.HiddenFallbackIconPath;
