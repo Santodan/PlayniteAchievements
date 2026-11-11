@@ -23,6 +23,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedActivityFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly bool _includeProgress;
+        private readonly bool _includeNoProgress;
         private string _searchText = string.Empty;
         private List<GameSummaryItem> _optionGames;
         private ObservableCollection<ProviderFilterGroup> _providerFilterGroups =
@@ -38,10 +39,7 @@ namespace PlayniteAchievements.ViewModels
         /// and In Progress. Search, No Progress and activity are left out, and their saved state
         /// is not restored.
         /// </param>
-        /// <param name="includeNoProgress">
-        /// True to offer No Progress in a chart bar's progress filter too, after Complete and
-        /// In Progress so saved positions keep their meaning.
-        /// </param>
+        /// <param name="includeNoProgress">True to offer No Progress in a chart bar's progress filter too.</param>
         /// <param name="includeProgress">False to leave the progress filter out as well.</param>
         /// <param name="achievementFilters">
         /// True to add the Tags filter after Game and the Rarity and Trophy filters last. They
@@ -66,9 +64,7 @@ namespace PlayniteAchievements.ViewModels
                 TierFilters = new RarityTrophyControlBarFilters(RaiseFilterChanged);
             }
 
-            ProgressFilterOptions = chartFilters && !includeNoProgress
-                ? new ObservableCollection<string> { CompleteLabel, InProgressLabel }
-                : new ObservableCollection<string> { CompleteLabel, InProgressLabel, NoProgressLabel };
+            _includeNoProgress = !chartFilters || includeNoProgress;
             ActivityFilterOptions = new ObservableCollection<string>
             {
                 PlayedLabel,
@@ -161,12 +157,24 @@ namespace PlayniteAchievements.ViewModels
                 ProviderFilterGroups,
                 L("LOCPlayAch_Common_Platform"));
 
-        public ObservableCollection<string> ProgressFilterOptions { get; }
+        /// <summary>
+        /// The Progress choices as keys: the finishes the Achievement styles allow, in their
+        /// order, then In Progress and (unless a chart bar leaves it out) No Progress.
+        /// </summary>
+        public IReadOnlyList<string> ProgressFilterOptions =>
+            ProgressFilterChoices.Keys(ProgressFilterChoices.CurrentOrder(), _includeNoProgress);
 
-        public string SelectedProgressFilterText => GetSelectedFilterText(
-            _selectedProgressFilters,
-            ProgressFilterOptions,
-            L("LOCPlayAch_Progress"));
+        public string SelectedProgressFilterText
+        {
+            get
+            {
+                var picked = ProgressFilterOptions
+                    .Where(_selectedProgressFilters.Contains)
+                    .Select(ProgressFilterChoices.Label)
+                    .ToList();
+                return picked.Count == 0 ? L("LOCPlayAch_Progress") : string.Join(", ", picked);
+            }
+        }
 
         public ObservableCollection<string> ActivityFilterOptions { get; }
 
@@ -198,12 +206,18 @@ namespace PlayniteAchievements.ViewModels
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
                 _selectedActivityFilters,
-                _selectedProgressFilters,
+                null,
                 PlayedLabel,
-                UnplayedLabel,
-                CompleteLabel,
-                InProgressLabel,
-                NoProgressLabel);
+                UnplayedLabel);
+            var order = ProgressFilterChoices.CurrentOrder();
+            var matchesProgress = ProgressFilterChoices.Matcher(
+                _selectedProgressFilters,
+                ProgressFilterChoices.Keys(order, _includeNoProgress),
+                order);
+            if (matchesProgress != null)
+            {
+                filtered = filtered.Where(matchesProgress);
+            }
 
             return filtered.ToList();
         }
@@ -255,7 +269,7 @@ namespace PlayniteAchievements.ViewModels
                 SearchText = SearchText,
                 Platforms = CapturePlatformSelections(ProviderFilterGroups),
                 Games = GameFilter.Capture(),
-                Progress = SelectedPositions(ProgressFilterOptions, _selectedProgressFilters),
+                ProgressKeys = _selectedProgressFilters.ToList(),
                 Activity = SelectedPositions(ActivityFilterOptions, _selectedActivityFilters)
             };
             TagFilter?.Capture(state);
@@ -275,10 +289,17 @@ namespace PlayniteAchievements.ViewModels
             GameFilter.Restore(state.Games);
             TagFilter?.Restore(state);
             TierFilters?.Restore(state);
-            RestorePositions(
-                ProgressFilterOptions,
-                _selectedProgressFilters,
-                _includeProgress ? state.Progress : null);
+            _selectedProgressFilters.Clear();
+            if (_includeProgress)
+            {
+                foreach (var key in state.ProgressKeys ?? ProgressFilterChoices.FromLegacyPositions(state.Progress))
+                {
+                    if (!string.IsNullOrWhiteSpace(key))
+                    {
+                        _selectedProgressFilters.Add(key);
+                    }
+                }
+            }
             RestorePositions(
                 ActivityFilterOptions,
                 _selectedActivityFilters,
@@ -407,7 +428,8 @@ namespace PlayniteAchievements.ViewModels
                     () => SelectedProgressFilterText,
                     () => ProgressFilterOptions,
                     IsProgressFilterSelected,
-                    SetProgressFilterSelected)
+                    SetProgressFilterSelected,
+                    ProgressFilterChoices.Label)
                 {
                     Id = ShowcaseControlBarItems.Progress,
                     LabelKey = "LOCPlayAch_Progress",
@@ -497,12 +519,6 @@ namespace PlayniteAchievements.ViewModels
 
             return string.Join(", ", ordered);
         }
-
-        private static string CompleteLabel => L("LOCPlayAch_Filter_Complete");
-
-        private static string InProgressLabel => L("LOCPlayAch_Filter_InProgress");
-
-        private static string NoProgressLabel => L("LOCPlayAch_Filter_NoProgress");
 
         private static string PlayedLabel => L("LOCPlayAch_Filter_Played");
 
