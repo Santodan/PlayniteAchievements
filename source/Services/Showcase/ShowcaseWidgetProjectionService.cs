@@ -743,29 +743,38 @@ namespace PlayniteAchievements.Services.Showcase
             }
             else
             {
-                entries = summaries
-                    .Where(game => game != null && game.Points > 0)
-                    .GroupBy(
-                        game => string.IsNullOrWhiteSpace(game.ProviderKey)
-                            ? "Unknown"
-                            : game.ProviderKey,
-                        StringComparer.OrdinalIgnoreCase)
-                    .Select(group => new ShowcaseChartEntry
-                    {
-                        Key = group.Key,
-                        LabelKey = string.Equals(
-                            group.Key,
-                            "Unknown",
-                            StringComparison.OrdinalIgnoreCase)
-                            ? "LOCPlayAch_Showcase_UnknownProvider"
-                            : null,
-                        Label = group.Select(game => game.Provider)
-                            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label)) ?? group.Key,
-                        Value = group.Sum(game => (double)game.Points)
-                    });
+                entries = SumPointsByProvider(summaries);
             }
 
             return ApplyTopN(entries, topN);
+        }
+
+        /// <summary>
+        /// Earned points summed per platform, one entry per provider key with any points. Games
+        /// without a provider key fall under "Unknown". Unordered: callers sort.
+        /// </summary>
+        public static IEnumerable<ShowcaseChartEntry> SumPointsByProvider(IEnumerable<GameSummaryItem> summaries)
+        {
+            return (summaries ?? Enumerable.Empty<GameSummaryItem>())
+                .Where(game => game != null && game.Points > 0)
+                .GroupBy(
+                    game => string.IsNullOrWhiteSpace(game.ProviderKey)
+                        ? "Unknown"
+                        : game.ProviderKey,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => new ShowcaseChartEntry
+                {
+                    Key = group.Key,
+                    LabelKey = string.Equals(
+                        group.Key,
+                        "Unknown",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "LOCPlayAch_Showcase_UnknownProvider"
+                        : null,
+                    Label = group.Select(game => game.Provider)
+                        .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label)) ?? group.Key,
+                    Value = group.Sum(game => (double)game.Points)
+                });
         }
 
         public static IReadOnlyList<ShowcaseAchievementItem> ResolvePinnedAchievements(
