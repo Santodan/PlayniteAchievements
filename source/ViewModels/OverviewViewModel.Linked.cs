@@ -395,14 +395,17 @@ namespace PlayniteAchievements.ViewModels
             games = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 games,
                 _selectedPlayStatusFilters,
-                (exclude & OverviewLinkedFilter.Completeness) == 0
-                    ? _selectedCompletenessFilters
-                    : null,
+                null,
                 L("LOCPlayAch_Filter_Played"),
-                L("LOCPlayAch_Filter_Unplayed"),
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress"),
-                L("LOCPlayAch_Filter_NoProgress"));
+                L("LOCPlayAch_Filter_Unplayed"));
+            if ((exclude & OverviewLinkedFilter.Completeness) == 0)
+            {
+                var matchesProgress = CompletenessMatcher();
+                if (matchesProgress != null)
+                {
+                    games = games.Where(matchesProgress);
+                }
+            }
 
             return ApplyAchievementFiltersToGames(games, exclude).ToList();
         }
@@ -421,27 +424,10 @@ namespace PlayniteAchievements.ViewModels
                         .Select(group => group.ProviderKey)
                         .ToList();
                 case ShowcasePieMode.CompletedGames:
-                    var complete = _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_Complete"));
-                    var inProgress = _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress"));
-                    var noProgress = _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_NoProgress"));
-                    var incomplete = inProgress || noProgress;
-                    if (complete == incomplete)
-                    {
-                        return Array.Empty<string>();
-                    }
-
-                    if (complete)
-                    {
-                        return new[] { OverviewLinkedSliceKeys.Complete };
-                    }
-
-                    // One side of a split Incomplete highlights only its own slice.
-                    return new[]
-                    {
-                        inProgress && noProgress
-                            ? OverviewLinkedSliceKeys.Incomplete
-                            : inProgress ? OverviewLinkedSliceKeys.InProgress : OverviewLinkedSliceKeys.NoProgress
-                    };
+                    // The untouched default highlights nothing; once picked, the chosen slices.
+                    return _completenessFilterEdited
+                        ? CompletenessFilterOptions.Where(_selectedCompletenessFilters.Contains).ToList()
+                        : (IReadOnlyCollection<string>)Array.Empty<string>();
                 case ShowcasePieMode.Rarity:
                     // The Capstone label names no slice, so it highlights nothing.
                     return _tierFilters.SelectedRarityLabels;
@@ -455,8 +441,8 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Applies a linked pie slice click: toggles that platform, that side of the progress
-        /// filter, or that rarity or trophy type. A Locked slice clears the pie's filter.
+        /// Applies a linked pie slice click: toggles that platform, that Progress choice, or that
+        /// rarity or trophy type. A Locked slice clears the pie's filter.
         /// </summary>
         public void ApplyLinkedSliceClick(ShowcasePieMode mode, string sliceKey)
         {
@@ -479,23 +465,7 @@ namespace PlayniteAchievements.ViewModels
                         .ToggleAll();
                     return;
                 case ShowcasePieMode.CompletedGames:
-                    if (sliceKey == OverviewLinkedSliceKeys.Complete)
-                    {
-                        ToggleCompletenessFilterFromPieChart(L("LOCPlayAch_Filter_Complete"));
-                    }
-                    else if (sliceKey == OverviewLinkedSliceKeys.Incomplete)
-                    {
-                        ToggleCompletenessFilterFromPieChart(L("LOCPlayAch_Overview_Incomplete"));
-                    }
-                    else if (sliceKey == OverviewLinkedSliceKeys.InProgress)
-                    {
-                        ToggleCompletenessFilterFromPieChart(L("LOCPlayAch_Filter_InProgress"));
-                    }
-                    else if (sliceKey == OverviewLinkedSliceKeys.NoProgress)
-                    {
-                        ToggleCompletenessFilterFromPieChart(L("LOCPlayAch_Filter_NoProgress"));
-                    }
-
+                    ToggleCompletenessFilterFromPieChart(sliceKey);
                     return;
                 case ShowcasePieMode.Rarity:
                     if (sliceKey == OverviewLinkedSliceKeys.Locked)
