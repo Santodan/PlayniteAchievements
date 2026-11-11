@@ -64,7 +64,8 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Exactly one entry per style: nulls, unknown styles and repeats are dropped (the first
-        /// occurrence wins), and missing styles are appended disabled in default order.
+        /// occurrence wins), and missing styles are appended disabled in default order. Rarity
+        /// is always enabled.
         /// </summary>
         public static List<ProgressDetailEntry> Normalize(IEnumerable<ProgressDetailEntry> entries)
         {
@@ -76,7 +77,9 @@ namespace PlayniteAchievements.Models.Settings
                 {
                     if (entry != null && AllStyles.Contains(entry.Style) && seen.Add(entry.Style))
                     {
-                        result.Add(entry.Clone());
+                        var copy = entry.Clone();
+                        copy.Enabled |= copy.Style == ProgressDetailStyle.Rarity;
+                        result.Add(copy);
                     }
                 }
             }
@@ -85,7 +88,7 @@ namespace PlayniteAchievements.Models.Settings
             {
                 if (seen.Add(style))
                 {
-                    result.Add(new ProgressDetailEntry { Style = style, Enabled = false });
+                    result.Add(new ProgressDetailEntry { Style = style, Enabled = style == ProgressDetailStyle.Rarity });
                 }
             }
 
