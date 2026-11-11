@@ -126,6 +126,50 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
+        public void EnsureConfiguredIds_RenamesTheRememberedItem_ToTheConfiguredName()
+        {
+            var field = new FakeField();
+            var remembered = field.Add("Old Name");
+            var configs = Configs((TagType.HasAchievements, "New Name", true));
+            configs[TagType.HasAchievements].TagId = remembered;
+            var target = Target(field, configs);
+
+            target.EnsureConfiguredIds();
+
+            Assert.AreEqual(1, field.Items.Count);
+            Assert.AreEqual("New Name", field.Items[remembered]);
+            Assert.AreEqual(remembered, configs[TagType.HasAchievements].TagId);
+        }
+
+        [TestMethod]
+        public void EnsureConfiguredIds_AppliesACaseOnlyRename()
+        {
+            var field = new FakeField();
+            var remembered = field.Add("old name");
+            var configs = Configs((TagType.HasAchievements, "Old Name", true));
+            configs[TagType.HasAchievements].TagId = remembered;
+            var target = Target(field, configs);
+
+            target.EnsureConfiguredIds();
+
+            Assert.AreEqual("Old Name", field.Items[remembered]);
+        }
+
+        [TestMethod]
+        public void EnsureConfiguredIds_LeavesADisabledKindsItemUnrenamed()
+        {
+            var field = new FakeField();
+            var remembered = field.Add("Old Name");
+            var configs = Configs((TagType.HasAchievements, "New Name", false));
+            configs[TagType.HasAchievements].TagId = remembered;
+            var target = Target(field, configs);
+
+            target.EnsureConfiguredIds();
+
+            Assert.AreEqual("Old Name", field.Items[remembered]);
+        }
+
+        [TestMethod]
         public void ResolveConfiguredId_CreatesTheItem_WhenNeitherIdNorNameExists()
         {
             var field = new FakeField();
