@@ -57,7 +57,8 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// The ids the configs hold right now, taken before a sync resolves new ones so items of
-        /// renamed or disabled kinds can still be stripped from games and deleted.
+        /// disabled kinds, or ones replaced after being deleted in Playnite, can still be
+        /// stripped from games and deleted.
         /// </summary>
         public HashSet<Guid> CaptureConfiguredIds()
         {
@@ -80,9 +81,11 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Resolves (creating when needed) the Playnite item for every enabled kind. Disabled
-        /// kinds are skipped so their items are never created, but they keep any id they already
-        /// have: the removal pass needs it to strip the item from games before it is deleted.
+        /// Resolves (creating when needed) the Playnite item for every enabled kind, and renames
+        /// a remembered item in place when its config's name was edited, so games keep the same
+        /// id. Disabled kinds are skipped so their items are never created, but they keep any id
+        /// they already have: the removal pass needs it to strip the item from games before it
+        /// is deleted.
         /// </summary>
         public void EnsureConfiguredIds()
         {
@@ -94,12 +97,29 @@ namespace PlayniteAchievements.Services.Tagging
 
             foreach (var kvp in configs)
             {
-                if (kvp.Value?.IsEnabled != true || !Manages(kvp.Key))
+                var config = kvp.Value;
+                if (config?.IsEnabled != true || !Manages(kvp.Key))
                 {
                     continue;
                 }
 
-                ResolveConfiguredId(kvp.Key, kvp.Value);
+                var id = ResolveConfiguredId(kvp.Key, config);
+                if (!id.HasValue)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (Field.Rename(id.Value, config.DisplayName))
+                    {
+                        _logger.Info($"Renamed {Noun} {id.Value} to '{config.DisplayName}' to match its configured name.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Failed to rename {Noun} {id.Value} to '{config.DisplayName}'.");
+                }
             }
         }
 
@@ -136,7 +156,7 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// Every id this field tracks: the resolved ones plus every id a config remembers, which
-        /// covers renames and kinds the user disabled whose items are not cleaned up yet.
+        /// covers kinds the user disabled whose items are not cleaned up yet.
         /// </summary>
         public HashSet<Guid> GetAllTrackedIds()
         {
@@ -266,7 +286,7 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// Deletes the items that were tracked before a sync but are no longer current, because
-        /// the kind was renamed or the user disabled it. Runs after the games are synced so no
+        /// the user disabled the kind. Runs after the games are synced so no
         /// game still references a deleted item.
         /// </summary>
         public void CleanupOrphans(HashSet<Guid> oldIds, HashSet<Guid> currentIds)
