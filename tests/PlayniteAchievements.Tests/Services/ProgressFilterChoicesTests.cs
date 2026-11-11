@@ -65,6 +65,22 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Keys_GivenGames_OfferOnlyTheFinishesTheyShow()
+        {
+            // With Rarity ahead of Points a game with rarity data shows the completed badge, so
+            // Mythic is not offered even though Points is on.
+            var rarityFirst = new[] { ProgressDetailStyle.Rarity, ProgressDetailStyle.Points };
+            var game = PlatinumAndMythic();
+            game.TotalCommonPossible = 10;
+            game.CommonCount = 10;
+            Assert.AreEqual(ProgressFilterChoices.Completed, ProgressFilterChoices.KeyFor(game, rarityFirst));
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressFilterChoices.Completed, ProgressFilterChoices.InProgress, ProgressFilterChoices.NoProgress },
+                ProgressFilterChoices.Keys(rarityFirst, includeNoProgress: true, new[] { game, Plain("Started", 3, false) }).ToList());
+        }
+
+        [TestMethod]
         public void Matcher_KeepsGamesUnderTheChosenBadge()
         {
             var games = new[] { PlatinumAndMythic(), Plain("Done", 10, true), Plain("Started", 3, false), Plain("Untouched", 0, false) };
