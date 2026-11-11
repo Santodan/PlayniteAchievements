@@ -178,11 +178,17 @@ namespace PlayniteAchievements.Views.Showcase
                             ShowcaseProfileMedalMode.Rarity,
                             ShowcaseProfileMedalMode.Trophy,
                             ShowcaseProfileMedalMode.Both,
+                            ShowcaseProfileMedalMode.Points,
                             ShowcaseProfileMedalMode.None
                         },
                         ShowcaseWidgetOptions.GetProfileMedalMode(_settings),
                         value => ShowcaseWidgetOptions.SetProfileMedalMode(_settings, value),
                         ProfileMedalModeName);
+                    AddToggle(
+                        appearanceRows,
+                        Localize("LOCPlayAch_Column_Unlocks"),
+                        ShowcaseWidgetOptions.GetProfileUnlocksMedal(_settings),
+                        value => ShowcaseWidgetOptions.SetProfileUnlocksMedal(_settings, value));
                     AddChoice(
                         layoutRows,
                         Localize("LOCPlayAch_Common_Layout"),
