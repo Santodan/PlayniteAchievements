@@ -585,7 +585,8 @@ namespace PlayniteAchievements.Providers.Exophase
             try
             {
                 var status = new System.Runtime.CompilerServices.StrongBox<int?>();
-                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct, httpStatus: status).ConfigureAwait(false);
+                var html = await FetchPublicPageAsync(achievementUrl, status, ct).ConfigureAwait(false)
+                           ?? await FetchHtmlViaWebViewAsync(achievementUrl, ct, httpStatus: status).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(html))
                 {
                     _logger?.Warn($"[Exophase] No HTML fetched for achievement URL: {achievementUrl}");
@@ -704,6 +705,65 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 return (json, html, timer.ElapsedMilliseconds);
             }, ct).ConfigureAwait(false);
+        }
+
+        // Plain text on the award pages' origin: a public client's view opens it when it is not
+        // already on that origin, then reads award pages with in-page fetches from there.
+        private const string PublicOrigin = "https://www.exophase.com/";
+        private const string PublicAnchorUrl = PublicOrigin + "robots.txt";
+
+        /// <summary>
+        /// A public page's source and status, read with an in-page fetch so the page is never
+        /// rendered: its ads and scripts never run. The server sends the whole award list (checked
+        /// against rendered pages up to 1,342 awards), so nothing waits for rows. Null for a client
+        /// with a cookie store, whose pages need their scripts to fill in unlocks, and when the fetch
+        /// fails or meets a challenge; the caller then loads the page as before.
+        /// </summary>
+        private async Task<string> FetchPublicPageAsync(
+            string url,
+            System.Runtime.CompilerServices.StrongBox<int?> httpStatus,
+            CancellationToken ct)
+        {
+            if (_cookieSnapshotStore != null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var response = await _offscreenViews.WithNavigableViewAsync(async view =>
+                {
+                    // The shared view also reads the JSON API and, on a fallback, leaves for a blank
+                    // page, so where it is decides whether it needs the anchor again.
+                    var address = view.GetCurrentAddress() ?? string.Empty;
+                    if (!address.StartsWith(PublicOrigin, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await view.NavigateAndWaitAsync(PublicAnchorUrl, timeoutMs: 20000).ConfigureAwait(false);
+                    }
+
+                    return await InPageFetch.FetchAsync(view, url, ct, 20000).ConfigureAwait(false);
+                }, ct).ConfigureAwait(false);
+
+                if (response == null || response.Status == 403 || string.IsNullOrWhiteSpace(response.Body) ||
+                    response.Body.Contains("Just a moment") ||
+                    response.Body.Contains("Verifying you are human"))
+                {
+                    _logger?.Debug($"[Exophase] {url} fetch {(response == null ? "failed" : "was challenged (" + response.Status + ")")}; loading the page instead.");
+                    return null;
+                }
+
+                httpStatus.Value = response.Status;
+                return response.Body;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[Exophase] {url} fetch failed: {ex.GetType().Name}: {ex.Message}; loading the page instead.");
+                return null;
+            }
         }
 
         /// <summary>
