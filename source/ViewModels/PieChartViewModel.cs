@@ -310,10 +310,10 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Sets the pie chart data for completions: one slice per finish badge, most finishes
-        /// first (ties keep the breakdown's priority order), then the open finishes, as one
-        /// Incomplete slice or split into In Progress and No Progress.
+        /// first (ties keep the breakdown's priority order), then the open finishes as In
+        /// Progress and No Progress.
         /// </summary>
-        public void SetCompletionData(CompletionBreakdown breakdown, bool splitIncomplete)
+        public void SetCompletionData(CompletionBreakdown breakdown)
         {
             var dataPoints = new List<PieSliceInputData>();
             var finishOrder = (breakdown?.FinishOrder ?? Array.Empty<CompletionBadgeKind>())
@@ -334,14 +334,10 @@ namespace PlayniteAchievements.ViewModels
                 });
             }
 
-            if (breakdown != null && splitIncomplete)
+            if (breakdown != null)
             {
                 dataPoints.Add(OpenSlice(ResourceProvider.GetString("LOCPlayAch_Filter_InProgress"), breakdown.InProgress, InProgressIconKey));
                 dataPoints.Add(OpenSlice(ResourceProvider.GetString("LOCPlayAch_Filter_NoProgress"), breakdown.NoProgress, "BadgeLocked"));
-            }
-            else if (breakdown != null)
-            {
-                dataPoints.Add(OpenSlice(ResourceProvider.GetString("LOCPlayAch_Overview_Incomplete"), breakdown.Incomplete, "BadgeLocked"));
             }
 
             ApplySmallSliceMode(dataPoints);
