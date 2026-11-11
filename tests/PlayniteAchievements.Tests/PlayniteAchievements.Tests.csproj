@@ -708,6 +708,7 @@
     <Compile Include="..\..\source\Services\Overview\OverviewLinkedSnapshots.cs" Link="Source\Services\Overview\OverviewLinkedSnapshots.cs" />
     <Compile Include="..\..\source\Services\Achievements\TimelineSeriesCounts.cs" Link="Source\Services\Achievements\TimelineSeriesCounts.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewDataSnapshot.cs" Link="Source\Services\Overview\OverviewDataSnapshot.cs" />
+    <Compile Include="..\..\source\Services\Overview\CompletionBreakdown.cs" Link="Source\Services\Overview\CompletionBreakdown.cs" />
     <Compile Include="..\..\source\Services\Overview\UnlockNextCandidateSelector.cs" Link="Source\Services\Overview\UnlockNextCandidateSelector.cs" />
     <Compile Include="..\..\source\Services\StartPage\StartPageDataCoordinator.cs" Link="Source\Services\StartPage\StartPageDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\Widgets\WidgetDataCoordinator.cs" Link="Source\Services\Widgets\WidgetDataCoordinator.cs" />
