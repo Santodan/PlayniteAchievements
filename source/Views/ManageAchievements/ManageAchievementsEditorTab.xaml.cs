@@ -1211,6 +1211,25 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        /// <summary>Reveals a masked rarity by clicking it.</summary>
+        private void MaskedRarity_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealRarity();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's rarity.</summary>
+        private void ToggleRarityRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleRarityReveal();
+            }
+        }
+
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)
