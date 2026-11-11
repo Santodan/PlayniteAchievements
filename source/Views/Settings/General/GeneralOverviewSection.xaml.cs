@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Views.Settings.General
 {
     /// <summary>
     /// General settings: overview section. Hosts the settings header, quick links to other
-    /// settings tabs, the rarity, trophy and points priority, the language selection, and the
+    /// settings tabs, the Achievement styles priority, the language selection, and the
     /// GitHub, Discord, and Ko-fi links.
     /// </summary>
     public partial class GeneralOverviewSection : UserControl, IDisposable
