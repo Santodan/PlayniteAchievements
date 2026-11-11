@@ -31,6 +31,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private readonly AchievementDataService _dataService;
 
+        // Held so the weak subscription lives as long as this widget.
+        private readonly Action _onChoicesChanged;
+
         // Bumped when tallies or tag definitions change, which a Tag pie cannot see in its
         // snapshot: totals are replaced on the rows in place, and names and colors live elsewhere.
         private int _tagVersion;
@@ -39,6 +42,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             _controlBarSlot = new ShowcaseControlBarSlot<PieControlBarAdapter>(Refresh);
             AchievementTagRegistry.Changed += OnTagDefinitionsChanged;
+            // A Completions pie sorts its finishes by the Achievement styles.
+            _onChoicesChanged = OnProgressChoicesChanged;
+            ProgressFilterChoices.Subscribe(_onChoicesChanged);
             _dataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
             if (_dataService != null)
             {
@@ -520,6 +526,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private void OnTagDefinitionsChanged(object sender, AchievementTagsChangedEventArgs e) => RefreshTagPie();
 
         private void OnTalliesChanged(object sender, TalliesChangedEventArgs e) => RefreshTagPie();
+
+        private void OnProgressChoicesChanged()
+        {
+            if (Mode == ShowcasePieMode.CompletedGames)
+            {
+                System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(Refresh);
+            }
+        }
 
         private void RefreshTagPie()
         {
