@@ -91,6 +91,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // redraw every slice for it. A Tag pie also redraws for what its snapshot does not
             // show: the tags picked, the games they resolve on, and a tag change.
             var optionsKey = OptionsKey(Projection?.Instance);
+            var detailOrder = mode == ShowcasePieMode.CompletedGames
+                ? ProgressDetailOrder.EnabledStyles(PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ProgressDetails)
+                : null;
+            if (detailOrder != null)
+            {
+                // The detail priority picks each finish's slice, so a new order redraws.
+                optionsKey += "\u001fdetails=" + string.Join(",", detailOrder);
+            }
+
             if (tagScope != null)
             {
                 optionsKey += "\u001ftags=" + string.Join(",", _controlBarSlot.Adapter.TagFilter.SelectedTags.OrderBy(key => key, StringComparer.OrdinalIgnoreCase)) +
@@ -103,7 +112,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 string.Equals(optionsKey, _chartOptionsKey, StringComparison.Ordinal))
             {
                 Chart.SetSelectedLabels((Projection.LinkedSliceKeys ?? Array.Empty<string>())
-                    .Select(key => LabelForSliceKey(Chart, mode, key)));
+                    .SelectMany(key => LabelsForSliceKey(Chart, mode, key)));
                 return;
             }
 
@@ -227,18 +236,16 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         Localize("LOCPlayAch_Common_Locked"));
                     break;
                 default:
-                    chart.SetGameData(
-                        snapshot.PossibleCompletions,
-                        snapshot.Completions,
-                        Localize("LOCPlayAch_Completed"),
-                        Localize("LOCPlayAch_Overview_Incomplete"));
+                    chart.SetCompletionData(
+                        CompletionBreakdown.From(snapshot, detailOrder),
+                        ShowcaseWidgetOptions.GetPieSplitIncomplete(Projection?.Instance));
                     break;
             }
 
             if (linked)
             {
                 chart.SetSelectedLabels((Projection.LinkedSliceKeys ?? Array.Empty<string>())
-                    .Select(key => LabelForSliceKey(chart, mode, key)));
+                    .SelectMany(key => LabelsForSliceKey(chart, mode, key)));
             }
 
             // The replaced chart is subscribed to the process-lifetime appearance event, so it
@@ -357,9 +364,20 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                         ? OverviewLinkedSliceKeys.Locked
                         : Chart?.GetProviderKeyFromLabel(label);
                 case ShowcasePieMode.CompletedGames:
-                    if (string.Equals(label, Localize("LOCPlayAch_Completed"), StringComparison.OrdinalIgnoreCase))
+                    // Every finish badge's slice stands for the Complete filter.
+                    if (FinishLabels.Any(finish => string.Equals(label, finish, StringComparison.OrdinalIgnoreCase)))
                     {
                         return OverviewLinkedSliceKeys.Complete;
+                    }
+
+                    if (string.Equals(label, Localize("LOCPlayAch_Filter_InProgress"), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return OverviewLinkedSliceKeys.InProgress;
+                    }
+
+                    if (string.Equals(label, Localize("LOCPlayAch_Filter_NoProgress"), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return OverviewLinkedSliceKeys.NoProgress;
                     }
 
                     return string.Equals(label, Localize("LOCPlayAch_Overview_Incomplete"), StringComparison.OrdinalIgnoreCase)
@@ -381,25 +399,43 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             }
         }
 
-        private static string LabelForSliceKey(PieChartViewModel chart, ShowcasePieMode mode, string key)
+        private static IEnumerable<string> FinishLabels =>
+            new[] { CompletionBadgeKind.Completed, CompletionBadgeKind.Platinum, CompletionBadgeKind.Mythic }
+                .Select(PieChartViewModel.CompletionLabel);
+
+        // The labels a linked slice key highlights; labels the chart does not draw are ignored.
+        private static IEnumerable<string> LabelsForSliceKey(PieChartViewModel chart, ShowcasePieMode mode, string key)
         {
             switch (mode)
             {
                 case ShowcasePieMode.Provider:
-                    return chart.GetLabelForProviderKey(key);
+                    return new[] { chart.GetLabelForProviderKey(key) };
                 case ShowcasePieMode.CompletedGames:
-                    return key == OverviewLinkedSliceKeys.Complete
-                        ? Localize("LOCPlayAch_Completed")
-                        : key == OverviewLinkedSliceKeys.Incomplete
-                            ? Localize("LOCPlayAch_Overview_Incomplete")
-                            : null;
+                    switch (key)
+                    {
+                        case OverviewLinkedSliceKeys.Complete:
+                            return FinishLabels;
+                        case OverviewLinkedSliceKeys.Incomplete:
+                            return new[]
+                            {
+                                Localize("LOCPlayAch_Overview_Incomplete"),
+                                Localize("LOCPlayAch_Filter_InProgress"),
+                                Localize("LOCPlayAch_Filter_NoProgress")
+                            };
+                        case OverviewLinkedSliceKeys.InProgress:
+                            return new[] { Localize("LOCPlayAch_Filter_InProgress") };
+                        case OverviewLinkedSliceKeys.NoProgress:
+                            return new[] { Localize("LOCPlayAch_Filter_NoProgress") };
+                        default:
+                            return Array.Empty<string>();
+                    }
                 case ShowcasePieMode.Rarity:
                 case ShowcasePieMode.Trophy:
-                    return key;
+                    return new[] { key };
                 case ShowcasePieMode.Tag:
-                    return chart.GetLabelForTagKey(key);
+                    return new[] { chart.GetLabelForTagKey(key) };
                 default:
-                    return null;
+                    return Array.Empty<string>();
             }
         }
 
