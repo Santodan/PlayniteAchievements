@@ -151,6 +151,13 @@
                                          Hint="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}">
                         <CheckBox IsChecked="{Binding Persisted.RoundRarityPercentages}"/>
                     </controls:SettingRow>
+                    <!-- How many Achievement styles (General page) a progress bar shows. -->
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressBarDetailCount}">
+                        <TextBox Text="{Binding Persisted.ProgressDetailShownCount, UpdateSourceTrigger=LostFocus}"
+                                 Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                 HorizontalAlignment="Left"
+                                 TextAlignment="Right"/>
+                    </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">
                         <Button x:Name="SoftGlowTiersButton"
