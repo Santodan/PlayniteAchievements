@@ -15,14 +15,14 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <!-- The rarity, trophy and points priority every surface follows, and how many of them a
+    <!-- The Achievement styles priority every surface follows, and how many of them a
          progress bar shows. Hosted on the General settings page. -->
     <StackPanel>
         <!-- Priority list: drag a row to reorder; each game shows the first enabled
              styles it has data for, up to the details-per-game count below. Rarity's
              checkbox is locked on. -->
-        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Priority}"
-                             Hint="{DynamicResource LOCPlayAch_Settings_Priority_Help}">
+        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AchievementStyles}"
+                             Hint="{DynamicResource LOCPlayAch_Settings_AchievementStyles_Help}">
             <Grid HorizontalAlignment="Left">
                 <DataGrid x:Name="ProgressDetailsGrid"
                           Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
@@ -114,7 +114,7 @@
                 </Popup>
             </Grid>
         </controls:SettingRow>
-        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Priority_ProgressBarCount}">
+        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_AchievementStyles_ProgressBarCount}">
             <TextBox Text="{Binding Persisted.ProgressDetailShownCount, UpdateSourceTrigger=LostFocus}"
                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                      HorizontalAlignment="Left"
