@@ -117,9 +117,25 @@ namespace PlayniteAchievements.Models.Tests
             CollectionAssert.AreEqual(
                 new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
                 settings.ProgressDetails.Select(entry => entry.Style).ToArray());
+            // Rarity is always on, even when it was appended as missing.
             CollectionAssert.AreEqual(
-                new[] { true, false, false },
+                new[] { true, true, false },
                 settings.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void ProgressDetails_RarityCannotBeTurnedOff()
+        {
+            var settings = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false }
+                }
+            };
+
+            Assert.IsTrue(settings.ProgressDetails.Single(entry => entry.Style == ProgressDetailStyle.Rarity).Enabled);
         }
 
         [TestMethod]
@@ -142,7 +158,7 @@ namespace PlayniteAchievements.Models.Tests
                 new[] { ProgressDetailStyle.Trophy, ProgressDetailStyle.Points, ProgressDetailStyle.Rarity },
                 loaded.ProgressDetails.Select(entry => entry.Style).ToArray());
             CollectionAssert.AreEqual(
-                new[] { true, true, false },
+                new[] { true, true, true },
                 loaded.ProgressDetails.Select(entry => entry.Enabled).ToArray());
         }
 
@@ -189,7 +205,7 @@ namespace PlayniteAchievements.Models.Tests
                     new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
                     copy.ProgressDetails.Select(entry => entry.Style).ToArray());
                 CollectionAssert.AreEqual(
-                    new[] { true, false, true },
+                    new[] { true, true, true },
                     copy.ProgressDetails.Select(entry => entry.Enabled).ToArray());
                 Assert.AreNotSame(source.ProgressDetails[0], copy.ProgressDetails[0]);
             }
@@ -212,7 +228,7 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndResets()
+        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndDisplayReset()
         {
             var source = new PersistedSettings { ProgressDetailShownCount = 3 };
 
@@ -226,8 +242,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(3, clone.ProgressDetailShownCount);
             Assert.AreEqual(3, target.ProgressDetailShownCount);
 
+            // The priority lives on the General page, so the Display tab's reset keeps it.
             source.ResetDisplaySettingsToDefaults();
-            Assert.AreEqual(1, source.ProgressDetailShownCount);
+            Assert.AreEqual(3, source.ProgressDetailShownCount);
         }
 
         [TestMethod]
