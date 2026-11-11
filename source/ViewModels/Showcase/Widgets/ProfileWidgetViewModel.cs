@@ -68,8 +68,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
     /// <summary>
     /// Backs the Profile widget: avatar resolved from the provider identity with a manual
-    /// override, the manual display name (none while blank) and background, plus a medal-count row (rarity tiers and
-    /// completions, or trophy grades) and a stat strip filling the instance's configured stat
+    /// override, the manual display name (none while blank) and background, plus a medal-count row (an optional
+    /// total unlocks medal, then rarity tiers and completions, trophy grades, or per-platform points) and a stat strip filling the instance's configured stat
     /// slots. Medals and stats count the games its collection and control bar keep; the
     /// identity does not follow them. Density only scales the avatar; the same content shows at
     /// every size.
@@ -249,7 +249,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             Medals.ReplaceAll(BuildMedals(
                 snapshot,
-                ShowcaseWidgetOptions.GetProfileMedalMode(Projection?.Instance)));
+                ShowcaseWidgetOptions.GetProfileMedalMode(Projection?.Instance),
+                ShowcaseWidgetOptions.GetProfileUnlocksMedal(Projection?.Instance)));
             ShowMedals = Medals.Count > 0;
 
             RefreshLinks(ShowcaseWidgetOptions.GetProfileShowLinks(Projection?.Instance)
@@ -283,11 +284,36 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         private static IReadOnlyList<BadgeCountItem> BuildMedals(
             OverviewDataSnapshot snapshot,
-            ShowcaseProfileMedalMode mode)
+            ShowcaseProfileMedalMode mode,
+            bool showUnlocks)
         {
             var medals = new List<BadgeCountItem>();
+            // Independent of the mode, so it leads the row even when the mode is None.
+            if (showUnlocks)
+            {
+                BadgeCountItem.Add(medals, "BadgeUnlocked", snapshot.TotalUnlocked);
+            }
+
             if (mode == ShowcaseProfileMedalMode.None)
             {
+                return medals;
+            }
+
+            if (mode == ShowcaseProfileMedalMode.Points)
+            {
+                // Points are not comparable across platforms, so each platform gets its own
+                // medal rather than one summed total.
+                foreach (var entry in ShowcaseWidgetProjectionService
+                    .SumPointsByProvider(snapshot.GameSummaries)
+                    .OrderByDescending(entry => entry.Value))
+                {
+                    var (iconKey, colorHex) = ProviderRegistry.ResolveProviderVisualsOrFallback(entry.Key);
+                    var label = string.IsNullOrWhiteSpace(entry.LabelKey)
+                        ? entry.Label
+                        : ResourceProvider.GetString(entry.LabelKey);
+                    medals.Add(BadgeCountItem.ForProvider(iconKey, colorHex, entry.Value, label));
+                }
+
                 return medals;
             }
 
