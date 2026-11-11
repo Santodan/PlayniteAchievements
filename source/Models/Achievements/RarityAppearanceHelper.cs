@@ -509,6 +509,16 @@ namespace PlayniteAchievements.Models.Achievements
             // shadow "BadgeCompletedGame" with its static default; consuming this alias via
             // DynamicResource instead resolves the user-customized image at the application scope.
             resources["BadgeRarityCompleted"] = completedBadge;
+            // Runtime-only alias for a masked rarity, for the same shadowing reason. It follows the
+            // trophy shape when rarity draws as trophies, so a masked row matches its neighbours.
+            var unknownBadge = settings?.UseTrophiesForRarity == true
+                ? TryGetDefaultTrophyImage("TrophyUnknown")
+                : null;
+            unknownBadge = unknownBadge ?? TryGetDefaultImage("BadgeUnknownHexagon");
+            if (unknownBadge != null)
+            {
+                resources["BadgeRarityUnknown"] = unknownBadge;
+            }
             resources["TrophyBronze"] = CreateTrophyImage("TrophyBronze", settings);
             resources["TrophySilver"] = CreateTrophyImage("TrophySilver", settings);
             resources["TrophyGold"] = CreateTrophyImage("TrophyGold", settings);
