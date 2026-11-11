@@ -673,6 +673,11 @@ Primary fork areas:
 
 ## Release and manifest policy
 
+- Fork release monitoring is constructed after `NotificationPublisher` and called
+  in the background from `OnApplicationStarted`; retain its quiet settings
+  persistence callback. `ForkReleaseStartupTests` guards this integration (#91).
+  With notifications enabled, a newer fork manifest version produces a clickable
+  Playnite notification once per version. Upstream monitoring stays inactive.
 - Upstream and fork release monitoring still point at their intended
   repositories.
 - `source/extension.yaml` and `InstallerManifest.yaml` are edited manually and

@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-10T15:38:19.6658602Z",
+    "generatedUtc":  "2026-11-11T09:21:59.8060853Z",
     "baselineRef":  "v4.2.1",
     "baselineCommit":  "4b2f60f29aaa5a393664245547886262952b85c1",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "88D5FF1FD91695784495D2F465EBA3A52F99D94921C1720ED51ECBE2B32CE86D"
+                  "sha256":  "60371BBB63CA486FBD4E630749406595B2EFAEB7F498D5609E6D150F620E4BB0"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -607,6 +607,10 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/ForkLoggerTests.cs",
                              "sha256":  "C9A1EA8072EF0DF279AF6B2A8072DED9C4B02B71233B10B715E5D586A33229AC"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Services/ForkReleaseStartupTests.cs",
+                             "sha256":  "CA16D36EBB453746269433906085AB97AEEA64E379F79E90EB440D8ADBD4EC79"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/GameplayRefreshDeferralTests.cs",

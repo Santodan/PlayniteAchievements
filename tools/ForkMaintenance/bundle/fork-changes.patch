@@ -1405,7 +1405,7 @@ index 1f9cddd7060d1664c1694d9a03184635e52c3d2c..6dcfaa2280881fcb3952313fd43ca0aa
          {
              _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
 diff --git a/source/PlayniteAchievementsPlugin.cs b/source/PlayniteAchievementsPlugin.cs
-index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de86f103dd4 100644
+index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..ee7b639615bebe4a292c16be41edc594050b1917 100644
 --- a/source/PlayniteAchievementsPlugin.cs
 +++ b/source/PlayniteAchievementsPlugin.cs
 @@ -1,4 +1,5 @@
@@ -1432,7 +1432,15 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
          };
  
          private static readonly string[] ProviderRefreshOrder =
-@@ -144,6 +146,9 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
+@@ -116,6 +118,7 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
+         private Services.Workshop.WorkshopStatsStore _workshopStatsStore;
+         private Services.Workshop.WorkshopShareService _workshopShareService;
+         private readonly NotificationPublisher _notifications;
++        private readonly Services.ReleaseMonitoring.ForkReleaseMonitor _forkReleaseMonitor;
+         private readonly ProviderRegistry _providerRegistry;
+         private readonly GameCustomDataStore _gameCustomDataStore;
+         private readonly Services.CustomProviders.CustomProviderStore _customProviderStore;
+@@ -144,6 +147,9 @@ public partial class PlayniteAchievementsPlugin : GenericPlugin
          private readonly Dictionary<Guid, int?> _startedProcessIds = new Dictionary<Guid, int?>();
          private readonly RefreshEntryPoint _refreshCoordinator;
          private bool _applicationStarted;
@@ -1442,7 +1450,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
  
          // Top panel item
          private PlayniteAchievementsTopPanelItem _topPanelItem;
-@@ -523,6 +528,28 @@ public Services.Workshop.WorkshopGameMatcher CreateWorkshopGameMatcher() =>
+@@ -523,6 +529,28 @@ public Services.Workshop.WorkshopGameMatcher CreateWorkshopGameMatcher() =>
          public static event EventHandler SettingsSaved;
          public static event EventHandler<AchievementUnlockedEventArgs> AchievementUnlocked;
  
@@ -1471,7 +1479,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
          /// <summary>
          /// Raises the SettingsSaved event to notify listeners that settings have changed. Every
          /// subscriber is a UI control, so when this is invoked from a background thread (e.g. a friend
-@@ -640,6 +667,74 @@ private IReadOnlyList<PortableGameKey> ResolvePortableGameKeys(Guid gameId)
+@@ -640,6 +668,74 @@ private IReadOnlyList<PortableGameKey> ResolvePortableGameKeys(Guid gameId)
              return keys;
          }
  
@@ -1546,7 +1554,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
          private void TryWarmCustomDataCache()
          {
              if (_gameCustomDataStore == null)
-@@ -735,6 +830,18 @@ private void MigrateShowcaseImages()
+@@ -735,6 +831,18 @@ private void MigrateShowcaseImages()
          }
  
          public void PersistSettingsForUi()
@@ -1565,7 +1573,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
          {
              try
              {
-@@ -745,8 +852,6 @@ public void PersistSettingsForUi()
+@@ -745,8 +853,6 @@ public void PersistSettingsForUi()
              {
                  _logger?.Warn(ex, "Failed to persist plugin settings.");
              }
@@ -1574,7 +1582,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
          }
  
          // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
-@@ -871,6 +976,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -871,6 +977,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
              // Before the first scope below, so a traced session covers startup too.
              PerfScope.ConfigureTracing(pluginUserDataPath);
              _logger = PluginLogger.GetLogger(nameof(PlayniteAchievementsPlugin));
@@ -1582,7 +1590,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
              _themeControlRegistry = new ThemeControlRegistry();
              _resourceService = new AchievementResourceService(_logger);
              // Search over every long list the plugin shows; class handlers, so once per process.
-@@ -922,6 +1028,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -922,6 +1029,7 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      _settingsViewModel?.Settings?.Persisted?.RoundRarityPercentages ?? false;
  
                  FormattingCulture.Initialize(() => _settingsViewModel?.Settings?.Persisted?.GlobalLanguage);
@@ -1590,7 +1598,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
  
                  // NECESSARY TO MAKE SURE CHARTS WORK
                  var Circle = LiveCharts.Wpf.DefaultGeometries.Circle;
-@@ -948,8 +1055,24 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -948,8 +1056,24 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                  _metadataState = new Services.Metadata.MetadataStateStore(_logger);
  
                  // Create provider registry
@@ -1616,7 +1624,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
                  settings.Persisted?.MigrateLegacyProviderFriends();
                  _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                  _gameCustomDataStore.AttachRuntimeSettings(settings);
-@@ -980,6 +1103,14 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
+@@ -980,6 +1104,14 @@ public PlayniteAchievementsPlugin(IPlayniteAPI api) : base(api)
                      Services.Achievements.AutoCapstoneTemplate.MetadataTextAccessor = _metadataLinkStore.GetCapstoneText;
                  }
  
@@ -1631,7 +1639,20 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
                  // Phase 3: Wire core services, refresh pipeline, and tagging.
                  using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                  {
-@@ -1222,6 +1353,7 @@ servicing is IEnglishTitleSource englishSource
+@@ -1123,6 +1255,12 @@ servicing is IEnglishTitleSource englishSource
+                     }
+ 
+                     _notifications = new NotificationPublisher(api, settings, _logger);
++                    _forkReleaseMonitor = new Services.ReleaseMonitoring.ForkReleaseMonitor(
++                        api,
++                        settings,
++                        _notifications,
++                        () => PersistSettingsForUiSilently(),
++                        _logger);
+                     _refreshCoordinator = new RefreshEntryPoint(
+                         _refreshService,
+                         _logger,
+@@ -1222,6 +1360,7 @@ servicing is IEnglishTitleSource englishSource
                          // the field is assigned.
                          e => _unlockRecordings?.WouldRequestClip(e) ?? false,
                          (e, capHeight) => _unlockRecordings?.TryCaptureAnchorFrame(e, capHeight),
@@ -1639,7 +1660,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
                          _unlockSounds);
                      _unlockRecordings = new Services.Recording.UnlockRecordingService(
                          PlayniteApi,
-@@ -1256,7 +1388,7 @@ servicing is IEnglishTitleSource englishSource
+@@ -1256,7 +1395,7 @@ servicing is IEnglishTitleSource englishSource
                          _cacheManager,
                          _refreshService,
                          (request, policy) => _refreshCoordinator.ExecuteAsync(request, policy),
@@ -1648,7 +1669,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
  
                      // A running game's unlocks are announced by the monitor once its write or
                      // refresh returns, so a capstone that write finished is held for the monitor
-@@ -1725,6 +1857,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+@@ -1725,6 +1864,8 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
              using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
              {
                  _applicationStarted = true;
@@ -1657,7 +1678,17 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
  
                  // Measures the symptom rather than a suspected cause: every other timing here is
                  // a scope around code someone already suspected, and a reported freeze was
-@@ -2354,9 +2488,42 @@ private void ReconfigureInGameMonitor()
+@@ -1733,6 +1874,9 @@ public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
+ 
+                 LogStartupBanner();
+ 
++                // Keep the fork release check off the startup UI thread (including proxy discovery).
++                _ = Task.Run(() => _forkReleaseMonitor?.CheckForForkReleaseAsync() ?? Task.CompletedTask);
++
+                 // Launch and preload the sound host off the UI thread so the first unlock plays with
+                 // no device-open or decode cost; a settings save re-applies the same step.
+                 System.Threading.Tasks.Task.Run(() => OnSettingsSavedForUnlockSounds(this, EventArgs.Empty));
+@@ -2354,9 +2498,42 @@ private void ReconfigureInGameMonitor()
              }
          }
  
@@ -1700,7 +1731,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
              _applicationStarted = false;
              // A control bar edit in the last second before exit is still waiting on its save.
              Services.Showcase.ShowcaseControlBarStateStore.Instance.Flush();
-@@ -2400,6 +2567,8 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+@@ -2400,6 +2577,8 @@ public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
              DisposeStartPageViews();
  
              // Shutdown logging system
@@ -1709,7 +1740,7 @@ index 1406873c01e22fa46abb372f401c0f6dd2e1a3a8..9ecfd8a33a7e53d0a4048c73fe9c8de8
              try { PluginLogger.Shutdown(); } catch (Exception ex) { System.Diagnostics.Trace.TraceError($"Failed to shutdown logger: {ex}"); }
          }
  
-@@ -3055,6 +3224,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
+@@ -3055,6 +3234,11 @@ private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEve
                          continue;
                      }
  

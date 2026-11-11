@@ -118,6 +118,7 @@ namespace PlayniteAchievements
         private Services.Workshop.WorkshopStatsStore _workshopStatsStore;
         private Services.Workshop.WorkshopShareService _workshopShareService;
         private readonly NotificationPublisher _notifications;
+        private readonly Services.ReleaseMonitoring.ForkReleaseMonitor _forkReleaseMonitor;
         private readonly ProviderRegistry _providerRegistry;
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly Services.CustomProviders.CustomProviderStore _customProviderStore;
@@ -1254,6 +1255,12 @@ namespace PlayniteAchievements
                     }
 
                     _notifications = new NotificationPublisher(api, settings, _logger);
+                    _forkReleaseMonitor = new Services.ReleaseMonitoring.ForkReleaseMonitor(
+                        api,
+                        settings,
+                        _notifications,
+                        () => PersistSettingsForUiSilently(),
+                        _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
                         _logger,
@@ -1866,6 +1873,9 @@ namespace PlayniteAchievements
                 Common.UiStallWatchdog.Start(_logger);
 
                 LogStartupBanner();
+
+                // Keep the fork release check off the startup UI thread (including proxy discovery).
+                _ = Task.Run(() => _forkReleaseMonitor?.CheckForForkReleaseAsync() ?? Task.CompletedTask);
 
                 // Launch and preload the sound host off the UI thread so the first unlock plays with
                 // no device-open or decode cost; a settings save re-applies the same step.

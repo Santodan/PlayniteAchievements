@@ -119,6 +119,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the `Local` provider taking a different ID from the game's description
 - Fixed the compatibility with the new `PS5-Experience` v0.9.9
 - Fixed empty theme achievement data caused by missing SQL join
+- Fixed missing update notification for new extension's version
 
 ## 2026-11-07 - v4.2.1.1
 

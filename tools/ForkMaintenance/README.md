@@ -1,5 +1,24 @@
 # Fork maintenance bundle
 
+## Fork release notification startup recovery - 2026-11-11
+
+Preserve construction of `ForkReleaseMonitor` after `NotificationPublisher` and
+its background call from `OnApplicationStarted` in `PlayniteAchievementsPlugin`.
+Persist the notified version through `PersistSettingsForUiSilently`. The missing
+startup wiring prevented the existing GitHub manifest check and clickable fork
+release notification from running (issue #91). Keep the notification enablement
+and per-version deduplication behavior; do not enable upstream release monitoring.
+`ForkReleaseStartupTests` guards the integration against future plugin rewrites.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean three-way preflight and actual
+replay passed in a temporary baseline checkout: 227 overlays, three localization
+recipes, component hashes, and protected-file checks passed. All 384 compared
+captured files matched, normalizing text newlines where needed. Working protected
+files and the real Git index were unchanged. The implementation's Release rebuild
+and one targeted regression test passed earlier in this session. Live notification
+verification in Playnite remains pending. Historical snapshots were not changed.
+
 ## All-games theme achievement query fix - 2026-11-10
 
 Preserve the `Games g` join inside the achievement-details `LatestProgress` CTE
