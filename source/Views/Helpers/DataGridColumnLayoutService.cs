@@ -3525,7 +3525,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private static string ResolveColumnDisplayName(DataGridColumn column)
+        internal static string ResolveColumnDisplayName(DataGridColumn column)
         {
             // A declared name wins: resolving a Header that is a control falls through to
             // ToString(), which reads as the control's type name.
