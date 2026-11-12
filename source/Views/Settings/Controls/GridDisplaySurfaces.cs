@@ -38,7 +38,9 @@ namespace PlayniteAchievements.Views.Settings.Controls
             bool showMetadataRows = true,
             bool showCompletionGlowRow = true,
             bool showGameSortPinOrderChoice = false,
-            bool showLibraryGameSortChoices = false)
+            bool showLibraryGameSortChoices = false,
+            bool showGameColumnSortChoice = true,
+            bool showFriendGameSortChoices = false)
         {
             ShowColumnHeadersRow = showColumnHeadersRow;
             ShowControlBarRow = showControlBarRow;
@@ -55,6 +57,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
             ShowCompletionGlowRow = showCompletionGlowRow;
             ShowGameSortPinOrderChoice = showGameSortPinOrderChoice;
             ShowLibraryGameSortChoices = showLibraryGameSortChoices;
+            ShowGameColumnSortChoice = showGameColumnSortChoice;
+            ShowFriendGameSortChoices = showFriendGameSortChoices;
         }
 
         public bool ShowColumnHeadersRow { get; }
@@ -72,6 +76,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public bool ShowCompletionGlowRow { get; }
         public bool ShowGameSortPinOrderChoice { get; }
         public bool ShowLibraryGameSortChoices { get; }
+        public bool ShowGameColumnSortChoice { get; }
+        public bool ShowFriendGameSortChoices { get; }
     }
 
     /// <summary>
@@ -88,6 +94,9 @@ namespace PlayniteAchievements.Views.Settings.Controls
     public static class GridDisplaySurfaces
     {
         private static readonly GridDisplayRowCapabilities AllRows = new GridDisplayRowCapabilities();
+
+        private static readonly GridDisplayRowCapabilities FriendGameRows = new GridDisplayRowCapabilities(
+            showFriendGameSortChoices: true);
 
         // Achievement grids. Sort is hidden where the grid's order is imposed by the surface
         // (recent-unlock feeds, friend achievement views) rather than chosen by the user.
@@ -106,14 +115,17 @@ namespace PlayniteAchievements.Views.Settings.Controls
                     showMaxHeightRow: true,
                     showCoverImagesRow: false,
                     showDateModeRow: false),
+                // One game's achievements have no Game column to sort by.
                 [GridOptionKeys.Achievement.SingleGame] = new GridDisplayRowCapabilities(
                     showCoverImagesRow: false,
-                    showCategoryModeRow: true),
+                    showCategoryModeRow: true,
+                    showGameColumnSortChoice: false),
                 // The overview's Achievements grid holds every unlock, so it sorts like the others.
                 [GridOptionKeys.Achievement.OverviewRecent] = AllRows,
                 [GridOptionKeys.Achievement.OverviewSelectedGame] = new GridDisplayRowCapabilities(
                     showCoverImagesRow: false,
-                    showCategoryModeRow: true),
+                    showCategoryModeRow: true,
+                    showGameColumnSortChoice: false),
                 [GridOptionKeys.Achievement.FriendsOverviewRecent] = new GridDisplayRowCapabilities(
                     showSortRow: false,
                     showCategoryModeRow: true),
@@ -166,10 +178,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
                     showControlBarRow: false,
                     showMaxRowsRow: false,
                     showSortRow: false),
-                [GridOptionKeys.GameSummaries.FriendsOverview] = AllRows,
-                [GridOptionKeys.GameSummaries.FriendsOverviewSelectedFriend] = AllRows,
-                [GridOptionKeys.GameSummaries.ViewFriendsAchievements] = AllRows,
-                [GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend] = AllRows,
+                // Friend game grids add the Owned column to sort by.
+                [GridOptionKeys.GameSummaries.FriendsOverview] = FriendGameRows,
+                [GridOptionKeys.GameSummaries.FriendsOverviewSelectedFriend] = FriendGameRows,
+                [GridOptionKeys.GameSummaries.ViewFriendsAchievements] = FriendGameRows,
+                [GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend] = FriendGameRows,
                 [GridOptionKeys.GameSummaries.DesktopTheme] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
                     showMaxRowsRow: false,
