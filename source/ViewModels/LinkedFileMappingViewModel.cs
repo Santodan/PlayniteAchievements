@@ -87,8 +87,7 @@ namespace PlayniteAchievements.ViewModels
         private IReadOnlyList<LinkedFilePreviewRow> _previewRows = Array.Empty<LinkedFilePreviewRow>();
         private LinkedFileTable _previewTable = LinkedFileTable.Empty;
         private LinkedFileTable _previewRowsTable;
-        private string _previewCountText;
-        private string _unmatchedAchievementsHeader;
+        private string _resultToolTip;
         private bool _isReloadingNames;
 
         // Hand pairings by row key, staged until Apply.
@@ -176,7 +175,6 @@ namespace PlayniteAchievements.ViewModels
 
         public ObservableCollection<LinkedFileColumnItem> Columns { get; } = new ObservableCollection<LinkedFileColumnItem>();
 
-        public ObservableCollection<LinkedFileMatchItem> UnmatchedAchievements { get; } = new ObservableCollection<LinkedFileMatchItem>();
 
         public ObservableCollection<string> SheetNames { get; } = new ObservableCollection<string>();
 
@@ -410,12 +408,6 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _previewRows, value);
         }
 
-        public string PreviewCountText
-        {
-            get => _previewCountText;
-            private set => SetValue(ref _previewCountText, value);
-        }
-
         public bool IsReading
         {
             get => _isReading;
@@ -435,24 +427,18 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasReadMessage => !string.IsNullOrWhiteSpace(_readMessage);
 
-        /// <summary>The header of the list of achievements no row pairs with; null when there are none.</summary>
-        public string UnmatchedAchievementsHeader
-        {
-            get => _unmatchedAchievementsHeader;
-            private set
-            {
-                SetValue(ref _unmatchedAchievementsHeader, value);
-                OnPropertyChanged(nameof(HasUnmatchedAchievements));
-            }
-        }
-
-        public bool HasUnmatchedAchievements => !string.IsNullOrWhiteSpace(_unmatchedAchievementsHeader);
-
         /// <summary>What applying the file would do, as one line of the counts that are not zero.</summary>
         public string ResultText
         {
             get => _resultText;
             private set => SetValue(ref _resultText, value);
+        }
+
+        /// <summary>The achievements no row pairs with, one per line; null when there are none.</summary>
+        public string ResultToolTip
+        {
+            get => _resultToolTip;
+            private set => SetValue(ref _resultToolTip, value);
         }
 
         /// <summary>What the mapping still lacks; null when it is complete.</summary>
@@ -714,7 +700,6 @@ namespace PlayniteAchievements.ViewModels
             _previewTable = table;
             RaiseFieldFlags();
             PreviewRows = BuildPreviewRows(null, null);
-            PreviewCountText = string.Format(L("LOCPlayAch_LinkedFile_PreviewRowsFormat"), table.Rows.Count);
             ColumnsRebuilt?.Invoke(this, EventArgs.Empty);
         }
 
@@ -784,11 +769,10 @@ namespace PlayniteAchievements.ViewModels
             var problems = LinkedFileSchemaValidator.Validate(schema);
             ProblemText = problems.Count == 0 ? null : string.Join(" ", problems.Select(DescribeProblem));
 
-            UnmatchedAchievements.Clear();
             if (_lastRead?.Success != true)
             {
                 ResultText = null;
-                UnmatchedAchievementsHeader = null;
+                ResultToolTip = null;
                 ApplyNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(CanApplyNow));
                 return;
@@ -812,16 +796,11 @@ namespace PlayniteAchievements.ViewModels
             _pairing.Achievements = BuildAchievementOptions(achievements, match, table, schema);
             PreviewRows = BuildPreviewRows(match, plan, schema);
 
-            foreach (var achievement in match.UnmatchedAchievements)
-            {
-                UnmatchedAchievements.Add(new LinkedFileMatchItem(
-                    string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName));
-            }
-
-            UnmatchedAchievementsHeader = match.UnmatchedAchievements.Count == 0
+            ResultText = Summarize(report, match.UnmatchedRows.Count, match.UnmatchedAchievements.Count);
+            ResultToolTip = match.UnmatchedAchievements.Count == 0
                 ? null
-                : string.Format(L("LOCPlayAch_LinkedFile_Count_UnmatchedAchievements"), match.UnmatchedAchievements.Count);
-            ResultText = Summarize(report, match.UnmatchedRows.Count);
+                : string.Join(Environment.NewLine, match.UnmatchedAchievements.Select(achievement =>
+                    string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName));
 
             ApplyNowCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanApplyNow));
@@ -962,7 +941,7 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>The matched count, then each other count that is not zero.</summary>
-        private string Summarize(LinkedFileApplyReport report, int unmatchedRows)
+        private string Summarize(LinkedFileApplyReport report, int unmatchedRows, int unmatchedAchievements)
         {
             var parts = new List<string> { string.Format(L("LOCPlayAch_LinkedFile_Count_Matched"), report.MatchedRows) };
 
@@ -978,6 +957,7 @@ namespace PlayniteAchievements.ViewModels
             Add("LOCPlayAch_LinkedFile_Count_Relocked", report.Relocked);
             Add("LOCPlayAch_LinkedFile_Count_Created", report.Created);
             Add("LOCPlayAch_LinkedFile_Count_UnmatchedRows", Math.Max(0, unmatchedRows - report.Created));
+            Add("LOCPlayAch_LinkedFile_Count_UnmatchedAchievements", unmatchedAchievements);
             Add("LOCPlayAch_LinkedFile_Count_Errors", report.ParseErrors);
             return string.Join(" \u00B7 ", parts);
         }
@@ -1006,7 +986,7 @@ namespace PlayniteAchievements.ViewModels
                 report.Status == LinkedFileReadStatus.Ok
                     ? L("LOCPlayAch_LinkedFile_ApplyReportTitle")
                     : DescribeStatus(report.Status),
-                Summarize(report, report.UnmatchedRows)
+                Summarize(report, report.UnmatchedRows, report.UnmatchedAchievements)
             };
             _services.ShowMessage?.Invoke(string.Join(Environment.NewLine, lines));
             RequestClose?.Invoke(this, EventArgs.Empty);
