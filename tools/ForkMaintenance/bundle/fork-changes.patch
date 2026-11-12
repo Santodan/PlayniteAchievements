@@ -17368,7 +17368,7 @@ index 3060a8f3b0919e794e8988fdb08c9ff41126556b..51213769c994f7cb664d718823e5cbc0
  
          private static string GetStandaloneControlNamePattern(string controlName)
 diff --git a/source/Services/ThemeMigration/ThemeMigrationService.cs b/source/Services/ThemeMigration/ThemeMigrationService.cs
-index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..40763a65a0bd1cf87965470e79c57cf0810302f6 100644
+index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..b37c022b1f1b5779470b20a778e85d88693b171a 100644
 --- a/source/Services/ThemeMigration/ThemeMigrationService.cs
 +++ b/source/Services/ThemeMigration/ThemeMigrationService.cs
 @@ -1,3 +1,4 @@
@@ -17914,7 +17914,7 @@ index e99832f053dc6d8c7c954f48ce6980c4cb61eeee..40763a65a0bd1cf87965470e79c57cf0
 +            {
 +                result = DuplicateMatchingBlock(
 +                    result,
-+                    @"(?m)^[ \t]*<!-- List//HoyoverseGames -->\r?\n[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
++                    @"(?m)^[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
 +                    block => block
 +                        .Replace("List//HoyoverseGames", "List//LocalGames")
 +                        .Replace("x:Name=\"HoyoverseGames\"", "x:Name=\"LocalGames\"")
@@ -24184,7 +24184,7 @@ index 60160aef932e3b17f6cbab12c9f857b7c173c166..40ac2ba9fe34f1457c8854e3f92f71f5
              public void RemoveGameCache(Guid playniteGameId) { }
              public void NotifyCacheInvalidated() { }
 diff --git a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
-index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..55f01c732c797b7cf3a7d0ca243f85b12bf44979 100644
+index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..d883ada934c6aacc855aa1f0df8d30ca702fac27 100644
 --- a/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 +++ b/tests/PlayniteAchievements.Tests/Services/ThemeDiscoveryServiceTests.cs
 @@ -14,7 +14,203 @@ namespace PlayniteAchievements.ThemeMigration.Tests
@@ -24401,12 +24401,15 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..55f01c732c797b7cf3a7d0ca243f85b1
  
                  var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
                  var themes = service.DiscoverThemes(themesRoot);
-@@ -121,6 +317,115 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
+@@ -121,6 +317,118 @@ public async Task MigrateThemeAsync_AllowsLimitedModeForFullscreenThemes()
              }
          }
  
-+        [TestMethod]
-+        public async Task MigrateThemeAsync_AddsLocalToSolarisDynamicAndPresetLists()
++        [DataTestMethod]
++        [DataRow("<!-- List//HoyoverseGames -->")]
++        [DataRow("<!-- List: HoyoverseGames -->")]
++        [DataRow("")]
++        public async Task MigrateThemeAsync_AddsLocalToSolarisDynamicAndPresetLists(string listComment)
 +        {
 +            var themesRoot = CreateThemesRoot();
 +
@@ -24425,7 +24428,7 @@ index 6d4695ba4e4ec7df1f79cfa27c7639cba5a30d6b..55f01c732c797b7cf3a7d0ca243f85b1
 +                        "    <ButtonEx.Triggers />",
 +                        "</ButtonEx>",
 +                        "<ComboBoxItem Content=\"Hoyoverse\" Tag=\"HoyoverseGames\" />",
-+                        "<!-- List//HoyoverseGames -->",
++                        listComment,
 +                        "<ListView x:Name=\"HoyoverseGames\" ItemsSource=\"{PluginSettings Plugin=PlayniteAchievements, Path=HoyoverseGames}\"",
 +                        "    Visibility=\"Collapsed\" />",
 +                        "<Setter Property=\"Visibility\" Value=\"Collapsed\" TargetName=\"HoyoverseGames\" />",

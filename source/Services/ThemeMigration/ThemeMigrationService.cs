@@ -977,7 +977,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             {
                 result = DuplicateMatchingBlock(
                     result,
-                    @"(?m)^[ \t]*<!-- List//HoyoverseGames -->\r?\n[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
+                    @"(?m)^[ \t]*<ListView x:Name=""HoyoverseGames""[^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*?/>",
                     block => block
                         .Replace("List//HoyoverseGames", "List//LocalGames")
                         .Replace("x:Name=\"HoyoverseGames\"", "x:Name=\"LocalGames\"")

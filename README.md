@@ -119,6 +119,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the `Local` provider taking a different ID from the game's description
 - Fixed the compatibility with the new `PS5-Experience` v0.9.9
 - Fix delayed PS5-Experience achievement progress updates
+- Fixed the compatibility with the `Solaris` theme
 - Fixed empty theme achievement data caused by missing SQL join
 - Fixed missing update notification for new extension's version
 - Added a `Offline Cache` in the `Local` platform to use the achievements cache when offline

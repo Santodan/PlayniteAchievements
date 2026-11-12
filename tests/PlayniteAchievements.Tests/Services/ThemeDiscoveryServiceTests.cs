@@ -317,8 +317,11 @@ namespace PlayniteAchievements.ThemeMigration.Tests
             }
         }
 
-        [TestMethod]
-        public async Task MigrateThemeAsync_AddsLocalToSolarisDynamicAndPresetLists()
+        [DataTestMethod]
+        [DataRow("<!-- List//HoyoverseGames -->")]
+        [DataRow("<!-- List: HoyoverseGames -->")]
+        [DataRow("")]
+        public async Task MigrateThemeAsync_AddsLocalToSolarisDynamicAndPresetLists(string listComment)
         {
             var themesRoot = CreateThemesRoot();
 
@@ -337,7 +340,7 @@ namespace PlayniteAchievements.ThemeMigration.Tests
                         "    <ButtonEx.Triggers />",
                         "</ButtonEx>",
                         "<ComboBoxItem Content=\"Hoyoverse\" Tag=\"HoyoverseGames\" />",
-                        "<!-- List//HoyoverseGames -->",
+                        listComment,
                         "<ListView x:Name=\"HoyoverseGames\" ItemsSource=\"{PluginSettings Plugin=PlayniteAchievements, Path=HoyoverseGames}\"",
                         "    Visibility=\"Collapsed\" />",
                         "<Setter Property=\"Visibility\" Value=\"Collapsed\" TargetName=\"HoyoverseGames\" />",

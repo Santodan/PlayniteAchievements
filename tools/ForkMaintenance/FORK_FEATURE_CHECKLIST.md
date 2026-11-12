@@ -590,6 +590,10 @@ Primary fork areas:
   stored as `Unknown`; their displayed provider/platform remains `Local`.
 - Solaris Limited migration adds `Local` to both its hardcoded Dynamic provider
   filter and Preset list, backed by the `LocalGames` compatibility collection.
+- Local preset list creation must not depend on a preceding comment: accept
+  Solaris's `List:` comment, older `List//` comments, or no comment. Otherwise
+  generated `LocalGames` setters reference a missing list and prevent XAML load.
+  The owner confirmed the repaired installed Solaris theme opens successfully.
 - Re-running Solaris migration updates an already-migrated theme without
   duplicating its `Local` button, preset, list, or visibility triggers.
 - Solaris migration preserves distinct theme-owned `SuccessStory` and

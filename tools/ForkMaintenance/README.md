@@ -1,5 +1,27 @@
 # Fork maintenance bundle
 
+## Solaris missing Local preset list - 2026-11-12
+
+Preserve Local provider list migration independently of the preceding theme
+comment. Solaris uses `<!-- List: HoyoverseGames -->`; requiring the older
+`List//HoyoverseGames` comment added Local setters without their named list and
+prevented the theme from loading. Re-migration must create the missing list in
+an already partially migrated theme. Regression coverage includes both comment
+formats and an absent comment, plus repeat-migration idempotence.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean preflight and actual replay
+passed in an isolated temporary checkout: 230 overlays and three localization
+recipes, including component hashes and protected-file checks. All 387 compared
+captured files matched, normalizing text newlines where necessary. Working
+protected files and the real Git index remained unchanged.
+
+Implementation validation earlier in this session: 20 focused migration tests
+passed and the required Release rebuild passed with zero errors and two warnings.
+The installed Solaris XAML was repaired with a backup; the owner confirmed the
+theme now opens. The updated plugin build has not been installed. Historical
+validation snapshots were not modified.
+
 ## Immediate PS5 progress adaptation for late game contexts - 2026-11-12
 
 Preserve `Ps5TrophyProgressBridge` context-change subscriptions for loaded text
