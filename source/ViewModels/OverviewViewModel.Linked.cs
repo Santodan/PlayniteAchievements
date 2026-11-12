@@ -133,6 +133,8 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private void ScheduleFilterApply()
         {
+            // Tracing only: names the layout and render passes the filter pass sets off.
+            Common.DispatcherOperationProbe.Arm(_logger, "overview-filter", TimeSpan.FromSeconds(2));
             InvalidateLinkedSnapshots();
             if (_filterApplyPending)
             {
