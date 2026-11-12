@@ -111,7 +111,7 @@
                                    Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
                         <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.FeatureStatusRows}"
                                            ShowHeaders="False"
-                                           TagColumns="3"/>
+                                           TagColumns="4"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
