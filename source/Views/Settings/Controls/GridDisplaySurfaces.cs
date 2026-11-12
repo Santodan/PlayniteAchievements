@@ -40,7 +40,9 @@ namespace PlayniteAchievements.Views.Settings.Controls
             bool showGameSortPinOrderChoice = false,
             bool showLibraryGameSortChoices = false,
             bool showGameColumnSortChoice = true,
-            bool showFriendGameSortChoices = false)
+            bool showFriendGameSortChoices = false,
+            bool showFriendColumnSortChoice = false,
+            bool showPerGameStatSortChoices = true)
         {
             ShowColumnHeadersRow = showColumnHeadersRow;
             ShowControlBarRow = showControlBarRow;
@@ -59,6 +61,8 @@ namespace PlayniteAchievements.Views.Settings.Controls
             ShowLibraryGameSortChoices = showLibraryGameSortChoices;
             ShowGameColumnSortChoice = showGameColumnSortChoice;
             ShowFriendGameSortChoices = showFriendGameSortChoices;
+            ShowFriendColumnSortChoice = showFriendColumnSortChoice;
+            ShowPerGameStatSortChoices = showPerGameStatSortChoices;
         }
 
         public bool ShowColumnHeadersRow { get; }
@@ -78,6 +82,28 @@ namespace PlayniteAchievements.Views.Settings.Controls
         public bool ShowLibraryGameSortChoices { get; }
         public bool ShowGameColumnSortChoice { get; }
         public bool ShowFriendGameSortChoices { get; }
+        public bool ShowFriendColumnSortChoice { get; }
+        public bool ShowPerGameStatSortChoices { get; }
+
+        /// <summary>Whether the surface has the scoped default sort columns of <paramref name="scope"/>.</summary>
+        public bool HasSortScope(GridSortColumnScope scope)
+        {
+            switch (scope)
+            {
+                case GridSortColumnScope.MultiGame:
+                    return ShowGameColumnSortChoice;
+                case GridSortColumnScope.Library:
+                    return ShowLibraryGameSortChoices;
+                case GridSortColumnScope.FriendGames:
+                    return ShowFriendGameSortChoices;
+                case GridSortColumnScope.Friend:
+                    return ShowFriendColumnSortChoice;
+                case GridSortColumnScope.PerGameStats:
+                    return ShowPerGameStatSortChoices;
+                default:
+                    return true;
+            }
+        }
     }
 
     /// <summary>
@@ -97,6 +123,10 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
         private static readonly GridDisplayRowCapabilities FriendGameRows = new GridDisplayRowCapabilities(
             showFriendGameSortChoices: true);
+
+        private static readonly GridDisplayRowCapabilities AggregateFriendGameRows = new GridDisplayRowCapabilities(
+            showFriendGameSortChoices: true,
+            showPerGameStatSortChoices: false);
 
         // Achievement grids. Sort is hidden where the grid's order is imposed by the surface
         // (recent-unlock feeds, friend achievement views) rather than chosen by the user.
@@ -139,14 +169,18 @@ namespace PlayniteAchievements.Views.Settings.Controls
                     showSortRow: false),
                 [GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame] = new GridDisplayRowCapabilities(
                     showSortRow: false),
+                // The friend achievement grids add the Friend column to sort by.
                 [GridOptionKeys.Achievement.ViewFriendsAchievements] = new GridDisplayRowCapabilities(
-                    showCategoryModeRow: true),
-                [GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend] = AllRows,
+                    showCategoryModeRow: true,
+                    showFriendColumnSortChoice: true),
+                [GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend] = new GridDisplayRowCapabilities(
+                    showFriendColumnSortChoice: true),
 
                 // Migration donors for the pre-showcase start page widgets. Live start page grids
                 // resolve to per-instance showcase surfaces below.
                 [GridOptionKeys.Achievement.StartPageRecent] = AllRows,
-                [GridOptionKeys.Achievement.StartPageFriendAchievements] = AllRows,
+                [GridOptionKeys.Achievement.StartPageFriendAchievements] = new GridDisplayRowCapabilities(
+                    showFriendColumnSortChoice: true),
 
                 // Showcase and start page widget grids, matched on their base key because the live
                 // surfaces carry a per-instance suffix. The sort combo's default keeps the
@@ -178,10 +212,11 @@ namespace PlayniteAchievements.Views.Settings.Controls
                     showControlBarRow: false,
                     showMaxRowsRow: false,
                     showSortRow: false),
-                // Friend game grids add the Owned column to sort by.
-                [GridOptionKeys.GameSummaries.FriendsOverview] = FriendGameRows,
+                // Friend game grids add the Owned column to sort by. The grids over every friend's
+                // games at once leave out the per-game stat columns, so they offer no sort by them.
+                [GridOptionKeys.GameSummaries.FriendsOverview] = AggregateFriendGameRows,
                 [GridOptionKeys.GameSummaries.FriendsOverviewSelectedFriend] = FriendGameRows,
-                [GridOptionKeys.GameSummaries.ViewFriendsAchievements] = FriendGameRows,
+                [GridOptionKeys.GameSummaries.ViewFriendsAchievements] = AggregateFriendGameRows,
                 [GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend] = FriendGameRows,
                 [GridOptionKeys.GameSummaries.DesktopTheme] = new GridDisplayRowCapabilities(
                     showControlBarRow: false,
