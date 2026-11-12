@@ -100,10 +100,10 @@ namespace PlayniteAchievements.Models.Settings
             set => Options.MaxRows = value;
         }
 
-        public GameSummariesSortMode SortMode
+        public string SortColumn
         {
-            get => Options.SortMode;
-            set => Options.SortMode = value;
+            get => Options.SortColumn;
+            set => Options.SortColumn = value;
         }
 
         public bool SortDescending
@@ -137,7 +137,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowControlBar = ShowControlBar;
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
-            target.SortMode = SortMode;
+            target.SortColumn = SortColumn;
             target.SortDescending = SortDescending;
         }
 
@@ -231,10 +231,10 @@ namespace PlayniteAchievements.Models.Settings
             set => Options.MaxRows = value;
         }
 
-        public CompactListSortMode SortMode
+        public string SortColumn
         {
-            get => Options.SortMode;
-            set => Options.SortMode = value;
+            get => Options.SortColumn;
+            set => Options.SortColumn = value;
         }
 
         public bool SortDescending
@@ -263,7 +263,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowControlBar = ShowControlBar;
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
-            target.SortMode = SortMode;
+            target.SortColumn = SortColumn;
             target.SortDescending = SortDescending;
         }
 
