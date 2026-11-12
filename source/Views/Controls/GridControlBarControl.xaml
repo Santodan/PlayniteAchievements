@@ -668,8 +668,8 @@
             </Style>
 
             <!-- Sort By: the column dropdown and the direction button as one segmented unit. The
-                 dropdown lists Default first, then every sortable column, hidden ones included.
-                 The item's width covers both halves. -->
+                 dropdown lists every sortable column, hidden ones included; the checked one
+                 unsorts. The item's width covers both halves. -->
             <DataTemplate DataType="{x:Type vm:GridSortSelector}">
                 <Grid Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
                       VerticalAlignment="Center"
