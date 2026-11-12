@@ -32,6 +32,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (request?.IsReset == true)
             {
                 ClearSortIndicators(targetGrid);
+                GridSortRequestEventArgs.MarkReset(e);
                 return null;
             }
 
@@ -61,6 +62,10 @@ namespace PlayniteAchievements.Views.Helpers
             if (sortDirection.HasValue)
             {
                 column.SortDirection = sortDirection;
+            }
+            else
+            {
+                GridSortRequestEventArgs.MarkReset(e);
             }
 
             return sortDirection;
