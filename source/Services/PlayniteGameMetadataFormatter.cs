@@ -152,11 +152,6 @@ namespace PlayniteAchievements.Services
                 showPoints: false);
         }
 
-        /// <summary>
-        /// Joins the enabled segments in order: platform, playtime, region, total achievement
-        /// count, total points. Empty text, zero playtime, a zero total and zero points are
-        /// left out.
-        /// </summary>
         public static string BuildOverviewMetadataText(
             string platformText,
             string playtimeText,
@@ -168,6 +163,44 @@ namespace PlayniteAchievements.Services
             bool showRegion,
             bool showTotal,
             bool showPoints)
+        {
+            return BuildOverviewMetadataText(
+                platformText,
+                playtimeText,
+                regionText,
+                totalAchievements,
+                points,
+                collectionTotal: 0,
+                prestigeTotal: 0,
+                showPlatform: showPlatform,
+                showPlaytime: showPlaytime,
+                showRegion: showRegion,
+                showTotal: showTotal,
+                showPoints: showPoints,
+                showCollection: false,
+                showPrestige: false);
+        }
+
+        /// <summary>
+        /// Joins the enabled segments in order: platform, playtime, region, total achievement
+        /// count, total points, Collection score total, Prestige score total. Empty text, zero
+        /// playtime and zero counts are left out.
+        /// </summary>
+        public static string BuildOverviewMetadataText(
+            string platformText,
+            string playtimeText,
+            string regionText,
+            int totalAchievements,
+            int points,
+            int collectionTotal,
+            int prestigeTotal,
+            bool showPlatform,
+            bool showPlaytime,
+            bool showRegion,
+            bool showTotal,
+            bool showPoints,
+            bool showCollection,
+            bool showPrestige)
         {
             var parts = new List<string>();
             if (showPlatform && !string.IsNullOrWhiteSpace(platformText))
@@ -196,6 +229,22 @@ namespace PlayniteAchievements.Services
                     FormattingCulture.Current,
                     L("LOCPlayAch_Score_PointsFormat"),
                     points.ToString("N0", FormattingCulture.Current)));
+            }
+
+            if (showCollection && collectionTotal > 0)
+            {
+                parts.Add(string.Format(
+                    FormattingCulture.Current,
+                    L("LOCPlayAch_Score_CollectionFormat"),
+                    collectionTotal.ToString("N0", FormattingCulture.Current)));
+            }
+
+            if (showPrestige && prestigeTotal > 0)
+            {
+                parts.Add(string.Format(
+                    FormattingCulture.Current,
+                    L("LOCPlayAch_Score_PrestigeFormat"),
+                    prestigeTotal.ToString("N0", FormattingCulture.Current)));
             }
 
             return parts.Count > 0 ? string.Join(" • ", parts) : string.Empty;
