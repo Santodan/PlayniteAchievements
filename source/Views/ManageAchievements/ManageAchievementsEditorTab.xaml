@@ -363,20 +363,31 @@
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="0"
                                 Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}" />
-                        <!-- The linked file: a plain button until a file is linked, then the file's
-                             name and state, which opens the same window. -->
+                        <!-- The linked file: Link File until a file is linked, then Edit Linked File,
+                             which opens the same window. The file and its state are in the tooltip;
+                             a warning glyph shows when the link cannot be read. -->
                         <Button Content="{DynamicResource LOCPlayAch_LinkedFile_LinkButton}"
                                 ToolTip="{DynamicResource LOCPlayAch_LinkedFile_LinkHint}"
                                 Command="{Binding OpenLinkedFileCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
                                 Visibility="{Binding ShowLinkFileButton, Converter={StaticResource BoolToVis}}" />
-                        <Button Content="{Binding LinkedFileChipText}"
-                                ToolTip="{Binding LinkedFileToolTip}"
+                        <Button ToolTip="{Binding LinkedFileToolTip}"
                                 Command="{Binding OpenLinkedFileCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
-                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}" />
+                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEF1B;"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                           Foreground="{DynamicResource PlayAch.Brush.AuthError}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"
+                                           Visibility="{Binding LinkedFileHasProblem, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_EditButton}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                     <TextBlock Text="{Binding StatusText}"
                                Style="{StaticResource StatusTextStyle}"
