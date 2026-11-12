@@ -49,8 +49,8 @@ namespace PlayniteAchievements.Views.Controls
                 new PropertyMetadata(null));
 
         /// <summary>
-        /// What the bar itself shows, less what its grid options hide: Sort By, the Filters button
-        /// standing in for the dropdown filters, then the remaining items (the toggle buttons).
+        /// What the bar itself shows, less what its grid options hide: the toggle buttons, then
+        /// Sort By, then the Filters button standing in for the dropdown filters.
         /// </summary>
         public System.ComponentModel.ICollectionView ShownItems => (System.ComponentModel.ICollectionView)GetValue(ShownItemsPropertyKey.DependencyProperty);
 
@@ -371,13 +371,12 @@ namespace PlayniteAchievements.Views.Controls
             var panel = shown.Where(IsInFilterPanel).ToList();
             var onBar = shown.Where(item => !IsInFilterPanel(item)).ToList();
             var bar = new List<GridControlBarItem>();
+            bar.AddRange(onBar.Where(item => !(item is GridSortSelector)));
             bar.AddRange(onBar.OfType<GridSortSelector>());
             if (panel.Count > 0)
             {
                 bar.Add(FiltersButton);
             }
-
-            bar.AddRange(onBar.Where(item => !(item is GridSortSelector)));
             Replace(_barItems, bar);
             Replace(_panelItems, panel);
 
