@@ -1,5 +1,26 @@
 # Fork maintenance bundle
 
+## Immediate PS5 progress adaptation for late game contexts - 2026-11-12
+
+Preserve `Ps5TrophyProgressBridge` context-change subscriptions for loaded text
+and progress-bar controls in migrated themes. Late or recycled game contexts
+must trigger adaptation immediately instead of waiting for the one-second
+discovery fallback. Loaded handlers also receive handled events. Remove context
+subscriptions on unload and restore them on reload; retain the fallback scan.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean preflight and actual replay
+passed in an isolated temporary checkout: 230 overlays and three localization
+recipes, with hashes and protected-file checks passing. All 387 compared
+source/overlay paths matched after text newline normalization where necessary.
+Working protected files and the real Git index remained unchanged.
+
+Implementation validation in this session: required Release rebuild passed with
+zero errors and two existing warnings. Both PS5 achievement-state and progress
+bridge scripts passed, including late context adaptation without discovery and
+unload/reload subscription cleanup. Live verification of the reduced zero-to-data
+flash remains pending. Historical validation snapshots were not modified.
+
 ## Local Offline Cache - 2026-11-11
 
 Preserve Local > Offline Cache and its crossed-out Wi-Fi tab icon. Both

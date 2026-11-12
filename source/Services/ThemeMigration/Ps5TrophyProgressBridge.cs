@@ -174,14 +174,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
         private static readonly DependencyProperty ConnectionProperty = DependencyProperty.RegisterAttached(
             "Connection", typeof(RowConnection), typeof(Ps5TrophyProgressBridge));
+        private static readonly DependencyProperty WatchesContextProperty = DependencyProperty.RegisterAttached(
+            "WatchesContext", typeof(bool), typeof(Ps5TrophyProgressBridge), new PropertyMetadata(false));
 
         internal static void Register()
         {
             if (_registered) return;
             _registered = true;
             EventManager.RegisterClassHandler(typeof(ListBox), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnListLoaded), true);
-            EventManager.RegisterClassHandler(typeof(TextBlock), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnLoaded));
-            EventManager.RegisterClassHandler(typeof(Rectangle), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnLoaded));
+            EventManager.RegisterClassHandler(typeof(TextBlock), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnLoaded), true);
+            EventManager.RegisterClassHandler(typeof(Rectangle), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnLoaded), true);
         }
 
         private static void OnListLoaded(object sender, RoutedEventArgs args)
@@ -283,6 +285,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             var control = sender as FrameworkElement;
             if (control == null || (args.OriginalSource ?? args.Source) != control) return;
+            if (_enableNamedList && !(bool)control.GetValue(WatchesContextProperty))
+            {
+                control.SetValue(WatchesContextProperty, true);
+                control.DataContextChanged += OnContextChanged;
+                control.Unloaded += OnControlUnloaded;
+            }
             if (_enableNamedList) AdaptDetailHeader(control);
             DependencyObject parent = control;
             while (parent != null && !(parent is ListBox)) parent = VisualTreeHelper.GetParent(parent);
@@ -295,6 +303,26 @@ namespace PlayniteAchievements.Services.ThemeMigration
             foreach (var field in new[] { "PlatinumCount", "GoldCount", "SilverCount", "BronzeCount", "Total" })
                 binding.Bindings.Add(new Binding(field) { Mode = BindingMode.OneWay });
             BindingOperations.SetBinding(control, property, binding);
+        }
+
+        private static void OnContextChanged(object sender, DependencyPropertyChangedEventArgs args)
+        {
+            if (!_enableNamedList) return;
+            // Theme slots can load with no game and receive/recycle their context
+            // later. Adapt immediately, before rendering, rather than waiting for
+            // the background discovery timer to replace the initial zero values.
+            SyncedDetailViewModels.Clear();
+            var control = (FrameworkElement)sender;
+            OnLoaded(control, new RoutedEventArgs(FrameworkElement.LoadedEvent, control));
+        }
+
+        private static void OnControlUnloaded(object sender, RoutedEventArgs args)
+        {
+            var control = (FrameworkElement)sender;
+            if ((args.OriginalSource ?? args.Source) != control) return;
+            control.DataContextChanged -= OnContextChanged;
+            control.Unloaded -= OnControlUnloaded;
+            control.ClearValue(WatchesContextProperty);
         }
 
         private sealed class ProgressConverter : IMultiValueConverter

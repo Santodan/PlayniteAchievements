@@ -79,3 +79,19 @@ $progressText.RaiseEvent($loadedArgs)
 $application.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ApplicationIdle)
 if ($progressText.Text -ne '4/10') { throw "Native game-slot progress incorrect: $($progressText.Text)" }
 'Passed: actual PS5Core game-slot row receives progress binding outside a ListBox.'
+
+# Slots can load before their game arrives. They must adapt on context assignment,
+# without invoking discovery or waiting for its one-second timer.
+$lateText = New-Object Windows.Controls.TextBlock
+[Windows.Data.BindingOperations]::SetBinding($lateText,[Windows.Controls.TextBlock]::TextProperty,[Windows.Data.Binding]::new('ProgressText')) | Out-Null
+$lateText.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.FrameworkElement]::LoadedEvent,$lateText))
+$lateText.DataContext = $nativeRow.PSObject.BaseObject
+if ($null -eq [Windows.Data.BindingOperations]::GetMultiBinding($lateText,[Windows.Controls.TextBlock]::TextProperty)) { throw 'Late game context waited for discovery' }
+$application.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::DataBind)
+if ($lateText.Text -ne '4/10') { throw 'Late game context displayed stale progress' }
+$lateText.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.FrameworkElement]::UnloadedEvent,$lateText))
+$watchProperty = $bridge.GetField('WatchesContextProperty',$staticFlags).GetValue($null)
+if ($lateText.GetValue($watchProperty)) { throw 'Context watcher remained attached after unload' }
+$lateText.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.FrameworkElement]::LoadedEvent,$lateText))
+if (!$lateText.GetValue($watchProperty)) { throw 'Context watcher did not reattach after reload' }
+'Passed: late context adapts before rendering without discovery; unload/reload cleans up and reattaches.'
