@@ -259,7 +259,15 @@
                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
                                   Style="{StaticResource OptionCheckBoxStyle}"
-                                  IsChecked="{Binding GameSummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
+                                  IsChecked="{Binding GameSummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Score_Collection}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  IsChecked="{Binding GameSummaryOptions.ShowMetadataCollection, ElementName=EditorRoot}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Score_Prestige}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  IsChecked="{Binding GameSummaryOptions.ShowMetadataPrestige, ElementName=EditorRoot}"/>
                     </StackPanel>
                 </HeaderedContentControl>
                 <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
@@ -322,7 +330,15 @@
                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Column_Points}"
                                   Style="{StaticResource OptionCheckBoxStyle}"
-                                  IsChecked="{Binding CategorySummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"/>
+                                  IsChecked="{Binding CategorySummaryOptions.ShowMetadataPoints, ElementName=EditorRoot}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Score_Collection}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  IsChecked="{Binding CategorySummaryOptions.ShowMetadataCollection, ElementName=EditorRoot}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Score_Prestige}"
+                                  Style="{StaticResource OptionCheckBoxStyle}"
+                                  IsChecked="{Binding CategorySummaryOptions.ShowMetadataPrestige, ElementName=EditorRoot}"/>
                     </StackPanel>
                 </HeaderedContentControl>
                 <HeaderedContentControl Header="{DynamicResource LOCPlayAch_Settings_ShowCompletionGlow}"
