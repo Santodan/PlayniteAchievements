@@ -8,6 +8,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Settings.Controls;
 
 namespace PlayniteAchievements.Models.Tests
 {
@@ -129,21 +130,43 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void Offered_GatesScopedColumns()
+        public void Offered_FollowsEachSurfacesColumns()
         {
-            var singleGame = GridSortColumns.Offered(GridSortColumns.Achievement, multiGame: false, library: false, friendGames: false)
-                .Select(column => column.Key).ToList();
-            var overview = GridSortColumns.Offered(GridSortColumns.GameSummaries, multiGame: true, library: true, friendGames: false)
-                .Select(column => column.Key).ToList();
-            var friend = GridSortColumns.Offered(GridSortColumns.GameSummaries, multiGame: true, library: false, friendGames: true)
-                .Select(column => column.Key).ToList();
+            List<string> Offered(GridOptionKind kind, string surface) => GridSortColumns
+                .Offered(
+                    kind == GridOptionKind.Achievement ? GridSortColumns.Achievement : GridSortColumns.GameSummaries,
+                    GridDisplaySurfaces.Resolve(kind, surface).HasSortScope)
+                .Select(column => column.Key)
+                .ToList();
+
+            var singleGame = Offered(GridOptionKind.Achievement, GridOptionKeys.Achievement.SingleGame);
+            var recent = Offered(GridOptionKind.Achievement, GridOptionKeys.Achievement.OverviewRecent);
+            var friendAchievements = Offered(GridOptionKind.Achievement, GridOptionKeys.Achievement.ViewFriendsAchievements);
+            var overview = Offered(GridOptionKind.GameSummaries, GridOptionKeys.GameSummaries.Overview);
+            var allFriends = Offered(GridOptionKind.GameSummaries, GridOptionKeys.GameSummaries.FriendsOverview);
+            var oneFriend = Offered(GridOptionKind.GameSummaries, GridOptionKeys.GameSummaries.FriendsOverviewSelectedFriend);
 
             CollectionAssert.DoesNotContain(singleGame, "SortingName");
+            CollectionAssert.DoesNotContain(singleGame, "FriendName");
             CollectionAssert.Contains(singleGame, "Points");
+            CollectionAssert.Contains(recent, "SortingName");
+            CollectionAssert.Contains(friendAchievements, "FriendName");
             CollectionAssert.Contains(overview, "Added");
+            CollectionAssert.Contains(overview, "Progression");
             CollectionAssert.DoesNotContain(overview, "Owned");
-            CollectionAssert.Contains(friend, "Owned");
-            CollectionAssert.DoesNotContain(friend, "PlaytimeSeconds");
+            CollectionAssert.Contains(allFriends, "Owned");
+            CollectionAssert.DoesNotContain(allFriends, "Progression");
+            CollectionAssert.DoesNotContain(allFriends, "Points");
+            CollectionAssert.Contains(oneFriend, "Progression");
+            CollectionAssert.DoesNotContain(oneFriend, "PlaytimeSeconds");
+        }
+
+        [TestMethod]
+        public void LabelKeyFor_NamesSharedSortsAfterTheCatalog()
+        {
+            Assert.AreEqual("LOCPlayAch_Column_Rarity", GridSortColumns.LabelKeyFor(GridSortColumns.Achievement, "RaritySortValue"));
+            Assert.AreEqual("LOCPlayAch_Column_Achievement", GridSortColumns.LabelKeyFor(GridSortColumns.Achievement, "DisplayName"));
+            Assert.IsNull(GridSortColumns.LabelKeyFor(GridSortColumns.Achievement, "Unknown"));
         }
 
         [TestMethod]
