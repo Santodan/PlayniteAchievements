@@ -122,6 +122,44 @@
                 <Setter Property="helpers:AsyncImage.DecodePixel" Value="64" />
             </Style>
 
+            <!-- The paired achievement's icon in the match cell; rows that pair with none show no icon. -->
+            <Style x:Key="MatchIconStyle" TargetType="Image">
+                <Setter Property="Width" Value="22" />
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Margin" Value="0,0,6,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+                <Setter Property="helpers:AsyncImage.DecodePixel" Value="44" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding MatchIcon}" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- One unlinked achievement: its icon and name, in a wrapping list. -->
+            <DataTemplate x:Key="UnlinkedAchievementTemplate">
+                <Border Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                        CornerRadius="4"
+                        Padding="4,3,10,3"
+                        Margin="0,0,6,6"
+                        ToolTip="{Binding Description}">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Width="24" Height="24"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="48"
+                               helpers:AsyncImage.Uri="{Binding Icon}" />
+                        <TextBlock Text="{Binding Name, Mode=OneWay}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="220"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
             <!-- The match cell: once the file was matched, a dropdown that pairs the row by hand
                  (Automatic, None, or any of the game's achievements). A hand pairing shows bold. -->
             <DataTemplate x:Key="MatchCellTemplate">
@@ -139,7 +177,12 @@
                                   PreviewMouseLeftButtonDown="PickerButton_PreviewMouseLeftButtonDown"
                                   PreviewMouseLeftButtonUp="PickerButton_PreviewMouseLeftButtonUp"
                                   Visibility="{Binding CanPick, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding Match}" Style="{StaticResource MatchCellTextStyle}" />
+                        <DockPanel>
+                            <Image DockPanel.Dock="Left"
+                                   Style="{StaticResource MatchIconStyle}"
+                                   helpers:AsyncImage.Uri="{Binding MatchIcon}" />
+                            <TextBlock Text="{Binding Match}" Style="{StaticResource MatchCellTextStyle}" VerticalAlignment="Center" />
+                        </DockPanel>
                     </ToggleButton>
                 </Grid>
             </DataTemplate>
@@ -421,16 +464,33 @@
                 </Grid>
             </StackPanel>
 
-            <!-- What applying would do; hovering the counts lists the achievements the file has no row for. -->
+            <!-- What applying would do, then the achievements the file has no row for. -->
             <StackPanel Grid.Row="3" Margin="0,8,0,0">
                 <TextBlock Text="{Binding ProblemText}"
                            Foreground="{DynamicResource PlayAch.Brush.AuthError}"
                            TextWrapping="Wrap"
                            Margin="0,0,0,4"
                            Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
-                <TextBlock Text="{Binding ResultText}"
-                           ToolTip="{Binding ResultToolTip}"
-                           Style="{StaticResource HintTextStyle}" />
+                <TextBlock Text="{Binding ResultText}" Style="{StaticResource HintTextStyle}" />
+                <Expander Margin="0,6,0,0"
+                          Visibility="{Binding HasUnlinked, Converter={StaticResource BoolToVis}}">
+                    <Expander.Header>
+                        <TextBlock Text="{Binding UnlinkedHeader}" Style="{StaticResource SectionHeaderStyle}" />
+                    </Expander.Header>
+                    <ScrollViewer MaxHeight="132"
+                                  Margin="0,6,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding UnlinkedAchievements}"
+                                      ItemTemplate="{StaticResource UnlinkedAchievementTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
             </StackPanel>
 
             <!-- Footer -->
