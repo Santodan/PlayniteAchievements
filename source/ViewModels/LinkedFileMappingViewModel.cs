@@ -156,6 +156,13 @@ namespace PlayniteAchievements.ViewModels
             UnlinkCommand = new RelayCommand(_ => Unlink(), _ => HasStoredLink);
             RereadCommand = new RelayCommand(_ => Reread());
             ToggleRevealCommand = new RelayCommand(_ => ToggleReveal());
+            ToggleRevealOneCommand = new RelayCommand(item =>
+            {
+                if (item is LinkedFileUnlinkedItem unlinked && unlinked.CanReveal)
+                {
+                    ToggleRevealOne(unlinked.ApiName);
+                }
+            });
             _pairing = new LinkedFilePairingContext(
                 MatchOption.Special(null, L("LOCPlayAch_Common_Automatic")),
                 MatchOption.Special(string.Empty, L("LOCPlayAch_Common_None")),
@@ -224,11 +231,35 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _hasMaskedAchievements, value);
         }
 
-        private SpoilerSettings Spoilers => _isRevealed ? SpoilerSettings.ShowAll : _services.Spoilers;
+        private readonly HashSet<string> _revealedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Everything for an achievement revealed on its own or by the header toggle; the display settings otherwise.</summary>
+        private SpoilerSettings SpoilersFor(AchievementDetail achievement) =>
+            _isRevealed || _revealedKeys.Contains(achievement.ApiName) ? SpoilerSettings.ShowAll : _services.Spoilers;
+
+        /// <summary>Reveals or masks every achievement; masking also undoes reveals made one at a time.</summary>
         private void ToggleReveal()
         {
             IsRevealed = !IsRevealed;
+            _revealedKeys.Clear();
+            Recompute();
+        }
+
+        /// <summary>Reveals or masks one unlinked achievement, wherever the window shows it.</summary>
+        public RelayCommand ToggleRevealOneCommand { get; }
+
+        private void ToggleRevealOne(string apiName)
+        {
+            if (string.IsNullOrEmpty(apiName) || _isRevealed)
+            {
+                return;
+            }
+
+            if (!_revealedKeys.Remove(apiName))
+            {
+                _revealedKeys.Add(apiName);
+            }
+
             Recompute();
         }
 
@@ -467,7 +498,7 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>The game's achievements no row pairs with, with their icons.</summary>
-        public ObservableCollection<MatchOption> UnlinkedAchievements { get; } = new ObservableCollection<MatchOption>();
+        public ObservableCollection<LinkedFileUnlinkedItem> UnlinkedAchievements { get; } = new ObservableCollection<LinkedFileUnlinkedItem>();
 
         /// <summary>The unlinked achievements' count, as the header of their list; null when there are none.</summary>
         public string UnlinkedHeader
@@ -845,7 +876,10 @@ namespace PlayniteAchievements.ViewModels
             UnlinkedAchievements.Clear();
             foreach (var achievement in match.UnmatchedAchievements)
             {
-                UnlinkedAchievements.Add(MaskedOption(achievement));
+                var shown = AchievementSpoilerMask.Apply(achievement, SpoilersFor(achievement), L);
+                var canReveal = !_isRevealed && AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L).IsMasked;
+                UnlinkedAchievements.Add(new LinkedFileUnlinkedItem(
+                    achievement.ApiName, shown.Name, shown.Description, shown.Icon, canReveal, isRevealed: canReveal && !shown.IsMasked));
             }
 
             UnlinkedHeader = match.UnmatchedAchievements.Count == 0
@@ -876,7 +910,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementSpoilerMask mask = null;
                 if (matched.TryGetValue(i, out var achievement))
                 {
-                    mask = AchievementSpoilerMask.Apply(achievement, Spoilers, L);
+                    mask = AchievementSpoilerMask.Apply(achievement, SpoilersFor(achievement), L);
                     text = mask.Name;
                     isMatched = true;
                 }
@@ -946,7 +980,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private MatchOption MaskedOption(AchievementDetail achievement)
         {
-            var mask = AchievementSpoilerMask.Apply(achievement, Spoilers, L);
+            var mask = AchievementSpoilerMask.Apply(achievement, SpoilersFor(achievement), L);
             return MatchOption.Create(achievement.ApiName, mask.Name, mask.Description, mask.Icon, mask.IsTitleMasked ? achievement.ApiName : null);
         }
 
