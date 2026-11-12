@@ -588,6 +588,7 @@
     <Compile Include="..\..\source\ViewModels\Items\LinkedFileItems.cs" Link="Source\ViewModels\Items\LinkedFileItems.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\MatchPickerItem.cs" Link="Source\ViewModels\ManageAchievements\MatchPickerItem.cs" />
     <Compile Include="..\..\source\ViewModels\LinkedFileStatusText.cs" Link="Source\ViewModels\LinkedFileStatusText.cs" />
+    <Compile Include="..\..\source\ViewModels\AchievementSpoilerMask.cs" Link="Source\ViewModels\AchievementSpoilerMask.cs" />
     <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataStateStore.cs" Link="Source\Services\Metadata\MetadataStateStore.cs" />
