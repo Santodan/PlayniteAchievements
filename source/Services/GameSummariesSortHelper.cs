@@ -35,14 +35,8 @@ namespace PlayniteAchievements.Services
 
         public string SortMemberPath { get; }
 
-        /// <summary>
-        /// The column that shows the default sort's arrow. Last Unlock shows none: outside the
-        /// friend grids it is a sort with no column of its own.
-        /// </summary>
-        public string IndicatorSortMemberPath =>
-            string.Equals(SortMemberPath, nameof(GameSummaryItem.LastUnlockUtc), StringComparison.Ordinal)
-                ? null
-                : SortMemberPath;
+        /// <summary>The column that shows the default sort's arrow.</summary>
+        public string IndicatorSortMemberPath => SortMemberPath;
     }
 
     internal enum GameSummariesGridSortActionKind
