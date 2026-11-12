@@ -295,6 +295,7 @@
                                 <Binding Path="Width"/>
                                 <Binding Path="FillsWidth" ElementName="Root"/>
                                 <Binding Path="ActualWidth" ElementName="Root"/>
+                                <Binding Path="(controls:GridControlBarControl.PanelItemWidth)" RelativeSource="{RelativeSource Self}"/>
                             </MultiBinding>
                         </Button.Width>
                         <Button.ContextMenu>
@@ -362,6 +363,7 @@
                                 <Binding Path="Width"/>
                                 <Binding Path="FillsWidth" ElementName="Root"/>
                                 <Binding Path="ActualWidth" ElementName="Root"/>
+                                <Binding Path="(controls:GridControlBarControl.PanelItemWidth)" RelativeSource="{RelativeSource Self}"/>
                             </MultiBinding>
                     </Button.Width>
                     <Button.ContextMenu>
@@ -513,6 +515,7 @@
                                 <Binding Path="Width"/>
                                 <Binding Path="FillsWidth" ElementName="Root"/>
                                 <Binding Path="ActualWidth" ElementName="Root"/>
+                                <Binding Path="(controls:GridControlBarControl.PanelItemWidth)" RelativeSource="{RelativeSource Self}"/>
                             </MultiBinding>
                         </Button.Width>
                     </Button>
@@ -708,9 +711,28 @@
                             IsEnabled="{Binding HasSelection}"/>
                 </Grid>
             </DataTemplate>
+
+            <!-- The Filters button: opens the panel holding the bar's dropdown filters. While any of
+                 them narrows the rows it reads "Filters (n)" and takes the selected look. -->
+            <DataTemplate DataType="{x:Type vm:GridFiltersButton}">
+                <Button x:Name="FiltersButton"
+                        Style="{StaticResource AchievementSelectorButtonStyle}"
+                        Content="{Binding Text}"
+                        Click="FiltersButton_Click"
+                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                        Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}"/>
+                <DataTemplate.Triggers>
+                    <DataTrigger Binding="{Binding IsFiltering}" Value="True">
+                        <Setter TargetName="FiltersButton" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <Grid>
     <!-- Children in order: leading items, search box, filter items. With WrapItems the filters
          drop below the search box when the bar is too narrow, and wrap across lines there. -->
     <controls:ControlBarLayoutPanel KeyboardNavigation.DirectionalNavigation="Continue"
@@ -755,4 +777,57 @@
             </ItemsControl.ItemsPanel>
         </ItemsControl>
     </controls:ControlBarLayoutPanel>
+
+    <!-- The Filters panel: one labeled row per dropdown filter the bar shows, then Clear. It stays
+         open while a filter's own dropdown is open (that menu is a window of its own) and closes
+         on a click anywhere else in the window, on the Filters button, or on Escape. -->
+    <Popup x:Name="FiltersPopup"
+           Placement="Bottom"
+           VerticalOffset="2"
+           StaysOpen="True"
+           AllowsTransparency="True"
+           Closed="FiltersPopup_Closed">
+        <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="10"
+                KeyDown="FiltersPanel_KeyDown"
+                controls:GridControlBarControl.PanelItemWidth="200">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding ShownFilterItems, ElementName=Root}"
+                              Grid.IsSharedSizeScope="True">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,6"
+                                  Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="FilterLabel"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,12,0"/>
+                                <!-- The filters keep a small left margin on the bar; none here. -->
+                                <ContentPresenter Grid.Column="1"
+                                                  Content="{Binding}"
+                                                  Margin="-4,0,0,0"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Style="{StaticResource GridActionButtonStyle}"
+                        Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                        Click="FiltersClear_Click"
+                        HorizontalAlignment="Right"
+                        Height="{StaticResource PlayAch.Size.Control.Height}"
+                        Margin="0,4,0,0"
+                        IsEnabled="{Binding FiltersButton.IsFiltering, ElementName=Root}"/>
+            </StackPanel>
+        </Border>
+    </Popup>
+    </Grid>
 </UserControl>
