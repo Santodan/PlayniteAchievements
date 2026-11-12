@@ -101,51 +101,37 @@
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
 
-            <!-- Every preview header: the plugin's flat grid header, one layer of text. -->
-            <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource AchievementColumnHeaderStyle}">
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="Padding" Value="8,6" />
+            <!-- Every preview header: the Editor grid's header, left-aligned. -->
+            <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
             </Style>
 
-            <!-- A file column's header: the field the column feeds, the file's own column name
-                 under it, and a chevron. Clicking anywhere on it opens the field menu. -->
-            <Style x:Key="FieldHeaderButtonStyle" TargetType="Button">
-                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+            <!-- A file column's header: clicking anywhere on it opens the menu of fields. -->
+            <Style x:Key="FieldColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource PreviewColumnHeaderStyle}">
                 <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="Transparent">
-                                <ContentPresenter />
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+                <EventSetter Event="Click" Handler="FieldHeader_Click" />
             </Style>
 
+            <!-- The field the column feeds with a chevron, and the file's own column name under it. -->
             <DataTemplate x:Key="FieldHeaderTemplate">
-                <Button Style="{StaticResource FieldHeaderButtonStyle}" Click="FieldHeader_Click">
-                    <DockPanel>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="FieldName" Text="{Binding SelectedField.Name}" TextTrimming="CharacterEllipsis" />
                         <TextBlock x:Name="Chevron"
-                                   DockPanel.Dock="Right"
                                    Text="6"
                                    FontFamily="Marlett"
+                                   FontWeight="Normal"
                                    FontSize="12"
-                                   Margin="6,0,0,0"
+                                   Margin="4,1,0,0"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource PlayAch.Brush.Glyph}"
                                    Opacity="0.6" />
-                        <StackPanel>
-                            <TextBlock x:Name="FieldName" Text="{Binding SelectedField.Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding ColumnName}"
-                                       FontWeight="Normal"
-                                       Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </DockPanel>
-                </Button>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ColumnName}"
+                               FontWeight="Normal"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
                 <DataTemplate.Triggers>
                     <DataTrigger Binding="{Binding IsMapped}" Value="False">
                         <Setter TargetName="FieldName" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
