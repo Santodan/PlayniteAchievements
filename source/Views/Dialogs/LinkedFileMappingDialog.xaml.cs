@@ -94,10 +94,29 @@ namespace PlayniteAchievements.Views.Dialogs
                 {
                     Header = column,
                     Binding = new Binding("[" + column.Index + "]"),
-                    ElementStyle = cellTextStyle,
+                    ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
                     MaxWidth = 420
                 });
             }
+        }
+
+        /// <summary>
+        /// The text style of one file column: a cell whose value cannot be read for its field
+        /// shows in the error color, with the reason as its tooltip.
+        /// </summary>
+        private Style BuildCellTextStyle(Style baseStyle, int columnIndex)
+        {
+            var style = new Style(typeof(TextBlock), baseStyle);
+            style.Setters.Add(new Setter(ToolTipProperty, new Binding("CellErrors[" + columnIndex + "]") { FallbackValue = null }));
+            var failed = new DataTrigger
+            {
+                Binding = new Binding("FailedCells[" + columnIndex + "]") { FallbackValue = false },
+                Value = true
+            };
+            failed.Setters.Add(new Setter(TextBlock.ForegroundProperty, new DynamicResourceExtension("PlayAch.Brush.AuthError")));
+            failed.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+            style.Triggers.Add(failed);
+            return style;
         }
 
         private void PresetActionsButton_Click(object sender, RoutedEventArgs e)
