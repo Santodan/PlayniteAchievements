@@ -236,6 +236,7 @@ namespace PlayniteAchievements.Models.Tagging
                 config = new TagConfig
                 {
                     DisplayName = GetDefaultDisplayName(tagType),
+                    DefaultDisplayName = GetDefaultDisplayName(tagType),
                     IsEnabled = IsEnabledByDefault(tagType)
                 };
                 configs[tagType] = config;
@@ -265,8 +266,9 @@ namespace PlayniteAchievements.Models.Tagging
         }
 
         /// <summary>
-        /// Gives every kind in <paramref name="kinds"/> a config, and a blank display name its
-        /// default. Existing names and enable flags are kept.
+        /// Gives every kind in <paramref name="kinds"/> a config and sets each config's
+        /// <see cref="TagConfig.DefaultDisplayName"/>. Existing names, blank ones included, and
+        /// enable flags are kept: a blank name stands for the default.
         /// </summary>
         private static void FillDefaults(
             Dictionary<TagType, TagConfig> configs,
@@ -275,17 +277,19 @@ namespace PlayniteAchievements.Models.Tagging
         {
             foreach (var tagType in kinds)
             {
+                var defaultName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
                 if (!configs.TryGetValue(tagType, out var config) || config == null)
                 {
                     configs[tagType] = new TagConfig
                     {
-                        DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType),
+                        DisplayName = defaultName,
+                        DefaultDisplayName = defaultName,
                         IsEnabled = IsEnabledByDefault(tagType)
                     };
                 }
-                else if (string.IsNullOrWhiteSpace(config.DisplayName))
+                else
                 {
-                    config.DisplayName = getDefaultName?.Invoke(tagType) ?? GetDefaultDisplayName(tagType);
+                    config.DefaultDisplayName = defaultName;
                 }
             }
         }
@@ -364,6 +368,7 @@ namespace PlayniteAchievements.Models.Tagging
                 clone[kvp.Key] = kvp.Value?.Clone() ?? new TagConfig
                 {
                     DisplayName = GetDefaultDisplayName(kvp.Key),
+                    DefaultDisplayName = GetDefaultDisplayName(kvp.Key),
                     IsEnabled = IsEnabledByDefault(kvp.Key)
                 };
             }
@@ -410,18 +415,45 @@ namespace PlayniteAchievements.Models.Tagging
     public class TagConfig : ObservableObject
     {
         private string _displayName;
+        private string _defaultDisplayName;
         private bool _isEnabled = true;
         private Guid? _tagId;
 
         /// <summary>
-        /// The display name shown in Playnite's library.
-        /// This is the actual tag name that will be applied to games.
+        /// The name the user typed. Blank stands for <see cref="DefaultDisplayName"/>; the name
+        /// written to Playnite is <see cref="ResolvedName"/>.
         /// </summary>
         public string DisplayName
         {
             get => _displayName;
-            set => SetValue(ref _displayName, value);
+            set
+            {
+                SetValue(ref _displayName, value);
+                OnPropertyChanged(nameof(ResolvedName));
+            }
         }
+
+        /// <summary>
+        /// The kind's default name in the current language, shown behind a blank name box.
+        /// Set on load, not saved.
+        /// </summary>
+        [DontSerialize]
+        public string DefaultDisplayName
+        {
+            get => _defaultDisplayName;
+            set
+            {
+                SetValue(ref _defaultDisplayName, value);
+                OnPropertyChanged(nameof(ResolvedName));
+            }
+        }
+
+        /// <summary>
+        /// The name applied in Playnite's library: <see cref="DisplayName"/>, or
+        /// <see cref="DefaultDisplayName"/> when that is blank.
+        /// </summary>
+        [DontSerialize]
+        public string ResolvedName => string.IsNullOrWhiteSpace(DisplayName) ? DefaultDisplayName : DisplayName;
 
         /// <summary>
         /// Whether this tag type should be synced to games.
@@ -451,6 +483,7 @@ namespace PlayniteAchievements.Models.Tagging
             return new TagConfig
             {
                 DisplayName = DisplayName,
+                DefaultDisplayName = DefaultDisplayName,
                 IsEnabled = IsEnabled,
                 TagId = TagId
             };
