@@ -112,7 +112,6 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementGridControlBarAdapter _selectedGameControlBar = new AchievementGridControlBarAdapter();
         private List<string> _availableProviders = new List<string>();
         private readonly HashSet<string> _selectedCompletenessFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private bool _completenessFilterEdited;
         private readonly HashSet<string> _selectedPlayStatusFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Sort state tracking for quick reverse
@@ -187,16 +186,8 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameAllAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
-            // Default the progress dropdown to every finish plus In Progress, leaving out games
-            // with no progress. Every finish key is held, offered or not, so a later Achievement
-            // styles change keeps those games. Its label shows the placeholder until the first
-            // edit, then always lists the picks.
-            foreach (var key in ProgressFilterChoices.AllFinishes)
-            {
-                _selectedCompletenessFilters.Add(key);
-            }
-
-            _selectedCompletenessFilters.Add(ProgressFilterChoices.InProgress);
+            // Like every other filter, the Progress dropdown starts with nothing picked, which
+            // keeps every game.
             RestoreGameSummariesBarState();
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
@@ -349,10 +340,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
-                Width = 170,
-                // Its default holds picks (every finish and In Progress), and picks it does not
-                // offer are kept but ignored; it counts only while it narrows past the default.
-                IsFiltering = IsCompletenessFiltering
+                Width = 170
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -741,12 +729,10 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
-                var picked = _completenessFilterEdited
-                    ? (CompletenessFilterOptions ?? new ObservableCollection<string>())
-                        .Where(_selectedCompletenessFilters.Contains)
-                        .Select(ProgressFilterChoices.Label)
-                        .ToList()
-                    : new List<string>();
+                var picked = (CompletenessFilterOptions ?? new ObservableCollection<string>())
+                    .Where(_selectedCompletenessFilters.Contains)
+                    .Select(ProgressFilterChoices.Label)
+                    .ToList();
                 return picked.Count == 0 ? L("LOCPlayAch_Progress") : string.Join(", ", picked);
             }
         }
@@ -763,7 +749,6 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             SaveGameSummariesBarState();
             // Defer filter application to avoid interfering with menu click handling.
@@ -800,10 +785,7 @@ namespace PlayniteAchievements.ViewModels
             ScheduleFilterApply();
         }
 
-        /// <summary>
-        /// Applies a Completions pie slice click to the Progress filter. The first click on the
-        /// untouched default keeps only that slice's choice; after that a click toggles it.
-        /// </summary>
+        /// <summary>Applies a Completions pie slice click to the Progress filter: it toggles that slice's choice.</summary>
         /// <param name="key">The slice's <see cref="ProgressFilterChoices"/> key.</param>
         public void ToggleCompletenessFilterFromPieChart(string key)
         {
@@ -812,38 +794,15 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (!_completenessFilterEdited)
-            {
-                _selectedCompletenessFilters.Clear();
-                _selectedCompletenessFilters.Add(key);
-            }
-            else if (!_selectedCompletenessFilters.Remove(key))
+            if (!_selectedCompletenessFilters.Remove(key))
             {
                 _selectedCompletenessFilters.Add(key);
             }
 
-            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             SaveGameSummariesBarState();
             ScheduleFilterApply();
         }
-
-        // Whether the Progress filter drops games beyond the default: some offered choice picked,
-        // not every one (the matcher ignores picks it does not offer, and all of them keep every
-        // game), and not the default picks.
-        private bool IsCompletenessFiltering()
-        {
-            var offered = CompletenessFilterOptions ?? new ObservableCollection<string>();
-            var picked = offered.Count(_selectedCompletenessFilters.Contains);
-            return picked > 0 && picked < offered.Count && !IsDefaultCompletenessSelection();
-        }
-
-        // Whether the Progress picks match the default (every finish and In Progress, not No
-        // Progress) over the choices the dropdown offers.
-        private bool IsDefaultCompletenessSelection() =>
-            (CompletenessFilterOptions ?? new ObservableCollection<string>()).All(option =>
-                _selectedCompletenessFilters.Contains(option) ==
-                !string.Equals(option, ProgressFilterChoices.NoProgress, StringComparison.OrdinalIgnoreCase));
 
         // The Activity choices in bar order; the saved picks are positions in this list, so they
         // survive a change of Playnite language.
@@ -855,7 +814,7 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Restores the game grid's saved Progress and Activity picks, the only bar choices kept
-        /// across sessions so far. A saved Progress replaces the default picks.
+        /// across sessions so far.
         /// </summary>
         private void RestoreGameSummariesBarState()
         {
@@ -873,8 +832,6 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _selectedCompletenessFilters.Add(key);
                 }
-
-                _completenessFilterEdited = true;
             }
 
             _selectedPlayStatusFilters.Clear();
@@ -886,9 +843,8 @@ namespace PlayniteAchievements.ViewModels
 
         private void SaveGameSummariesBarState()
         {
-            // Picks that match the default are not saved, so the default follows later changes.
             var state = GridControlBarSurfaceState.Capture(
-                _completenessFilterEdited && !IsDefaultCompletenessSelection() ? _selectedCompletenessFilters : null,
+                _selectedCompletenessFilters.Count > 0 ? _selectedCompletenessFilters : null,
                 PlayStatusChoices(),
                 _selectedPlayStatusFilters);
             Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
