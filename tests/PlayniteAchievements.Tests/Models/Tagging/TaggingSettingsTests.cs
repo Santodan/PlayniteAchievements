@@ -276,5 +276,46 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             nulled.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
             Assert.AreEqual(3, nulled.FeatureConfigs.Count);
         }
+
+        [TestMethod]
+        public void InitializeDefaults_KeepsBlankName_AndResolvesItToTheDefault()
+        {
+            var settings = new TaggingSettings
+            {
+                TagConfigs = new Dictionary<TagType, TagConfig>
+                {
+                    [TagType.Completed] = new TagConfig { DisplayName = "", IsEnabled = true }
+                }
+            };
+
+            settings.InitializeDefaults(tagType => "Default " + tagType);
+
+            Assert.AreEqual("", settings.CompletedConfig.DisplayName);
+            Assert.AreEqual("Default Completed", settings.CompletedConfig.DefaultDisplayName);
+            Assert.AreEqual("Default Completed", settings.CompletedConfig.ResolvedName);
+            Assert.AreEqual("Default InProgress", settings.InProgressConfig.DisplayName);
+        }
+
+        [TestMethod]
+        public void ResolvedName_PrefersTypedName()
+        {
+            var config = new TagConfig { DisplayName = "Done", DefaultDisplayName = "Default" };
+
+            Assert.AreEqual("Done", config.ResolvedName);
+            config.DisplayName = "  ";
+            Assert.AreEqual("Default", config.ResolvedName);
+        }
+
+        [TestMethod]
+        public void Clone_KeepsDefaultDisplayName()
+        {
+            var settings = new TaggingSettings();
+            settings.InitializeDefaults(tagType => "Default " + tagType);
+            settings.FeatureConfigs[TagType.HasAchievements].DisplayName = null;
+
+            var clone = settings.Clone();
+
+            Assert.AreEqual("Default HasAchievements", clone.FeatureConfigs[TagType.HasAchievements].ResolvedName);
+        }
     }
 }
