@@ -121,6 +121,89 @@ namespace PlayniteAchievements.Tests.ViewModels
     }
 
     [TestClass]
+    public class GridFiltersPanelTests
+    {
+        private static GridMultiSelectFilter Filter(HashSet<string> picked) =>
+            new GridMultiSelectFilter(
+                null,
+                null,
+                () => "Platform",
+                new[] { "PC", "PS5" },
+                picked.Contains,
+                (value, on) =>
+                {
+                    if (on)
+                    {
+                        picked.Add(value);
+                    }
+                    else
+                    {
+                        picked.Remove(value);
+                    }
+                });
+
+        [TestMethod]
+        public void DropdownFilters_GoToThePanel_ButtonsStayOnTheBar()
+        {
+            Assert.IsTrue(Filter(new HashSet<string>()).IsPanelFilter);
+            Assert.IsFalse(new GridSortSelector().IsPanelFilter);
+            Assert.IsFalse(new GridActionButton("Back", null).IsPanelFilter);
+        }
+
+        [TestMethod]
+        public void MultiSelect_HasSelection_FollowsPicks()
+        {
+            var picked = new HashSet<string>();
+            var filter = Filter(picked);
+
+            Assert.IsFalse(filter.HasSelection);
+
+            filter.SetSelected("PC", true);
+
+            Assert.IsTrue(filter.HasSelection);
+
+            filter.ClearSelection();
+
+            Assert.IsFalse(filter.HasSelection);
+        }
+
+        [TestMethod]
+        public void MultiSelect_IsFiltering_OverridesPicks()
+        {
+            var filter = Filter(new HashSet<string> { "PC", "PS5" });
+            filter.IsFiltering = () => false;
+
+            Assert.IsFalse(filter.HasSelection, "A default that holds picks does not count as filtering.");
+        }
+
+        [TestMethod]
+        public void FiltersButton_CountsInItsText()
+        {
+            var button = new GridFiltersButton();
+
+            Assert.IsFalse(button.IsFiltering);
+            Assert.IsFalse(button.Text.Contains("("));
+
+            button.Count = 3;
+
+            Assert.IsTrue(button.IsFiltering);
+            StringAssert.EndsWith(button.Text, "(3)");
+        }
+
+        [TestMethod]
+        public void FiltersButton_ShowsOnlyWhileAFilterShows()
+        {
+            var button = new GridFiltersButton();
+
+            Assert.IsFalse(button.EffectiveIsVisible);
+
+            button.Available = true;
+
+            Assert.IsTrue(button.EffectiveIsVisible);
+        }
+    }
+
+    [TestClass]
     public class GridControlBarSurfaceStateTests
     {
         private static readonly IList<string> Activity = new[] { "Played", "Unplayed" };
