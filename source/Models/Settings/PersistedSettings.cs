@@ -212,6 +212,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showFriendSpoilers;
         private int _friendsOverviewRecentUnlockLimit = 200;
         private bool _showTopMenuBarButton = true;
+        private bool _showSidebarButton = true;
         private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
@@ -2454,12 +2455,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, shows the top menu bar button for opening the achievements window.
+        /// When true, shows the Playnite top panel button that opens the achievements overview.
         /// </summary>
         public bool ShowTopMenuBarButton
         {
             get => _showTopMenuBarButton;
             set => SetValue(ref _showTopMenuBarButton, value);
+        }
+
+        /// <summary>
+        /// When true, shows the Playnite sidebar button that opens the achievements overview.
+        /// </summary>
+        public bool ShowSidebarButton
+        {
+            get => _showSidebarButton;
+            set => SetValue(ref _showSidebarButton, value);
         }
 
         /// <summary>
@@ -3454,6 +3464,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewScoreCard1 = this.ShowOverviewScoreCard1,
                 ShowOverviewScoreCard2 = this.ShowOverviewScoreCard2,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
+                ShowSidebarButton = this.ShowSidebarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
@@ -3591,6 +3602,7 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewScoreCard1 = defaults.ShowOverviewScoreCard1;
             ShowOverviewScoreCard2 = defaults.ShowOverviewScoreCard2;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
+            ShowSidebarButton = defaults.ShowSidebarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
 
