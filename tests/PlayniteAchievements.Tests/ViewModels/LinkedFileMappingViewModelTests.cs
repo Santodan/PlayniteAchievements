@@ -441,6 +441,36 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void RevealToggle_ShowsMaskedAchievementNames()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                var services = harness.Services();
+                services.LoadAchievements = () => new List<AchievementDetail>
+                {
+                    new AchievementDetail { ApiName = "a", DisplayName = "Alpha", Hidden = true },
+                    new AchievementDetail { ApiName = "b", DisplayName = "Beta" }
+                };
+                services.Spoilers = new SpoilerSettings();
+                var vm = new LinkedFileMappingViewModel(services);
+                vm.FilePath = CreateFile(folder);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
+
+                Assert.IsTrue(vm.HasMaskedAchievements);
+                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", vm.PreviewRows[0].Match);
+
+                vm.ToggleRevealCommand.Execute(null);
+                Assert.IsTrue(vm.IsRevealed);
+                Assert.AreEqual("Alpha", vm.PreviewRows[0].Match);
+                Assert.IsTrue(vm.HasMaskedAchievements, "The toggle stays available to mask again.");
+
+                vm.ToggleRevealCommand.Execute(null);
+                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", vm.PreviewRows[0].Match);
+            });
+        }
+
+        [TestMethod]
         public void StatusText_DescribesStateAndFlagsProblems()
         {
             Func<string, string> key = name => name;
