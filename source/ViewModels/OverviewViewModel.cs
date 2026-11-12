@@ -350,8 +350,9 @@ namespace PlayniteAchievements.ViewModels
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
                 Width = 170,
-                // Its default holds picks (every finish and In Progress); only an edit filters.
-                IsFiltering = () => _completenessFilterEdited
+                // Its default holds picks (every finish and In Progress); it filters only when the
+                // picks differ from that.
+                IsFiltering = () => !IsDefaultCompletenessSelection()
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -843,6 +844,13 @@ namespace PlayniteAchievements.ViewModels
             ScheduleFilterApply();
         }
 
+        // Whether the Progress picks match the default (every finish and In Progress, not No
+        // Progress) over the choices the dropdown offers.
+        private bool IsDefaultCompletenessSelection() =>
+            (CompletenessFilterOptions ?? new ObservableCollection<string>()).All(option =>
+                _selectedCompletenessFilters.Contains(option) ==
+                !string.Equals(option, ProgressFilterChoices.NoProgress, StringComparison.OrdinalIgnoreCase));
+
         // The Activity choices in bar order; the saved picks are positions in this list, so they
         // survive a change of Playnite language.
         private static IList<string> PlayStatusChoices() => new[]
@@ -884,8 +892,9 @@ namespace PlayniteAchievements.ViewModels
 
         private void SaveGameSummariesBarState()
         {
+            // Picks that match the default are not saved, so the default follows later changes.
             var state = GridControlBarSurfaceState.Capture(
-                _completenessFilterEdited ? _selectedCompletenessFilters : null,
+                _completenessFilterEdited && !IsDefaultCompletenessSelection() ? _selectedCompletenessFilters : null,
                 PlayStatusChoices(),
                 _selectedPlayStatusFilters);
             Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
