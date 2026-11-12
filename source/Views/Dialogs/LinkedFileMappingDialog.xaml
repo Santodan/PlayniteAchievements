@@ -14,7 +14,51 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementGridStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- The preview grid takes the Editor grid's look: row separators, the hover and selected
+                 row brushes, and cells that never take focus or paint a selection of their own. -->
+            <Style x:Key="PreviewRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="Cursor" Value="Arrow" />
+            </Style>
+
+            <Style x:Key="PreviewCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+            </Style>
+
+            <!-- The frozen match column: file columns scroll beneath it, so it paints the window's
+                 background and lays the row's hover and selected brushes over that. -->
+            <Style x:Key="MatchCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource PreviewCellStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{DynamicResource PlayAch.Brush.Window.Background}">
+                                <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Stretch" />
+                                </Border>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="PreviewCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
 
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
 
@@ -171,6 +215,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="PathTextBox"
                              Grid.Column="0"
@@ -189,12 +234,9 @@
                               ItemsSource="{Binding FormatOptions}"
                               SelectedItem="{Binding SelectedFormat, Mode=TwoWay}"
                               DisplayMemberPath="Name" />
-                </Grid>
-
-                <DockPanel Margin="0,8,0,0" LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="16,0,0,0">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}" Style="{StaticResource FieldLabelStyle}" />
-                        <ComboBox Width="200"
+                        <ComboBox Width="180"
                                   ItemsSource="{Binding SavedNames}"
                                   SelectedItem="{Binding SelectedSavedName, Mode=TwoWay}" />
                         <Button x:Name="PresetActionsButton"
@@ -204,9 +246,12 @@
                                 AutomationProperties.Name="{DynamicResource LOCPlayAch_Presets_Header}"
                                 Click="PresetActionsButton_Click" />
                     </StackPanel>
+                </Grid>
 
-                    <WrapPanel>
-                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsDelimited, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                <!-- The format's own options; each sets its own top margin, so nothing is left
+                     behind when the format has none. -->
+                <WrapPanel>
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsDelimited, Converter={StaticResource BoolToVis}}" Margin="0,8,16,0">
                             <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Delimiter}" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox Width="120"
                                       IsEditable="True"
@@ -215,7 +260,7 @@
                                       SelectionChanged="CommitOnSelection_SelectionChanged"
                                       KeyDown="CommitOnEnter_KeyDown" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}" Margin="0,8,16,0">
                             <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Sheet}" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox Width="200"
                                       IsEditable="True"
@@ -227,8 +272,9 @@
                         <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_HasHeader}"
                                   IsChecked="{Binding HasHeader, Mode=TwoWay}"
                                   Style="{StaticResource OptionCheckBoxStyle}"
+                                  Margin="0,8,16,0"
                                   Visibility="{Binding UsesHeaderRow, Converter={StaticResource BoolToVis}}" />
-                        <StackPanel Orientation="Horizontal" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}" Margin="0,8,16,0">
                             <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RootPath}" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox Width="260"
                                       IsEditable="True"
@@ -238,7 +284,7 @@
                                       SelectionChanged="CommitOnSelection_SelectionChanged"
                                       KeyDown="CommitOnEnter_KeyDown" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}" Margin="0,0,16,6">
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}" Margin="0,8,16,0">
                             <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RowElementPath}" Style="{StaticResource FieldLabelStyle}" />
                             <TextBox Width="260"
                                      VerticalContentAlignment="Center"
@@ -246,8 +292,7 @@
                                      ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowElementPathHint}"
                                      KeyDown="CommitOnEnter_KeyDown" />
                         </StackPanel>
-                    </WrapPanel>
-                </DockPanel>
+                </WrapPanel>
             </StackPanel>
 
             <!-- Columns: each file column's header picks the field it feeds; the first column shows the match -->
@@ -280,24 +325,21 @@
                           CanUserAddRows="False"
                           HeadersVisibility="Column"
                           SelectionUnit="FullRow"
+                          SelectionMode="Single"
                           FrozenColumnCount="1"
                           EnableColumnVirtualization="True"
                           EnableRowVirtualization="True"
                           MinColumnWidth="140"
+                          GridLinesVisibility="None"
+                          RowBackground="Transparent"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                          RowStyle="{StaticResource PreviewRowStyle}"
+                          CellStyle="{StaticResource PreviewCellStyle}"
+                          helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           ItemsSource="{Binding PreviewRows}">
-                    <!-- A preview, not a list to act on: a clicked row keeps the grid's own look. -->
-                    <DataGrid.CellStyle>
-                        <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="Transparent" />
-                                    <Setter Property="BorderBrush" Value="Transparent" />
-                                    <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.CellStyle>
                     <DataGrid.ColumnHeaderStyle>
                         <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
