@@ -38,8 +38,7 @@ namespace PlayniteAchievements.Models.Tagging
         /// <summary>Platform override, provider ids and slugs, user-set metadata links and choices.</summary>
         Source = 1 << 8,
 
-        /// <summary>Manual link, custom achievements or custom provider.</summary>
-        ManualTracking = 1 << 9,
+        // 1 << 9 is unassigned: manual links and linked files are status tag kinds, not an area.
 
         /// <summary>Per-game notification appearance, sounds, behavior or capture.</summary>
         Notifications = 1 << 10,
