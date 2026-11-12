@@ -340,7 +340,7 @@ namespace PlayniteAchievements.Models.Settings
         private AchievementStatusColorMode _statusColor = AchievementStatusColorMode.MissableUnobtainable;
         private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
-        private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
+        private string _sortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.UnlockTime);
         private bool _sortDescending = true;
         private double? _maxHeight;
         private bool _startInCategoryMode;
@@ -428,10 +428,21 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _unlockDateMode, value);
         }
 
-        public CompactListSortMode SortMode
+        /// <summary>
+        /// The default sort's column, by sort member path (see <see cref="GridSortColumns"/>).
+        /// Empty keeps the grid's source order.
+        /// </summary>
+        public string SortColumn
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => _sortColumn;
+            set => SetValue(ref _sortColumn, value ?? GridSortColumns.SourceOrder);
+        }
+
+        // Records saved before column keys hold the sort as an enum; read only, never written.
+        [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
+        private CompactListSortMode LegacySortMode
+        {
+            set => _sortColumn = GridSortColumns.FromAchievementMode(value);
         }
 
         public bool SortDescending
@@ -486,7 +497,7 @@ namespace PlayniteAchievements.Models.Settings
             clone.StatusColor = StatusColor;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.UnlockDateMode = UnlockDateMode;
-            clone.SortMode = SortMode;
+            clone.SortColumn = SortColumn;
             clone.SortDescending = SortDescending;
             clone.MaxHeight = MaxHeight;
             clone.StartInCategoryMode = StartInCategoryMode;
@@ -511,7 +522,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityBadgesBelowProgress = true;
         private bool _showCompletionFrame;
         private DateDisplayMode _lastPlayedDateMode = DateDisplayMode.DateAndTime;
-        private GameSummariesSortMode _sortMode = GameSummariesSortMode.RecentUnlock;
+        private string _sortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock);
         private bool _sortDescending = true;
 
         public bool UseCoverImages
@@ -595,10 +606,21 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _lastPlayedDateMode, value);
         }
 
-        public GameSummariesSortMode SortMode
+        /// <summary>
+        /// The default sort's column, by sort member path (see <see cref="GridSortColumns"/>).
+        /// Empty keeps the grid's source order (pin order on a pinned-games grid).
+        /// </summary>
+        public string SortColumn
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => _sortColumn;
+            set => SetValue(ref _sortColumn, value ?? GridSortColumns.SourceOrder);
+        }
+
+        // Records saved before column keys hold the sort as an enum; read only, never written.
+        [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
+        private GameSummariesSortMode LegacySortMode
+        {
+            set => _sortColumn = GridSortColumns.FromGameSummariesMode(value);
         }
 
         public bool SortDescending
@@ -623,7 +645,7 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress;
             clone.ShowCompletionFrame = ShowCompletionFrame;
             clone.LastPlayedDateMode = LastPlayedDateMode;
-            clone.SortMode = SortMode;
+            clone.SortColumn = SortColumn;
             clone.SortDescending = SortDescending;
             return clone;
         }
@@ -1404,7 +1426,7 @@ namespace PlayniteAchievements.Models.Settings
                 options.ShowControlBar = false;
                 // The projection's source order (recency, or pin order for the pinned source)
                 // holds until the user picks a sort.
-                options.SortMode = CompactListSortMode.None;
+                options.SortColumn = GridSortColumns.SourceOrder;
                 options.MaxRows = DefaultShowcaseRecentMaxRows;
             }
 
