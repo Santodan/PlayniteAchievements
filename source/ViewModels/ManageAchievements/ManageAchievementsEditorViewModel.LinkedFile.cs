@@ -49,15 +49,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool HasLinkedFile => _linkedFile != null;
 
-        /// <summary>The plain Link File button; a linked game shows its status chip instead.</summary>
+        /// <summary>The plain Link File button; a linked game shows Edit Linked File instead.</summary>
         public bool ShowLinkFileButton => CanLinkFile && !HasLinkedFile;
 
-        public string LinkedFileChipText => LinkedFileStatusText.Summarize(_linkedFile, Localize);
+        /// <summary>Marks the Edit Linked File button with a warning when the link cannot be read.</summary>
+        public bool LinkedFileHasProblem => LinkedFileStatusText.HasProblem(_linkedFile);
 
+        /// <summary>The file's path, its state, and that a read replaces edits made here.</summary>
         public string LinkedFileToolTip =>
             _linkedFile == null
                 ? null
-                : (_linkedFile.HasFilePath ? _linkedFile.FilePath + Environment.NewLine + Environment.NewLine : string.Empty) +
+                : (_linkedFile.HasFilePath ? _linkedFile.FilePath + Environment.NewLine : string.Empty) +
+                  LinkedFileStatusText.DescribeState(_linkedFile, Localize) + Environment.NewLine + Environment.NewLine +
                   Localize("LOCPlayAch_LinkedFile_OverwriteHint");
 
         internal void RefreshLinkedFileState()
@@ -67,7 +70,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             CanLinkFile = LinkedFileSyncService.IsEligible(record) || !_hasCachedAchievements;
             OnPropertyChanged(nameof(HasLinkedFile));
             OnPropertyChanged(nameof(ShowLinkFileButton));
-            OnPropertyChanged(nameof(LinkedFileChipText));
+            OnPropertyChanged(nameof(LinkedFileHasProblem));
             OnPropertyChanged(nameof(LinkedFileToolTip));
         }
 
