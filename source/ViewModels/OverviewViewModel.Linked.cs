@@ -128,15 +128,34 @@ namespace PlayniteAchievements.ViewModels
         /// The grids refilter after that, deferred to ContextIdle so the click or pick that set
         /// the filter finishes first. A click on a chart so shows on the charts without waiting
         /// for the grids to rebuild their rows; the grids' own pass then finds the widgets'
-        /// views unchanged and leaves them alone.
+        /// views unchanged and leaves them alone. Picks made before the grids' pass runs share
+        /// it, so several quick picks in a dropdown refilter the grids once.
         /// </summary>
         private void ScheduleFilterApply()
         {
             InvalidateLinkedSnapshots();
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(ApplyLeftFilters),
+            if (_filterApplyPending)
+            {
+                return;
+            }
+
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            _filterApplyPending = true;
+            dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    _filterApplyPending = false;
+                    ApplyLeftFilters();
+                }),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
+
+        private bool _filterApplyPending;
 
         /// <summary>
         /// Rows whose game the Games grid lists, so its filters (platform, progress, activity,
