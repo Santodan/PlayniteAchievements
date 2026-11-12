@@ -92,7 +92,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.ShowRarityGlow), nameof(ModernDataGridShowRarityGlow));
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.ColorNamesByRarity), nameof(ModernDataGridColorNamesByRarity));
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(ModernDataGridColorRarityColumnsByRarity));
-            Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.SortMode), nameof(AchievementDataGridSortMode));
+            Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.SortColumn), nameof(AchievementDataGridSortColumn));
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.SortDescending), nameof(AchievementDataGridSortDescending));
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.MaxHeight), nameof(AchievementDataGridMaxHeight));
             Add(A, GridOptionKeys.Achievement.Default, nameof(AchievementGridOptions.Columns),
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.HideCategorySummaryRow), nameof(ViewAchievementsAchievementGridHideCategorySummaryRow));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.ShowControlBar), nameof(ShowViewAchievementsAchievementGridControlBar));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.UnlockDateMode), nameof(ViewAchievementsAchievementsUnlockDateMode));
-            Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.SortMode), nameof(SingleGameGridSortMode));
+            Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.SortColumn), nameof(SingleGameGridSortColumn));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.SortDescending), nameof(SingleGameGridSortDescending));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.RowHeight), nameof(SingleGameGridRowHeight));
             Add(A, GridOptionKeys.Achievement.SingleGame, nameof(AchievementGridOptions.MaxRows), nameof(SingleGameGridMaxRows));
@@ -125,7 +125,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.UnlockDateMode), nameof(OverviewRecentAchievementsUnlockDateMode));
             Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.RowHeight), nameof(OverviewRecentAchievementsGridRowHeight));
             Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.MaxRows), nameof(OverviewRecentAchievementsGridMaxRows));
-            Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.SortMode), nameof(OverviewRecentAchievementsGridSortMode));
+            Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.SortColumn), nameof(OverviewRecentAchievementsGridSortColumn));
             Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.SortDescending), nameof(OverviewRecentAchievementsGridSortDescending));
             Add(A, GridOptionKeys.Achievement.OverviewRecent, nameof(AchievementGridOptions.Columns),
                 nameof(OverviewRecentAchievementColumnVisibility), nameof(OverviewRecentAchievementColumnWidths), nameof(OverviewRecentAchievementColumnOrder),
@@ -140,7 +140,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.ShowControlBar), nameof(ShowOverviewSelectedGameGridControlBar));
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.ShowColumnHeaders), nameof(ShowOverviewSelectedGameGridColumnHeaders));
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.UnlockDateMode), nameof(OverviewSelectedGameAchievementsUnlockDateMode));
-            Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.SortMode), nameof(OverviewSelectedGameGridSortMode));
+            Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.SortColumn), nameof(OverviewSelectedGameGridSortColumn));
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.SortDescending), nameof(OverviewSelectedGameGridSortDescending));
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.RowHeight), nameof(OverviewSelectedGameGridRowHeight));
             Add(A, GridOptionKeys.Achievement.OverviewSelectedGame, nameof(AchievementGridOptions.MaxRows), nameof(OverviewSelectedGameGridMaxRows));
@@ -155,7 +155,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.ColorRarityColumnsByRarity), nameof(FriendsOverviewAchievementsColorRarityColumnsByRarity));
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.StartInCategoryMode), nameof(FriendsOverviewAchievementsStartInCategoryMode));
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.HideCategorySummaryRow), nameof(FriendsOverviewAchievementsHideCategorySummaryRow));
-            Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.SortMode), nameof(FriendsOverviewAchievementsGridSortMode));
+            Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.SortColumn), nameof(FriendsOverviewAchievementsGridSortColumn));
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.SortDescending), nameof(FriendsOverviewAchievementsGridSortDescending));
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.ShowColumnHeaders), nameof(ShowFriendsOverviewAchievementsGridColumnHeaders));
             Add(A, GridOptionKeys.Achievement.FriendsOverviewRecent, nameof(AchievementGridOptions.ShowControlBar), nameof(ShowFriendsOverviewAchievementsGridControlBar));
@@ -220,7 +220,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.ShowColumnHeaders), nameof(ShowOverviewGameSummariesGridColumnHeaders));
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.ShowControlBar), nameof(ShowOverviewGameSummariesGridControlBar));
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.LastPlayedDateMode), nameof(OverviewGameSummariesLastPlayedDateMode));
-            Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.SortMode), nameof(OverviewGameSummariesGridSortMode));
+            Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.SortColumn), nameof(OverviewGameSummariesGridSortColumn));
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.SortDescending), nameof(OverviewGameSummariesGridSortDescending));
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.RowHeight), nameof(OverviewGameSummariesGridRowHeight));
             Add(G, GridOptionKeys.GameSummaries.Overview, nameof(GameSummaryGridOptions.MaxRows), nameof(OverviewGameSummariesGridMaxRows));
@@ -270,7 +270,7 @@ namespace PlayniteAchievements.Models.Settings
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.ShowColumnHeaders), nameof(ShowFriendsOverviewGameSummariesGridColumnHeaders));
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.ShowControlBar), nameof(ShowFriendsOverviewGameSummariesGridControlBar));
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.LastPlayedDateMode), nameof(FriendsOverviewGameSummariesLastPlayedDateMode));
-            Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.SortMode), nameof(FriendsOverviewGameSummariesGridSortMode));
+            Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.SortColumn), nameof(FriendsOverviewGameSummariesGridSortColumn));
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.SortDescending), nameof(FriendsOverviewGameSummariesGridSortDescending));
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.RowHeight), nameof(FriendsOverviewGameSummariesGridRowHeight));
             Add(G, GridOptionKeys.GameSummaries.FriendsOverview, nameof(GameSummaryGridOptions.MaxRows), nameof(FriendsOverviewGameSummariesGridMaxRows));

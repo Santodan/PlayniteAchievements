@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.Converters;
 
 namespace PlayniteAchievements.Views.Settings.Controls
@@ -138,6 +140,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.SetValue(FriendSummaryOptionsPropertyKey, e.NewValue as FriendSummaryGridOptions);
             editor.SetValue(CategorySummaryOptionsPropertyKey, e.NewValue as CategorySummaryGridOptions);
             editor.SetValue(CommonOptionsPropertyKey, e.NewValue as GridCommonOptions);
+            editor.RefreshSortChoices();
             editor.RebuildControlBarItemRows();
         }
 
@@ -244,7 +247,63 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.ShowCompletionGlowRow = rows.ShowCompletionGlowRow;
             editor.ShowGameSortPinOrderChoice = rows.ShowGameSortPinOrderChoice;
             editor.ShowLibraryGameSortChoices = rows.ShowLibraryGameSortChoices;
+            editor.ShowGameColumnSortChoice = rows.ShowGameColumnSortChoice;
+            editor.ShowFriendGameSortChoices = rows.ShowFriendGameSortChoices;
         }
+
+        private static readonly DependencyPropertyKey SortChoicesPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(SortChoices),
+                typeof(IReadOnlyList<GridSortOption>),
+                typeof(GridOptionsEditor),
+                new PropertyMetadata(null));
+
+        public static readonly DependencyProperty SortChoicesProperty = SortChoicesPropertyKey.DependencyProperty;
+
+        /// <summary>
+        /// The default sort dropdown's rows: the source order row where the surface has one, then
+        /// every column of the grid kind the surface offers, keyed like the control bar's Sort By.
+        /// </summary>
+        public IReadOnlyList<GridSortOption> SortChoices => (IReadOnlyList<GridSortOption>)GetValue(SortChoicesProperty);
+
+        private void RefreshSortChoices()
+        {
+            var choices = new List<GridSortOption>();
+            IReadOnlyList<GridSortColumn> columns = null;
+            if (AchievementOptions != null)
+            {
+                choices.Add(new GridSortOption(
+                    GridSortColumns.SourceOrder,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Default")));
+                columns = GridSortColumns.Achievement;
+            }
+            else if (GameSummaryOptions != null)
+            {
+                if (ShowGameSortPinOrderChoice)
+                {
+                    choices.Add(new GridSortOption(
+                        GridSortColumns.SourceOrder,
+                        ResourceProvider.GetString("LOCPlayAch_Settings_GameSummariesSort_PinOrder")));
+                }
+
+                columns = GridSortColumns.GameSummaries;
+            }
+
+            choices.AddRange(GridSortColumns
+                .Offered(columns, ShowGameColumnSortChoice, ShowLibraryGameSortChoices, ShowFriendGameSortChoices)
+                .Select(column => new GridSortOption(column.Key, ResourceProvider.GetString(column.LabelKey))));
+            SetValue(SortChoicesPropertyKey, choices);
+        }
+
+        private static void OnSortChoiceFlagChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+            ((GridOptionsEditor)d).RefreshSortChoices();
+
+        private static DependencyProperty RegisterSortChoiceFlag(string name, bool defaultValue) =>
+            DependencyProperty.Register(
+                name,
+                typeof(bool),
+                typeof(GridOptionsEditor),
+                new PropertyMetadata(defaultValue, OnSortChoiceFlagChanged));
 
         // The Tags selector's checkable menu. Each toggle reads the record fresh, because the menu
         // stays open across clicks.
@@ -324,12 +383,20 @@ namespace PlayniteAchievements.Views.Settings.Controls
 
         // Offers the order-preserving PinOrder game sort choice; only surfaces whose source
         // order is user-controlled (the showcase pinned-games grid) enable it.
-        public static readonly DependencyProperty ShowGameSortPinOrderChoiceProperty = RegisterFlag(nameof(ShowGameSortPinOrderChoice), false);
+        public static readonly DependencyProperty ShowGameSortPinOrderChoiceProperty = RegisterSortChoiceFlag(nameof(ShowGameSortPinOrderChoice), false);
         public bool ShowGameSortPinOrderChoice { get => (bool)GetValue(ShowGameSortPinOrderChoiceProperty); set => SetValue(ShowGameSortPinOrderChoiceProperty, value); }
 
         // Offers the date added, release date, playtime and remaining game sort choices, which
         // read the user's own library and achievement counts.
-        public static readonly DependencyProperty ShowLibraryGameSortChoicesProperty = RegisterFlag(nameof(ShowLibraryGameSortChoices), false);
+        public static readonly DependencyProperty ShowLibraryGameSortChoicesProperty = RegisterSortChoiceFlag(nameof(ShowLibraryGameSortChoices), false);
         public bool ShowLibraryGameSortChoices { get => (bool)GetValue(ShowLibraryGameSortChoicesProperty); set => SetValue(ShowLibraryGameSortChoicesProperty, value); }
+
+        // Offers the achievement grid's Game column as a sort; off where the grid lists one game.
+        public static readonly DependencyProperty ShowGameColumnSortChoiceProperty = RegisterSortChoiceFlag(nameof(ShowGameColumnSortChoice), true);
+        public bool ShowGameColumnSortChoice { get => (bool)GetValue(ShowGameColumnSortChoiceProperty); set => SetValue(ShowGameColumnSortChoiceProperty, value); }
+
+        // Offers the friend game grids' Owned column as a sort.
+        public static readonly DependencyProperty ShowFriendGameSortChoicesProperty = RegisterSortChoiceFlag(nameof(ShowFriendGameSortChoices), false);
+        public bool ShowFriendGameSortChoices { get => (bool)GetValue(ShowFriendGameSortChoicesProperty); set => SetValue(ShowFriendGameSortChoicesProperty, value); }
     }
 }

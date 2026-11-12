@@ -2026,9 +2026,9 @@ namespace PlayniteAchievements.Models.Tests
                 GridCellAlignment = GridAlignment.Center,
                 GridCellVerticalAlignment = GridVerticalAlignment.Bottom,
                 EnableAchievementDataGridControl = false,
-                OverviewGameSummariesGridSortMode = GameSummariesSortMode.Alphabetical,
+                OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.Alphabetical),
                 OverviewGameSummariesGridSortDescending = false,
-                OverviewSelectedGameGridSortMode = CompactListSortMode.Rarity,
+                OverviewSelectedGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.Rarity),
                 OverviewSelectedGameGridSortDescending = false,
                 AchievementDataGridMaxHeight = 333d,
                 OverviewGameSummariesGridRowHeight = 64d,
@@ -2140,9 +2140,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.GridCellAlignment, settings.GridCellAlignment);
             Assert.AreEqual(defaults.GridCellVerticalAlignment, settings.GridCellVerticalAlignment);
             Assert.AreEqual(defaults.EnableAchievementDataGridControl, settings.EnableAchievementDataGridControl);
-            Assert.AreEqual(defaults.OverviewGameSummariesGridSortMode, settings.OverviewGameSummariesGridSortMode);
+            Assert.AreEqual(defaults.OverviewGameSummariesGridSortColumn, settings.OverviewGameSummariesGridSortColumn);
             Assert.AreEqual(defaults.OverviewGameSummariesGridSortDescending, settings.OverviewGameSummariesGridSortDescending);
-            Assert.AreEqual(defaults.OverviewSelectedGameGridSortMode, settings.OverviewSelectedGameGridSortMode);
+            Assert.AreEqual(defaults.OverviewSelectedGameGridSortColumn, settings.OverviewSelectedGameGridSortColumn);
             Assert.AreEqual(defaults.OverviewSelectedGameGridSortDescending, settings.OverviewSelectedGameGridSortDescending);
             Assert.AreEqual(defaults.AchievementDataGridMaxHeight, settings.AchievementDataGridMaxHeight);
             Assert.AreEqual(defaults.OverviewGameSummariesGridRowHeight, settings.OverviewGameSummariesGridRowHeight);
