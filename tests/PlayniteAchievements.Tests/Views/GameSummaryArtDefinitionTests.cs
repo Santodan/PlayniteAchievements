@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Tests.Views
 
             AssertContainsAll(
                 xaml,
-                "LOCPlayAch_Column_UseForGameSummaries",
+                "LOCPlayAch_Column_ReplaceGameArt",
                 "IsChecked=\"{Binding IsSummarySelected, Mode=OneWay}\"",
                 "SummaryCategoryRadioButton_PreviewMouseLeftButtonDown");
             AssertContainsAll(
