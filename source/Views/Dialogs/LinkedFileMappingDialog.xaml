@@ -107,8 +107,39 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
 
+            <Style x:Key="RevealGlyphTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Icon}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Glyph}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <!-- The match column header: its title and, when the display settings mask any of the
+                 game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <TextBlock Text="{Binding}" Margin="2" TextTrimming="CharacterEllipsis" />
+                <DockPanel Margin="2">
+                    <Button DockPanel.Dock="Right"
+                            Width="24" Height="24"
+                            Padding="0"
+                            Margin="6,0,0,0"
+                            Cursor="Hand"
+                            Focusable="False"
+                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                            Command="{Binding DataContext.ToggleRevealCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            Visibility="{Binding DataContext.HasMaskedAchievements, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <TextBlock Text="&#xEF22;"
+                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                       Visibility="{Binding DataContext.IsRevealed, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource InverseBoolToVis}}" />
+                            <TextBlock Text="&#xEF24;"
+                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                       Visibility="{Binding DataContext.IsRevealed, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                    </Button>
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
             </DataTemplate>
 
             <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -357,9 +388,9 @@
                      mapping, then saved mappings. Fields that do not apply are collapsed. -->
                 <Border Grid.Column="1"
                         Margin="12,0,0,0"
-                        Padding="12,10"
-                        CornerRadius="4"
-                        Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}">
+                        Padding="12,0,0,0"
+                        BorderThickness="1,0,0,0"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Border}">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
                             <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}" Style="{StaticResource PanelLabelStyle}" />
