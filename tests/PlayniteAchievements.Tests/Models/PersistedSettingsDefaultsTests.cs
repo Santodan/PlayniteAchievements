@@ -183,6 +183,25 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveControlBarStates()
+        {
+            var source = new PersistedSettings
+            {
+                ControlBarStates = new Dictionary<string, string> { ["Overview"] = "{\"Activity\":[1]}" }
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("{\"Activity\":[1]}", copy.ControlBarStates["overview"]);
+                Assert.AreNotSame(source.ControlBarStates, copy.ControlBarStates);
+            }
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveProgressDetails()
         {
             var source = new PersistedSettings
