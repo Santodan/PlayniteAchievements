@@ -1462,6 +1462,11 @@ namespace PlayniteAchievements
 
         public override IEnumerable<SidebarItem> GetSidebarItems()
         {
+            if (_settingsViewModel?.Settings?.Persisted?.ShowSidebarButton != true)
+            {
+                yield break;
+            }
+
             yield return new SidebarItem
             {
                 Title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
