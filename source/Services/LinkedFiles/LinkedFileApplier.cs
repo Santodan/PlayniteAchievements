@@ -51,6 +51,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
         public List<string> Errors { get; } = new List<string>();
 
+        /// <summary>The fields whose cells could not be read.</summary>
+        public HashSet<LinkedFileField> FailedFields { get; } = new HashSet<LinkedFileField>();
+
         public bool HasDefinitionFields =>
             DisplayName != null || Description != null || Hidden.HasValue ||
             UnlockedIconPath != null || LockedIconPath != null || Points.HasValue ||
@@ -88,10 +91,12 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 timeValid = LinkedFileValueParser.TryParseUnlockTimeUtc(timeCell, schema, out parsedTime);
                 if (!timeValid)
                 {
+                    values.FailedFields.Add(LinkedFileField.UnlockTime);
                     values.Errors.Add("Unlock time '" + timeCell + "' is not a date and time.");
                 }
                 else if (parsedTime.HasValue && parsedTime.Value > nowUtc.AddMinutes(1))
                 {
+                    values.FailedFields.Add(LinkedFileField.UnlockTime);
                     values.Errors.Add("Unlock time '" + timeCell + "' is in the future.");
                     timeValid = false;
                 }
@@ -106,6 +111,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
+                    values.FailedFields.Add(LinkedFileField.Unlocked);
                     values.Errors.Add("Unlocked '" + unlockedCell + "' is not true or false.");
                 }
             }
@@ -131,6 +137,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
+                    values.FailedFields.Add(LinkedFileField.ProgressNum);
                     values.Errors.Add("Progress '" + numCell + "' is not a whole number of 0 or more.");
                 }
             }
@@ -138,18 +145,28 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var denomCell = Cell(LinkedFileField.ProgressDenom, out _);
             if (denomCell != null)
             {
-                if (LinkedFileValueParser.TryParseInt(denomCell, out var denom) && denom > 0)
+                if (LinkedFileValueParser.TryParseInt(denomCell, out var denom) && denom >= 0)
                 {
-                    values.ProgressDenom = denom;
+                    // A total of 0 is how save files write an achievement without progress.
+                    if (denom > 0)
+                    {
+                        values.ProgressDenom = denom;
+                    }
+                    else
+                    {
+                        values.ProgressNum = null;
+                    }
                 }
                 else
                 {
-                    values.Errors.Add("Progress total '" + denomCell + "' is not a whole number greater than 0.");
+                    values.FailedFields.Add(LinkedFileField.ProgressDenom);
+                    values.Errors.Add("Progress total '" + denomCell + "' is not a whole number of 0 or more.");
                 }
             }
 
             if (values.ProgressNum.HasValue && values.ProgressDenom.HasValue && values.ProgressNum.Value > values.ProgressDenom.Value)
             {
+                values.FailedFields.Add(LinkedFileField.ProgressNum);
                 values.Errors.Add("Progress is greater than the progress total.");
             }
 
@@ -165,6 +182,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
+                    values.FailedFields.Add(LinkedFileField.Hidden);
                     values.Errors.Add("Hidden '" + hiddenCell + "' is not true or false.");
                 }
             }
@@ -178,6 +196,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
+                    values.FailedFields.Add(LinkedFileField.Points);
                     values.Errors.Add("Points '" + pointsCell + "' is not a whole number of 0 or more.");
                 }
             }
@@ -188,6 +207,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 values.TrophyType = CustomAchievementTextImportService.NormalizeTrophyType(trophyCell);
                 if (values.TrophyType == null)
                 {
+                    values.FailedFields.Add(LinkedFileField.TrophyType);
                     values.Errors.Add("Trophy '" + trophyCell + "' " + CustomAchievementTextImportService.TrophyTypeMessage);
                 }
             }
@@ -203,6 +223,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
+                    values.FailedFields.Add(LinkedFileField.Rarity);
                     values.Errors.Add("Rarity '" + rarityCell + "' " + CustomAchievementTextImportService.RarityMessage);
                 }
             }
@@ -215,6 +236,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 values.UnlockedIconPath = LinkedFileValueParser.ResolveIconSource(unlockedIconCell, fileDirectory);
                 if (values.UnlockedIconPath == null)
                 {
+                    values.FailedFields.Add(LinkedFileField.UnlockedIconPath);
                     values.Errors.Add("Unlocked icon '" + unlockedIconCell + "' is not a web address or a file that exists.");
                 }
             }
@@ -225,6 +247,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 values.LockedIconPath = LinkedFileValueParser.ResolveIconSource(lockedIconCell, fileDirectory);
                 if (values.LockedIconPath == null)
                 {
+                    values.FailedFields.Add(LinkedFileField.LockedIconPath);
                     values.Errors.Add("Locked icon '" + lockedIconCell + "' is not a web address or a file that exists.");
                 }
             }
