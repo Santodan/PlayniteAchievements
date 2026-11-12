@@ -137,7 +137,7 @@
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <DockPanel Margin="2" Height="{StaticResource PlayAch.Size.Control.Height}">
+                <DockPanel Margin="7,2,2,2" Height="{StaticResource PlayAch.Size.Control.Height}">
                     <Button DockPanel.Dock="Right"
                             Width="24" Height="24"
                             Padding="0"
