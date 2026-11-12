@@ -350,9 +350,9 @@ namespace PlayniteAchievements.ViewModels
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
                 Width = 170,
-                // Its default holds picks (every finish and In Progress); it filters only when the
-                // picks differ from that.
-                IsFiltering = () => !IsDefaultCompletenessSelection()
+                // Its default holds picks (every finish and In Progress), and picks it does not
+                // offer are kept but ignored; it counts only while it narrows past the default.
+                IsFiltering = IsCompletenessFiltering
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -842,6 +842,16 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             SaveGameSummariesBarState();
             ScheduleFilterApply();
+        }
+
+        // Whether the Progress filter drops games beyond the default: some offered choice picked,
+        // not every one (the matcher ignores picks it does not offer, and all of them keep every
+        // game), and not the default picks.
+        private bool IsCompletenessFiltering()
+        {
+            var offered = CompletenessFilterOptions ?? new ObservableCollection<string>();
+            var picked = offered.Count(_selectedCompletenessFilters.Contains);
+            return picked > 0 && picked < offered.Count && !IsDefaultCompletenessSelection();
         }
 
         // Whether the Progress picks match the default (every finish and In Progress, not No
