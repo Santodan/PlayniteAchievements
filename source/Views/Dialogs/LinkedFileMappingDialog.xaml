@@ -101,13 +101,16 @@
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
 
+            <!-- Every preview header: the plugin's flat grid header, stretched so a header's own
+                 content decides its layout. -->
+            <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource AchievementColumnHeaderStyle}">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="4" />
+            </Style>
+
             <!-- The match column's header is plain text on the line where the file columns' headers
                  have their field picker, so the titles line up across the header row. -->
-            <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                <Setter Property="VerticalContentAlignment" Value="Top" />
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </Style>
+            <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource PreviewColumnHeaderStyle}" />
 
             <!-- A bare glyph that acts as a button: no box, the glyph brightens on hover. -->
             <Style x:Key="GlyphButtonStyle" TargetType="Button">
@@ -144,7 +147,8 @@
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <DockPanel Margin="2" Height="{StaticResource PlayAch.Size.Control.Height}">
+                <StackPanel Margin="2">
+                <DockPanel Height="{StaticResource PlayAch.Size.Control.Height}">
                     <Button DockPanel.Dock="Right"
                             Style="{StaticResource GlyphButtonStyle}"
                             Margin="6,0,0,0"
@@ -163,6 +167,9 @@
                     </Button>
                     <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </DockPanel>
+                <!-- Holds the space of the file columns' name line, so both header kinds are the same height. -->
+                <TextBlock Text=" " Margin="2,4,0,0" Style="{StaticResource HintTextStyle}" Visibility="Hidden" />
+                </StackPanel>
             </DataTemplate>
 
             <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -422,8 +429,7 @@
                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                               ItemsSource="{Binding PreviewRows}">
                         <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource PreviewColumnHeaderStyle}">
                                 <Setter Property="ContentTemplate">
                                     <Setter.Value>
                                         <DataTemplate>
