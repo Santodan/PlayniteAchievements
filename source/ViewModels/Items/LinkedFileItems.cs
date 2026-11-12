@@ -204,17 +204,4 @@ namespace PlayniteAchievements.ViewModels.Items
             _pairing.Pair?.Invoke(_rowKey, option.Key);
         }
     }
-
-    /// <summary>An achievement the match left unpaired, for the mapping window's list.</summary>
-    public sealed class LinkedFileMatchItem
-    {
-        public LinkedFileMatchItem(string text)
-        {
-            Text = text;
-        }
-
-        public string Text { get; }
-
-        public override string ToString() => Text;
-    }
 }
