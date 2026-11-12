@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             var view = new LinkedFileMappingDialog(viewModel);
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_LinkedFile_LinkButton"),
+                ResourceProvider.GetString(viewModel.HasStoredLink ? "LOCPlayAch_LinkedFile_EditButton" : "LOCPlayAch_LinkedFile_LinkButton"),
                 view,
                 new WindowOptions
                 {
@@ -82,16 +82,19 @@ namespace PlayniteAchievements.Views.Dialogs
                 // belongs on the file's columns only.
                 HeaderTemplate = (DataTemplate)FindResource("MatchColumnHeaderTemplate"),
                 HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
+                CellStyle = (Style)FindResource("MatchCellStyle"),
                 Width = 240,
                 MaxWidth = 300
             });
 
+            var cellTextStyle = (Style)FindResource("PreviewCellTextStyle");
             foreach (var column in _viewModel.Columns)
             {
                 PreviewGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = column,
                     Binding = new Binding("[" + column.Index + "]"),
+                    ElementStyle = cellTextStyle,
                     MaxWidth = 420
                 });
             }
