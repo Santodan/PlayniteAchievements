@@ -314,6 +314,28 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void ZeroProgressTotalMeansNoProgress()
+        {
+            // achievements.ini save files write CurProgress=0 and MaxProgress=0 for achievements without progress.
+            var table = Table(
+                new[] { "id", "done", "num", "den" },
+                new[] { "ach_two", "1", "0", "0" },
+                new[] { "c1", "1", "x", "0" });
+            var schema = Schema(
+                ("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked),
+                ("num", LinkedFileField.ProgressNum), ("den", LinkedFileField.ProgressDenom));
+
+            var plan = LinkedFileApplier.Build(table, schema, null, Achievements(), Link(), Definitions(), Now);
+
+            Assert.AreEqual(1, plan.Report.ParseErrors, "Only the unreadable progress fails.");
+            Assert.IsTrue(plan.ManualChanged, "The zero-total row still unlocks.");
+            Assert.IsFalse(plan.ManualProgress.Any());
+
+            var failed = LinkedFileRowValues.Parse(table, 1, schema, null, Now);
+            CollectionAssert.AreEquivalent(new[] { LinkedFileField.ProgressNum }, failed.FailedFields.ToArray());
+        }
+
+        [TestMethod]
         public void ProgressOnLinkedDefinitionRowsGoesToTheCachePlan()
         {
             var table = Table(new[] { "id", "num", "den" }, new[] { "ach_two", "2", "5" }, new[] { "c1", "1", "4" });
