@@ -88,6 +88,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string LabelKey { get; set; }
 
+        /// <summary>The item's name from <see cref="LabelKey"/>, as the Filters panel labels its row.</summary>
+        public string Label => string.IsNullOrWhiteSpace(LabelKey) ? string.Empty : GridControlBarText.Get(LabelKey, LabelKey);
+
         public bool IsVisible
         {
             get => _isVisible;
@@ -142,6 +145,15 @@ namespace PlayniteAchievements.ViewModels.Items
         public virtual void ClearSelection()
         {
         }
+
+        /// <summary>
+        /// Whether the item lives in the bar's Filters panel rather than on the bar itself: the
+        /// dropdown filters do; search, Sort By and the toggle buttons stay on the bar.
+        /// </summary>
+        public virtual bool IsPanelFilter => false;
+
+        /// <summary>Whether the item currently narrows the rows; the Filters button counts these.</summary>
+        public virtual bool HasSelection => false;
 
         protected virtual bool HasAvailableAction => true;
     }
@@ -327,6 +339,16 @@ namespace PlayniteAchievements.ViewModels.Items
         // with one option) supply their own predicate.
         protected override bool HasAvailableAction =>
             _hasAvailableAction?.Invoke() ?? (CountUsableOptions() > 1 || HasSelectedOption());
+
+        public override bool IsPanelFilter => true;
+
+        /// <summary>
+        /// Whether the filter narrows the rows, for a filter whose resting state has picks (the
+        /// overview's Progress default); null counts any pick.
+        /// </summary>
+        public Func<bool> IsFiltering { get; set; }
+
+        public override bool HasSelection => IsFiltering?.Invoke() ?? HasSelectedOption();
 
         public bool IsSelected(string option)
         {
@@ -698,6 +720,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool HasRange => From.HasValue || To.HasValue;
 
+        public override bool IsPanelFilter => true;
+
+        public override bool HasSelection => HasRange;
+
         public void Clear()
         {
             _set?.Invoke(null, null);
@@ -775,6 +801,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         protected override bool HasAvailableAction => CountSelectableOptions() > 1 || HasSelectedOption();
 
+        public override bool IsPanelFilter => true;
+
+        public override bool HasSelection => HasSelectedOption();
+
         public void OnClosed()
         {
             _closed?.Invoke();
@@ -815,6 +845,197 @@ namespace PlayniteAchievements.ViewModels.Items
         {
             return (Groups ?? new ObservableCollection<ProviderFilterGroup>())
                 .Any(group => group?.HasAnySelected == true);
+        }
+    }
+
+    /// <summary>
+    /// The bar's Filters button, which opens the panel holding the bar's dropdown filters. It
+    /// reads "Filters", or "Filters (n)" while n of them narrow the rows, and shows while any
+    /// filter in the panel shows. The bar control owns it; it is not one of the bar's items.
+    /// </summary>
+    public sealed class GridFiltersButton : GridControlBarItem
+    {
+        private int _count;
+        private bool _available;
+
+        public int Count
+        {
+            get => _count;
+            set
+            {
+                if (SetValueAndReturn(ref _count, value))
+                {
+                    OnPropertyChanged(nameof(Text));
+                    OnPropertyChanged(nameof(IsFiltering));
+                }
+            }
+        }
+
+        public bool IsFiltering => _count > 0;
+
+        public string Text
+        {
+            get
+            {
+                var label = GridControlBarText.Get("LOCPlayAch_Menu_Filters", "Filters");
+                return _count > 0
+                    ? string.Format(PlayniteAchievements.Common.FormattingCulture.Current, "{0} ({1})", label, _count)
+                    : label;
+            }
+        }
+
+        /// <summary>Whether any filter in the panel shows.</summary>
+        public bool Available
+        {
+            get => _available;
+            set
+            {
+                if (SetValueAndReturn(ref _available, value))
+                {
+                    OnPropertyChanged(nameof(EffectiveIsVisible));
+                }
+            }
+        }
+
+        protected override bool HasAvailableAction => _available;
+    }
+
+    /// <summary>One column (or sort key) the Sort By dropdown offers.</summary>
+    public sealed class GridSortOption
+    {
+        public GridSortOption(string key, string label)
+        {
+            Key = key;
+            Label = string.IsNullOrWhiteSpace(label) ? key : label;
+        }
+
+        /// <summary>The sort member path, or the sort mode name for a mosaic.</summary>
+        public string Key { get; }
+
+        public string Label { get; }
+    }
+
+    /// <summary>
+    /// The control bar's Sort By: a dropdown of the grid's sortable columns joined to a button
+    /// that flips the direction. It holds no sort of its own. Whoever sorts the rows sets
+    /// <see cref="Apply"/> and reports the sort back through <see cref="ShowState"/>, so a header
+    /// click and this item always show the same sort, the grid's starting sort included. No
+    /// selection means the rows are unsorted, as after a header's third click, and the dropdown
+    /// reads "Sort By".
+    /// </summary>
+    public sealed class GridSortSelector : GridControlBarItem
+    {
+        private IReadOnlyList<GridSortOption> _options = Array.Empty<GridSortOption>();
+        private string _selectedKey;
+        private ListSortDirection _direction = ListSortDirection.Ascending;
+
+        public GridSortSelector()
+        {
+            Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Sort;
+            LabelKey = "LOCPlayAch_Common_SortBy";
+            Width = 170;
+        }
+
+        /// <summary>
+        /// Applies a sort: a key and direction, or a null key to remove the sort. Set by whoever
+        /// sorts the rows; the last to set it sorts.
+        /// </summary>
+        public Action<string, ListSortDirection?> Apply { get; set; }
+
+        /// <summary>Runs as the dropdown opens, so the owner can bring <see cref="Options"/> up to date.</summary>
+        public Action Opening { get; set; }
+
+        public IReadOnlyList<GridSortOption> Options
+        {
+            get => _options;
+            set
+            {
+                _options = value ?? Array.Empty<GridSortOption>();
+                OnPropertyChanged(nameof(Options));
+                OnPropertyChanged(nameof(ButtonText));
+                OnPropertyChanged(nameof(EffectiveIsVisible));
+            }
+        }
+
+        /// <summary>The sorted key, or null while the rows are unsorted.</summary>
+        public string SelectedKey => _selectedKey;
+
+        public ListSortDirection Direction => _direction;
+
+        public override bool HasSelection => _selectedKey != null;
+
+        public bool IsDescending => _direction == ListSortDirection.Descending;
+
+        public string ButtonText =>
+            _options.FirstOrDefault(option => string.Equals(option.Key, _selectedKey, StringComparison.Ordinal))?.Label
+            ?? GridControlBarText.Get("LOCPlayAch_Common_SortBy", "Sort By");
+
+        public string DirectionToolTip => IsDescending
+            ? GridControlBarText.Get("LOCPlayAch_Common_Descending", "Descending")
+            : GridControlBarText.Get("LOCPlayAch_Common_Ascending", "Ascending");
+
+        protected override bool HasAvailableAction => _options.Count > 0;
+
+        /// <summary>
+        /// Sorts by <paramref name="key"/> in the shown direction. Picking the sorted key again, or
+        /// null, removes the sort.
+        /// </summary>
+        public void Select(string key)
+        {
+            if (key == null || string.Equals(key, _selectedKey, StringComparison.Ordinal))
+            {
+                ClearSelection();
+                return;
+            }
+
+            Request(key, _direction);
+        }
+
+        /// <summary>Flips the direction of the sort; nothing while the rows are unsorted.</summary>
+        public void ToggleDirection()
+        {
+            if (_selectedKey == null)
+            {
+                return;
+            }
+
+            Request(
+                _selectedKey,
+                IsDescending ? ListSortDirection.Ascending : ListSortDirection.Descending);
+        }
+
+        /// <summary>Removes the sort.</summary>
+        public override void ClearSelection()
+        {
+            Request(null, null);
+        }
+
+        // Shows the choice at once, then applies it; the owner reports back where the sort
+        // settled, which only differs when the grid could not sort that way.
+        private void Request(string key, ListSortDirection? direction)
+        {
+            ShowState(key, direction);
+            Apply?.Invoke(key, direction);
+        }
+
+        /// <summary>Shows the grid's current sort without applying anything; a null key is unsorted.</summary>
+        public void ShowState(string key, ListSortDirection? direction)
+        {
+            var normalized = string.IsNullOrWhiteSpace(key) || !direction.HasValue ? null : key;
+            var newDirection = direction ?? _direction;
+            if (string.Equals(_selectedKey, normalized, StringComparison.Ordinal) && _direction == newDirection)
+            {
+                return;
+            }
+
+            _selectedKey = normalized;
+            _direction = newDirection;
+            OnPropertyChanged(nameof(SelectedKey));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(Direction));
+            OnPropertyChanged(nameof(IsDescending));
+            OnPropertyChanged(nameof(DirectionToolTip));
+            OnPropertyChanged(nameof(ButtonText));
         }
     }
 

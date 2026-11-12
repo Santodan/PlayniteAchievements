@@ -57,6 +57,25 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>The bar's Sort By, once a widget that sorts its rows has asked for it; otherwise null.</summary>
+        public GridSortSelector SortSelector { get; private set; }
+
+        /// <summary>
+        /// Adds Sort By as the bar's last item, for a widget that sorts its rows: the grids, whose
+        /// grid lists its columns in it, and the mosaics, which list their sort keys. Widgets that
+        /// do not sort never call this, so their bars and settings offer no Sort By.
+        /// </summary>
+        public GridSortSelector EnableSort()
+        {
+            if (SortSelector == null && ControlBar != null)
+            {
+                SortSelector = new GridSortSelector();
+                ControlBar.Items.Add(SortSelector);
+            }
+
+            return SortSelector;
+        }
+
         /// <summary>Names this adapter's saved state among a widget's options; one per adapter type.</summary>
         public abstract string StateKey { get; }
 

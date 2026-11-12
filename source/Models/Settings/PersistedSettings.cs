@@ -247,6 +247,8 @@ namespace PlayniteAchievements.Models.Settings
         private ShowcaseSettings _overviewMiniShowcase;
         private double _overviewMiniShowcaseHeight = OverviewMiniShowcaseLayout.DefaultHeight;
         private bool _showOverviewMiniShowcase = true;
+        private Dictionary<string, string> _controlBarStates =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private GridOptionsCatalog _gridOptions = new GridOptionsCatalog();
         private GameActivityScope _startPageActivityScope = DefaultStartPageActivityScope;
         private GameProgressScope _startPageProgressScope = DefaultStartPageProgressScope;
@@ -2883,6 +2885,21 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showOverviewMiniShowcase, value);
         }
 
+        /// <summary>
+        /// Saved control bar state of the grids outside the showcase, keyed by grid surface, as a
+        /// ControlBarFilterState in JSON. Widgets keep theirs in their own options.
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public Dictionary<string, string> ControlBarStates
+        {
+            get => _controlBarStates;
+            set => SetValue(
+                ref _controlBarStates,
+                value != null
+                    ? new Dictionary<string, string>(value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        }
+
         public GridOptionsCatalog GridOptions
         {
             get => AttachGridOptionsBridge(_gridOptions ?? (_gridOptions = new GridOptionsCatalog()));
@@ -3478,6 +3495,7 @@ namespace PlayniteAchievements.Models.Settings
                 OverviewMiniShowcase = this.OverviewMiniShowcase?.Clone() ?? OverviewMiniShowcaseLayout.CreateDefault(),
                 OverviewMiniShowcaseHeight = this.OverviewMiniShowcaseHeight,
                 ShowOverviewMiniShowcase = this.ShowOverviewMiniShowcase,
+                ControlBarStates = this.ControlBarStates,
                 GridOptions = this.GridOptions?.Clone() ?? new GridOptionsCatalog(),
                 StartPageActivityScope = this.StartPageActivityScope,
                 StartPageProgressScope = this.StartPageProgressScope,
@@ -3612,6 +3630,7 @@ namespace PlayniteAchievements.Models.Settings
             OverviewMiniShowcase = OverviewMiniShowcaseLayout.CreateDefault();
             OverviewMiniShowcaseHeight = defaults.OverviewMiniShowcaseHeight;
             ShowOverviewMiniShowcase = defaults.ShowOverviewMiniShowcase;
+            ControlBarStates = null;
             GridOptions = new GridOptionsCatalog();
             StartPageActivityScope = defaults.StartPageActivityScope;
             StartPageProgressScope = defaults.StartPageProgressScope;

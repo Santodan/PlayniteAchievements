@@ -788,6 +788,7 @@ namespace PlayniteAchievements.Views.Controls
             if (d is AchievementDataGridControl control)
             {
                 control.SyncModeToggle();
+                control._sortBinder?.SetBar(control.ControlBar);
             }
         }
 
@@ -795,6 +796,21 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (GridControlBarViewModel)GetValue(ControlBarProperty);
             set => SetValue(ControlBarProperty, value);
+        }
+
+        /// <summary>
+        /// Whether a control bar without a Sort By item gets one. A showcase widget turns this off:
+        /// its item belongs to the widget's adapter, and the widget's settings show or hide it.
+        /// </summary>
+        public static readonly DependencyProperty ProvidesSortSelectorProperty =
+            DependencyProperty.Register(nameof(ProvidesSortSelector), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true,
+                    (d, e) => ((AchievementDataGridControl)d)._sortBinder?.Ensure()));
+
+        public bool ProvidesSortSelector
+        {
+            get => (bool)GetValue(ProvidesSortSelectorProperty);
+            set => SetValue(ProvidesSortSelectorProperty, value);
         }
 
         public static readonly DependencyProperty ShowControlBarProperty =
@@ -1517,18 +1533,22 @@ namespace PlayniteAchievements.Views.Controls
             // ObservableCollection.Move's target index and a fresh Insert expect.
             var others = bar.Items.Where(item => !ReferenceEquals(item, _modeToggle)).ToList();
 
+            // Sort By stays the bar's last item, so the toggle's fallback slot is just ahead of it.
+            var sortIndex = others.FindIndex(item => item is GridSortSelector);
+            var end = sortIndex >= 0 ? sortIndex : others.Count;
+
             int target;
             if (grouping)
             {
                 // The category dropdowns are hidden, so the toggle sits just ahead of the
                 // unlock-state toggles, leaving Compare on its left.
                 var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
-                target = firstToggleFilter >= 0 ? firstToggleFilter : others.Count;
+                target = firstToggleFilter >= 0 ? firstToggleFilter : end;
             }
             else
             {
                 var anchor = _connectedCategoryFilter == null ? -1 : others.IndexOf(_connectedCategoryFilter);
-                target = anchor >= 0 ? anchor + 1 : others.Count;
+                target = anchor >= 0 ? anchor + 1 : end;
             }
 
             var current = bar.Items.IndexOf(_modeToggle);
@@ -1547,12 +1567,14 @@ namespace PlayniteAchievements.Views.Controls
         // empty space. Runs after the per-item visibility pass, which is what it keys off.
         private void SyncSegmentedUnit()
         {
-            // Joined only while both show: a Display Settings choice can hide either one.
+            // Joined only while both show side by side: a Display Settings choice can hide either
+            // one, and the category dropdown usually sits in the Filters panel, away from the toggle.
             var connected =
                 _modeToggle?.EffectiveIsVisible == true &&
                 _connectedCategoryFilter?.EffectiveIsVisible == true &&
                 !ControlBarHost.IsItemHidden(_modeToggle) &&
-                !ControlBarHost.IsItemHidden(_connectedCategoryFilter);
+                !ControlBarHost.IsItemHidden(_connectedCategoryFilter) &&
+                !ControlBarHost.IsInFilterPanel(_connectedCategoryFilter);
 
             if (_connectedCategoryFilter != null)
             {
@@ -1584,9 +1606,9 @@ namespace PlayniteAchievements.Views.Controls
                     filter.IsVisible = true;
                     filter.ConnectedRight = false;
                 }
-                else if (item is GridToggleFilter toggle)
+                else if (item is GridToggleFilter || item is GridSortSelector)
                 {
-                    toggle.IsVisible = true;
+                    item.IsVisible = true;
                 }
             }
 
@@ -1628,6 +1650,11 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     // The Unlocked/Locked/Hidden toggles filter achievements, so hide them in the
                     // category list (rows are categories) but restore them flat and when drilled in.
+                    item.IsVisible = !list;
+                }
+                else if (item is GridSortSelector)
+                {
+                    // Sort By orders achievements; the category list sorts by its own headers.
                     item.IsVisible = !list;
                 }
                 else if (item is GridMultiSelectFilter filter)
@@ -2638,7 +2665,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void SortDrilledAchievements(DataGridSortingEventArgs e)
         {
-            if (e?.Column == null || string.IsNullOrWhiteSpace(e.Column.SortMemberPath))
+            // A Sort By reset has no column; it clears the sort like the third header click.
+            var isReset = GridSortRequestEventArgs.Of(e)?.IsReset == true;
+            if (!isReset && (e?.Column == null || string.IsNullOrWhiteSpace(e.Column.SortMemberPath)))
             {
                 return;
             }
@@ -2807,6 +2836,8 @@ namespace PlayniteAchievements.Views.Controls
             remove => RemoveHandler(RowPreviewMouseLeftButtonDownEvent, value);
         }
 
+        private readonly GridSortSelectorBinder _sortBinder;
+
         public AchievementDataGridControl()
         {
             InitializeComponent();
@@ -2820,6 +2851,12 @@ namespace PlayniteAchievements.Views.Controls
                     new System.Windows.Data.Binding(nameof(ResolvedCategoryColumnSettingsKey)) { Source = this });
             }
 
+            _sortBinder = new GridSortSelectorBinder(
+                AchievementsDataGrid,
+                e => DataGrid_Sorting(AchievementsDataGrid, e),
+                () => ProvidesSortSelector,
+                column => _columnPersistence?.IsListedInColumnMenu(column) ?? true);
+            _sortBinder.SetBar(ControlBar);
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
@@ -3419,7 +3456,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             (_rowPrepareCounter ?? (_rowPrepareCounter = new RowPrepareCounter(
                 Services.Logging.PluginLogger.GetLogger(nameof(AchievementDataGridControl)),
-                ColumnSettingsKey))).RowPrepared(Dispatcher);
+                ColumnSettingsKey))).RowPrepared(Dispatcher, e.Row);
             ApplyFixedRowHeight(e.Row);
             ApplyRowHighlight(e.Row);
         }
@@ -4008,6 +4045,13 @@ namespace PlayniteAchievements.Views.Controls
 
             if (e.Handled || UseExternalSorting)
             {
+                return;
+            }
+
+            if (GridSortRequestEventArgs.Of(e)?.IsReset == true)
+            {
+                DataGridSortingHelper.HandleSorting(sender, e, AchievementsDataGrid);
+                RestorePreSortOrder();
                 return;
             }
 

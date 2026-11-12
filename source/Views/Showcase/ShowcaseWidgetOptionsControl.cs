@@ -473,15 +473,10 @@ namespace PlayniteAchievements.Views.Showcase
                     achievementSortRows.Add(AddChoice(
                         achievementMosaicSorting,
                         Localize("LOCPlayAch_Common_SortBy"),
-                        new[]
-                        {
-                            CompactListSortMode.None,
-                            CompactListSortMode.UnlockTime,
-                            CompactListSortMode.Rarity
-                        },
+                        MosaicSortChoices.AchievementModes.ToArray(),
                         ShowcaseWidgetOptions.GetMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetMosaicSort(_settings, value),
-                        MosaicSortName));
+                        MosaicSortChoices.AchievementName));
                     achievementSortRows.Add(AddSortDirectionChoice(achievementMosaicSorting));
                     ApplyUnlockNextVisibility(
                         unlockNextRows,
@@ -540,22 +535,10 @@ namespace PlayniteAchievements.Views.Showcase
                     AddChoice(
                         gameMosaicSorting,
                         Localize("LOCPlayAch_Common_SortBy"),
-                        new[]
-                        {
-                            GameSummariesSortMode.PinOrder,
-                            GameSummariesSortMode.RecentUnlock,
-                            GameSummariesSortMode.LastPlayed,
-                            GameSummariesSortMode.TotalAchievements,
-                            GameSummariesSortMode.Progress,
-                            GameSummariesSortMode.Alphabetical,
-                            GameSummariesSortMode.DateAdded,
-                            GameSummariesSortMode.ReleaseDate,
-                            GameSummariesSortMode.Playtime,
-                            GameSummariesSortMode.Remaining
-                        },
+                        MosaicSortChoices.GameModes.ToArray(),
                         ShowcaseWidgetOptions.GetGameMosaicSort(_settings),
                         value => ShowcaseWidgetOptions.SetGameMosaicSort(_settings, value),
-                        GameMosaicSortName);
+                        MosaicSortChoices.GameName);
                     AddSortDirectionChoice(gameMosaicSorting);
 
                     AddNumberRow(
@@ -1006,7 +989,8 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     ControlBar = bar,
                     ShowControlBar = true,
-                    FillsWidth = true
+                    FillsWidth = true,
+                    CollapsesFilters = false
                 };
                 rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor, entry);
             }
@@ -1687,48 +1671,6 @@ namespace PlayniteAchievements.Views.Showcase
         private static string SortDirectionLabel(bool descending) => descending
             ? Localize("LOCPlayAch_Common_Descending")
             : Localize("LOCPlayAch_Common_Ascending");
-
-        // Both mosaic sort pickers name the mode that keeps the Source's own order "Default",
-        // matching how the grid options editor labels CompactListSortMode.None.
-        private static string MosaicSortName(CompactListSortMode value)
-        {
-            switch (value)
-            {
-                case CompactListSortMode.UnlockTime:
-                    return Localize("LOCPlayAch_Common_UnlockTime");
-                case CompactListSortMode.Rarity:
-                    return Localize("LOCPlayAch_Column_Rarity");
-                default:
-                    return Localize("LOCPlayAch_Common_Default");
-            }
-        }
-
-        private static string GameMosaicSortName(GameSummariesSortMode value)
-        {
-            switch (value)
-            {
-                case GameSummariesSortMode.RecentUnlock:
-                    return Localize("LOCPlayAch_Common_LastUnlock");
-                case GameSummariesSortMode.LastPlayed:
-                    return Localize("LOCPlayAch_Common_LastPlayed");
-                case GameSummariesSortMode.TotalAchievements:
-                    return Localize("LOCPlayAch_Column_Total");
-                case GameSummariesSortMode.Progress:
-                    return Localize("LOCPlayAch_Progress");
-                case GameSummariesSortMode.Alphabetical:
-                    return Localize("LOCPlayAch_Common_Name");
-                case GameSummariesSortMode.DateAdded:
-                    return Localize("LOCPlayAch_Common_DateAdded");
-                case GameSummariesSortMode.ReleaseDate:
-                    return Localize("LOCPlayAch_Common_ReleaseDate");
-                case GameSummariesSortMode.Playtime:
-                    return Localize("LOCPlayAch_Common_Label_Playtime");
-                case GameSummariesSortMode.Remaining:
-                    return Localize("LOCPlayAch_Common_Locked");
-                default:
-                    return Localize("LOCPlayAch_Common_Default");
-            }
-        }
 
         private static string PieLegendPositionName(PieLegendPosition value) =>
             Localize(value == PieLegendPosition.Left

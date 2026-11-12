@@ -449,6 +449,9 @@ namespace PlayniteAchievements.Models
         public const string Favorites = "Favorites";
         public const string Ownership = "Ownership";
 
+        /// <summary>The grids' and mosaics' Sort By dropdown and direction button.</summary>
+        public const string Sort = "Sort";
+
         /// <summary>Every item a Timeline's control bar offers.</summary>
         public static readonly IReadOnlyList<string> TimelineItems = new[]
         {

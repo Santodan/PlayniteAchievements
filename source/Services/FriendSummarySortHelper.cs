@@ -135,15 +135,51 @@ namespace PlayniteAchievements.Services
             Sort(items, configuredSort.SortMemberPath, configuredSort.Direction);
         }
 
+        /// <summary>
+        /// Resolves a header click, or a Sort By request, into a sort action. A result that
+        /// removes the sort is recorded on <paramref name="sortEvent"/>, so Sort By can show no sort.
+        /// </summary>
         internal static FriendSummariesGridSortAction ResolveGridSortAction(
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
-            PersistedSettings settings)
+            PersistedSettings settings,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
         {
+            var action = ResolveGridSortActionCore(
+                clickedSortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                settings,
+                GridSortRequestEventArgs.Of(sortEvent));
+            if (action.Kind == FriendSummariesGridSortActionKind.ResetToDefault)
+            {
+                GridSortRequestEventArgs.MarkReset(sortEvent);
+            }
+
+            return action;
+        }
+
+        private static FriendSummariesGridSortAction ResolveGridSortActionCore(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            GridSortRequestEventArgs request)
+        {
+            if (request?.IsReset == true)
+            {
+                return FriendSummariesGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return FriendSummariesGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return FriendSummariesGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings);

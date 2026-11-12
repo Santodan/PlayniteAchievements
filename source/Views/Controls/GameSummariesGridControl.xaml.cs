@@ -854,7 +854,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             (_rowPrepareCounter ?? (_rowPrepareCounter = new RowPrepareCounter(
                 Services.Logging.PluginLogger.GetLogger(nameof(GameSummariesGridControl)),
-                ColumnSettingsKey))).RowPrepared(Dispatcher);
+                ColumnSettingsKey))).RowPrepared(Dispatcher, e.Row);
             ApplyFixedRowHeight(e.Row);
             ApplyTailToggleSlack(e.Row);
         }

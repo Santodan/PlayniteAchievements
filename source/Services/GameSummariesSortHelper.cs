@@ -190,16 +190,54 @@ namespace PlayniteAchievements.Services
             Sort(items, sort.SortMemberPath, sort.Direction);
         }
 
+        /// <summary>
+        /// Resolves a header click, or a Sort By request, into a sort action. A result that
+        /// removes the sort is recorded on <paramref name="sortEvent"/>, so Sort By can show no sort.
+        /// </summary>
         internal static GameSummariesGridSortAction ResolveGridSortAction(
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
             PersistedSettings settings,
-            GameSummariesSortSurface surface = GameSummariesSortSurface.Overview)
+            GameSummariesSortSurface surface = GameSummariesSortSurface.Overview,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
         {
+            var action = ResolveGridSortActionCore(
+                clickedSortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                settings,
+                surface,
+                GridSortRequestEventArgs.Of(sortEvent));
+            if (action.Kind == GameSummariesGridSortActionKind.ResetToDefault)
+            {
+                GridSortRequestEventArgs.MarkReset(sortEvent);
+            }
+
+            return action;
+        }
+
+        private static GameSummariesGridSortAction ResolveGridSortActionCore(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            GameSummariesSortSurface surface,
+            GridSortRequestEventArgs request)
+        {
+            if (request?.IsReset == true)
+            {
+                return GameSummariesGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return GameSummariesGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return GameSummariesGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings, surface);

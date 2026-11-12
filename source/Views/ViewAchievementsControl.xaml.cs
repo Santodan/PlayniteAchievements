@@ -208,7 +208,8 @@ namespace PlayniteAchievements.Views
                 ViewModel.CurrentSortDirection,
                 _settings?.Persisted,
                 AchievementSortSurface.SingleGame,
-                e.Column?.SortDirection);
+                e.Column?.SortDirection,
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;

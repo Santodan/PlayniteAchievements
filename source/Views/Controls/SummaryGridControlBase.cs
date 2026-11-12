@@ -95,12 +95,29 @@ namespace PlayniteAchievements.Views.Controls
                 nameof(ControlBar),
                 typeof(GridControlBarViewModel),
                 typeof(SummaryGridControlBase),
-                new PropertyMetadata(null));
+                new PropertyMetadata(null, (d, e) => ((SummaryGridControlBase)d)._sortBinder?.SetBar(e.NewValue as GridControlBarViewModel)));
 
         public GridControlBarViewModel ControlBar
         {
             get => (GridControlBarViewModel)GetValue(ControlBarProperty);
             set => SetValue(ControlBarProperty, value);
+        }
+
+        /// <summary>
+        /// Whether a control bar without a Sort By item gets one. A showcase widget turns this off:
+        /// its item belongs to the widget's adapter, and the widget's settings show or hide it.
+        /// </summary>
+        public static readonly DependencyProperty ProvidesSortSelectorProperty =
+            DependencyProperty.Register(
+                nameof(ProvidesSortSelector),
+                typeof(bool),
+                typeof(SummaryGridControlBase),
+                new PropertyMetadata(true, (d, e) => ((SummaryGridControlBase)d)._sortBinder?.Ensure()));
+
+        public bool ProvidesSortSelector
+        {
+            get => (bool)GetValue(ProvidesSortSelectorProperty);
+            set => SetValue(ProvidesSortSelectorProperty, value);
         }
 
         public static readonly DependencyProperty ShowControlBarProperty =
@@ -157,8 +174,25 @@ namespace PlayniteAchievements.Views.Controls
             remove => RemoveHandler(RowPreviewMouseRightButtonUpEvent, value);
         }
 
+        private GridSortSelectorBinder _sortBinder;
+
         private protected SummaryGridControlBase()
         {
+        }
+
+        // The derived XAML has built the grid by now, so Sort By can follow it from here on.
+        protected override void OnInitialized(EventArgs e)
+        {
+            base.OnInitialized(e);
+            if (_sortBinder == null && SummaryGrid != null)
+            {
+                _sortBinder = new GridSortSelectorBinder(
+                    SummaryGrid,
+                    request => DataGrid_Sorting(SummaryGrid, request),
+                    () => ProvidesSortSelector,
+                    column => _columnPersistence?.IsListedInColumnMenu(column) ?? true);
+                _sortBinder.SetBar(ControlBar);
+            }
         }
 
         /// <summary>The data grid declared by the derived control's XAML.</summary>

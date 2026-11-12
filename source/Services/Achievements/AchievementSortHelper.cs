@@ -183,17 +183,57 @@ namespace PlayniteAchievements.Services.Achievements
                 configuredSort.PreservesSourceOrder ? (ListSortDirection?)null : configuredSort.Direction);
         }
 
+        /// <summary>
+        /// Resolves a header click, or a Sort By request, into a sort action. A result that
+        /// removes the sort is recorded on <paramref name="sortEvent"/>, so Sort By can show no sort.
+        /// </summary>
         internal static AchievementGridSortAction ResolveGridSortAction(
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
             PersistedSettings settings,
             AchievementSortSurface surface,
-            ListSortDirection? visibleSortDirection = null)
+            ListSortDirection? visibleSortDirection = null,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
         {
+            var action = ResolveGridSortActionCore(
+                clickedSortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                settings,
+                surface,
+                visibleSortDirection,
+                GridSortRequestEventArgs.Of(sortEvent));
+            if (action.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                GridSortRequestEventArgs.MarkReset(sortEvent);
+            }
+
+            return action;
+        }
+
+        private static AchievementGridSortAction ResolveGridSortActionCore(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            AchievementSortSurface surface,
+            ListSortDirection? visibleSortDirection,
+            GridSortRequestEventArgs request)
+        {
+            if (request?.IsReset == true)
+            {
+                return AchievementGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return AchievementGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return AchievementGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings, surface);

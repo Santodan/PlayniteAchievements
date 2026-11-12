@@ -18,6 +18,7 @@
                                          SortScope="{x:Static services:AchievementSortScope.RecentAchievements}"
                                          ControlBar="{Binding ControlBar, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                          ShowControlBar="{Binding ShowControlBar, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
+                                         ProvidesSortSelector="False"
                                          CategorySummarySource="{Binding CategoryItemsSource, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseAchievementGridControl}}"
                                          DrillIntoCategorySummarySource="True"
                                          CategoryModeWithoutControlBar="True"

@@ -197,6 +197,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _selectedCompletenessFilters.Add(ProgressFilterChoices.InProgress);
+            RestoreGameSummariesBarState();
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -348,7 +349,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
-                Width = 170
+                Width = 170,
+                // Its default holds picks (every finish and In Progress), and picks it does not
+                // offer are kept but ignored; it counts only while it narrows past the default.
+                IsFiltering = IsCompletenessFiltering
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
@@ -693,25 +697,9 @@ namespace PlayniteAchievements.ViewModels
         private void OnProviderFilterSelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
-            // One deferred pass per burst: clearing several groups raises once per group.
-            if (_providerFilterApplyScheduled)
-            {
-                return;
-            }
-
-            _providerFilterApplyScheduled = true;
-            // The linked widgets draw from the new state now; the grids follow in the pass below.
-            InvalidateLinkedSnapshots();
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(() =>
-                {
-                    _providerFilterApplyScheduled = false;
-                    ApplyLeftFilters();
-                }),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
+            // The shared pass merges a burst (clearing several groups raises once per group).
+            ScheduleFilterApply();
         }
-
-        private bool _providerFilterApplyScheduled;
 
         public void ClearProviderFilters()
         {
@@ -777,6 +765,7 @@ namespace PlayniteAchievements.ViewModels
 
             _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
+            SaveGameSummariesBarState();
             // Defer filter application to avoid interfering with menu click handling.
             ScheduleFilterApply();
         }
@@ -806,6 +795,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
+            SaveGameSummariesBarState();
             // Defer filter application to avoid interfering with menu click handling.
             ScheduleFilterApply();
         }
@@ -834,7 +824,76 @@ namespace PlayniteAchievements.ViewModels
 
             _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
+            SaveGameSummariesBarState();
             ScheduleFilterApply();
+        }
+
+        // Whether the Progress filter drops games beyond the default: some offered choice picked,
+        // not every one (the matcher ignores picks it does not offer, and all of them keep every
+        // game), and not the default picks.
+        private bool IsCompletenessFiltering()
+        {
+            var offered = CompletenessFilterOptions ?? new ObservableCollection<string>();
+            var picked = offered.Count(_selectedCompletenessFilters.Contains);
+            return picked > 0 && picked < offered.Count && !IsDefaultCompletenessSelection();
+        }
+
+        // Whether the Progress picks match the default (every finish and In Progress, not No
+        // Progress) over the choices the dropdown offers.
+        private bool IsDefaultCompletenessSelection() =>
+            (CompletenessFilterOptions ?? new ObservableCollection<string>()).All(option =>
+                _selectedCompletenessFilters.Contains(option) ==
+                !string.Equals(option, ProgressFilterChoices.NoProgress, StringComparison.OrdinalIgnoreCase));
+
+        // The Activity choices in bar order; the saved picks are positions in this list, so they
+        // survive a change of Playnite language.
+        private static IList<string> PlayStatusChoices() => new[]
+        {
+            L("LOCPlayAch_Filter_Played"),
+            L("LOCPlayAch_Filter_Unplayed")
+        };
+
+        /// <summary>
+        /// Restores the game grid's saved Progress and Activity picks, the only bar choices kept
+        /// across sessions so far. A saved Progress replaces the default picks.
+        /// </summary>
+        private void RestoreGameSummariesBarState()
+        {
+            var state = GridControlBarSurfaceState.Deserialize(
+                Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(GridOptionKeys.GameSummaries.Overview));
+            if (state == null)
+            {
+                return;
+            }
+
+            if (state.ProgressKeys != null)
+            {
+                _selectedCompletenessFilters.Clear();
+                foreach (var key in state.ProgressKeys)
+                {
+                    _selectedCompletenessFilters.Add(key);
+                }
+
+                _completenessFilterEdited = true;
+            }
+
+            _selectedPlayStatusFilters.Clear();
+            foreach (var choice in GridControlBarSurfaceState.RestoreActivity(state, PlayStatusChoices()))
+            {
+                _selectedPlayStatusFilters.Add(choice);
+            }
+        }
+
+        private void SaveGameSummariesBarState()
+        {
+            // Picks that match the default are not saved, so the default follows later changes.
+            var state = GridControlBarSurfaceState.Capture(
+                _completenessFilterEdited && !IsDefaultCompletenessSelection() ? _selectedCompletenessFilters : null,
+                PlayStatusChoices(),
+                _selectedPlayStatusFilters);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                GridOptionKeys.GameSummaries.Overview,
+                GridControlBarSurfaceState.Serialize(state));
         }
 
         // The games the Progress filter keeps, or null when it keeps every game.

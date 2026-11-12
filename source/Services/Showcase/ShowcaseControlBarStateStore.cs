@@ -11,9 +11,11 @@ namespace PlayniteAchievements.Services.Showcase
 {
     /// <summary>
     /// Saves showcase control bar state in the widget instance's own options, so it lives and
-    /// dies with the widget. Writes are quiet: the plugin settings file is saved without the
-    /// settings-saved broadcast or a showcase configuration change, since a search or filter
-    /// choice changes no layout. Typing is batched into one save after a short pause.
+    /// dies with the widget, and the state of the grids outside the showcase in
+    /// <see cref="PersistedSettings.ControlBarStates"/> by grid surface. Writes are quiet: the
+    /// plugin settings file is saved without the settings-saved broadcast or a showcase
+    /// configuration change, since a search or filter choice changes no layout. Typing is batched
+    /// into one save after a short pause.
     /// </summary>
     public sealed class ShowcaseControlBarStateStore : IShowcaseControlBarStateStore
     {
@@ -57,6 +59,46 @@ namespace PlayniteAchievements.Services.Showcase
             }
 
             instance.Options[key] = state;
+            ScheduleSave();
+        }
+
+        /// <summary>The saved state of a grid surface outside the showcase, or null.</summary>
+        public string LoadSurface(string surfaceKey)
+        {
+            var states = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ControlBarStates;
+            return states != null && !string.IsNullOrWhiteSpace(surfaceKey) && states.TryGetValue(surfaceKey, out var state)
+                ? state
+                : null;
+        }
+
+        /// <summary>Saves a grid surface's state; a null or empty state removes it.</summary>
+        public void SaveSurface(string surfaceKey, string state)
+        {
+            // Resolved at write time, like the widget instances.
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            if (persisted == null || string.IsNullOrWhiteSpace(surfaceKey))
+            {
+                return;
+            }
+
+            var states = persisted.ControlBarStates;
+            if (string.IsNullOrEmpty(state))
+            {
+                if (states.Remove(surfaceKey))
+                {
+                    ScheduleSave();
+                }
+
+                return;
+            }
+
+            if (states.TryGetValue(surfaceKey, out var current) &&
+                string.Equals(current, state, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            states[surfaceKey] = state;
             ScheduleSave();
         }
 
