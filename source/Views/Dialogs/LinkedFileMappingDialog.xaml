@@ -117,6 +117,23 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
+            <!-- A file column's header: the field picker over the file's own column name. Set on
+                 each file column rather than in the grid's header style, so the filler header
+                 behind the columns does not draw a picker of its own. -->
+            <DataTemplate x:Key="FieldHeaderTemplate">
+                <StackPanel Margin="2">
+                    <ComboBox ItemsSource="{Binding DataContext.FieldOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                              SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                              DisplayMemberPath="Name"
+                              MinWidth="120" />
+                    <TextBlock Text="{Binding ColumnName}"
+                               Margin="2,4,0,0"
+                               Style="{StaticResource HintTextStyle}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+                </StackPanel>
+            </DataTemplate>
+
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
@@ -403,23 +420,6 @@
                             <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="ContentTemplate">
-                                    <Setter.Value>
-                                        <DataTemplate>
-                                            <StackPanel Margin="2">
-                                                <ComboBox ItemsSource="{Binding DataContext.FieldOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                          SelectedItem="{Binding SelectedField, Mode=TwoWay}"
-                                                          DisplayMemberPath="Name"
-                                                          MinWidth="120" />
-                                                <TextBlock Text="{Binding ColumnName}"
-                                                           Margin="2,4,0,0"
-                                                           Style="{StaticResource HintTextStyle}"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="NoWrap" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </Setter.Value>
-                                </Setter>
                             </Style>
                         </DataGrid.ColumnHeaderStyle>
                     </DataGrid>
