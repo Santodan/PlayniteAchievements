@@ -299,6 +299,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             IEnumerable<AchievementDisplayItem> items)
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.Adapter.EnableSort();
             _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
             ControlBar = _controlBarSlot.ShownBar;
 
@@ -519,6 +520,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override IEnumerable<GameSummaryItem> FilterItems(IEnumerable<GameSummaryItem> items)
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.Adapter.EnableSort();
             _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
             ControlBar = _controlBarSlot.ShownBar;
 
