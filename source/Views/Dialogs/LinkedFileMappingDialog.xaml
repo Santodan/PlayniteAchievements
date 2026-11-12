@@ -101,10 +101,35 @@
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
 
-            <!-- The match column's header is plain text; the file columns' headers host a field picker. -->
+            <!-- The match column's header is plain text on the line where the file columns' headers
+                 have their field picker, so the titles line up across the header row. -->
             <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                <Setter Property="VerticalContentAlignment" Value="Bottom" />
+                <Setter Property="VerticalContentAlignment" Value="Top" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <!-- A bare glyph that acts as a button: no box, the glyph brightens on hover. -->
+            <Style x:Key="GlyphButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Opacity" Value="0.75" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="1" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="RevealGlyphTextStyle" TargetType="TextBlock">
@@ -119,13 +144,11 @@
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <DockPanel Margin="2">
+                <DockPanel Margin="2" Height="{StaticResource PlayAch.Size.Control.Height}">
                     <Button DockPanel.Dock="Right"
-                            Width="24" Height="24"
-                            Padding="0"
+                            Style="{StaticResource GlyphButtonStyle}"
                             Margin="6,0,0,0"
-                            Cursor="Hand"
-                            Focusable="False"
+                            VerticalAlignment="Center"
                             ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
                             Command="{Binding DataContext.ToggleRevealCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                             Visibility="{Binding DataContext.HasMaskedAchievements, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}">
@@ -178,13 +201,52 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- One unlinked achievement: its icon and name, in a wrapping list. -->
+            <!-- One unlinked achievement: its icon and name, in a wrapping list. A masked one
+                 reveals on click, and masks again on a second click. -->
+            <Style x:Key="UnlinkedChipStyle" TargetType="Button">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Margin" Value="0,0,6,6" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="ToolTip" Value="{Binding Description}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chip"
+                                    Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="4,3,10,3">
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                        <Setter Property="Cursor" Value="Hand" />
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding CanReveal}" Value="True" />
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}" />
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding CanReveal}" Value="True" />
+                            <Condition Binding="{Binding IsRevealed}" Value="False" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
             <DataTemplate x:Key="UnlinkedAchievementTemplate">
-                <Border Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
-                        CornerRadius="4"
-                        Padding="4,3,10,3"
-                        Margin="0,0,6,6"
-                        ToolTip="{Binding Description}">
+                <Button Style="{StaticResource UnlinkedChipStyle}"
+                        Command="{Binding DataContext.ToggleRevealOneCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}">
                     <StackPanel Orientation="Horizontal">
                         <Image Width="24" Height="24"
                                Margin="0,0,6,0"
@@ -198,7 +260,7 @@
                                    MaxWidth="220"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                </Border>
+                </Button>
             </DataTemplate>
 
             <!-- The match cell: once the file was matched, a dropdown that pairs the row by hand
