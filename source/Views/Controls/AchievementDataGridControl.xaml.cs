@@ -2855,7 +2855,8 @@ namespace PlayniteAchievements.Views.Controls
                 AchievementsDataGrid,
                 e => DataGrid_Sorting(AchievementsDataGrid, e),
                 () => ProvidesSortSelector,
-                column => _columnPersistence?.IsListedInColumnMenu(column) ?? true);
+                column => _columnPersistence?.IsListedInColumnMenu(column) ?? true,
+                GridSortColumns.Achievement);
             _sortBinder.SetBar(ControlBar);
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
@@ -2960,6 +2961,13 @@ namespace PlayniteAchievements.Views.Controls
                     DefaultGameImageColumnWidth,
                     MinimumGameImageColumnWidth,
                     MaximumGameImageColumnWidth);
+
+                // One game's achievements all share the game, so its header and Sort By offer no
+                // sort there, matching the surface's default sort choices.
+                gameColumn.CanUserSort = !GridOptionsCatalog.TryResolveAchievementId(ColumnSettingsKey, out var surfaceId) ||
+                    Views.Settings.Controls.GridDisplaySurfaces
+                        .Resolve(Views.Settings.Controls.GridOptionKind.Achievement, surfaceId)
+                        .ShowGameColumnSortChoice;
             }
 
             var friendAvatarColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "FriendAvatarColumn") as DataGridTemplateColumn;
