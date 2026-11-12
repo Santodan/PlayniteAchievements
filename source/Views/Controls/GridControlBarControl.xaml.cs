@@ -408,22 +408,25 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            selector.Opening?.Invoke();
             menu.Items.Clear();
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
             foreach (var option in selector.Options)
             {
-                menu.Items.Add(CreateSortMenuItem(selector, option.Key, option.Label, itemStyle));
+                menu.Items.Add(CreateSortMenuItem(menu, selector, option.Key, option.Label, itemStyle));
             }
 
             MultiSelectFilterMenu.OpenSelectorContextMenu(button, menu);
         }
 
-        private static MenuItem CreateSortMenuItem(GridSortSelector selector, string key, string label, Style style)
+        // Not checkable: a checkable row flips its own mark on click, which would show two marked
+        // rows (or none) while the menu closes. The marks follow the selector instead.
+        private static MenuItem CreateSortMenuItem(ContextMenu menu, GridSortSelector selector, string key, string label, Style style)
         {
             var item = new MenuItem
             {
                 Header = label,
-                IsCheckable = true,
+                Tag = key,
                 IsChecked = string.Equals(selector.SelectedKey, key, StringComparison.Ordinal)
             };
             if (style != null)
@@ -431,7 +434,14 @@ namespace PlayniteAchievements.Views.Controls
                 item.Style = style;
             }
 
-            item.Click += (_, __) => selector.Select(key);
+            item.Click += (_, __) =>
+            {
+                selector.Select(key);
+                foreach (var row in menu.Items.OfType<MenuItem>())
+                {
+                    row.IsChecked = string.Equals(selector.SelectedKey, row.Tag as string, StringComparison.Ordinal);
+                }
+            };
             return item;
         }
 
