@@ -448,12 +448,10 @@
                             </TextBlock>
                         </ToggleButton>
                         <ComboBox Style="{StaticResource OptionComboBoxStyle}"
-                                  SelectedValue="{Binding AchievementOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag">
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static settings:CompactListSortMode.None}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
-                        </ComboBox>
+                                  ItemsSource="{Binding SortChoices, ElementName=EditorRoot}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Key"
+                                  SelectedValue="{Binding AchievementOptions.SortColumn, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DockPanel>
                 </HeaderedContentControl>
             </StackPanel>
@@ -482,25 +480,10 @@
                             </TextBlock>
                         </ToggleButton>
                         <ComboBox Style="{StaticResource OptionComboBoxStyle}"
-                                  SelectedValue="{Binding GameSummaryOptions.SortMode, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag">
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GameSummariesSort_PinOrder}"
-                                          Tag="{x:Static settings:GameSummariesSortMode.PinOrder}"
-                                          Visibility="{Binding ShowGameSortPinOrderChoice, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastUnlock}" Tag="{x:Static settings:GameSummariesSortMode.RecentUnlock}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_LastPlayed}" Tag="{x:Static settings:GameSummariesSortMode.LastPlayed}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Total}" Tag="{x:Static settings:GameSummariesSortMode.TotalAchievements}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Progress}" Tag="{x:Static settings:GameSummariesSortMode.Progress}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Name}" Tag="{x:Static settings:GameSummariesSortMode.Alphabetical}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_DateAdded}" Tag="{x:Static settings:GameSummariesSortMode.DateAdded}"
-                                          Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_ReleaseDate}" Tag="{x:Static settings:GameSummariesSortMode.ReleaseDate}"
-                                          Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Label_Playtime}" Tag="{x:Static settings:GameSummariesSortMode.Playtime}"
-                                          Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Locked}" Tag="{x:Static settings:GameSummariesSortMode.Remaining}"
-                                          Visibility="{Binding ShowLibraryGameSortChoices, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}"/>
-                        </ComboBox>
+                                  ItemsSource="{Binding SortChoices, ElementName=EditorRoot}"
+                                  DisplayMemberPath="Label"
+                                  SelectedValuePath="Key"
+                                  SelectedValue="{Binding GameSummaryOptions.SortColumn, ElementName=EditorRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </DockPanel>
                 </HeaderedContentControl>
             </StackPanel>
