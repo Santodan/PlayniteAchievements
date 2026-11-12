@@ -73,7 +73,21 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void ClearSelectionAndSelectNull_ReturnToTheDefault()
+        public void Select_TheSortedKeyAgain_Unsorts()
+        {
+            var applied = new List<(string, ListSortDirection?)>();
+            var selector = Selector(applied);
+            selector.ShowState("GameName", ListSortDirection.Ascending);
+
+            selector.Select("GameName");
+
+            CollectionAssert.AreEqual(
+                new[] { ((string)null, (ListSortDirection?)null) },
+                applied);
+        }
+
+        [TestMethod]
+        public void ClearSelectionAndSelectNull_Unsort()
         {
             var applied = new List<(string, ListSortDirection?)>();
             var selector = Selector(applied);
