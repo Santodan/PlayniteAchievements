@@ -145,7 +145,18 @@ namespace PlayniteAchievements.Models.Tagging
         {
             TagType.HasAchievements,
             TagType.CustomAchievements,
-            TagType.ManualAchievements
+            TagType.ManualAchievements,
+            TagType.LinkedFile
+        };
+
+        /// <summary>
+        /// Kinds that are no longer synced. Defaults never recreate their configs, and
+        /// TagSyncService.RemoveRetiredKinds deletes the Playnite item a stored config still
+        /// names, then drops the config.
+        /// </summary>
+        public static readonly IReadOnlyCollection<TagType> RetiredKinds = new[]
+        {
+            TagType.CustomManualTracking
         };
 
         // Individual tag config properties for WPF binding convenience.
@@ -168,13 +179,14 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
         /// <summary>
-        /// The status kinds as settings rows: achievements (platform, custom, manual, none),
-        /// progress and exclusion.
+        /// The status kinds as settings rows: achievements (platform, custom, none), tracking
+        /// (manual link, linked file), progress and exclusion.
         /// </summary>
         [DontSerialize]
         public IReadOnlyList<TagRow> StatusRows => new[]
         {
-            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.ManualAchievements, TagType.NoAchievements),
+            Row("LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, null, TagType.NoAchievements),
+            Row("LOCPlayAch_Tagging_Row_Tracking", TagType.ManualAchievements, TagType.LinkedFile, null, null),
             Row("LOCPlayAch_Progress", TagType.InProgress, TagType.Completed, null, null),
             Row("LOCPlayAch_ManageAchievements_Status_Excluded", TagType.Excluded, TagType.ExcludedFromSummaries, null, null)
         };
@@ -195,13 +207,13 @@ namespace PlayniteAchievements.Models.Tagging
                 .ToList();
 
         /// <summary>
-        /// The feature kinds as one settings row, over <see cref="FeatureConfigs"/>: platform,
-        /// custom and manual achievements.
+        /// The feature kinds as one settings row, over <see cref="FeatureConfigs"/>: platform and
+        /// custom achievements, manual tracking and linked file.
         /// </summary>
         [DontSerialize]
         public IReadOnlyList<TagRow> FeatureStatusRows => new[]
         {
-            Row(FeatureConfigsOrNew(), "LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.ManualAchievements, null)
+            Row(FeatureConfigsOrNew(), "LOCPlayAch_Achievements", TagType.HasAchievements, TagType.CustomAchievements, TagType.ManualAchievements, TagType.LinkedFile)
         };
 
         private TagRow Row(string labelKey, TagType? first, TagType? second, TagType? third, TagType? fourth)
@@ -261,7 +273,10 @@ namespace PlayniteAchievements.Models.Tagging
         /// <param name="getDefaultName">Function to get the localized default name for a kind.</param>
         public void InitializeDefaults(Func<TagType, string> getDefaultName)
         {
-            FillDefaults(TagConfigsOrNew(), (TagType[])System.Enum.GetValues(typeof(TagType)), getDefaultName);
+            FillDefaults(
+                TagConfigsOrNew(),
+                ((TagType[])System.Enum.GetValues(typeof(TagType))).Where(kind => !RetiredKinds.Contains(kind)),
+                getDefaultName);
             FillDefaults(FeatureConfigsOrNew(), FeatureKinds, getDefaultName);
         }
 
@@ -304,7 +319,8 @@ namespace PlayniteAchievements.Models.Tagging
             {
                 TagType.HasAchievements => "[PA] Platform Achievements",
                 TagType.CustomAchievements => "[PA] Custom Achievements",
-                TagType.ManualAchievements => "[PA] Custom Tracking",
+                TagType.ManualAchievements => "[PA] Manual Tracking",
+                TagType.LinkedFile => "[PA] Linked File",
                 TagType.InProgress => "[PA] In Progress",
                 TagType.Completed => "[PA] Completed",
                 TagType.NoAchievements => "[PA] No Achievements",
