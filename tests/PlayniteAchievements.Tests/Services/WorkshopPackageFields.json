@@ -25,6 +25,7 @@
       "ShowColumnHeaders": "value",
       "ShowControlBar": "value",
       "ShowRarityGlow": "value",
+      "SortColumn": "value",
       "SortDescending": "value",
       "SortMode": "value",
       "StartInCategoryMode": "value",
@@ -231,6 +232,7 @@
       "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
+      "SortColumn": "value",
       "SortDescending": "value",
       "SortMode": "value",
       "UseCoverImages": "value"
