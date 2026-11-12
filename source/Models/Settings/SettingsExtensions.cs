@@ -231,6 +231,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewScoreCard1 = source.ShowOverviewScoreCard1;
             target.ShowOverviewScoreCard2 = source.ShowOverviewScoreCard2;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
+            target.ShowSidebarButton = source.ShowSidebarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
             target.UseExophaseForSteamFriendOwnership = source.UseExophaseForSteamFriendOwnership;
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
