@@ -88,6 +88,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string LabelKey { get; set; }
 
+        /// <summary>The item's name from <see cref="LabelKey"/>, as the Filters panel labels its row.</summary>
+        public string Label => string.IsNullOrWhiteSpace(LabelKey) ? string.Empty : GridControlBarText.Get(LabelKey, LabelKey);
+
         public bool IsVisible
         {
             get => _isVisible;
@@ -142,6 +145,15 @@ namespace PlayniteAchievements.ViewModels.Items
         public virtual void ClearSelection()
         {
         }
+
+        /// <summary>
+        /// Whether the item lives in the bar's Filters panel rather than on the bar itself: the
+        /// dropdown filters do; search, Sort By and the toggle buttons stay on the bar.
+        /// </summary>
+        public virtual bool IsPanelFilter => false;
+
+        /// <summary>Whether the item currently narrows the rows; the Filters button counts these.</summary>
+        public virtual bool HasSelection => false;
 
         protected virtual bool HasAvailableAction => true;
     }
@@ -327,6 +339,16 @@ namespace PlayniteAchievements.ViewModels.Items
         // with one option) supply their own predicate.
         protected override bool HasAvailableAction =>
             _hasAvailableAction?.Invoke() ?? (CountUsableOptions() > 1 || HasSelectedOption());
+
+        public override bool IsPanelFilter => true;
+
+        /// <summary>
+        /// Whether the filter narrows the rows, for a filter whose resting state has picks (the
+        /// overview's Progress default); null counts any pick.
+        /// </summary>
+        public Func<bool> IsFiltering { get; set; }
+
+        public override bool HasSelection => IsFiltering?.Invoke() ?? HasSelectedOption();
 
         public bool IsSelected(string option)
         {
@@ -698,6 +720,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool HasRange => From.HasValue || To.HasValue;
 
+        public override bool IsPanelFilter => true;
+
+        public override bool HasSelection => HasRange;
+
         public void Clear()
         {
             _set?.Invoke(null, null);
@@ -775,6 +801,10 @@ namespace PlayniteAchievements.ViewModels.Items
 
         protected override bool HasAvailableAction => CountSelectableOptions() > 1 || HasSelectedOption();
 
+        public override bool IsPanelFilter => true;
+
+        public override bool HasSelection => HasSelectedOption();
+
         public void OnClosed()
         {
             _closed?.Invoke();
@@ -816,6 +846,58 @@ namespace PlayniteAchievements.ViewModels.Items
             return (Groups ?? new ObservableCollection<ProviderFilterGroup>())
                 .Any(group => group?.HasAnySelected == true);
         }
+    }
+
+    /// <summary>
+    /// The bar's Filters button, which opens the panel holding the bar's dropdown filters. It
+    /// reads "Filters", or "Filters (n)" while n of them narrow the rows, and shows while any
+    /// filter in the panel shows. The bar control owns it; it is not one of the bar's items.
+    /// </summary>
+    public sealed class GridFiltersButton : GridControlBarItem
+    {
+        private int _count;
+        private bool _available;
+
+        public int Count
+        {
+            get => _count;
+            set
+            {
+                if (SetValueAndReturn(ref _count, value))
+                {
+                    OnPropertyChanged(nameof(Text));
+                    OnPropertyChanged(nameof(IsFiltering));
+                }
+            }
+        }
+
+        public bool IsFiltering => _count > 0;
+
+        public string Text
+        {
+            get
+            {
+                var label = GridControlBarText.Get("LOCPlayAch_Menu_Filters", "Filters");
+                return _count > 0
+                    ? string.Format(PlayniteAchievements.Common.FormattingCulture.Current, "{0} ({1})", label, _count)
+                    : label;
+            }
+        }
+
+        /// <summary>Whether any filter in the panel shows.</summary>
+        public bool Available
+        {
+            get => _available;
+            set
+            {
+                if (SetValueAndReturn(ref _available, value))
+                {
+                    OnPropertyChanged(nameof(EffectiveIsVisible));
+                }
+            }
+        }
+
+        protected override bool HasAvailableAction => _available;
     }
 
     /// <summary>One column (or sort key) the Sort By dropdown offers.</summary>
@@ -880,7 +962,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public ListSortDirection Direction => _direction;
 
-        public bool HasSelection => _selectedKey != null;
+        public override bool HasSelection => _selectedKey != null;
 
         public bool IsDescending => _direction == ListSortDirection.Descending;
 
