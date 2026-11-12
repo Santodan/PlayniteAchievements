@@ -989,7 +989,8 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     ControlBar = bar,
                     ShowControlBar = true,
-                    FillsWidth = true
+                    FillsWidth = true,
+                    CollapsesFilters = false
                 };
                 rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor, entry);
             }
