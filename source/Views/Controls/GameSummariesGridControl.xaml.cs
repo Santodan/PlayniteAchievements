@@ -77,12 +77,10 @@ namespace PlayniteAchievements.Views.Controls
             };
 
         // Columns only meaningful on the friend game-summaries surfaces: Owned marks games the
-        // current user shares with friends, and Last unlock surfaces the newest friend unlock per
-        // game (MAX across friends on the aggregate grids, the friend's own on selected-friend).
+        // current user shares with friends.
         private static readonly string[] FriendGameOnlyColumnKeys =
         {
-            "GameSummaryOwned",
-            "GameSummaryLastUnlock"
+            "GameSummaryOwned"
         };
 
         // Columns kept in the codebase for other surfaces but not wanted on the aggregate
