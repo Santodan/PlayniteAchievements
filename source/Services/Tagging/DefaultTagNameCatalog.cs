@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Services.Tagging
                 [TagType.NoAchievements] = "LOCPlayAch_Tagging_NoAchievements",
                 [TagType.CustomAchievements] = "LOCPlayAch_Tagging_CustomAchievements",
                 [TagType.ManualAchievements] = "LOCPlayAch_Tagging_ManualAchievements",
+                [TagType.LinkedFile] = "LOCPlayAch_Tagging_LinkedFile",
                 [TagType.Customized] = "LOCPlayAch_Tagging_Customized",
                 [TagType.NotCustomized] = "LOCPlayAch_Tagging_NotCustomized",
                 [TagType.Excluded] = "LOCPlayAch_ManageAchievements_Status_Excluded",
@@ -42,16 +43,15 @@ namespace PlayniteAchievements.Services.Tagging
         /// called by one counts as un-customized and is renamed to the current default.
         /// </summary>
         /// <remarks>
-        /// A customization tag was once named "Custom" plus its area's noun ("[PA] Custom Source",
-        /// "[PA] Custom Manual Tracking"). Most of those equal today's names; the ones listed here
+        /// A customization tag was once named "Custom" plus its area's noun ("[PA] Custom Source").
+        /// Most of those equal today's names; the ones listed here
         /// are the ones that changed, every English form each has had.
         /// </remarks>
         private static readonly IReadOnlyDictionary<TagType, (string ResourceKey, string[] English)> FormerResourceKeys =
             new Dictionary<TagType, (string ResourceKey, string[] English)>
             {
                 [TagType.HasAchievements] = ("LOCPlayAch_Tagging_HasAchievements", new[] { "[PA] Has Achievements" }),
-                [TagType.ManualAchievements] = ("LOCPlayAch_Tagging_ManualAchievements", new[] { "[PA] Manual Achievements" }),
-                [TagType.CustomManualTracking] = ("LOCPlayAch_Tagging_Tag_CustomManualTracking", new[] { "[PA] Manual Tracking", "[PA] Custom Manual Tracking" }),
+                [TagType.ManualAchievements] = ("LOCPlayAch_Tagging_ManualAchievements", new[] { "[PA] Manual Achievements", "[PA] Custom Tracking" }),
                 [TagType.CustomSource] = ("LOCPlayAch_Tagging_Tag_CustomSource", new[] { "[PA] Custom Source" })
             };
 
