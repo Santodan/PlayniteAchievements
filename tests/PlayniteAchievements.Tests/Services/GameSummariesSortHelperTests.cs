@@ -256,7 +256,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ApplySortIndicator_RecentUnlockDefault_DoesNotReturnVisibleColumn()
+        public void ApplySortIndicator_RecentUnlockDefault_MarksTheLastUnlockColumn()
         {
             string indicatorPath = "seed";
             ListSortDirection? indicatorDirection = ListSortDirection.Ascending;
@@ -275,8 +275,8 @@ namespace PlayniteAchievements.Services.Tests
                     indicatorDirection = direction;
                 });
 
-            Assert.IsNull(indicatorPath);
-            Assert.IsNull(indicatorDirection);
+            Assert.AreEqual("LastUnlockUtc", indicatorPath);
+            Assert.AreEqual(ListSortDirection.Descending, indicatorDirection);
         }
 
         [TestMethod]
