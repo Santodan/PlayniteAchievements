@@ -46,39 +46,70 @@ namespace PlayniteAchievements.ViewModels
             }
 
             string name;
-            bool exists;
             try
             {
                 name = Path.GetFileName(link.FilePath);
-                exists = File.Exists(link.FilePath);
             }
             catch (ArgumentException)
             {
                 name = link.FilePath;
-                exists = false;
             }
 
-            string state;
-            if (!exists)
+            return name + " · " + DescribeState(link, localize);
+        }
+
+        /// <summary>
+        /// The link's state alone: when it was last read, that it was not read yet, or what went wrong.
+        /// </summary>
+        public static string DescribeState(LinkedFileLink link, Func<string, string> localize)
+        {
+            if (link == null)
             {
-                state = localize("LOCPlayAch_LinkedFile_FileMissing");
+                return null;
             }
-            else if (Enum.TryParse<LinkedFileReadStatus>(link.LastReadStatus, out var status) && status != LinkedFileReadStatus.Ok)
+
+            if (!link.HasFilePath)
             {
-                state = Describe(status, localize);
+                return localize("LOCPlayAch_LinkedFile_MappingOnly");
             }
-            else if (link.LastReadUtc.HasValue)
+
+            if (!FileExists(link))
             {
-                state = string.Format(
+                return localize("LOCPlayAch_LinkedFile_FileMissing");
+            }
+
+            if (TryGetFailedStatus(link, out var status))
+            {
+                return Describe(status, localize);
+            }
+
+            if (link.LastReadUtc.HasValue)
+            {
+                return string.Format(
                     localize("LOCPlayAch_LinkedFile_ReadFormat"),
                     link.LastReadUtc.Value.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
             }
-            else
-            {
-                state = localize("LOCPlayAch_LinkedFile_NotReadYet");
-            }
 
-            return name + " · " + state;
+            return localize("LOCPlayAch_LinkedFile_NotReadYet");
         }
+
+        /// <summary>Whether the link has no file, its file is missing, or its last read failed.</summary>
+        public static bool HasProblem(LinkedFileLink link) =>
+            link != null && (!link.HasFilePath || !FileExists(link) || TryGetFailedStatus(link, out _));
+
+        private static bool FileExists(LinkedFileLink link)
+        {
+            try
+            {
+                return File.Exists(link.FilePath);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+
+        private static bool TryGetFailedStatus(LinkedFileLink link, out LinkedFileReadStatus status) =>
+            Enum.TryParse(link.LastReadStatus, out status) && status != LinkedFileReadStatus.Ok;
     }
 }
