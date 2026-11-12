@@ -189,7 +189,8 @@ namespace PlayniteAchievements.Views.Controls
                 _sortBinder = new GridSortSelectorBinder(
                     SummaryGrid,
                     request => DataGrid_Sorting(SummaryGrid, request),
-                    () => ProvidesSortSelector);
+                    () => ProvidesSortSelector,
+                    column => _columnPersistence?.IsListedInColumnMenu(column) ?? true);
                 _sortBinder.SetBar(ControlBar);
             }
         }
