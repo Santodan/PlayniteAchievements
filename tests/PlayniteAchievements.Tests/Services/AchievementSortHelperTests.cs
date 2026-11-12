@@ -501,7 +501,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                SingleGameGridSortMode = CompactListSortMode.None,
+                SingleGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.None),
                 SingleGameGridSortDescending = false
             };
 
@@ -536,7 +536,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                SingleGameGridSortMode = CompactListSortMode.UnlockTime,
+                SingleGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.UnlockTime),
                 SingleGameGridSortDescending = true
             };
 
@@ -571,7 +571,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                AchievementDataGridSortMode = CompactListSortMode.Rarity,
+                AchievementDataGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.Rarity),
                 AchievementDataGridSortDescending = true
             };
 
@@ -618,7 +618,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                AchievementDataGridSortMode = CompactListSortMode.Rarity,
+                AchievementDataGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.Rarity),
                 AchievementDataGridSortDescending = false
             };
 
@@ -730,7 +730,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    SingleGameGridSortMode = CompactListSortMode.None,
+                    SingleGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.None),
                     SingleGameGridSortDescending = false
                 },
                 AchievementSortSurface.SingleGame,
@@ -755,7 +755,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewSelectedGameGridSortMode = CompactListSortMode.None,
+                    OverviewSelectedGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.None),
                     OverviewSelectedGameGridSortDescending = false
                 },
                 AchievementSortSurface.OverviewSelectedGame,
@@ -897,7 +897,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                AchievementDataGridSortMode = CompactListSortMode.Rarity,
+                AchievementDataGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.Rarity),
                 AchievementDataGridSortDescending = true
             };
 
