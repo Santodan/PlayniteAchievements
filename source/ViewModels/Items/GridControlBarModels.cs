@@ -837,7 +837,9 @@ namespace PlayniteAchievements.ViewModels.Items
     /// The control bar's Sort By: a dropdown of the grid's sortable columns joined to a button
     /// that flips the direction. It holds no sort of its own. Whoever sorts the rows sets
     /// <see cref="Apply"/> and reports the sort back through <see cref="ShowState"/>, so a header
-    /// click and this item always show the same sort. No selection means the grid's default sort.
+    /// click and this item always show the same sort, the grid's starting sort included. No
+    /// selection means the rows are unsorted, as after a header's third click, and the dropdown
+    /// reads "Sort By".
     /// </summary>
     public sealed class GridSortSelector : GridControlBarItem
     {
@@ -853,8 +855,8 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Applies a sort: a key and direction, or a null key to return to the default sort. Set by
-        /// whoever sorts the rows; the last to set it sorts.
+        /// Applies a sort: a key and direction, or a null key to remove the sort. Set by whoever
+        /// sorts the rows; the last to set it sorts.
         /// </summary>
         public Action<string, ListSortDirection?> Apply { get; set; }
 
@@ -870,7 +872,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        /// <summary>The sorted key, or null while the grid shows its default sort.</summary>
+        /// <summary>The sorted key, or null while the rows are unsorted.</summary>
         public string SelectedKey => _selectedKey;
 
         public ListSortDirection Direction => _direction;
@@ -889,10 +891,13 @@ namespace PlayniteAchievements.ViewModels.Items
 
         protected override bool HasAvailableAction => _options.Count > 0;
 
-        /// <summary>Sorts by <paramref name="key"/> in the shown direction; null returns to the default sort.</summary>
+        /// <summary>
+        /// Sorts by <paramref name="key"/> in the shown direction. Picking the sorted key again, or
+        /// null, removes the sort.
+        /// </summary>
         public void Select(string key)
         {
-            if (key == null)
+            if (key == null || string.Equals(key, _selectedKey, StringComparison.Ordinal))
             {
                 ClearSelection();
                 return;
@@ -901,7 +906,7 @@ namespace PlayniteAchievements.ViewModels.Items
             Apply?.Invoke(key, _direction);
         }
 
-        /// <summary>Flips the direction of the chosen sort; nothing while the sort is the default.</summary>
+        /// <summary>Flips the direction of the sort; nothing while the rows are unsorted.</summary>
         public void ToggleDirection()
         {
             if (_selectedKey == null)
@@ -914,13 +919,13 @@ namespace PlayniteAchievements.ViewModels.Items
                 IsDescending ? ListSortDirection.Ascending : ListSortDirection.Descending);
         }
 
-        /// <summary>Returns the grid to its default sort.</summary>
+        /// <summary>Removes the sort.</summary>
         public override void ClearSelection()
         {
             Apply?.Invoke(null, null);
         }
 
-        /// <summary>Shows the grid's current sort without applying anything; a null key is the default.</summary>
+        /// <summary>Shows the grid's current sort without applying anything; a null key is unsorted.</summary>
         public void ShowState(string key, ListSortDirection? direction)
         {
             var normalized = string.IsNullOrWhiteSpace(key) || !direction.HasValue ? null : key;
