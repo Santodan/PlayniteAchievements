@@ -443,10 +443,8 @@ namespace PlayniteAchievements.ViewModels
                         .Select(group => group.ProviderKey)
                         .ToList();
                 case ShowcasePieMode.CompletedGames:
-                    // The untouched default highlights nothing; once picked, the chosen slices.
-                    return _completenessFilterEdited
-                        ? CompletenessFilterOptions.Where(_selectedCompletenessFilters.Contains).ToList()
-                        : (IReadOnlyCollection<string>)Array.Empty<string>();
+                    // The picked slices; nothing picked highlights nothing.
+                    return CompletenessFilterOptions.Where(_selectedCompletenessFilters.Contains).ToList();
                 case ShowcasePieMode.Rarity:
                     // The Capstone label names no slice, so it highlights nothing.
                     return _tierFilters.SelectedRarityLabels;
