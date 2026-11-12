@@ -189,11 +189,22 @@ namespace PlayniteAchievements.Services.Achievements
             ListSortDirection? currentSortDirection,
             PersistedSettings settings,
             AchievementSortSurface surface,
-            ListSortDirection? visibleSortDirection = null)
+            ListSortDirection? visibleSortDirection = null,
+            GridSortRequestEventArgs request = null)
         {
+            if (request?.IsReset == true)
+            {
+                return AchievementGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return AchievementGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return AchievementGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings, surface);
