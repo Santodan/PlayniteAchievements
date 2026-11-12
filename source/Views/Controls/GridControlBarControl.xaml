@@ -613,6 +613,101 @@
                     </DataTrigger>
                 </DataTemplate.Triggers>
             </DataTemplate>
+
+            <!-- Sort By's direction button: the right half of the segmented unit, shaped like the
+                 category mode toggle. An up arrow reads ascending; descending flips it. -->
+            <Style x:Key="GridSortDirectionButtonStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Focusable" Value="False"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Seg"
+                                    Background="{DynamicResource PlayAch.Brush.Button.Background}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="0,4,4,0"
+                                    Padding="8,0"
+                                    SnapsToDevicePixels="True">
+                                <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                                    <Path x:Name="Glyph"
+                                          Data="M6,1 L6,15 M1,6 L6,1 L11,6"
+                                          Stroke="{DynamicResource PlayAch.Brush.Glyph}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          RenderTransformOrigin="0.5,0.5">
+                                        <Path.RenderTransform>
+                                            <ScaleTransform x:Name="GlyphFlip" ScaleY="1"/>
+                                        </Path.RenderTransform>
+                                    </Path>
+                                </Viewbox>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsDescending}" Value="True">
+                                    <Setter TargetName="Glyph" Property="RenderTransform">
+                                        <Setter.Value>
+                                            <ScaleTransform ScaleY="-1"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Seg" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                    <Setter TargetName="Seg" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Seg" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Sort By: the column dropdown and the direction button as one segmented unit. The
+                 dropdown lists Default first, then every sortable column, hidden ones included.
+                 The item's width covers both halves. -->
+            <DataTemplate DataType="{x:Type vm:GridSortSelector}">
+                <Grid Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <Grid.Width>
+                        <MultiBinding Converter="{StaticResource GridControlBarItemWidth}">
+                            <Binding Path="Width"/>
+                            <Binding Path="FillsWidth" ElementName="Root"/>
+                            <Binding Path="ActualWidth" ElementName="Root"/>
+                        </MultiBinding>
+                    </Grid.Width>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="SortButton"
+                            Style="{StaticResource AchievementSelectorButtonConnectedRightStyle}"
+                            Content="{Binding ButtonText}"
+                            Click="SortSelector_Click"
+                            MinWidth="{Binding MinWidth}"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            ToolTip="{Binding ToolTip}">
+                        <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+                    <!-- Overlaps the dropdown's right border by 1px so the seam reads as one line. -->
+                    <Button x:Name="DirectionButton"
+                            Grid.Column="1"
+                            Style="{StaticResource GridSortDirectionButtonStyle}"
+                            Click="SortDirection_Click"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            Margin="-1,0,0,0"
+                            ToolTip="{Binding DirectionToolTip}"
+                            IsEnabled="{Binding HasSelection}"/>
+                </Grid>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
