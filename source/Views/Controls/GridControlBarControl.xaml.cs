@@ -396,7 +396,8 @@ namespace PlayniteAchievements.Views.Controls
             MultiSelectFilterMenu.Open(button, button?.DataContext as GridMultiSelectFilter);
         }
 
-        // Default first, then one row per sortable column; the checked row is the current sort.
+        // One row per sortable column; the checked row is the current sort, and clicking it again
+        // removes the sort.
         private void SortSelector_Click(object sender, RoutedEventArgs e)
         {
             var button = sender as Button;
@@ -409,11 +410,6 @@ namespace PlayniteAchievements.Views.Controls
 
             menu.Items.Clear();
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            menu.Items.Add(CreateSortMenuItem(
-                selector,
-                null,
-                GridControlBarText.Get("LOCPlayAch_Common_Default", "Default"),
-                itemStyle));
             foreach (var option in selector.Options)
             {
                 menu.Items.Add(CreateSortMenuItem(selector, option.Key, option.Label, itemStyle));
