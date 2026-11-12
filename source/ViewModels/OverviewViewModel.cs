@@ -704,6 +704,8 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _providerFilterApplyScheduled = true;
+            // Tracing only: names the layout and render passes the filter pass sets off.
+            Common.DispatcherOperationProbe.Arm(_logger, "overview-filter", TimeSpan.FromSeconds(2));
             // The linked widgets draw from the new state now; the grids follow in the pass below.
             InvalidateLinkedSnapshots();
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
