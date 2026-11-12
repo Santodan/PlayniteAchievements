@@ -650,6 +650,7 @@
     <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
     <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
     <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
+    <Compile Include="..\..\source\Models\Settings\GridSortColumns.cs" Link="Source\Models\Settings\GridSortColumns.cs" />
     <Compile Include="..\..\source\Views\Settings\Controls\GridDisplaySurfaces.cs" Link="Source\Views\Settings\Controls\GridDisplaySurfaces.cs" />
     <Compile Include="..\..\source\Models\Settings\OverviewSettingsMigration.cs" Link="Source\Models\Settings\OverviewSettingsMigration.cs" />
     <Compile Include="..\..\source\Models\Settings\GridOptionsSettingsMigration.cs" Link="Source\Models\Settings\GridOptionsSettingsMigration.cs" />
