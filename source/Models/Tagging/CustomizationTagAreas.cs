@@ -122,9 +122,7 @@ namespace PlayniteAchievements.Models.Tagging
             Area(CustomizationArea.Notifications, "LOCPlayAch_Tagging_Area_Notifications",
                 custom: TagType.CustomNotifications),
             Area(CustomizationArea.Source, "LOCPlayAch_Tagging_Area_Source",
-                custom: TagType.CustomSource),
-            Area(CustomizationArea.ManualTracking, "LOCPlayAch_ManageAchievements_Tab_ManualTracking",
-                custom: TagType.CustomManualTracking)
+                custom: TagType.CustomSource)
         };
 
         private static readonly Dictionary<TagType, (CustomizationTagArea Area, TagLayer Layer)> ByTag =
