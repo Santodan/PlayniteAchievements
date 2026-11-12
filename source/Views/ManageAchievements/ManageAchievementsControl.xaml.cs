@@ -882,6 +882,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 LoadRecord = () => store.LoadOrDefault(gameId),
                 UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
                 LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                Spoilers = SpoilerSettings.From(_settings?.Persisted),
                 SchemaStore = plugin.LinkedFileSchemaStore,
                 // Apply runs the game's ordinary refresh once the window has closed, so the file
                 // is read the way every refresh reads it and what follows a refresh runs too.
