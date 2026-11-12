@@ -21,7 +21,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                SingleGameGridSortMode = CompactListSortMode.None,
+                SingleGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.None),
                 SingleGameGridSortDescending = false
             };
 
@@ -154,7 +154,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                SingleGameGridSortMode = CompactListSortMode.None,
+                SingleGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.None),
                 SingleGameGridSortDescending = false
             };
             var click = new DataGridSortingEventArgs(Column("RaritySortValue"));
