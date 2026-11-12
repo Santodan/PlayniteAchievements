@@ -203,6 +203,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                 customData => customData.ExcludedFromSummaries == true);
         }
 
+        /// <summary>Whether the game reads its unlocks from a linked file.</summary>
+        public static bool HasLinkedFile(Guid gameId, GameCustomDataStore store = null)
+        {
+            return ReadGameFlag(gameId, store, customData => customData.LinkedFile != null);
+        }
+
         /// <summary>
         /// Reads one flag off a game's stored record; false when the game has none.
         /// </summary>
