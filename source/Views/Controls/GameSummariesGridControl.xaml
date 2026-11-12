@@ -339,6 +339,10 @@
                                             <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="CollectionScoreTotal"/>
+                                            <Binding Path="PrestigeScoreTotal"/>
+                                            <Binding Path="ShowMetadataCollection" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPrestige" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
                                     <TextBlock.Visibility>
@@ -353,6 +357,10 @@
                                             <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="CollectionScoreTotal"/>
+                                            <Binding Path="PrestigeScoreTotal"/>
+                                            <Binding Path="ShowMetadataCollection" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPrestige" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Visibility>
                                 </TextBlock>
