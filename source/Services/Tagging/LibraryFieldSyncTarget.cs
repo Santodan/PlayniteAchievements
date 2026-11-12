@@ -111,14 +111,14 @@ namespace PlayniteAchievements.Services.Tagging
 
                 try
                 {
-                    if (Field.Rename(id.Value, config.DisplayName))
+                    if (Field.Rename(id.Value, config.ResolvedName))
                     {
-                        _logger.Info($"Renamed {Noun} {id.Value} to '{config.DisplayName}' to match its configured name.");
+                        _logger.Info($"Renamed {Noun} {id.Value} to '{config.ResolvedName}' to match its configured name.");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Failed to rename {Noun} {id.Value} to '{config.DisplayName}'.");
+                    _logger.Error(ex, $"Failed to rename {Noun} {id.Value} to '{config.ResolvedName}'.");
                 }
             }
         }
@@ -176,7 +176,7 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         public Guid? ResolveConfiguredId(TagType kind, TagConfig config)
         {
-            if (config == null || string.IsNullOrWhiteSpace(config.DisplayName))
+            if (config == null || string.IsNullOrWhiteSpace(config.ResolvedName))
             {
                 return null;
             }
@@ -192,7 +192,7 @@ namespace PlayniteAchievements.Services.Tagging
                 return rememberedId;
             }
 
-            var id = Field.FindByName(config.DisplayName) ?? Field.Create(config.DisplayName);
+            var id = Field.FindByName(config.ResolvedName) ?? Field.Create(config.ResolvedName);
             if (id.HasValue)
             {
                 _idCache[kind] = id.Value;
