@@ -231,7 +231,7 @@
     <sys:String x:Key="LOCPlayAch_Column_Recordings">Recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Captures">Captures</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_CategoryArt">Category Art</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">Use for Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_ReplaceGameArt">Replace Game Art</sys:String>
 
     <!-- ================================================================= -->
     <!-- 04 Buttons -->
