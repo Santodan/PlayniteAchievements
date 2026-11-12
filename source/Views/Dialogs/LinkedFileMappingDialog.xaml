@@ -103,7 +103,8 @@
 
             <!-- The match column's header is plain text; the file columns' headers host a field picker. -->
             <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                <Setter Property="VerticalContentAlignment" Value="Bottom" />
+                <Setter Property="VerticalContentAlignment" Value="Top" />
+                <Setter Property="Background" Value="Transparent" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
 
@@ -119,7 +120,7 @@
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <DockPanel Margin="2">
+                <DockPanel Margin="2" Height="{StaticResource PlayAch.Size.Control.Height}">
                     <Button DockPanel.Dock="Right"
                             Width="24" Height="24"
                             Padding="0"
@@ -401,6 +402,7 @@
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Background" Value="Transparent" />
                                 <Setter Property="ContentTemplate">
                                     <Setter.Value>
                                         <DataTemplate>
