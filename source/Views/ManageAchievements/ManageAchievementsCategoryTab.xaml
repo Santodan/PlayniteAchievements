@@ -435,7 +435,7 @@
                                                 MinWidth="96"
                                                 CanUserResize="False"
                                                 CanUserSort="False"
-                                                Header="{DynamicResource LOCPlayAch_Column_UseForGameSummaries}">
+                                                Header="{DynamicResource LOCPlayAch_Column_ReplaceGameArt}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <!-- No GroupName: exclusivity is enforced in the view model because
