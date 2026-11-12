@@ -1879,11 +1879,13 @@ namespace PlayniteAchievements
 
                 _achievementHotkeyService?.Start();
 
-                // Re-localize un-customized default tag names to the current Playnite
-                // language; needs the database, which is only open from this point on.
+                // Delete the items of retired kinds and re-localize un-customized default tag
+                // names to the current Playnite language; both need the database, which is only
+                // open from this point on.
                 try
                 {
-                    if (_tagSyncService?.RelocalizeDefaultTagNames() == true)
+                    var removedRetired = _tagSyncService?.RemoveRetiredKinds() == true;
+                    if (_tagSyncService?.RelocalizeDefaultTagNames() == true || removedRetired)
                     {
                         PersistSettingsForUi();
                     }
