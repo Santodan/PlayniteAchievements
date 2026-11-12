@@ -142,6 +142,43 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Whether the row can be paired by hand; not before the file was matched.</summary>
         public bool CanPick => _pairing != null;
 
+        private string _matchIcon;
+        private bool[] _failedCells = Array.Empty<bool>();
+        private string[] _cellErrors = Array.Empty<string>();
+
+        /// <summary>The icon of the achievement the row pairs with; null when it pairs with none.</summary>
+        public string MatchIcon => _matchIcon;
+
+        /// <summary>Per column index, whether the cell's value could not be read for its field.</summary>
+        public bool[] FailedCells => _failedCells;
+
+        /// <summary>Per column index, why the cell could not be read; null for a readable cell.</summary>
+        public string[] CellErrors => _cellErrors;
+
+        internal void SetMatchIcon(string icon)
+        {
+            if (!string.Equals(_matchIcon, icon, StringComparison.Ordinal))
+            {
+                _matchIcon = icon;
+                OnPropertyChanged(nameof(MatchIcon));
+            }
+        }
+
+        /// <summary>Marks the cells that could not be read, by column index, with the reason for each.</summary>
+        internal void SetCellErrors(string[] errors)
+        {
+            errors = errors ?? Array.Empty<string>();
+            if (errors.SequenceEqual(_cellErrors))
+            {
+                return;
+            }
+
+            _cellErrors = errors;
+            _failedCells = errors.Select(error => error != null).ToArray();
+            OnPropertyChanged(nameof(CellErrors));
+            OnPropertyChanged(nameof(FailedCells));
+        }
+
         /// <summary>Sets what the row pairs with, keeping the instance so the grid keeps its place.</summary>
         internal void SetMatch(string match, bool isMatched, bool isUserSet, string rowKey, LinkedFilePairingContext pairing)
         {
