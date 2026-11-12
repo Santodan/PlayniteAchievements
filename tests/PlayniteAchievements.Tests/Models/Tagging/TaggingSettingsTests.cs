@@ -122,9 +122,14 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             var achievements = settings.StatusRows[0];
             Assert.AreSame(settings.HasAchievementsConfig, achievements.First);
             Assert.AreSame(settings.TagConfigs[TagType.CustomAchievements], achievements.Second);
-            Assert.AreSame(settings.TagConfigs[TagType.ManualAchievements], achievements.Third);
+            Assert.IsNull(achievements.Third);
             Assert.AreSame(settings.NoAchievementsConfig, achievements.Fourth);
-            Assert.AreEqual("[PA] Custom Tracking", TaggingSettings.GetDefaultDisplayName(TagType.ManualAchievements));
+
+            var tracking = settings.StatusRows[1];
+            Assert.AreSame(settings.TagConfigs[TagType.ManualAchievements], tracking.First);
+            Assert.AreSame(settings.TagConfigs[TagType.LinkedFile], tracking.Second);
+            Assert.AreEqual("[PA] Manual Tracking", TaggingSettings.GetDefaultDisplayName(TagType.ManualAchievements));
+            Assert.AreEqual("[PA] Linked File", TaggingSettings.GetDefaultDisplayName(TagType.LinkedFile));
             Assert.AreEqual("[PA] Platform Achievements", TaggingSettings.GetDefaultDisplayName(TagType.HasAchievements));
         }
 
@@ -178,6 +183,20 @@ namespace PlayniteAchievements.Models.Tagging.Tests
         }
 
         [TestMethod]
+        public void InitializeDefaults_NeverCreatesRetiredKinds_ButKeepsAStoredOne()
+        {
+            var fresh = new TaggingSettings();
+            fresh.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            Assert.IsFalse(fresh.TagConfigs.ContainsKey(TagType.CustomManualTracking));
+
+            const string json = "{\"TagConfigs\":{\"CustomManualTracking\":{\"DisplayName\":\"[PA] Linked Source\",\"IsEnabled\":true,\"TagId\":\"11111111-1111-1111-1111-111111111111\"}}}";
+            var stored = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>(json);
+            stored.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
+            Assert.IsTrue(stored.TagConfigs.ContainsKey(TagType.CustomManualTracking),
+                "a stored retired config stays until the cleanup deletes its item");
+        }
+
+        [TestMethod]
         public void InitializeDefaults_FillsFeatureConfigsWithExactlyTheFeatureKinds()
         {
             var settings = new TaggingSettings();
@@ -186,7 +205,7 @@ namespace PlayniteAchievements.Models.Tagging.Tests
 
             CollectionAssert.AreEquivalent(TaggingSettings.FeatureKinds.ToList(), settings.FeatureConfigs.Keys.ToList());
             Assert.IsTrue(settings.FeatureConfigs.Values.All(config => config.IsEnabled));
-            Assert.AreEqual("[PA] Custom Tracking", settings.FeatureConfigs[TagType.ManualAchievements].DisplayName);
+            Assert.AreEqual("[PA] Manual Tracking", settings.FeatureConfigs[TagType.ManualAchievements].DisplayName);
             Assert.IsFalse(settings.EnableFeatureSync);
         }
 
@@ -202,8 +221,8 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.AreNotSame(settings.HasAchievementsConfig, row.First);
             Assert.AreSame(settings.GetFeatureConfig(TagType.CustomAchievements), row.Second);
             Assert.AreSame(settings.FeatureConfigs[TagType.ManualAchievements], row.Third);
-            Assert.IsNull(row.Fourth);
-            Assert.AreEqual(3, row.GetConfigs().Count());
+            Assert.AreSame(settings.FeatureConfigs[TagType.LinkedFile], row.Fourth);
+            Assert.AreEqual(4, row.GetConfigs().Count());
         }
 
         [TestMethod]
@@ -223,7 +242,7 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             Assert.IsFalse(clone.FeatureConfigs[TagType.ManualAchievements].IsEnabled);
             Assert.AreEqual(settings.FeatureConfigs[TagType.ManualAchievements].TagId, clone.FeatureConfigs[TagType.ManualAchievements].TagId);
             Assert.AreNotSame(settings.FeatureConfigs[TagType.ManualAchievements], clone.FeatureConfigs[TagType.ManualAchievements]);
-            Assert.AreEqual("[PA] Custom Tracking", clone.TagConfigs[TagType.ManualAchievements].DisplayName);
+            Assert.AreEqual("[PA] Manual Tracking", clone.TagConfigs[TagType.ManualAchievements].DisplayName);
         }
 
         [TestMethod]
@@ -253,7 +272,7 @@ namespace PlayniteAchievements.Models.Tagging.Tests
 
             Assert.IsFalse(settings.EnableFeatureSync);
             Assert.IsFalse(settings.CompletionStatusSwitchSeeded);
-            Assert.AreEqual(3, settings.FeatureConfigs.Count);
+            Assert.AreEqual(4, settings.FeatureConfigs.Count);
             Assert.AreEqual("[PA] Platform Achievements", settings.FeatureConfigs[TagType.HasAchievements].DisplayName);
         }
 
@@ -267,14 +286,14 @@ namespace PlayniteAchievements.Models.Tagging.Tests
             var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>(json);
             settings.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
 
-            Assert.AreEqual(3, settings.FeatureConfigs.Count);
+            Assert.AreEqual(4, settings.FeatureConfigs.Count);
             Assert.AreEqual("Store", settings.FeatureConfigs[TagType.HasAchievements].DisplayName);
             Assert.IsFalse(settings.FeatureConfigs[TagType.HasAchievements].IsEnabled);
             Assert.IsTrue(settings.FeatureConfigs[TagType.CustomAchievements].IsEnabled);
 
             var nulled = Newtonsoft.Json.JsonConvert.DeserializeObject<TaggingSettings>("{\"FeatureConfigs\":null}");
             nulled.InitializeDefaults(TaggingSettings.GetDefaultDisplayName);
-            Assert.AreEqual(3, nulled.FeatureConfigs.Count);
+            Assert.AreEqual(4, nulled.FeatureConfigs.Count);
         }
 
         [TestMethod]

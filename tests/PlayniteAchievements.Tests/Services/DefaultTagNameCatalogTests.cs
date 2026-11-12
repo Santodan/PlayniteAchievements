@@ -137,19 +137,15 @@ namespace PlayniteAchievements.Services.Tagging.Tests
             var catalog = new DefaultTagNameCatalog(null);
 
             Assert.AreEqual(
-                "[PA] Custom Tracking",
-                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Achievements", "[PA] Custom Tracking"));
+                "[PA] Manual Tracking",
+                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Achievements", "[PA] Manual Tracking"));
             Assert.AreEqual(
-                "[PA] Linked Source",
-                catalog.GetRelocalizedName(TagType.CustomManualTracking, "[PA] Manual Tracking", "[PA] Linked Source"));
-            Assert.AreEqual(
-                "[PA] Linked Source",
-                catalog.GetRelocalizedName(TagType.CustomManualTracking, "[PA] Custom Manual Tracking", "[PA] Linked Source"),
-                "the older Custom-plus-area name is a former default too");
+                "[PA] Manual Tracking",
+                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Custom Tracking", "[PA] Manual Tracking"));
             Assert.AreEqual(
                 "[PA] Source Override",
                 catalog.GetRelocalizedName(TagType.CustomSource, "[PA] Custom Source", "[PA] Source Override"));
-            Assert.IsNull(catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Tracking", "[PA] Custom Tracking"),
+            Assert.IsNull(catalog.GetRelocalizedName(TagType.LinkedFile, "[PA] Custom Tracking", "[PA] Linked File"),
                 "a former name belongs to its own kind only");
         }
 
@@ -206,6 +202,14 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         {
             foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
+                if (TaggingSettings.RetiredKinds.Contains(tagType))
+                {
+                    Assert.IsFalse(DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType) ||
+                                   DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null,
+                        $"{tagType} is retired and has no name source.");
+                    continue;
+                }
+
                 var isStatus = DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType);
                 var isArea = DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null;
                 Assert.IsTrue(isStatus ^ isArea, $"{tagType} needs exactly one name source.");

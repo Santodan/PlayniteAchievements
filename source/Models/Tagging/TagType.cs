@@ -62,7 +62,13 @@ namespace PlayniteAchievements.Models.Tagging
         CustomGoals,
         NoGoals,
         CustomSource,
+
+        /// <summary>
+        /// Retired: the Linked Source area kind. Kept so a stored config's Playnite item can be
+        /// found and deleted; see <see cref="TaggingSettings.RetiredKinds"/>.
+        /// </summary>
         CustomManualTracking,
+
         CustomNotifications,
         CustomTags,
 
@@ -94,13 +100,17 @@ namespace PlayniteAchievements.Models.Tagging
         CustomAchievements,
 
         /// <summary>
-        /// Game's achievement list is tracked through a manual link. Additive to
-        /// <see cref="HasAchievements"/>, which such a list also counts as.
+        /// Game's achievement list is tracked through a manual link to definitions (shown as
+        /// Manual Tracking). Additive to <see cref="HasAchievements"/>, which such a list also
+        /// counts as.
         /// </summary>
         ManualAchievements,
 
         // The Filters area: achievements filtered out of views or summaries, or none.
         CustomFilters,
-        NoFilters
+        NoFilters,
+
+        /// <summary>Game's unlocks are read from a linked file.</summary>
+        LinkedFile
     }
 }

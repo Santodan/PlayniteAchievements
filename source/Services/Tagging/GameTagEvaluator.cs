@@ -48,11 +48,14 @@ namespace PlayniteAchievements.Services.Tagging
         private PersistedSettings Settings => _settings();
 
         /// <summary>
-        /// Every kind that tracks customization: the Customized pair and each area's kinds.
+        /// Every kind read from the game's custom data alone: the Customized pair, each area's
+        /// kinds, and where the user's own achievements come from (custom achievements, a manual
+        /// link, a linked file). These apply to excluded games too.
         /// </summary>
-        public static readonly IReadOnlyList<TagType> CustomizationTagTypes =
+        public static readonly IReadOnlyList<TagType> CustomDataTagTypes =
             new[] { TagType.Customized, TagType.NotCustomized }
                 .Concat(CustomizationTagAreas.All.SelectMany(area => area.TagTypes))
+                .Concat(new[] { TagType.CustomAchievements, TagType.ManualAchievements, TagType.LinkedFile })
                 .ToList();
 
         /// <summary>
@@ -76,7 +79,7 @@ namespace PlayniteAchievements.Services.Tagging
             // status tags, but the layered customization tags may still read it.
             var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
             var loaded = new Lazy<GameAchievementData>(() => achievementDataService?.GetGameAchievementData(gameId));
-            types.AddRange(DetermineCustomizationTagTypes(gameId, () => loaded.Value));
+            types.AddRange(DetermineCustomDataTagTypes(gameId, () => loaded.Value));
 
             // Full exclusion is exclusive - no other tags
             if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, Settings))
@@ -122,19 +125,6 @@ namespace PlayniteAchievements.Services.Tagging
                 types.Add(TagType.HasAchievements);
             }
 
-            if (GameCustomDataLookup.GetCustomAchievements(gameId, Settings)?.Any(definition =>
-                    definition != null && !definition.IsAutoCapstone && !string.IsNullOrWhiteSpace(definition.DisplayName)) == true)
-            {
-                types.Add(TagType.CustomAchievements);
-            }
-
-            // Manual achievements are a list tracked through a manual link, on top of the
-            // platform kind that list also counts as.
-            if (ManualAchievementsProvider.TryGetManualLink(gameId, out _))
-            {
-                types.Add(TagType.ManualAchievements);
-            }
-
             // Completed means every achievement unlocked, or every capstone earned. Raw cached data
             // has not been through hydration, so its IsCapstone flags are the provider seed and the
             // stored set has to be applied here before the rule is applied.
@@ -163,12 +153,40 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
+        /// The <see cref="CustomDataTagTypes"/> that apply to a game: the customization kinds,
+        /// then Custom Achievements, Manual Tracking and Linked File. A manually tracked list
+        /// also counts as Platform Achievements, which the caller decides from the cached data.
+        /// </summary>
+        public IEnumerable<TagType> DetermineCustomDataTagTypes(Guid gameId, Func<GameAchievementData> loadData)
+        {
+            var types = DetermineCustomizationTagTypes(gameId, loadData).ToList();
+
+            if (GameCustomDataLookup.GetCustomAchievements(gameId, Settings)?.Any(definition =>
+                    definition != null && !definition.IsAutoCapstone && !string.IsNullOrWhiteSpace(definition.DisplayName)) == true)
+            {
+                types.Add(TagType.CustomAchievements);
+            }
+
+            if (ManualAchievementsProvider.TryGetManualLink(gameId, out _))
+            {
+                types.Add(TagType.ManualAchievements);
+            }
+
+            if (GameCustomDataLookup.HasLinkedFile(gameId))
+            {
+                types.Add(TagType.LinkedFile);
+            }
+
+            return types;
+        }
+
+        /// <summary>
         /// The customization kinds that apply to a game: one side of the Customized pair and the
         /// applicable kinds of each area. Areas are only classified when one of their kinds is
         /// enabled, and the game's data is only loaded when a Platform, Metadata or None kind is,
         /// so the default setup pays nothing for them.
         /// </summary>
-        public IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId, Func<GameAchievementData> loadData)
+        private IEnumerable<TagType> DetermineCustomizationTagTypes(Guid gameId, Func<GameAchievementData> loadData)
         {
             var types = new List<TagType>
             {

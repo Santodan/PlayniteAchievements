@@ -220,6 +220,82 @@ namespace PlayniteAchievements.Services.Tagging
             return changed;
         }
 
+        /// <summary>
+        /// Strips the Playnite item of each <see cref="TaggingSettings.RetiredKinds"/> kind from
+        /// every game, deletes it by id (never by name, so a user's own item is untouched), and
+        /// drops the kind's config. A retired config left in the settings is what marks the work
+        /// as pending, so this runs once. Requires the Playnite database to be open.
+        /// </summary>
+        /// <returns>True when a config was dropped and settings should be persisted.</returns>
+        public bool RemoveRetiredKinds()
+        {
+            var changed = false;
+            foreach (var target in _targets)
+            {
+                var configs = target.Configs;
+                if (configs == null)
+                {
+                    continue;
+                }
+
+                var retired = TaggingSettings.RetiredKinds.Where(configs.ContainsKey).ToList();
+                if (retired.Count == 0)
+                {
+                    continue;
+                }
+
+                var ids = new HashSet<Guid>(retired
+                    .Select(kind => configs[kind]?.TagId)
+                    .Where(id => id.HasValue && id.Value != Guid.Empty)
+                    .Select(id => id.Value));
+                if (ids.Count > 0)
+                {
+                    var updatedCount = 0;
+                    using (_api.Database.BufferedUpdate())
+                    {
+                        foreach (var game in _api.Database.Games.ToList())
+                        {
+                            try
+                            {
+                                if (game != null && target.RemoveManaged(game, ids))
+                                {
+                                    _api.Database.Games.Update(game);
+                                    updatedCount++;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(ex, $"Failed to remove retired {target.Noun}s from game {game?.Name}");
+                            }
+                        }
+                    }
+
+                    foreach (var id in ids)
+                    {
+                        try
+                        {
+                            target.Field.Remove(id);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, $"Failed to delete retired {target.Noun} with ID {id}");
+                        }
+                    }
+
+                    _logger.Info($"Removed {ids.Count} retired {target.Noun}s from {updatedCount} games");
+                }
+
+                foreach (var kind in retired)
+                {
+                    configs.Remove(kind);
+                }
+
+                changed = true;
+            }
+
+            return changed;
+        }
+
         private void SubscribeToTaggingSettingsChanges(TaggingSettings taggingSettings)
         {
             if (_subscribedTaggingSettings != null)
@@ -495,26 +571,29 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Reconciles only the customization kinds (the Customized pair and the area pairs), for a
-        /// change that cannot have moved any other tag. Tags only: features carry no
-        /// customization kinds.
+        /// Reconciles only the kinds read from custom data (<see cref="GameTagEvaluator.CustomDataTagTypes"/>),
+        /// for a change that cannot have moved any other tag or feature.
         /// </summary>
         /// <remarks>
         /// A full sync evaluates every tag, and that means loading the game's hydrated
         /// achievement data -- the whole cost of a sync. Renaming an achievement, writing a note
-        /// or overriding an icon moves these tags and nothing else, so the load is skipped and
-        /// the other managed tags are left exactly as they are.
+        /// or overriding an icon moves these kinds and nothing else, so the load is skipped and
+        /// the other managed items are left exactly as they are.
         /// </remarks>
         public void SyncCustomizationTagsForGames(List<Guid> gameIds)
         {
-            if (!TaggingEnabled || gameIds == null || gameIds.Count == 0)
+            var active = _targets.Where(target => target.Enabled).ToList();
+            if (active.Count == 0 || gameIds == null || gameIds.Count == 0)
             {
                 return;
             }
 
             try
             {
-                _tagsTarget.EnsureConfiguredIds();
+                foreach (var target in active)
+                {
+                    target.EnsureConfiguredIds();
+                }
 
                 using (_api.Database.BufferedUpdate())
                 {
@@ -530,13 +609,16 @@ namespace PlayniteAchievements.Services.Tagging
                         {
                             // Platform and Metadata only move on a refresh, but an edit can turn a
                             // layered area's None on or off, which needs the game's data.
-                            var applies = new HashSet<TagType>(_evaluator.DetermineCustomizationTagTypes(
+                            var applies = new HashSet<TagType>(_evaluator.DetermineCustomDataTagTypes(
                                 gameId,
                                 () => PlayniteAchievementsPlugin.Instance?.AchievementDataService?.GetGameAchievementData(gameId)));
                             var changed = false;
-                            foreach (var tagType in GameTagEvaluator.CustomizationTagTypes)
+                            foreach (var target in active)
                             {
-                                changed |= _tagsTarget.SetManaged(game, tagType, applies.Contains(tagType));
+                                foreach (var tagType in GameTagEvaluator.CustomDataTagTypes)
+                                {
+                                    changed |= target.SetManaged(game, tagType, applies.Contains(tagType));
+                                }
                             }
 
                             if (changed)

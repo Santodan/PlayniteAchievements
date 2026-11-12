@@ -139,14 +139,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                 areas |= CustomizationArea.Source;
             }
 
-            if (data.ManualLink != null ||
-                data.LinkedFile != null ||
-                HasText(data.CustomProviderId) ||
-                data.CustomAchievements?.Any(item => item != null && !item.IsAutoCapstone) == true)
-            {
-                areas |= CustomizationArea.ManualTracking;
-            }
-
             if (data.NotificationAppearanceOverride != null ||
                 data.UnlockSounds != null ||
                 data.NotificationBehaviorOverride != null ||
