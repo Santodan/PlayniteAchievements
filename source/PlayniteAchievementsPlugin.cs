@@ -1792,6 +1792,10 @@ namespace PlayniteAchievements
                 // repeatedly not inside one.
                 Common.UiStallWatchdog.Start(_logger);
 
+                // Names the dispatcher operations behind a startup stall, whichever plugin or
+                // Playnite component queued them; no-op unless tracing is armed.
+                Common.DispatcherOperationProbe.Arm(_logger, "startup", TimeSpan.FromSeconds(30));
+
                 LogStartupBanner();
 
                 // Before anything writes an icon: a move the last session left unfinished ends now.
