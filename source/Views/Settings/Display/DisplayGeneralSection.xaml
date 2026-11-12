@@ -30,10 +30,15 @@
 
             <!-- Ungrouped: plugin chrome, not a formatting choice. -->
             <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
-                </controls:SettingRow>
+                <StackPanel>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowSidebarButton}"
+                                         Margin="0">
+                        <CheckBox IsChecked="{Binding Persisted.ShowSidebarButton}"/>
+                    </controls:SettingRow>
+                </StackPanel>
             </Border>
 
             <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
