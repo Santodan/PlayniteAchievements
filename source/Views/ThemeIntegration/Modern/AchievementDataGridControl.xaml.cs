@@ -505,7 +505,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 EffectiveSettings?.Persisted,
                 AchievementSortSurface.AchievementDataGrid,
                 e.Column?.SortDirection,
-                GridSortRequestEventArgs.Of(e));
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
