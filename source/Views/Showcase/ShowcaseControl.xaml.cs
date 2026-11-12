@@ -3365,9 +3365,17 @@ namespace PlayniteAchievements.Views.Showcase
             // A strip's data changes come from the user's own filter clicks, so they apply now:
             // the window that batches the page's library refresh bursts would hold a second
             // click for up to a second. A widget whose view did not change is skipped cheaply.
+            // The queued widgets apply in this pass too, which runs at Normal priority ahead of
+            // the next render, so the strip changes in the same frame as the grids and the
+            // dropdown that set the filter rather than a render later.
             if (_host.IsStrip)
             {
                 RefreshWidgetData(includeCachedHosts: true);
+                if (_applyQueue.Count > 0)
+                {
+                    DrainApplyQueue();
+                }
+
                 return;
             }
 
