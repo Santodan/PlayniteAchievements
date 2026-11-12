@@ -6,6 +6,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -37,6 +39,7 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Action<DataGridSortingEventArgs> _sort;
         private readonly Func<bool> _providesSelector;
         private readonly Func<DataGridColumn, bool> _isOffered;
+        private readonly IReadOnlyList<GridSortColumn> _catalog;
         private readonly Action<string, ListSortDirection?> _apply;
         private readonly List<DataGridColumn> _watchedColumns = new List<DataGridColumn>();
         private GridControlBarViewModel _bar;
@@ -61,12 +64,14 @@ namespace PlayniteAchievements.Views.Helpers
             DataGrid grid,
             Action<DataGridSortingEventArgs> sort,
             Func<bool> providesSelector,
-            Func<DataGridColumn, bool> isOffered)
+            Func<DataGridColumn, bool> isOffered,
+            IReadOnlyList<GridSortColumn> catalog = null)
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _sort = sort;
             _providesSelector = providesSelector ?? (() => true);
             _isOffered = isOffered ?? (_ => true);
+            _catalog = catalog;
             _apply = Apply;
 
             // Subscribed after the grid control's own XAML handler, so it reads the outcome.
@@ -225,23 +230,31 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            var seen = new HashSet<string>(StringComparer.Ordinal);
+            // Columns sharing a sort (Achievement and Achievement Name; the three rarity columns)
+            // are one option, named as the catalog names it so the default sort dropdown agrees.
             var options = _grid.Columns
                 .Where(column => column != null &&
                                  column.CanUserSort &&
                                  !string.IsNullOrWhiteSpace(column.SortMemberPath) &&
                                  _isOffered(column))
                 .OrderBy(column => column.DisplayIndex)
-                .Where(column => seen.Add(column.SortMemberPath))
-                .Select(column => new GridSortOption(
-                    column.SortMemberPath,
-                    DataGridColumnLayoutService.ResolveColumnDisplayName(column)))
+                .GroupBy(column => column.SortMemberPath, StringComparer.Ordinal)
+                .Select(group => new GridSortOption(group.Key, ResolveLabel(group.ToList())))
                 .ToList();
             if (!options.Select(option => option.Key + "\n" + option.Label)
                     .SequenceEqual(_selector.Options.Select(option => option.Key + "\n" + option.Label)))
             {
                 _selector.Options = options;
             }
+        }
+
+        private string ResolveLabel(IReadOnlyList<DataGridColumn> columns)
+        {
+            var labelKey = columns.Count > 1 ? GridSortColumns.LabelKeyFor(_catalog, columns[0].SortMemberPath) : null;
+            var label = labelKey == null ? null : ResourceProvider.GetString(labelKey);
+            return string.IsNullOrWhiteSpace(label)
+                ? DataGridColumnLayoutService.ResolveColumnDisplayName(columns[0])
+                : label;
         }
 
         private void Apply(string key, ListSortDirection? direction)
