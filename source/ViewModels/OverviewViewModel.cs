@@ -697,27 +697,9 @@ namespace PlayniteAchievements.ViewModels
         private void OnProviderFilterSelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
-            // One deferred pass per burst: clearing several groups raises once per group.
-            if (_providerFilterApplyScheduled)
-            {
-                return;
-            }
-
-            _providerFilterApplyScheduled = true;
-            // Tracing only: names the layout and render passes the filter pass sets off.
-            Common.DispatcherOperationProbe.Arm(_logger, "overview-filter", TimeSpan.FromSeconds(2));
-            // The linked widgets draw from the new state now; the grids follow in the pass below.
-            InvalidateLinkedSnapshots();
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(() =>
-                {
-                    _providerFilterApplyScheduled = false;
-                    ApplyLeftFilters();
-                }),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
+            // The shared pass merges a burst (clearing several groups raises once per group).
+            ScheduleFilterApply();
         }
-
-        private bool _providerFilterApplyScheduled;
 
         public void ClearProviderFilters()
         {
