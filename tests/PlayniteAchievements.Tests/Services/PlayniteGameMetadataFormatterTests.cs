@@ -250,5 +250,34 @@ namespace PlayniteAchievements.Services.Tests
                     showPlatform: false, showPlaytime: false, showRegion: false,
                     showTotal: true, showPoints: true));
         }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_WithScoreTotals_AppendsCollectionThenPrestige()
+        {
+            Assert.AreEqual(
+                "🏆 50 • 1,250 pts • 3,400 Collection • 12,800 Prestige",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 50, 1250, 3400, 12800,
+                    showPlatform: true, showPlaytime: true, showRegion: true,
+                    showTotal: true, showPoints: true, showCollection: true, showPrestige: true));
+        }
+
+        [TestMethod]
+        public void BuildOverviewMetadataText_WithScoreTotals_OmitsZeroAndDisabledTotals()
+        {
+            Assert.AreEqual(
+                "12,800 Prestige",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 0, 0, 0, 12800,
+                    showPlatform: true, showPlaytime: true, showRegion: true,
+                    showTotal: true, showPoints: true, showCollection: true, showPrestige: true));
+
+            Assert.AreEqual(
+                "3,400 Collection",
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
+                    string.Empty, string.Empty, string.Empty, 50, 1250, 3400, 12800,
+                    showPlatform: false, showPlaytime: false, showRegion: false,
+                    showTotal: false, showPoints: false, showCollection: true, showPrestige: false));
+        }
     }
 }
