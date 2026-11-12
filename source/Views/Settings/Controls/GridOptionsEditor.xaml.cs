@@ -245,11 +245,15 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.ShowDateModeRow = rows.ShowDateModeRow;
             editor.ShowMetadataRows = rows.ShowMetadataRows;
             editor.ShowCompletionGlowRow = rows.ShowCompletionGlowRow;
+            editor._sortRows = rows;
             editor.ShowGameSortPinOrderChoice = rows.ShowGameSortPinOrderChoice;
-            editor.ShowLibraryGameSortChoices = rows.ShowLibraryGameSortChoices;
-            editor.ShowGameColumnSortChoice = rows.ShowGameColumnSortChoice;
-            editor.ShowFriendGameSortChoices = rows.ShowFriendGameSortChoices;
+            editor.RefreshSortChoices();
         }
+
+        private static readonly GridDisplayRowCapabilities DefaultSortRows = new GridDisplayRowCapabilities();
+
+        // The surface's rows, which say which scoped columns its default sort offers.
+        private GridDisplayRowCapabilities _sortRows = DefaultSortRows;
 
         private static readonly DependencyPropertyKey SortChoicesPropertyKey =
             DependencyProperty.RegisterReadOnly(
@@ -290,7 +294,7 @@ namespace PlayniteAchievements.Views.Settings.Controls
             }
 
             choices.AddRange(GridSortColumns
-                .Offered(columns, ShowGameColumnSortChoice, ShowLibraryGameSortChoices, ShowFriendGameSortChoices)
+                .Offered(columns, _sortRows.HasSortScope)
                 .Select(column => new GridSortOption(column.Key, ResourceProvider.GetString(column.LabelKey))));
             SetValue(SortChoicesPropertyKey, choices);
         }
@@ -385,18 +389,5 @@ namespace PlayniteAchievements.Views.Settings.Controls
         // order is user-controlled (the showcase pinned-games grid) enable it.
         public static readonly DependencyProperty ShowGameSortPinOrderChoiceProperty = RegisterSortChoiceFlag(nameof(ShowGameSortPinOrderChoice), false);
         public bool ShowGameSortPinOrderChoice { get => (bool)GetValue(ShowGameSortPinOrderChoiceProperty); set => SetValue(ShowGameSortPinOrderChoiceProperty, value); }
-
-        // Offers the date added, release date, playtime and remaining game sort choices, which
-        // read the user's own library and achievement counts.
-        public static readonly DependencyProperty ShowLibraryGameSortChoicesProperty = RegisterSortChoiceFlag(nameof(ShowLibraryGameSortChoices), false);
-        public bool ShowLibraryGameSortChoices { get => (bool)GetValue(ShowLibraryGameSortChoicesProperty); set => SetValue(ShowLibraryGameSortChoicesProperty, value); }
-
-        // Offers the achievement grid's Game column as a sort; off where the grid lists one game.
-        public static readonly DependencyProperty ShowGameColumnSortChoiceProperty = RegisterSortChoiceFlag(nameof(ShowGameColumnSortChoice), true);
-        public bool ShowGameColumnSortChoice { get => (bool)GetValue(ShowGameColumnSortChoiceProperty); set => SetValue(ShowGameColumnSortChoiceProperty, value); }
-
-        // Offers the friend game grids' Owned column as a sort.
-        public static readonly DependencyProperty ShowFriendGameSortChoicesProperty = RegisterSortChoiceFlag(nameof(ShowFriendGameSortChoices), false);
-        public bool ShowFriendGameSortChoices { get => (bool)GetValue(ShowFriendGameSortChoicesProperty); set => SetValue(ShowFriendGameSortChoicesProperty, value); }
     }
 }
