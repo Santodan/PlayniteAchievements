@@ -784,6 +784,11 @@ namespace PlayniteAchievements.Services.Achievements
                 "ProviderKey" => ApplyDirection(
                     (a, b) => CompareText(a?.ProviderKey, b?.ProviderKey),
                     direction),
+                "FriendName" => ApplyDirection(
+                    (a, b) => CompareText(
+                        (a as FriendAchievementDisplayItem)?.FriendName,
+                        (b as FriendAchievementDisplayItem)?.FriendName),
+                    direction),
                 "CategoryType" => ApplyDirection(CreateTagCountComparison(scope), direction),
                 "CategoryKind" => ApplyDirection(
                     (a, b) => CompareByCategoryKindThenUnlock(a, b, scope),
