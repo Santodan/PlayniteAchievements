@@ -349,7 +349,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
-                Width = 170
+                Width = 170,
+                // Its default holds picks (every finish and In Progress); only an edit filters.
+                IsFiltering = () => _completenessFilterEdited
             });
             GameSummariesControlBar.Items.Add(new GridMultiSelectFilter(
                 this,
