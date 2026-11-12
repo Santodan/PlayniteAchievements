@@ -516,6 +516,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showMetadataRegion = true;
         private bool _showMetadataTotal;
         private bool _showMetadataPoints;
+        private bool _showMetadataCollection;
+        private bool _showMetadataPrestige;
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
@@ -561,6 +563,20 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showMetadataPoints;
             set => SetValue(ref _showMetadataPoints, value);
+        }
+
+        // Adds the Collection score total to the line under the name.
+        public bool ShowMetadataCollection
+        {
+            get => _showMetadataCollection;
+            set => SetValue(ref _showMetadataCollection, value);
+        }
+
+        // Adds the Prestige score total to the line under the name.
+        public bool ShowMetadataPrestige
+        {
+            get => _showMetadataPrestige;
+            set => SetValue(ref _showMetadataPrestige, value);
         }
 
         public bool ShowCompletionGlow
@@ -639,6 +655,8 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowMetadataRegion = ShowMetadataRegion;
             clone.ShowMetadataTotal = ShowMetadataTotal;
             clone.ShowMetadataPoints = ShowMetadataPoints;
+            clone.ShowMetadataCollection = ShowMetadataCollection;
+            clone.ShowMetadataPrestige = ShowMetadataPrestige;
             clone.ShowCompletionGlow = ShowCompletionGlow;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.ShowNameAboveProgress = ShowNameAboveProgress;
@@ -721,6 +739,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityBadgesBelowProgress = true;
         private bool _showMetadataTotal;
         private bool _showMetadataPoints;
+        private bool _showMetadataCollection;
+        private bool _showMetadataPrestige;
         private bool _showTreeOnly;
 
         public GridColumnLayoutOptions Columns
@@ -792,6 +812,20 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showMetadataPoints, value);
         }
 
+        // Adds the Collection score total to the line under the category name.
+        public bool ShowMetadataCollection
+        {
+            get => _showMetadataCollection;
+            set => SetValue(ref _showMetadataCollection, value);
+        }
+
+        // Adds the Prestige score total to the line under the category name.
+        public bool ShowMetadataPrestige
+        {
+            get => _showMetadataPrestige;
+            set => SetValue(ref _showMetadataPrestige, value);
+        }
+
         // Leaves only the tree guide in the category name cell, so a row without one is blank.
         public bool ShowTreeOnly
         {
@@ -813,6 +847,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress,
                 ShowMetadataTotal = ShowMetadataTotal,
                 ShowMetadataPoints = ShowMetadataPoints,
+                ShowMetadataCollection = ShowMetadataCollection,
+                ShowMetadataPrestige = ShowMetadataPrestige,
                 ShowTreeOnly = ShowTreeOnly
             };
         }
