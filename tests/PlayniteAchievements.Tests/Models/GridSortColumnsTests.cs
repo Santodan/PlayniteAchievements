@@ -147,9 +147,9 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void GameSortIndicator_SkipsLastUnlockOnly()
+        public void GameSortIndicator_FollowsTheSortColumn()
         {
-            Assert.IsNull(new GameSummariesSortSpec("LastUnlockUtc", ListSortDirection.Descending).IndicatorSortMemberPath);
+            Assert.AreEqual("LastUnlockUtc", new GameSummariesSortSpec("LastUnlockUtc", ListSortDirection.Descending).IndicatorSortMemberPath);
             Assert.AreEqual("Added", new GameSummariesSortSpec("Added", ListSortDirection.Descending).IndicatorSortMemberPath);
             Assert.IsNull(new GameSummariesSortSpec(GridSortColumns.SourceOrder, ListSortDirection.Descending).SortMemberPath);
             Assert.IsNull(new AchievementSortSpec(GridSortColumns.SourceOrder, ListSortDirection.Descending).SortMemberPath);
