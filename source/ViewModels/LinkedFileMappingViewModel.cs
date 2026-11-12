@@ -87,7 +87,7 @@ namespace PlayniteAchievements.ViewModels
         private IReadOnlyList<LinkedFilePreviewRow> _previewRows = Array.Empty<LinkedFilePreviewRow>();
         private LinkedFileTable _previewTable = LinkedFileTable.Empty;
         private LinkedFileTable _previewRowsTable;
-        private string _resultToolTip;
+        private string _unlinkedHeader;
         private bool _isReloadingNames;
 
         // Hand pairings by row key, staged until Apply.
@@ -434,12 +434,21 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _resultText, value);
         }
 
-        /// <summary>The achievements no row pairs with, one per line; null when there are none.</summary>
-        public string ResultToolTip
+        /// <summary>The game's achievements no row pairs with, with their icons.</summary>
+        public ObservableCollection<MatchOption> UnlinkedAchievements { get; } = new ObservableCollection<MatchOption>();
+
+        /// <summary>The unlinked achievements' count, as the header of their list; null when there are none.</summary>
+        public string UnlinkedHeader
         {
-            get => _resultToolTip;
-            private set => SetValue(ref _resultToolTip, value);
+            get => _unlinkedHeader;
+            private set
+            {
+                SetValue(ref _unlinkedHeader, value);
+                OnPropertyChanged(nameof(HasUnlinked));
+            }
         }
+
+        public bool HasUnlinked => _unlinkedHeader != null;
 
         /// <summary>What the mapping still lacks; null when it is complete.</summary>
         public string ProblemText
@@ -772,7 +781,8 @@ namespace PlayniteAchievements.ViewModels
             if (_lastRead?.Success != true)
             {
                 ResultText = null;
-                ResultToolTip = null;
+                UnlinkedAchievements.Clear();
+                UnlinkedHeader = null;
                 ApplyNowCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(CanApplyNow));
                 return;
@@ -796,11 +806,17 @@ namespace PlayniteAchievements.ViewModels
             _pairing.Achievements = BuildAchievementOptions(achievements, match, table, schema);
             PreviewRows = BuildPreviewRows(match, plan, schema);
 
-            ResultText = Summarize(report, match.UnmatchedRows.Count, match.UnmatchedAchievements.Count);
-            ResultToolTip = match.UnmatchedAchievements.Count == 0
+            // The unlinked achievements have their own list, so the line leaves them out.
+            ResultText = Summarize(report, match.UnmatchedRows.Count, unmatchedAchievements: 0);
+            UnlinkedAchievements.Clear();
+            foreach (var achievement in match.UnmatchedAchievements)
+            {
+                UnlinkedAchievements.Add(MatchOption.ForAchievement(achievement));
+            }
+
+            UnlinkedHeader = match.UnmatchedAchievements.Count == 0
                 ? null
-                : string.Join(Environment.NewLine, match.UnmatchedAchievements.Select(achievement =>
-                    string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName));
+                : string.Format(L("LOCPlayAch_LinkedFile_Count_UnmatchedAchievements"), match.UnmatchedAchievements.Count);
 
             ApplyNowCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanApplyNow));
@@ -818,6 +834,7 @@ namespace PlayniteAchievements.ViewModels
             var count = _previewTable.Rows.Count;
             var reuse = ReferenceEquals(_previewRowsTable, _previewTable) && _previewRows.Count == count;
             var rows = new List<LinkedFilePreviewRow>(count);
+            var now = DateTime.UtcNow;
             for (var i = 0; i < count; i++)
             {
                 string text;
@@ -846,6 +863,10 @@ namespace PlayniteAchievements.ViewModels
                     rowKey != null && _pairings.ContainsKey(rowKey),
                     rowKey,
                     match == null ? null : _pairing);
+                row.SetMatchIcon(achievement == null
+                    ? null
+                    : string.IsNullOrWhiteSpace(achievement.UnlockedIconPath) ? achievement.LockedIconPath : achievement.UnlockedIconPath);
+                row.SetCellErrors(match == null || schema == null ? null : DescribeCellErrors(schema, i, now));
                 rows.Add(row);
             }
 
@@ -854,6 +875,37 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>The game's achievements for the pairing dropdowns, each naming the row it pairs with.</summary>
+        /// <summary>
+        /// Per column index, why a row's cell cannot be read for the field it feeds, or null for a
+        /// readable cell; null when the whole row reads.
+        /// </summary>
+        private string[] DescribeCellErrors(LinkedFileSchema schema, int rowIndex, DateTime nowUtc)
+        {
+            var values = LinkedFileRowValues.Parse(_previewTable, rowIndex, schema, SafeDirectory(_filePath), nowUtc);
+            if (values.FailedFields.Count == 0)
+            {
+                return null;
+            }
+
+            var errors = new string[_previewTable.Columns.Count];
+            foreach (var field in values.FailedFields)
+            {
+                if (!schema.TryGetColumn(field, out var column))
+                {
+                    continue;
+                }
+
+                var index = _previewTable.IndexOfColumn(column);
+                if (index >= 0 && index < errors.Length)
+                {
+                    var name = FieldOptions.FirstOrDefault(option => option.Value == field)?.Name ?? field.ToString();
+                    errors[index] = string.Format(L("LOCPlayAch_LinkedFile_CellUnreadable"), name);
+                }
+            }
+
+            return errors;
+        }
+
         private static IReadOnlyList<MatchOption> BuildAchievementOptions(
             IReadOnlyList<AchievementDetail> achievements,
             LinkedFileMatchResult match,
