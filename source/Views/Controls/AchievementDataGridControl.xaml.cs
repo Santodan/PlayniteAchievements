@@ -3456,7 +3456,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             (_rowPrepareCounter ?? (_rowPrepareCounter = new RowPrepareCounter(
                 Services.Logging.PluginLogger.GetLogger(nameof(AchievementDataGridControl)),
-                ColumnSettingsKey))).RowPrepared(Dispatcher);
+                ColumnSettingsKey))).RowPrepared(Dispatcher, e.Row);
             ApplyFixedRowHeight(e.Row);
             ApplyRowHighlight(e.Row);
         }
