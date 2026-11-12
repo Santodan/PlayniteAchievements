@@ -88,11 +88,13 @@ namespace PlayniteAchievements.Views.Dialogs
             });
 
             var cellTextStyle = (Style)FindResource("PreviewCellTextStyle");
+            var fieldHeaderTemplate = (DataTemplate)FindResource("FieldHeaderTemplate");
             foreach (var column in _viewModel.Columns)
             {
                 PreviewGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = column,
+                    HeaderTemplate = fieldHeaderTemplate,
                     Binding = new Binding("[" + column.Index + "]"),
                     ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
                     MaxWidth = 420
