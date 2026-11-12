@@ -1567,12 +1567,14 @@ namespace PlayniteAchievements.Views.Controls
         // empty space. Runs after the per-item visibility pass, which is what it keys off.
         private void SyncSegmentedUnit()
         {
-            // Joined only while both show: a Display Settings choice can hide either one.
+            // Joined only while both show side by side: a Display Settings choice can hide either
+            // one, and the category dropdown usually sits in the Filters panel, away from the toggle.
             var connected =
                 _modeToggle?.EffectiveIsVisible == true &&
                 _connectedCategoryFilter?.EffectiveIsVisible == true &&
                 !ControlBarHost.IsItemHidden(_modeToggle) &&
-                !ControlBarHost.IsItemHidden(_connectedCategoryFilter);
+                !ControlBarHost.IsItemHidden(_connectedCategoryFilter) &&
+                !ControlBarHost.IsInFilterPanel(_connectedCategoryFilter);
 
             if (_connectedCategoryFilter != null)
             {
