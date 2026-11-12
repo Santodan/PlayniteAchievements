@@ -86,12 +86,14 @@ namespace PlayniteAchievements.Views.Dialogs
 
             var cellTextStyle = (Style)FindResource("PreviewCellTextStyle");
             var fieldHeaderTemplate = (DataTemplate)FindResource("FieldHeaderTemplate");
+            var fieldHeaderStyle = (Style)FindResource("FieldColumnHeaderStyle");
             foreach (var column in _viewModel.Columns)
             {
                 PreviewGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = column,
                     HeaderTemplate = fieldHeaderTemplate,
+                    HeaderStyle = fieldHeaderStyle,
                     Binding = new Binding("[" + column.Index + "]"),
                     ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
                     MaxWidth = 420
@@ -121,7 +123,7 @@ namespace PlayniteAchievements.Views.Dialogs
         /// <summary>Opens the menu of fields under a file column's header; the column's field is checked.</summary>
         private void FieldHeader_Click(object sender, RoutedEventArgs e)
         {
-            if (!(sender is FrameworkElement header) || !(header.DataContext is LinkedFileColumnItem column))
+            if (!(sender is DataGridColumnHeader header) || !(header.Column?.Header is LinkedFileColumnItem column))
             {
                 return;
             }
