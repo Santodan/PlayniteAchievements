@@ -315,15 +315,15 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>
-        /// Applies the surface's configured sort. None preserves the projection's source order
-        /// (pin order for pinned grids, unlock recency for recent grids).
+        /// Applies the surface's configured sort. The source order choice preserves the
+        /// projection's order (pin order for pinned grids, unlock recency for recent grids).
         /// </summary>
         protected override IEnumerable<AchievementDisplayItem> OrderItems(
             IEnumerable<AchievementDisplayItem> items)
         {
             var options = GridOptions as AchievementGridOptions;
             var spec = new AchievementSortSpec(
-                options?.SortMode ?? CompactListSortMode.None,
+                options?.SortColumn ?? GridSortColumns.SourceOrder,
                 options?.SortDescending == false
                     ? ListSortDirection.Ascending
                     : ListSortDirection.Descending);
@@ -357,7 +357,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override bool ShouldRefreshItemsFor(string propertyName)
         {
             return base.ShouldRefreshItemsFor(propertyName) ||
-                propertyName == nameof(AchievementGridOptions.SortMode) ||
+                propertyName == nameof(AchievementGridOptions.SortColumn) ||
                 propertyName == nameof(AchievementGridOptions.SortDescending);
         }
 
@@ -534,12 +534,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             return adapter.Apply(list);
         }
 
-        /// <summary>Sort fallback when the surface record is unavailable.</summary>
-        protected virtual GameSummariesSortMode DefaultSortMode => GameSummariesSortMode.RecentUnlock;
+        /// <summary>Sort column fallback when the surface record is unavailable.</summary>
+        protected virtual string DefaultSortColumn =>
+            GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock);
 
         /// <summary>
-        /// Applies the surface's configured sort. PinOrder preserves the projection's source
-        /// order, which for pinned grids is the user-controlled pin order. Sorting runs here
+        /// Applies the surface's configured sort. The source order choice preserves the
+        /// projection's order, which for pinned grids is the user-controlled pin order. Sorting runs here
         /// (not in the projection) so a sort edit re-orders this widget's rows without
         /// re-projecting the whole dashboard.
         /// </summary>
@@ -549,9 +550,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 .Where(item => item != null)
                 .ToList();
             var options = GridOptions as GameSummaryGridOptions;
-            GameSummariesSortHelper.Sort(
+            GameSummariesSortHelper.SortByColumn(
                 list,
-                options?.SortMode ?? DefaultSortMode,
+                options?.SortColumn ?? DefaultSortColumn,
                 options?.SortDescending == false
                     ? ListSortDirection.Ascending
                     : ListSortDirection.Descending);
@@ -561,7 +562,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override bool ShouldRefreshItemsFor(string propertyName)
         {
             return base.ShouldRefreshItemsFor(propertyName) ||
-                propertyName == nameof(GameSummaryGridOptions.SortMode) ||
+                propertyName == nameof(GameSummaryGridOptions.SortColumn) ||
                 propertyName == nameof(GameSummaryGridOptions.SortDescending);
         }
     }
