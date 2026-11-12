@@ -1533,18 +1533,22 @@ namespace PlayniteAchievements.Views.Controls
             // ObservableCollection.Move's target index and a fresh Insert expect.
             var others = bar.Items.Where(item => !ReferenceEquals(item, _modeToggle)).ToList();
 
+            // Sort By stays the bar's last item, so the toggle's fallback slot is just ahead of it.
+            var sortIndex = others.FindIndex(item => item is GridSortSelector);
+            var end = sortIndex >= 0 ? sortIndex : others.Count;
+
             int target;
             if (grouping)
             {
                 // The category dropdowns are hidden, so the toggle sits just ahead of the
                 // unlock-state toggles, leaving Compare on its left.
                 var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
-                target = firstToggleFilter >= 0 ? firstToggleFilter : others.Count;
+                target = firstToggleFilter >= 0 ? firstToggleFilter : end;
             }
             else
             {
                 var anchor = _connectedCategoryFilter == null ? -1 : others.IndexOf(_connectedCategoryFilter);
-                target = anchor >= 0 ? anchor + 1 : others.Count;
+                target = anchor >= 0 ? anchor + 1 : end;
             }
 
             var current = bar.Items.IndexOf(_modeToggle);
@@ -2848,7 +2852,8 @@ namespace PlayniteAchievements.Views.Controls
             _sortBinder = new GridSortSelectorBinder(
                 AchievementsDataGrid,
                 e => DataGrid_Sorting(AchievementsDataGrid, e),
-                () => ProvidesSortSelector);
+                () => ProvidesSortSelector,
+                column => _columnPersistence?.IsListedInColumnMenu(column) ?? true);
             _sortBinder.SetBar(ControlBar);
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
