@@ -139,11 +139,22 @@ namespace PlayniteAchievements.Services
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
-            PersistedSettings settings)
+            PersistedSettings settings,
+            GridSortRequestEventArgs request = null)
         {
+            if (request?.IsReset == true)
+            {
+                return FriendSummariesGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return FriendSummariesGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return FriendSummariesGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings);
