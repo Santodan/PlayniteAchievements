@@ -101,68 +101,10 @@
                 <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
             </Style>
 
-            <!-- Every preview header: the Editor grid's header, left-aligned. -->
-            <Style x:Key="PreviewColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource ManageAchievementsColumnHeaderStyle}">
-                <Setter Property="HorizontalContentAlignment" Value="Left" />
-            </Style>
-
-            <!-- A file column's header: clicking anywhere on it opens the menu of fields. -->
-            <Style x:Key="FieldColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource PreviewColumnHeaderStyle}">
-                <Setter Property="Cursor" Value="Hand" />
-                <EventSetter Event="Click" Handler="FieldHeader_Click" />
-            </Style>
-
-            <!-- The field the column feeds with a chevron, and the file's own column name under it. -->
-            <DataTemplate x:Key="FieldHeaderTemplate">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="FieldName" Text="{Binding SelectedField.Name}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="Chevron"
-                                   Text="6"
-                                   FontFamily="Marlett"
-                                   FontWeight="Normal"
-                                   FontSize="12"
-                                   Margin="4,1,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource PlayAch.Brush.Glyph}"
-                                   Opacity="0.6" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding ColumnName}"
-                               FontWeight="Normal"
-                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                               TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <DataTemplate.Triggers>
-                    <DataTrigger Binding="{Binding IsMapped}" Value="False">
-                        <Setter TargetName="FieldName" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
-                    </DataTrigger>
-                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}" Value="True">
-                        <Setter TargetName="Chevron" Property="Opacity" Value="1" />
-                    </DataTrigger>
-                </DataTemplate.Triggers>
-            </DataTemplate>
-
-            <!-- A bare glyph that acts as a button: no box, the glyph brightens on hover. -->
-            <Style x:Key="GlyphButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="24" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="Opacity" Value="0.75" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border Background="Transparent">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Opacity" Value="1" />
-                    </Trigger>
-                </Style.Triggers>
+            <!-- The match column's header is plain text; the file columns' headers host a field picker. -->
+            <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                <Setter Property="VerticalContentAlignment" Value="Bottom" />
+                <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
 
             <Style x:Key="RevealGlyphTextStyle" TargetType="TextBlock">
@@ -177,11 +119,13 @@
             <!-- The match column header: its title and, when the display settings mask any of the
                  game's achievements, the eye that shows or masks them, as in the Editor. -->
             <DataTemplate x:Key="MatchColumnHeaderTemplate">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <Button Style="{StaticResource GlyphButtonStyle}"
+                <DockPanel Margin="2">
+                    <Button DockPanel.Dock="Right"
+                            Width="24" Height="24"
+                            Padding="0"
                             Margin="6,0,0,0"
-                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            Focusable="False"
                             ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
                             Command="{Binding DataContext.ToggleRevealCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                             Visibility="{Binding DataContext.HasMaskedAchievements, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}">
@@ -194,7 +138,8 @@
                                        Visibility="{Binding DataContext.IsRevealed, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}" />
                         </Grid>
                     </Button>
-                </StackPanel>
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
             </DataTemplate>
 
             <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -450,10 +395,31 @@
                               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                               RowStyle="{StaticResource PreviewRowStyle}"
                               CellStyle="{StaticResource PreviewCellStyle}"
-                              ColumnHeaderStyle="{StaticResource PreviewColumnHeaderStyle}"
                               helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                               ItemsSource="{Binding PreviewRows}">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="ContentTemplate">
+                                    <Setter.Value>
+                                        <DataTemplate>
+                                            <StackPanel Margin="2">
+                                                <ComboBox ItemsSource="{Binding DataContext.FieldOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                          SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                                                          DisplayMemberPath="Name"
+                                                          MinWidth="120" />
+                                                <TextBlock Text="{Binding ColumnName}"
+                                                           Margin="2,4,0,0"
+                                                           Style="{StaticResource HintTextStyle}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
                     </DataGrid>
                 </DockPanel>
 
