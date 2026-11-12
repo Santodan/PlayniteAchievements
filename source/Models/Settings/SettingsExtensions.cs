@@ -271,6 +271,7 @@ namespace PlayniteAchievements.Models.Settings
             target.OverviewMiniShowcase = source.OverviewMiniShowcase?.Clone();
             target.OverviewMiniShowcaseHeight = source.OverviewMiniShowcaseHeight;
             target.ShowOverviewMiniShowcase = source.ShowOverviewMiniShowcase;
+            target.ControlBarStates = source.ControlBarStates;
             target.GridOptions = source.GridOptions?.Clone() ?? new GridOptionsCatalog();
             target.StartPageActivityScope = source.StartPageActivityScope;
             target.StartPageProgressScope = source.StartPageProgressScope;
