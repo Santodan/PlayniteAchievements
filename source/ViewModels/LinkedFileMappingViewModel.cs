@@ -155,6 +155,7 @@ namespace PlayniteAchievements.ViewModels
             ApplyNowCommand = new RelayCommand(_ => ApplyNow(), _ => CanApplyNow);
             UnlinkCommand = new RelayCommand(_ => Unlink(), _ => HasStoredLink);
             RereadCommand = new RelayCommand(_ => Reread());
+            ToggleRevealCommand = new RelayCommand(_ => ToggleReveal());
             _pairing = new LinkedFilePairingContext(
                 MatchOption.Special(null, L("LOCPlayAch_Common_Automatic")),
                 MatchOption.Special(string.Empty, L("LOCPlayAch_Common_None")),
@@ -202,6 +203,34 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand UnlinkCommand { get; }
 
         public RelayCommand RereadCommand { get; }
+
+        /// <summary>Shows or masks the hidden and locked achievements' names, descriptions and icons.</summary>
+        public RelayCommand ToggleRevealCommand { get; }
+
+        private bool _isRevealed;
+        private bool _hasMaskedAchievements;
+
+        /// <summary>Whether the window shows masked achievements as they are.</summary>
+        public bool IsRevealed
+        {
+            get => _isRevealed;
+            private set => SetValue(ref _isRevealed, value);
+        }
+
+        /// <summary>Whether the display settings mask any of the game's achievements, so revealing does something.</summary>
+        public bool HasMaskedAchievements
+        {
+            get => _hasMaskedAchievements;
+            private set => SetValue(ref _hasMaskedAchievements, value);
+        }
+
+        private SpoilerSettings Spoilers => _isRevealed ? SpoilerSettings.ShowAll : _services.Spoilers;
+
+        private void ToggleReveal()
+        {
+            IsRevealed = !IsRevealed;
+            Recompute();
+        }
 
         /// <summary>True once the window stored, applied or removed a link, so the host reloads.</summary>
         public bool ChangedLink { get; private set; }
@@ -806,6 +835,8 @@ namespace PlayniteAchievements.ViewModels
                 pairings: _pairings);
             var report = plan.Report;
 
+            HasMaskedAchievements = achievements.Any(achievement =>
+                achievement != null && AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L).IsMasked);
             _pairing.Achievements = BuildAchievementOptions(achievements, match, table, schema);
             PreviewRows = BuildPreviewRows(match, plan, schema);
 
@@ -845,7 +876,7 @@ namespace PlayniteAchievements.ViewModels
                 AchievementSpoilerMask mask = null;
                 if (matched.TryGetValue(i, out var achievement))
                 {
-                    mask = AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L);
+                    mask = AchievementSpoilerMask.Apply(achievement, Spoilers, L);
                     text = mask.Name;
                     isMatched = true;
                 }
@@ -915,7 +946,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         private MatchOption MaskedOption(AchievementDetail achievement)
         {
-            var mask = AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L);
+            var mask = AchievementSpoilerMask.Apply(achievement, Spoilers, L);
             return MatchOption.Create(achievement.ApiName, mask.Name, mask.Description, mask.Icon, mask.IsTitleMasked ? achievement.ApiName : null);
         }
 
