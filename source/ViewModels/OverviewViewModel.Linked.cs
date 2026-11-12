@@ -123,19 +123,17 @@ namespace PlayniteAchievements.ViewModels
         private void ScheduleAchievementFilterApply() => ScheduleFilterApply();
 
         /// <summary>
-        /// Applies a filter change in two steps. The linked widgets refresh at once, since they
-        /// read the filter state rather than the grids, and draw in the next Background pass.
-        /// The grids refilter after that, deferred to ContextIdle so the click or pick that set
-        /// the filter finishes first. A click on a chart so shows on the charts without waiting
-        /// for the grids to rebuild their rows; the grids' own pass then finds the widgets'
-        /// views unchanged and leaves them alone. Picks made before the grids' pass runs share
-        /// it, so several quick picks in a dropdown refilter the grids once.
+        /// Applies a filter change so the dropdown, the grids and the linked widgets show it in
+        /// the same frame. The pass runs at Normal priority: after the click or pick that set the
+        /// filter finishes, and ahead of the render that follows it. The grids' pass ends by
+        /// invalidating the linked snapshots, and the mini-showcase applies those at Normal
+        /// priority too, so the next render draws everything at once. Picks made before the
+        /// pass runs share it, so several quick picks in a dropdown refilter once.
         /// </summary>
         private void ScheduleFilterApply()
         {
             // Tracing only: names the layout and render passes the filter pass sets off.
             Common.DispatcherOperationProbe.Arm(_logger, "overview-filter", TimeSpan.FromSeconds(2));
-            InvalidateLinkedSnapshots();
             if (_filterApplyPending)
             {
                 return;
@@ -154,7 +152,7 @@ namespace PlayniteAchievements.ViewModels
                     _filterApplyPending = false;
                     ApplyLeftFilters();
                 }),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
+                System.Windows.Threading.DispatcherPriority.Normal);
         }
 
         private bool _filterApplyPending;
