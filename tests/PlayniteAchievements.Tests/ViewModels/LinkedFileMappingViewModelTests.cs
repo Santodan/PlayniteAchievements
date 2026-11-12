@@ -471,6 +471,37 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void UnlinkedChip_RevealsOneAchievement()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                var services = harness.Services();
+                services.LoadAchievements = () => new List<AchievementDetail>
+                {
+                    new AchievementDetail { ApiName = "a", DisplayName = "Alpha" },
+                    new AchievementDetail { ApiName = "secret", DisplayName = "Secret", Hidden = true }
+                };
+                services.Spoilers = new SpoilerSettings();
+                var vm = new LinkedFileMappingViewModel(services);
+                vm.FilePath = CreateFile(folder);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
+
+                var chip = vm.UnlinkedAchievements.Single();
+                Assert.IsTrue(chip.CanReveal);
+                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", chip.Name);
+
+                vm.ToggleRevealOneCommand.Execute(chip);
+                chip = vm.UnlinkedAchievements.Single();
+                Assert.AreEqual("Secret", chip.Name);
+                Assert.IsTrue(chip.IsRevealed);
+
+                vm.ToggleRevealOneCommand.Execute(chip);
+                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", vm.UnlinkedAchievements.Single().Name);
+            });
+        }
+
+        [TestMethod]
         public void StatusText_DescribesStateAndFlagsProblems()
         {
             Func<string, string> key = name => name;
