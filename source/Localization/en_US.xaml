@@ -567,7 +567,8 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Created">{0} new</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedRows">{0} unmatched</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedAchievements">{0} unlinked achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable rows</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_CellUnreadable">This value cannot be read as {0}.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">Enter a custom time format.</sys:String>
