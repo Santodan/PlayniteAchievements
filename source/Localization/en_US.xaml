@@ -550,7 +550,6 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_PreviewRowsFormat">{0} rows</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">No match</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">New</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">Add new achievements</sys:String>
@@ -567,7 +566,7 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Relocked">{0} relocked</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Created">{0} new</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedRows">{0} unmatched</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedAchievements">{0} achievements without a row</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedAchievements">{0} unlinked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
