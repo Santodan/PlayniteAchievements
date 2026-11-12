@@ -192,6 +192,13 @@ namespace PlayniteAchievements.Views.Controls
                 return focusedButton.ContextMenu?.IsOpen == true;
             }
 
+            // The direction half has no menu; only the dropdown half opens one.
+            if (focusedButton.DataContext is GridSortSelector && focusedButton.ContextMenu != null)
+            {
+                SortSelector_Click(focusedButton, new RoutedEventArgs());
+                return focusedButton.ContextMenu.IsOpen;
+            }
+
             return false;
         }
 
@@ -387,6 +394,54 @@ namespace PlayniteAchievements.Views.Controls
         {
             var button = sender as Button;
             MultiSelectFilterMenu.Open(button, button?.DataContext as GridMultiSelectFilter);
+        }
+
+        // Default first, then one row per sortable column; the checked row is the current sort.
+        private void SortSelector_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var selector = button?.DataContext as GridSortSelector;
+            var menu = button?.ContextMenu;
+            if (selector == null || menu == null)
+            {
+                return;
+            }
+
+            menu.Items.Clear();
+            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            menu.Items.Add(CreateSortMenuItem(
+                selector,
+                null,
+                GridControlBarText.Get("LOCPlayAch_Common_Default", "Default"),
+                itemStyle));
+            foreach (var option in selector.Options)
+            {
+                menu.Items.Add(CreateSortMenuItem(selector, option.Key, option.Label, itemStyle));
+            }
+
+            MultiSelectFilterMenu.OpenSelectorContextMenu(button, menu);
+        }
+
+        private static MenuItem CreateSortMenuItem(GridSortSelector selector, string key, string label, Style style)
+        {
+            var item = new MenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = string.Equals(selector.SelectedKey, key, StringComparison.Ordinal)
+            };
+            if (style != null)
+            {
+                item.Style = style;
+            }
+
+            item.Click += (_, __) => selector.Select(key);
+            return item;
+        }
+
+        private void SortDirection_Click(object sender, RoutedEventArgs e)
+        {
+            ((sender as FrameworkElement)?.DataContext as GridSortSelector)?.ToggleDirection();
         }
 
         private void ProviderFilter_Click(object sender, RoutedEventArgs e)
