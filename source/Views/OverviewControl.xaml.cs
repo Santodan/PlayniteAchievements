@@ -1673,7 +1673,7 @@ namespace PlayniteAchievements.Views
                 _viewModel.OverviewSortDirection,
                 _settings?.Persisted,
                 GameSummariesSortSurface.Overview,
-                GridSortRequestEventArgs.Of(e));
+                e);
             if (sortAction.Kind == GameSummariesGridSortActionKind.None)
             {
                 return;
@@ -1706,7 +1706,7 @@ namespace PlayniteAchievements.Views
                 _settings?.Persisted,
                 AchievementSortSurface.OverviewSelectedGame,
                 e.Column?.SortDirection,
-                GridSortRequestEventArgs.Of(e));
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
@@ -1742,7 +1742,7 @@ namespace PlayniteAchievements.Views
                 _settings?.Persisted,
                 AchievementSortSurface.OverviewRecentAchievements,
                 e.Column?.SortDirection,
-                GridSortRequestEventArgs.Of(e));
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
