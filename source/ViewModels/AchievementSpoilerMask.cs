@@ -42,12 +42,13 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public sealed class AchievementSpoilerMask
     {
-        private AchievementSpoilerMask(string name, string description, string icon, bool isTitleMasked)
+        private AchievementSpoilerMask(string name, string description, string icon, bool isTitleMasked, bool isMasked)
         {
             Name = name;
             Description = description;
             Icon = icon;
             IsTitleMasked = isTitleMasked;
+            IsMasked = isMasked;
         }
 
         public string Name { get; }
@@ -58,6 +59,9 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsTitleMasked { get; }
 
+        /// <summary>Whether anything about the achievement is masked: its name, description or icon.</summary>
+        public bool IsMasked { get; }
+
         public static AchievementSpoilerMask Apply(AchievementDetail achievement, SpoilerSettings settings, System.Func<string, string> localize)
         {
             settings = settings ?? SpoilerSettings.ShowAll;
@@ -67,9 +71,11 @@ namespace PlayniteAchievements.ViewModels
 
             var titleMasked = locked && (!settings.ShowLockedTitle || (hidden && !settings.ShowHiddenTitle));
             var descriptionMasked = locked && (!settings.ShowLockedDescription || (hidden && !settings.ShowHiddenDescription));
+            var iconHidden = locked && hidden && !settings.ShowHiddenIcon;
+            var lockedIconHidden = locked && !settings.ShowLockedIcon;
             var icon = AchievementIconResolver.ResolveRowDisplayIcon(
-                isIconHidden: locked && hidden && !settings.ShowHiddenIcon,
-                isLockedIconHidden: locked && !settings.ShowLockedIcon,
+                isIconHidden: iconHidden,
+                isLockedIconHidden: lockedIconHidden,
                 unlocked: !locked,
                 unlockedIconPath: achievement.UnlockedIconPath,
                 lockedIconPath: achievement.LockedIconPath);
@@ -80,7 +86,8 @@ namespace PlayniteAchievements.ViewModels
                     : name,
                 descriptionMasked ? null : achievement.Description,
                 icon,
-                titleMasked);
+                titleMasked,
+                titleMasked || descriptionMasked || iconHidden || lockedIconHidden);
         }
     }
 }
