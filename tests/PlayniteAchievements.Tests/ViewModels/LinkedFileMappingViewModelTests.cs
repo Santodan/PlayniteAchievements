@@ -415,5 +415,34 @@ namespace PlayniteAchievements.Tests.ViewModels
                     "LOCPlayAch_LinkedFile_Status_Unstable");
             });
         }
+
+        [TestMethod]
+        public void StatusText_DescribesStateAndFlagsProblems()
+        {
+            Func<string, string> key = name => name;
+            Assert.IsNull(LinkedFileStatusText.DescribeState(null, key));
+            Assert.IsFalse(LinkedFileStatusText.HasProblem(null));
+            Assert.IsTrue(LinkedFileStatusText.HasProblem(new LinkedFileLink()));
+
+            var missing = new LinkedFileLink { FilePath = @"C:\nowhere\p.csv" };
+            Assert.AreEqual("LOCPlayAch_LinkedFile_FileMissing", LinkedFileStatusText.DescribeState(missing, key));
+            Assert.IsTrue(LinkedFileStatusText.HasProblem(missing));
+
+            WithFolder(folder =>
+            {
+                var path = CreateFile(folder);
+                var notRead = new LinkedFileLink { FilePath = path };
+                Assert.AreEqual("LOCPlayAch_LinkedFile_NotReadYet", LinkedFileStatusText.DescribeState(notRead, key));
+                Assert.IsFalse(LinkedFileStatusText.HasProblem(notRead));
+
+                var ok = new LinkedFileLink { FilePath = path, LastReadUtc = DateTime.UtcNow, LastReadStatus = "Ok" };
+                Assert.AreEqual("LOCPlayAch_LinkedFile_ReadFormat", LinkedFileStatusText.DescribeState(ok, key));
+                Assert.IsFalse(LinkedFileStatusText.HasProblem(ok));
+
+                var failed = new LinkedFileLink { FilePath = path, LastReadStatus = "ReadFailed" };
+                Assert.AreEqual("LOCPlayAch_LinkedFile_Status_ReadFailed", LinkedFileStatusText.DescribeState(failed, key));
+                Assert.IsTrue(LinkedFileStatusText.HasProblem(failed));
+            });
+        }
     }
 }
