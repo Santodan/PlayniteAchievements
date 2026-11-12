@@ -78,21 +78,20 @@ namespace PlayniteAchievements.Views.Dialogs
             {
                 Header = ResourceProvider.GetString("LOCPlayAch_Column_Achievement"),
                 CellTemplate = (DataTemplate)FindResource("MatchCellTemplate"),
-                // A template of its own: the grid's header style hosts the field picker, which
-                // belongs on the file's columns only.
                 HeaderTemplate = (DataTemplate)FindResource("MatchColumnHeaderTemplate"),
-                HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
                 CellStyle = (Style)FindResource("MatchCellStyle"),
                 Width = 240,
                 MaxWidth = 300
             });
 
             var cellTextStyle = (Style)FindResource("PreviewCellTextStyle");
+            var fieldHeaderTemplate = (DataTemplate)FindResource("FieldHeaderTemplate");
             foreach (var column in _viewModel.Columns)
             {
                 PreviewGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = column,
+                    HeaderTemplate = fieldHeaderTemplate,
                     Binding = new Binding("[" + column.Index + "]"),
                     ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
                     MaxWidth = 420
@@ -117,6 +116,34 @@ namespace PlayniteAchievements.Views.Dialogs
             failed.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
             style.Triggers.Add(failed);
             return style;
+        }
+
+        /// <summary>Opens the menu of fields under a file column's header; the column's field is checked.</summary>
+        private void FieldHeader_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is FrameworkElement header) || !(header.DataContext is LinkedFileColumnItem column))
+            {
+                return;
+            }
+
+            var menu = new ContextMenu
+            {
+                PlacementTarget = header,
+                Placement = PlacementMode.Bottom
+            };
+            foreach (var option in _viewModel.FieldOptions)
+            {
+                var item = new MenuItem
+                {
+                    Header = option.Name,
+                    IsCheckable = false,
+                    IsChecked = ReferenceEquals(option, column.SelectedField)
+                };
+                item.Click += (s, args) => column.SelectedField = option;
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
         }
 
         private void PresetActionsButton_Click(object sender, RoutedEventArgs e)
