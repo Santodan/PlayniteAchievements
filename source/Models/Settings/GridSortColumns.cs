@@ -16,7 +16,16 @@ namespace PlayniteAchievements.Models.Settings
         Library,
 
         /// <summary>Game grids over a friend's games (the Owned column).</summary>
-        FriendGames
+        FriendGames,
+
+        /// <summary>Achievement grids over friends' unlocks (the Friend column).</summary>
+        Friend,
+
+        /// <summary>
+        /// Game grids with per-game achievement stats; the grids over every friend's games at
+        /// once leave these columns out.
+        /// </summary>
+        PerGameStats
     }
 
     /// <summary>A column a grid can take as its default sort: its sort member path and header label.</summary>
@@ -59,6 +68,7 @@ namespace PlayniteAchievements.Models.Settings
             new GridSortColumn("DisplayName", "LOCPlayAch_Column_Achievement"),
             new GridSortColumn("HasAchievementNote", "LOCPlayAch_ManageAchievements_Notes_Note"),
             new GridSortColumn("SortingName", "LOCPlayAch_Column_Game", GridSortColumnScope.MultiGame),
+            new GridSortColumn("FriendName", "LOCPlayAch_Column_Friend", GridSortColumnScope.Friend),
             new GridSortColumn("UnlockTime", "LOCPlayAch_Common_Unlocked"),
             new GridSortColumn("CategoryKind", "LOCPlayAch_Common_Type"),
             new GridSortColumn("CategoryType", "LOCPlayAch_Common_Tags"),
@@ -79,34 +89,45 @@ namespace PlayniteAchievements.Models.Settings
             new GridSortColumn("PlaytimeSeconds", "LOCPlayAch_Common_Label_Playtime", GridSortColumnScope.Library),
             new GridSortColumn("Added", "LOCPlayAch_Common_DateAdded", GridSortColumnScope.Library),
             new GridSortColumn("ReleaseDate", "LOCPlayAch_Common_ReleaseDate", GridSortColumnScope.Library),
-            new GridSortColumn("Progression", "LOCPlayAch_Progress"),
-            new GridSortColumn("TotalAchievements", "LOCPlayAch_Column_Total"),
+            new GridSortColumn("Progression", "LOCPlayAch_Progress", GridSortColumnScope.PerGameStats),
+            new GridSortColumn("TotalAchievements", "LOCPlayAch_Column_Total", GridSortColumnScope.PerGameStats),
             new GridSortColumn("RemainingAchievements", "LOCPlayAch_Common_Locked", GridSortColumnScope.Library),
-            new GridSortColumn("CollectionScore", "LOCPlayAch_Score_Collection"),
-            new GridSortColumn("PrestigeScore", "LOCPlayAch_Score_Prestige"),
-            new GridSortColumn("Points", "LOCPlayAch_Column_Points")
+            new GridSortColumn("CollectionScore", "LOCPlayAch_Score_Collection", GridSortColumnScope.PerGameStats),
+            new GridSortColumn("PrestigeScore", "LOCPlayAch_Score_Prestige", GridSortColumnScope.PerGameStats),
+            new GridSortColumn("Points", "LOCPlayAch_Column_Points", GridSortColumnScope.PerGameStats)
         };
 
         public static bool IsSourceOrder(string key) => string.IsNullOrEmpty(key);
 
-        /// <summary>The columns of <paramref name="columns"/> a surface offers, given which scoped columns it has.</summary>
+        /// <summary>
+        /// The columns of <paramref name="columns"/> a surface offers: every unscoped column, and
+        /// each scoped one whose scope <paramref name="hasScope"/> says the surface has.
+        /// </summary>
         public static IEnumerable<GridSortColumn> Offered(
             IEnumerable<GridSortColumn> columns,
-            bool multiGame,
-            bool library,
-            bool friendGames)
+            Func<GridSortColumnScope, bool> hasScope)
         {
             foreach (var column in columns ?? Array.Empty<GridSortColumn>())
             {
-                var offered = column.Scope == GridSortColumnScope.Always ||
-                              (column.Scope == GridSortColumnScope.MultiGame && multiGame) ||
-                              (column.Scope == GridSortColumnScope.Library && library) ||
-                              (column.Scope == GridSortColumnScope.FriendGames && friendGames);
-                if (offered)
+                if (column.Scope == GridSortColumnScope.Always || hasScope?.Invoke(column.Scope) == true)
                 {
                     yield return column;
                 }
             }
+        }
+
+        /// <summary>The catalog's label key for a sort member path, or null when it lists no such sort.</summary>
+        public static string LabelKeyFor(IEnumerable<GridSortColumn> columns, string sortMemberPath)
+        {
+            foreach (var column in columns ?? Array.Empty<GridSortColumn>())
+            {
+                if (string.Equals(column.Key, sortMemberPath, StringComparison.Ordinal))
+                {
+                    return column.LabelKey;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>The column key for an achievement grid sort saved before column keys.</summary>
