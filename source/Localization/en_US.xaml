@@ -523,6 +523,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Custom Tracking Override</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Title">Linked file</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">Link File</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_EditButton">Edit Linked File</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">Read unlock status for this game's achievements from a file on this PC.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Mapping">Mapping</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_AttachFile">Attach file</sys:String>
