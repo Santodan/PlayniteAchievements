@@ -49,6 +49,9 @@ namespace PlayniteAchievements.ViewModels
         public Func<Func<LinkedFileReadResult>, Task<LinkedFileReadResult>> RunRead { get; set; } = work => Task.Run(work);
 
         public Func<string, string> Localize { get; set; } = key => ResourceProvider.GetString(key);
+
+        /// <summary>What locked and hidden achievements show; everything when unset.</summary>
+        public SpoilerSettings Spoilers { get; set; } = SpoilerSettings.ShowAll;
     }
 
     /// <summary>
@@ -811,7 +814,7 @@ namespace PlayniteAchievements.ViewModels
             UnlinkedAchievements.Clear();
             foreach (var achievement in match.UnmatchedAchievements)
             {
-                UnlinkedAchievements.Add(MatchOption.ForAchievement(achievement));
+                UnlinkedAchievements.Add(MaskedOption(achievement));
             }
 
             UnlinkedHeader = match.UnmatchedAchievements.Count == 0
@@ -839,9 +842,11 @@ namespace PlayniteAchievements.ViewModels
             {
                 string text;
                 bool isMatched;
+                AchievementSpoilerMask mask = null;
                 if (matched.TryGetValue(i, out var achievement))
                 {
-                    text = string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName;
+                    mask = AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L);
+                    text = mask.Name;
                     isMatched = true;
                 }
                 else if (plan?.CreatedRows.Contains(i) == true)
@@ -863,9 +868,7 @@ namespace PlayniteAchievements.ViewModels
                     rowKey != null && _pairings.ContainsKey(rowKey),
                     rowKey,
                     match == null ? null : _pairing);
-                row.SetMatchIcon(achievement == null
-                    ? null
-                    : string.IsNullOrWhiteSpace(achievement.UnlockedIconPath) ? achievement.LockedIconPath : achievement.UnlockedIconPath);
+                row.SetMatchIcon(mask?.Icon);
                 row.SetCellErrors(match == null || schema == null ? null : DescribeCellErrors(schema, i, now));
                 rows.Add(row);
             }
@@ -906,7 +909,17 @@ namespace PlayniteAchievements.ViewModels
             return errors;
         }
 
-        private static IReadOnlyList<MatchOption> BuildAchievementOptions(
+        /// <summary>
+        /// An achievement as the window shows it: masked per the hidden and locked display settings,
+        /// and found by its API name when its name is masked, so a search never confirms a hidden name.
+        /// </summary>
+        private MatchOption MaskedOption(AchievementDetail achievement)
+        {
+            var mask = AchievementSpoilerMask.Apply(achievement, _services.Spoilers, L);
+            return MatchOption.Create(achievement.ApiName, mask.Name, mask.Description, mask.Icon, mask.IsTitleMasked ? achievement.ApiName : null);
+        }
+
+        private IReadOnlyList<MatchOption> BuildAchievementOptions(
             IReadOnlyList<AchievementDetail> achievements,
             LinkedFileMatchResult match,
             LinkedFileTable table,
@@ -921,7 +934,7 @@ namespace PlayniteAchievements.ViewModels
             var options = new List<MatchOption>();
             foreach (var achievement in achievements.Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.ApiName)))
             {
-                var option = MatchOption.ForAchievement(achievement);
+                var option = MaskedOption(achievement);
                 if (rowByAchievement.TryGetValue(achievement, out var rowIndex))
                 {
                     option.SetPairedWith(DescribeRow(table, schema, rowIndex), null);
