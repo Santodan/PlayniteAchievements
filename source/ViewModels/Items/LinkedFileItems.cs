@@ -241,4 +241,34 @@ namespace PlayniteAchievements.ViewModels.Items
             _pairing.Pair?.Invoke(_rowKey, option.Key);
         }
     }
+
+    /// <summary>
+    /// One of the game's achievements that no file row pairs with, as the unlinked list shows it:
+    /// masked per the display settings until revealed.
+    /// </summary>
+    public sealed class LinkedFileUnlinkedItem
+    {
+        public LinkedFileUnlinkedItem(string apiName, string name, string description, string icon, bool canReveal, bool isRevealed)
+        {
+            ApiName = apiName;
+            Name = name;
+            Description = description;
+            Icon = icon;
+            CanReveal = canReveal;
+            IsRevealed = isRevealed;
+        }
+
+        public string ApiName { get; }
+
+        public string Name { get; }
+
+        public string Description { get; }
+
+        public string Icon { get; }
+
+        /// <summary>Whether the display settings mask the achievement, so clicking it reveals or masks it.</summary>
+        public bool CanReveal { get; }
+
+        public bool IsRevealed { get; }
+    }
 }
