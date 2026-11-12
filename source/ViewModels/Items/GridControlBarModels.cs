@@ -860,6 +860,9 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public Action<string, ListSortDirection?> Apply { get; set; }
 
+        /// <summary>Runs as the dropdown opens, so the owner can bring <see cref="Options"/> up to date.</summary>
+        public Action Opening { get; set; }
+
         public IReadOnlyList<GridSortOption> Options
         {
             get => _options;
@@ -903,7 +906,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 return;
             }
 
-            Apply?.Invoke(key, _direction);
+            Request(key, _direction);
         }
 
         /// <summary>Flips the direction of the sort; nothing while the rows are unsorted.</summary>
@@ -914,7 +917,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 return;
             }
 
-            Apply?.Invoke(
+            Request(
                 _selectedKey,
                 IsDescending ? ListSortDirection.Ascending : ListSortDirection.Descending);
         }
@@ -922,7 +925,15 @@ namespace PlayniteAchievements.ViewModels.Items
         /// <summary>Removes the sort.</summary>
         public override void ClearSelection()
         {
-            Apply?.Invoke(null, null);
+            Request(null, null);
+        }
+
+        // Shows the choice at once, then applies it; the owner reports back where the sort
+        // settled, which only differs when the grid could not sort that way.
+        private void Request(string key, ListSortDirection? direction)
+        {
+            ShowState(key, direction);
+            Apply?.Invoke(key, direction);
         }
 
         /// <summary>Shows the grid's current sort without applying anything; a null key is unsorted.</summary>
