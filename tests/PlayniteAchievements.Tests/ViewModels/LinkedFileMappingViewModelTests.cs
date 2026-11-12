@@ -418,6 +418,29 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void SpoilerMask_FollowsHiddenAndLockedSettings()
+        {
+            Func<string, string> key = name => name;
+            var hidden = new AchievementDetail { ApiName = "h", DisplayName = "Secret", Description = "Spoiler", Hidden = true, UnlockedIconPath = @"C:\i\h.png" };
+            var locked = new AchievementDetail { ApiName = "l", DisplayName = "Plain", Description = "Text", UnlockedIconPath = @"C:\i\l.png" };
+            var settings = new SpoilerSettings();
+
+            var maskedHidden = AchievementSpoilerMask.Apply(hidden, settings, key);
+            Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", maskedHidden.Name);
+            Assert.IsNull(maskedHidden.Description);
+            Assert.IsTrue(maskedHidden.IsTitleMasked);
+            Assert.AreNotEqual(@"C:\i\h.png", maskedHidden.Icon);
+
+            Assert.AreEqual("Plain", AchievementSpoilerMask.Apply(locked, settings, key).Name, "Locked titles show by default.");
+            settings.ShowLockedTitle = false;
+            Assert.AreEqual("LOCPlayAch_Common_Locked", AchievementSpoilerMask.Apply(locked, settings, key).Name);
+
+            hidden.Unlocked = true;
+            Assert.AreEqual("Secret", AchievementSpoilerMask.Apply(hidden, settings, key).Name, "Unlocked achievements are never masked.");
+            Assert.AreEqual("Secret", AchievementSpoilerMask.Apply(hidden, SpoilerSettings.ShowAll, key).Name);
+        }
+
+        [TestMethod]
         public void StatusText_DescribesStateAndFlagsProblems()
         {
             Func<string, string> key = name => name;
