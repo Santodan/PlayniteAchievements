@@ -142,7 +142,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual("Alpha", vm.PreviewRows[0].Match);
                 Assert.AreEqual("LOCPlayAch_LinkedFile_NoMatch", vm.PreviewRows[2].Match, "The zzz row matches nothing.");
                 Assert.IsFalse(vm.PreviewRows[2].IsMatched);
-                Assert.AreEqual(0, vm.UnmatchedAchievements.Count);
+                Assert.IsNull(vm.ResultToolTip, "Every achievement has a row.");
 
                 vm.Columns[1].SelectedField = apiName;
                 Assert.AreEqual(LinkedFileField.Ignore, vm.Columns[0].Field, "Picking a field another column feeds moves it.");
