@@ -623,7 +623,7 @@ namespace PlayniteAchievements.ViewModels
 
             var options = AchievementGridOptions;
             var sort = new AchievementSortSpec(
-                options?.SortMode ?? CompactListSortMode.UnlockTime,
+                options?.SortColumn ?? GridSortColumns.FromAchievementMode(CompactListSortMode.UnlockTime),
                 (options?.SortDescending ?? true)
                     ? ListSortDirection.Descending
                     : ListSortDirection.Ascending);
