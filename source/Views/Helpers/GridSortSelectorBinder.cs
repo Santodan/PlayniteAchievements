@@ -36,6 +36,7 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly DataGrid _grid;
         private readonly Action<DataGridSortingEventArgs> _sort;
         private readonly Func<bool> _providesSelector;
+        private readonly Func<DataGridColumn, bool> _isOffered;
         private readonly Action<string, ListSortDirection?> _apply;
         private readonly List<DataGridColumn> _watchedColumns = new List<DataGridColumn>();
         private GridControlBarViewModel _bar;
@@ -52,14 +53,20 @@ namespace PlayniteAchievements.Views.Helpers
         /// <param name="grid">The data grid whose columns the item lists and whose arrows it mirrors.</param>
         /// <param name="sort">The grid control's Sorting handler, which a request runs through.</param>
         /// <param name="providesSelector">True when a bar without the item should get one.</param>
+        /// <param name="isOffered">
+        /// Whether the item offers a column; the grid's column menu decides, so a column the
+        /// surface keeps out of that menu is not offered here either.
+        /// </param>
         public GridSortSelectorBinder(
             DataGrid grid,
             Action<DataGridSortingEventArgs> sort,
-            Func<bool> providesSelector)
+            Func<bool> providesSelector,
+            Func<DataGridColumn, bool> isOffered)
         {
             _grid = grid ?? throw new ArgumentNullException(nameof(grid));
             _sort = sort;
             _providesSelector = providesSelector ?? (() => true);
+            _isOffered = isOffered ?? (_ => true);
             _apply = Apply;
 
             // Subscribed after the grid control's own XAML handler, so it reads the outcome.
@@ -133,6 +140,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (_selector != null && _grid.IsLoaded)
             {
                 _selector.Apply = _apply;
+                _selector.Opening = RefreshOptions;
                 RefreshOptions();
                 SyncState();
             }
@@ -172,6 +180,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (_selector != null && _selector.Apply == _apply)
             {
                 _selector.Apply = null;
+                _selector.Opening = null;
             }
         }
 
@@ -218,7 +227,10 @@ namespace PlayniteAchievements.Views.Helpers
 
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var options = _grid.Columns
-                .Where(column => column != null && column.CanUserSort && !string.IsNullOrWhiteSpace(column.SortMemberPath))
+                .Where(column => column != null &&
+                                 column.CanUserSort &&
+                                 !string.IsNullOrWhiteSpace(column.SortMemberPath) &&
+                                 _isOffered(column))
                 .OrderBy(column => column.DisplayIndex)
                 .Where(column => seen.Add(column.SortMemberPath))
                 .Select(column => new GridSortOption(
@@ -268,8 +280,10 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            // After the grid's own deferred work, so the item shows where the sort settled
+            // rather than each step on the way.
             _syncPending = true;
-            _grid.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            _grid.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
             {
                 _syncPending = false;
                 if (_unsorted)
