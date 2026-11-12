@@ -2002,6 +2002,7 @@ namespace PlayniteAchievements.Models.Tests
                 ShowOverviewGameMetadataPlaytime = false,
                 ShowOverviewGameMetadataRegion = false,
                 ShowTopMenuBarButton = false,
+                ShowSidebarButton = false,
                 ShowCompletedProgressColoring = false,
                 ShowCompactListRarityBar = false,
                 ShowCompletionGlow = false,
@@ -2115,6 +2116,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowOverviewGameMetadataPlaytime, settings.ShowOverviewGameMetadataPlaytime);
             Assert.AreEqual(defaults.ShowOverviewGameMetadataRegion, settings.ShowOverviewGameMetadataRegion);
             Assert.AreEqual(defaults.ShowTopMenuBarButton, settings.ShowTopMenuBarButton);
+            Assert.AreEqual(defaults.ShowSidebarButton, settings.ShowSidebarButton);
             Assert.AreEqual(defaults.ShowCompletedProgressColoring, settings.ShowCompletedProgressColoring);
             Assert.AreEqual(defaults.ShowCompactListRarityBar, settings.ShowCompactListRarityBar);
             Assert.AreEqual(defaults.ShowCompletionGlow, settings.ShowCompletionGlow);
