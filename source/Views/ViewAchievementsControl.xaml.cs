@@ -209,7 +209,7 @@ namespace PlayniteAchievements.Views
                 _settings?.Persisted,
                 AchievementSortSurface.SingleGame,
                 e.Column?.SortDirection,
-                GridSortRequestEventArgs.Of(e));
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
