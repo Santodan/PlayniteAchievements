@@ -497,6 +497,36 @@ namespace PlayniteAchievements.Views.Controls
             private set => SetValue(ShowMetadataPointsProperty, value);
         }
 
+        public static readonly DependencyProperty ShowMetadataCollectionProperty =
+            DependencyProperty.Register(
+                nameof(ShowMetadataCollection),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(false));
+
+        // Resolved per-surface toggle adding the Collection score total to the line under the
+        // game/category name; consumed by the GameSummaryName column's metadata line.
+        public bool ShowMetadataCollection
+        {
+            get => (bool)GetValue(ShowMetadataCollectionProperty);
+            private set => SetValue(ShowMetadataCollectionProperty, value);
+        }
+
+        public static readonly DependencyProperty ShowMetadataPrestigeProperty =
+            DependencyProperty.Register(
+                nameof(ShowMetadataPrestige),
+                typeof(bool),
+                typeof(GameSummariesGridControl),
+                new PropertyMetadata(false));
+
+        // Resolved per-surface toggle adding the Prestige score total to the line under the
+        // game/category name; consumed by the GameSummaryName column's metadata line.
+        public bool ShowMetadataPrestige
+        {
+            get => (bool)GetValue(ShowMetadataPrestigeProperty);
+            private set => SetValue(ShowMetadataPrestigeProperty, value);
+        }
+
         public static readonly DependencyProperty ShowTreeOnlyProperty =
             DependencyProperty.Register(
                 nameof(ShowTreeOnly),
@@ -1126,6 +1156,14 @@ namespace PlayniteAchievements.Views.Controls
                     showcaseCategoryOptions?.ShowMetadataPoints ??
                     ResolveSurfaceOptions(persisted, surface, (game, category) =>
                         game?.ShowMetadataPoints ?? category?.ShowMetadataPoints ?? false),
+                GetShowMetadataCollection = () => showcaseOptions?.ShowMetadataCollection ??
+                    showcaseCategoryOptions?.ShowMetadataCollection ??
+                    ResolveSurfaceOptions(persisted, surface, (game, category) =>
+                        game?.ShowMetadataCollection ?? category?.ShowMetadataCollection ?? false),
+                GetShowMetadataPrestige = () => showcaseOptions?.ShowMetadataPrestige ??
+                    showcaseCategoryOptions?.ShowMetadataPrestige ??
+                    ResolveSurfaceOptions(persisted, surface, (game, category) =>
+                        game?.ShowMetadataPrestige ?? category?.ShowMetadataPrestige ?? false),
                 GetShowTreeOnly = () => showcaseCategoryOptions?.ShowTreeOnly ??
                     ResolveSurfaceOptions(persisted, surface, (game, category) =>
                         category?.ShowTreeOnly ?? false)
@@ -1446,6 +1484,8 @@ namespace PlayniteAchievements.Views.Controls
             public Func<bool> GetShowCompletionFrame { get; set; }
             public Func<bool> GetShowMetadataTotal { get; set; }
             public Func<bool> GetShowMetadataPoints { get; set; }
+            public Func<bool> GetShowMetadataCollection { get; set; }
+            public Func<bool> GetShowMetadataPrestige { get; set; }
             public Func<bool> GetShowTreeOnly { get; set; }
         }
 
@@ -1800,6 +1840,8 @@ namespace PlayniteAchievements.Views.Controls
             {
                 ShowMetadataTotal = surfaceSettings.GetShowMetadataTotal();
                 ShowMetadataPoints = surfaceSettings.GetShowMetadataPoints();
+                ShowMetadataCollection = surfaceSettings.GetShowMetadataCollection();
+                ShowMetadataPrestige = surfaceSettings.GetShowMetadataPrestige();
             }
         }
 
@@ -1807,7 +1849,9 @@ namespace PlayniteAchievements.Views.Controls
         {
             return string.IsNullOrEmpty(propertyName) ||
                    propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataTotal), StringComparison.Ordinal) ||
-                   propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataPoints), StringComparison.Ordinal);
+                   propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataPoints), StringComparison.Ordinal) ||
+                   propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataCollection), StringComparison.Ordinal) ||
+                   propertyName.EndsWith(nameof(GameSummaryGridOptions.ShowMetadataPrestige), StringComparison.Ordinal);
         }
 
         private void UpdateShowTreeOnly(PlayniteAchievementsSettings settings)
