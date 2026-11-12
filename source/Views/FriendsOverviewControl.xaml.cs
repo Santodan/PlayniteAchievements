@@ -438,7 +438,8 @@ namespace PlayniteAchievements.Views
                 e.Column?.SortMemberPath,
                 _viewModel.FriendSortPath,
                 _viewModel.FriendSortDirection,
-                settings);
+                settings,
+                GridSortRequestEventArgs.Of(e));
             if (sortAction.Kind == FriendSummariesGridSortActionKind.None)
             {
                 return;
@@ -470,7 +471,8 @@ namespace PlayniteAchievements.Views
                 _viewModel.GameSortPath,
                 _viewModel.GameSortDirection,
                 settings,
-                GameSummariesSortSurface.FriendsOverview);
+                GameSummariesSortSurface.FriendsOverview,
+                GridSortRequestEventArgs.Of(e));
             if (sortAction.Kind == GameSummariesGridSortActionKind.None)
             {
                 return;
@@ -504,7 +506,8 @@ namespace PlayniteAchievements.Views
                 _viewModel.AchievementSortDirection,
                 settings,
                 AchievementSortSurface.FriendsOverviewRecentAchievements,
-                e.Column?.SortDirection);
+                e.Column?.SortDirection,
+                GridSortRequestEventArgs.Of(e));
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
