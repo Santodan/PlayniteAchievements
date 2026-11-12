@@ -16,7 +16,10 @@ namespace PlayniteAchievements.Views.Helpers
     /// every column with a sort member, hidden ones included, under the names the column menu
     /// uses. Picking one sorts through the grid's own Sorting path with a
     /// <see cref="GridSortRequestEventArgs"/>, exactly where a header click goes, and every
-    /// column's sort arrow is mirrored back, so a header click shows in the item too.
+    /// column's sort arrow is mirrored back, so a header click shows in the item too. A sort that
+    /// ends unsorted (a header's third click, or unsorting from the item) clears the arrows, even
+    /// where the grid then falls back to its default order, and the item reads "Sort By" until
+    /// the next sort.
     /// </summary>
     /// <remarks>
     /// A bar without the item gets one when the host provides it. A showcase widget's bar does not:
@@ -43,6 +46,9 @@ namespace PlayniteAchievements.Views.Helpers
         private bool _syncPending;
         private bool _placePending;
 
+        // True after a sort that ended unsorted, until the next sort.
+        private bool _unsorted;
+
         /// <param name="grid">The data grid whose columns the item lists and whose arrows it mirrors.</param>
         /// <param name="sort">The grid control's Sorting handler, which a request runs through.</param>
         /// <param name="providesSelector">True when a bar without the item should get one.</param>
@@ -55,6 +61,9 @@ namespace PlayniteAchievements.Views.Helpers
             _sort = sort;
             _providesSelector = providesSelector ?? (() => true);
             _apply = Apply;
+
+            // Subscribed after the grid control's own XAML handler, so it reads the outcome.
+            _grid.Sorting += OnGridSorting;
             _grid.Loaded += (_, __) => Attach();
             _grid.Unloaded += (_, __) => Detach();
             _grid.Columns.CollectionChanged += (_, __) =>
@@ -236,7 +245,16 @@ namespace PlayniteAchievements.Views.Helpers
                 }
             }
 
-            _sort?.Invoke(new GridSortRequestEventArgs(column, key == null ? null : direction));
+            var request = new GridSortRequestEventArgs(column, key == null ? null : direction);
+            _sort?.Invoke(request);
+            AfterSort(request);
+        }
+
+        private void OnGridSorting(object sender, DataGridSortingEventArgs e) => AfterSort(e);
+
+        private void AfterSort(DataGridSortingEventArgs e)
+        {
+            _unsorted = GridSortRequestEventArgs.WasReset(e);
             ScheduleSync();
         }
 
@@ -254,12 +272,25 @@ namespace PlayniteAchievements.Views.Helpers
             _grid.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
                 _syncPending = false;
+                if (_unsorted)
+                {
+                    // The grid may show its default order's arrow after unsorting; the rows are
+                    // unsorted as far as the user chose, so no column reads as sorted.
+                    DataGridSortingHelper.ClearSortIndicators(_grid);
+                }
+
                 SyncState();
             }));
         }
 
         private void SyncState()
         {
+            if (_unsorted)
+            {
+                _selector?.ShowState(null, null);
+                return;
+            }
+
             var sorted = _grid.Columns.FirstOrDefault(column =>
                 column?.SortDirection != null && !string.IsNullOrWhiteSpace(column.SortMemberPath));
             _selector?.ShowState(sorted?.SortMemberPath, sorted?.SortDirection);
