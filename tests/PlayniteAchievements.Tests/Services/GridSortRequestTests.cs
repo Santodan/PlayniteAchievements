@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Services.Tests
                 currentSortDirection: null,
                 settings,
                 AchievementSortSurface.SingleGame,
-                request: new GridSortRequestEventArgs(Column("RaritySortValue"), ListSortDirection.Descending));
+                sortEvent: new GridSortRequestEventArgs(Column("RaritySortValue"), ListSortDirection.Descending));
 
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, action.Kind);
             Assert.AreEqual("RaritySortValue", action.SortMemberPath);
@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Services.Tests
                 ListSortDirection.Descending,
                 new PersistedSettings(),
                 AchievementSortSurface.SingleGame,
-                request: new GridSortRequestEventArgs(Column("RaritySortValue"), ListSortDirection.Descending));
+                sortEvent: new GridSortRequestEventArgs(Column("RaritySortValue"), ListSortDirection.Descending));
 
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, action.Kind);
             Assert.AreEqual(ListSortDirection.Descending, action.Direction);
@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Tests
                 ListSortDirection.Ascending,
                 new PersistedSettings(),
                 AchievementSortSurface.SingleGame,
-                request: new GridSortRequestEventArgs(null, null));
+                sortEvent: new GridSortRequestEventArgs(null, null));
 
             Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, action.Kind);
         }
@@ -147,6 +147,56 @@ namespace PlayniteAchievements.Services.Tests
             var direction = DataGridSortingHelper.HandleSorting(null, new GridSortRequestEventArgs(null, null));
 
             Assert.IsNull(direction);
+        }
+
+        [TestMethod]
+        public void HeaderClickThatResets_IsMarkedAsUnsorted()
+        {
+            var settings = new PersistedSettings
+            {
+                SingleGameGridSortMode = CompactListSortMode.None,
+                SingleGameGridSortDescending = false
+            };
+            var click = new DataGridSortingEventArgs(Column("RaritySortValue"));
+
+            // Descending is the cycle's last step, so this click removes the sort.
+            var action = AchievementSortHelper.ResolveGridSortAction(
+                "RaritySortValue",
+                "RaritySortValue",
+                ListSortDirection.Descending,
+                settings,
+                AchievementSortSurface.SingleGame,
+                sortEvent: click);
+
+            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, action.Kind);
+            Assert.IsTrue(GridSortRequestEventArgs.WasReset(click));
+        }
+
+        [TestMethod]
+        public void HeaderClickThatSorts_IsNotMarkedAsUnsorted()
+        {
+            var click = new DataGridSortingEventArgs(Column("GameName"));
+
+            GameSummariesSortHelper.ResolveGridSortAction(
+                "GameName",
+                currentSortPath: null,
+                currentSortDirection: null,
+                new PersistedSettings(),
+                GameSummariesSortSurface.Overview,
+                click);
+
+            Assert.IsFalse(GridSortRequestEventArgs.WasReset(click));
+        }
+
+        [TestMethod]
+        public void HandleSorting_CycleEnd_IsMarkedAsUnsorted()
+        {
+            var column = Column("GameName");
+            column.SortDirection = ListSortDirection.Descending;
+            var click = new DataGridSortingEventArgs(column);
+
+            Assert.IsNull(DataGridSortingHelper.HandleSorting(null, click));
+            Assert.IsTrue(GridSortRequestEventArgs.WasReset(click));
         }
 
         [TestMethod]
