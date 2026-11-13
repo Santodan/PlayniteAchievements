@@ -6353,7 +6353,9 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var created = Stopwatch.StartNew();
-                layers = ToastHoldLayers.TryCreate(_api, window, surface, cards, template, perMonitorWindow);
+                // Rays move to a layer only with the window held: left live, it shows its own.
+                layers = ToastHoldLayers.TryCreate(
+                    _api, window, surface, cards, template, perMonitorWindow, withRays: holdMain);
                 if (layers == null)
                 {
                     _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
@@ -6376,7 +6378,9 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var loaded = layers.IsLoadedLike(surface);
-                var added = loaded && presenter.AddLayer(layers.Background) && presenter.AddLayer(layers.Content);
+                var added = loaded &&
+                    (layers.Rays == null || presenter.AddUnderlay(layers.Rays)) &&
+                    presenter.AddLayer(layers.Background) && presenter.AddLayer(layers.Content);
                 if (!added)
                 {
                     presenter.RemoveLayers();
@@ -6389,7 +6393,7 @@ namespace PlayniteAchievements.Services.UI
                 presenter.ShowLayers();
                 if (holdMain)
                 {
-                    layers.MainHold = HoldMainUnderLayers(surface, out var mainIsStill);
+                    layers.MainHold = HoldMainUnderLayers(surface, layers.Rays != null, out var mainIsStill);
                     layers.MainIsStill = mainIsStill;
                     if (mainIsStill)
                     {
@@ -6427,9 +6431,9 @@ namespace PlayniteAchievements.Services.UI
         /// pulse and rays behind the card keep running, as they show around it, and then redraw
         /// only themselves.
         /// </summary>
-        private IDisposable HoldMainUnderLayers(ItemsControl surface, out bool mainIsStill)
+        private IDisposable HoldMainUnderLayers(ItemsControl surface, bool raysLayered, out bool mainIsStill)
         {
-            var heldPulses = HoldBackPulses(surface, out mainIsStill);
+            var heldPulses = HoldBackPulses(surface, raysLayered, out mainIsStill);
             var stills = AsyncImage.HoldCurrentFrames(_activeSlideHost ?? surface);
             var contents = new List<DependencyObject>();
             foreach (var background in ToastLayer.Find(surface, ToastLayerRole.Background))
@@ -6442,7 +6446,7 @@ namespace PlayniteAchievements.Services.UI
                 }
             }
 
-            var showAll = ToastLayer.ShowOnlyBack(surface);
+            var showAll = ToastLayer.ShowOnlyBack(surface, hideRays: raysLayered);
             return new HeldMain(() =>
             {
                 ReleaseBackPulses(heldPulses);
@@ -6459,29 +6463,21 @@ namespace PlayniteAchievements.Services.UI
         /// Hands the pulse of every card's border glow to the presenter: each glow stops at the
         /// pulse's peak and the wave's own thumbnail is dimmed along the same sweep, once per DWM
         /// composition. Dimming that thumbnail dims everything in the window alike, so this is
-        /// done only when every card's glow runs the same pulse and no card shows rays behind
-        /// it; otherwise the glows keep pulsing in the window. <paramref name="mainIsStill"/>
+        /// done only when every card's glow runs the same pulse and any rays behind the cards
+        /// are shown from a layer of their own (<paramref name="raysLayered"/>); otherwise the
+        /// glows keep pulsing in the window. <paramref name="mainIsStill"/>
         /// reports whether anything behind the cards is left animating in the window.
         /// </summary>
-        private List<FrameworkElement> HoldBackPulses(ItemsControl surface, out bool mainIsStill)
+        private List<FrameworkElement> HoldBackPulses(ItemsControl surface, bool raysLayered, out bool mainIsStill)
         {
             var held = new List<FrameworkElement>();
             mainIsStill = false;
-            var glows = new List<FrameworkElement>();
-            foreach (var back in ToastLayer.Find(surface, ToastLayerRole.Back))
+            if (!raysLayered && ToastLayer.Find(surface, ToastLayerRole.Rays).Exists(rays => rays.IsVisible))
             {
-                if (back is Views.Controls.RarityRayBurst)
-                {
-                    if (back.IsVisible)
-                    {
-                        return held;
-                    }
-
-                    continue;
-                }
-
-                glows.Add(back);
+                return held;
             }
+
+            var glows = ToastLayer.Find(surface, ToastLayerRole.Back);
 
             var pulsing = glows.Where(RarityGlowPulse.GetIsActive).ToList();
             if (pulsing.Count == 0)
