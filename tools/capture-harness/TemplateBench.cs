@@ -66,6 +66,7 @@ public static class TemplateBench
     private static bool _freezeMotion;
     private static bool _liveMotion;
     private static bool _thumbnail;
+    private static bool _presenter;
     private static bool _tinyAnimation;
     private static string _snapshot;
     private static string _decodePath;
@@ -151,6 +152,10 @@ public static class TemplateBench
                 // thumbnail; entrance and exit move the thumbnail from a pacing thread, so the
                 // motion needs no WPF frames.
                 case "--thumbnail": _thumbnail = true; break;
+                // The plugin's own presenter (ToastThumbnailPresenter): the card window stays
+                // cloaked, the slide storyboards run on the service's motion stand-in, and the
+                // service mirrors it onto the thumbnail.
+                case "--presenter": _presenter = true; break;
                 // A 6 px square in the window corner, away from the card, animating forever: a
                 // frame every composition that redraws none of the card.
                 case "--tiny-animation": _tinyAnimation = true; break;
@@ -502,7 +507,22 @@ public static class TemplateBench
         var window = (Window)provider.GetMethod("CreateBorderlessTopmostWindow").Invoke(null, new object[] { null, "TemplateBench" });
         var surfaceType = _plugin.GetType("PlayniteAchievements.Services.UI.ToastWindowSurface");
         surfaceType.GetMethod("UseDwmComposition").Invoke(null, new object[] { window });
-        window.Content = host;
+        Grid motionHost = null;
+        if (_presenter)
+        {
+            var motionArgs = new object[] { null, null };
+            motionHost = (Grid)factory.GetMethod("BuildSlideHost", Flags).Invoke(null, motionArgs);
+            slide = (TranslateTransform)motionArgs[1];
+            var root = new Grid { IsHitTestVisible = false };
+            root.Children.Add(motionHost);
+            root.Children.Add(host);
+            window.Content = root;
+        }
+        else
+        {
+            window.Content = host;
+        }
+
         window.Left = left ? 60 : 60;
         window.Top = left ? 60 : 760;
 
@@ -514,6 +534,7 @@ public static class TemplateBench
         Set(svc, "_activeSlideTransform", slide);
         Set(svc, "_activeCardSurface", surface);
         Set(svc, "_activeDwmComposed", true);
+        if (_presenter) Set(svc, "_activeMotionHost", motionHost);
         Set(svc, "_activeMonitorScale", 1.0);
         Set(svc, "_activeSlideInTravels", true);
         Set(svc, "_activeSlideOutTravels", true);
@@ -542,6 +563,15 @@ public static class TemplateBench
         window.Closed += (s, e) => backdrop.Close();
 
         window.Show();
+        if (_presenter)
+        {
+            surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { window, true });
+            svcType.GetMethod("StartPresenter", Flags).Invoke(svc, new object[] { window, false });
+            var made = svcType.GetField("_activePresenter", Flags).GetValue(svc);
+            if (made == null) throw new InvalidOperationException("presenter was not created");
+            made.GetType().GetMethod("Reveal").Invoke(made, null);
+        }
+
         if (_software)
         {
             // The card's window drawn on the CPU, out of the GPU queue a game keeps full.
@@ -640,7 +670,7 @@ public static class TemplateBench
                 var b0 = Stopwatch.GetTimestamp();
                 await Task.Delay(3000);
                 var b1 = Stopwatch.GetTimestamp();
-                if (!_thumbnail) surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
+                if (!_thumbnail && !_presenter) surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
                 Console.WriteLine("game with card hidden {0:0.0} fps, worst frame {1:0.0} ms", GameFps(b0, b1), GameMaxMs(b0, b1));
                 await Task.Delay(500);
             }
@@ -655,7 +685,7 @@ public static class TemplateBench
                 else
                 {
                     card.Slide.Y = card.TravelDip;
-                    engage.Invoke(null, new object[] { card.Host, card.Window });
+                    if (!_presenter) engage.Invoke(null, new object[] { card.Host, card.Window });
                 }
 
                 await Frames(3);
@@ -714,7 +744,7 @@ public static class TemplateBench
                 {
                     Cloak(_overlay, true);
                 }
-                if (!_thumbnail) engage.Invoke(null, new object[] { card.Host, card.Window });
+                if (!_thumbnail && !_presenter) engage.Invoke(null, new object[] { card.Host, card.Window });
                 await Frames(1);
                 var t3 = Stopwatch.GetTimestamp();
                 if (_thumbnail)
