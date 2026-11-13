@@ -659,6 +659,53 @@ split, and any change between one window and several is not guaranteed to land i
 load. A group opacity (fade, zoom) also cannot be reproduced per layer: each layer faded separately lets
 the background show through the text mid-fade.
 
+## The thumbnail probe
+
+```powershell
+tools\capture-harness\bin\ThumbnailProbe.exe [--presenter noredirect|layered] [--dump <dir>]
+tools\capture-harness\bin\TemplateBench.exe --game 4000 --thumbnail [--software] [--tiny-animation]
+```
+
+`ThumbnailProbe` shows a card (translucent fill, blurred glow, shadowed text) in a DWM-composited WPF
+window over a solid backdrop, captures the screen, cloaks the window, and shows its DWM thumbnail
+(`DwmRegisterThumbnail`) in a second window that has no surface of its own
+(`WS_EX_NOREDIRECTIONBITMAP`, or layered with a colour key).
+`TemplateBench --thumbnail` does the same with the real card: the card window stays cloaked for the whole
+run, and entrance and exit move the thumbnail's destination rectangle from a thread that waits on
+`DwmFlush`, with no WPF frame involved.
+
+Measured 2026-11-13 on a 60 Hz virtual display (2880x1920) against `GameLoad --work 4000` (about 102 fps
+alone), card scale 1, medians of 3 cycles.
+The recorder missed updates in every run, so `changed/s` is a lower bound.
+
+| mode | entrance | hold | exit | game fps in hold |
+|---|---|---|---|---|
+| window, GPU priority normal (Performance) | 21.8/s | 10.3/s | 25.0/s | 98-102 |
+| window, GPU priority realtime (Quality) | 36.6/s | 29.3/s | 43.0/s | 90-97 |
+| thumbnail, normal | 43.7/s | 9.7/s | 36.1/s | 101-102 |
+| thumbnail, normal, card window `--software` | 59.0/s | 16.2/s | 53.6/s | 101-103 |
+| thumbnail, realtime | 46.7/s | 29.6/s | 46.9/s | 95-96 |
+
+What it established:
+
+- A thumbnail of the cloaked card window matches the window itself on screen: 0 of 582,400 pixels
+  differ at rest and after moving the destination by (37, 53), with either presenter kind. Per-pixel
+  alpha is kept, and the thumbnail's opacity property fades it.
+- Moving the thumbnail costs the game nothing and does not wait in the GPU queue behind it, since this
+  process issues no GPU work for the motion.
+- The hold is unchanged by the thumbnail: its frames still come from WPF.
+- At realtime priority the game cost of the hold comes from redrawing the card, not from presenting.
+  With the card still and a 6 px square animating in the window corner (`--tiny-animation`, about 59
+  frames/s) the game held 101.9-102.3 fps against 103.5 with nothing animating; with the card's own
+  animations running (about 42 frames/s) it held 96.3-96.7. Card scale 2 measured the same as scale 1.
+- A card window rendered in software (`--software`) leaves the game untouched but its hold is limited by
+  the CPU: 16.2/s at scale 1, 3.3/s at scale 2.
+
+Limits: a virtual 60 Hz display, where the game is composed by DWM in every case, so nothing here
+prices a game leaving independent flip, and nothing is measured at 165 Hz.
+The pacing thread sets whole-pixel positions at the time it wakes; residual against the ideal curve
+(`--truth`) is not measured for it.
+
 ## The composer probe
 
 ```powershell
