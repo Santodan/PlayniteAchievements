@@ -149,6 +149,12 @@ namespace PlayniteAchievements.Services.UI
         private readonly IntPtr _sourceHwnd;
         private readonly Thumb _main = new Thumb();
         private readonly List<Thumb> _layers = new List<Thumb>();
+
+        // A layer drawn under the main source. Thumbnails stack in the order they were registered,
+        // and the main one was first, so the underlay is followed by a second thumbnail of the main
+        // source, which stands in for the first while the layers are shown.
+        private Thumb _underlay;
+        private Thumb _mainOver;
         private Surface _surface;
         private IntPtr _thumbnail;
         private RectI _rect;
@@ -299,7 +305,14 @@ namespace PlayniteAchievements.Services.UI
                 var mainLevel = scale >= 1d || double.IsNaN(scale)
                     ? level
                     : (byte)Math.Round(level * Math.Max(0d, scale));
-                Push(_main, destination, mainLevel, visible);
+                var under = _underlay != null && _layersShown;
+                Push(_main, destination, mainLevel, visible && !under);
+                if (_underlay != null)
+                {
+                    Push(_underlay, destination, level, visible && under);
+                    Push(_mainOver, destination, mainLevel, visible && under);
+                }
+
                 foreach (var layer in _layers)
                 {
                     Push(layer, destination, level, visible && _layersShown);
@@ -354,6 +367,45 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
+        /// Registers <paramref name="source"/>, a cloaked window of the main source's size, to be
+        /// drawn under the main source while the layers are shown. Call before any
+        /// <see cref="AddLayer"/>. False when it cannot be registered.
+        /// </summary>
+        public bool AddUnderlay(Window source)
+        {
+            if (_underlay != null || _layers.Count > 0 || !AddLayer(source))
+            {
+                return false;
+            }
+
+            _underlay = _layers[0];
+            _layers.Clear();
+            try
+            {
+                if (DwmRegisterThumbnail(_surface.Handle, _sourceHwnd, out var again) == 0 && again != IntPtr.Zero)
+                {
+                    _mainOver = new Thumb { Handle = again };
+                    Push(_mainOver, _destination, _level, false);
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                DwmUnregisterThumbnail(_underlay.Handle);
+            }
+            catch
+            {
+            }
+
+            _underlay = null;
+            return false;
+        }
+
+        /// <summary>
         /// Shows the layers over the main thumbnail, which stays underneath. The top layer appears
         /// first, so if the calls land in different compositions the content is never missing over
         /// a layer below it.
@@ -362,6 +414,16 @@ namespace PlayniteAchievements.Services.UI
         {
             _layersShown = true;
             var visible = _revealed && _level > 0;
+            if (_underlay != null)
+            {
+                // The second main thumbnail shows what the first does, so the first can go once
+                // the second is there.
+                var mainLevel = _main.HasPushed ? _main.Pushed.Opacity : _level;
+                Push(_mainOver, _destination, mainLevel, visible);
+                Push(_underlay, _destination, _level, visible);
+                Push(_main, _destination, mainLevel, false);
+            }
+
             for (var i = _layers.Count - 1; i >= 0; i--)
             {
                 Push(_layers[i], _destination, _level, visible);
@@ -372,6 +434,25 @@ namespace PlayniteAchievements.Services.UI
         public void RemoveLayers()
         {
             _layersShown = false;
+            if (_underlay != null)
+            {
+                try
+                {
+                    var mainLevel = _mainOver.HasPushed ? _mainOver.Pushed.Opacity : _level;
+                    Push(_main, _destination, mainLevel, _revealed && _level > 0);
+                    Push(_mainOver, _destination, mainLevel, false);
+                    Push(_underlay, _destination, _level, false);
+                    DwmUnregisterThumbnail(_mainOver.Handle);
+                    DwmUnregisterThumbnail(_underlay.Handle);
+                }
+                catch
+                {
+                }
+
+                _underlay = null;
+                _mainOver = null;
+            }
+
             foreach (var layer in _layers)
             {
                 try
