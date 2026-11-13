@@ -313,6 +313,21 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        /// <summary>
+        /// Takes <paramref name="other"/>'s place in its wave, so this burst draws what that one
+        /// would at every instant. For a burst that stands in for another on screen.
+        /// </summary>
+        internal void CopyEpochFrom(RarityRayBurst other)
+        {
+            if (other == null)
+            {
+                return;
+            }
+
+            _localEpochMs = other._localEpochMs;
+            _localEpochSet = other._localEpochSet;
+        }
+
         void IRayAnimationTarget.OnRayFrame()
         {
             // Clipped out of the scroll viewport: stay subscribed and skip the frame, so the
