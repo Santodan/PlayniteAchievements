@@ -54,6 +54,7 @@ public static class TemplateBench
     private static Card _overlay;
     private static readonly List<GameSample> _gameFrames = new List<GameSample>();
     private static bool _noCapture, _inProcessCapture;
+    private static int _recorderPriority = 2;
     private static int _frameRate;
 
     // Every CompositionTarget.Rendering: the frames WPF prepared, presented or not.
@@ -67,6 +68,7 @@ public static class TemplateBench
     private static bool _liveMotion;
     private static bool _thumbnail;
     private static bool _presenter;
+    private static bool _holdLayers, _layersCompare;
     private static bool _tinyAnimation;
     private static string _snapshot;
     private static string _decodePath;
@@ -140,6 +142,10 @@ public static class TemplateBench
                 // Capture runs in a child process at normal GPU priority unless one of these is given.
                 case "--no-capture": _noCapture = true; break;
                 case "--in-process-capture": _inProcessCapture = true; break;
+                // The capture child's GPU scheduling class (default 2, normal). At 5 it is not
+                // starved by the game and misses few updates, but takes GPU time itself: read
+                // notification cadence from such a run and game fps from a --no-capture one.
+                case "--recorder-priority": _recorderPriority = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--gpu-priority": _gpuPriority = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--card-scale": _cardScale = double.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 // The plugin's animation frame rate (AnimationFrameRate.Current) instead of the display's.
@@ -156,6 +162,12 @@ public static class TemplateBench
                 // cloaked, the slide storyboards run on the service's motion stand-in, and the
                 // service mirrors it onto the thumbnail.
                 case "--presenter": _presenter = true; break;
+                // With --presenter: while the card rests, the plugin shows its background and its
+                // content from layer windows (ToastHoldLayers) over the card window, which stands still.
+                case "--hold-layers": _holdLayers = true; break;
+                // With --hold-layers: captures the card on screen before and after the split and
+                // counts differing pixels. Use with --still-background --no-pulse --no-rays.
+                case "--layers-compare": _layersCompare = true; break;
                 // A 6 px square in the window corner, away from the card, animating forever: a
                 // frame every composition that redraws none of the card.
                 case "--tiny-animation": _tinyAnimation = true; break;
@@ -417,6 +429,8 @@ public static class TemplateBench
         public object Service;
         public Rect32 Rect;
         public double TravelDip;
+        public object Items;
+        public DataTemplate Template;
     }
 
     private static object _settings;
@@ -588,7 +602,7 @@ public static class TemplateBench
         await Task.Delay(2500);
         GetWindowRect(new WindowInteropHelper(window).Handle, out var rect);
         var travel = (double)svcType.GetMethod("SlideDistanceDip", Flags).Invoke(svc, new object[] { window });
-        return new Card { Window = window, Host = host, Surface = surface, Slide = slide, Service = svc, Rect = rect, TravelDip = travel };
+        return new Card { Window = window, Host = host, Surface = surface, Slide = slide, Service = svc, Rect = rect, TravelDip = travel, Items = items, Template = template };
     }
 
     private static async Task BenchAsync(Card card)
@@ -725,14 +739,79 @@ public static class TemplateBench
                     Cloak(_overlay, false);
                 }
 
+                object layers = null;
+                if (_holdLayers)
+                {
+                    var before = _layersCompare ? Capture(card.Rect) : null;
+                    if (_layersCompare && _snapshot != null) SaveCapture(card.Rect, _snapshot + "-one.png");
+                    var begun = (Task)svcType.GetMethod("BeginHoldLayersAsync", Flags).Invoke(
+                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true });
+                    await begun;
+                    layers = begun.GetType().GetProperty("Result").GetValue(begun);
+                    if (c == 0) Console.WriteLine("hold layers: " + (layers != null ? "shown" : "none"));
+                    if (layers != null && _noRays)
+                    {
+                        foreach (var name in new[] { "Background", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            HideRays((Grid)layerWindow.Content);
+                        }
+                    }
+
+                    if (before != null && layers != null)
+                    {
+                        await Task.Delay(500);
+                        var after = Capture(card.Rect);
+                        if (_snapshot != null)
+                        {
+                            SaveCapture(card.Rect, _snapshot + "-layers.png");
+                            // Each layer's own tree, rendered offscreen: what it holds, not how it is shown.
+                            foreach (var name in new[] { "Background", "Content" })
+                            {
+                                var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                                var visual = (FrameworkElement)layerWindow.Content;
+                                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                                    (int)Math.Ceiling(visual.ActualWidth), (int)Math.Ceiling(visual.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                                rtb.Render(visual);
+                                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+                                using (var file = File.Create(_snapshot + "-" + name + ".png")) encoder.Save(file);
+                            }
+                        }
+                        int differing = 0, max = 0;
+                        for (var i = 0; i < before.Length; i++)
+                        {
+                            var a = before[i];
+                            var b = after[i];
+                            var d = Math.Max(Math.Abs(((a >> 16) & 255) - ((b >> 16) & 255)),
+                                Math.Max(Math.Abs(((a >> 8) & 255) - ((b >> 8) & 255)), Math.Abs((a & 255) - (b & 255))));
+                            if (d > 0) differing++;
+                            if (d > max) max = d;
+                        }
+
+                        Console.WriteLine("layers vs one window: {0} of {1} px differ, max {2} levels", differing, before.Length, max);
+                    }
+
+                    // The hold is measured from the split.
+                    t1 = Stopwatch.GetTimestamp();
+                }
+
                 if (!_backgroundOnly && !_noCountdown)
                 {
                     // Split, the countdown is in the front window.
                     var bar = _overlay ?? card;
-                    countdown.Invoke(bar.Service, new object[] { bar.Window, (int)(_holdSeconds * 1000) });
+                    countdown.Invoke(bar.Service, new object[] { bar.Window, (int)(_holdSeconds * 1000), 0d });
                 }
                 await Task.Delay(TimeSpan.FromSeconds(_holdSeconds));
                 var t2 = Stopwatch.GetTimestamp();
+                if (layers != null)
+                {
+                    await (Task)svcType.GetMethod("EndHoldLayersAsync", Flags).Invoke(
+                        card.Service, new object[] { card.Window, layers, 250 });
+                    // The wave disposes its layers when it ends; here the card lives on.
+                    ((IDisposable)layers).Dispose();
+                }
+
                 if (!_backgroundOnly && !_noCountdown)
                 {
                     var bar = _overlay ?? card;
@@ -1188,7 +1267,7 @@ public static class TemplateBench
         {
             var exe = Assembly.GetExecutingAssembly().Location;
             _process = Process.Start(new ProcessStartInfo(exe, string.Format(CultureInfo.InvariantCulture,
-                "--record {0},{1},{2},{3}", r.Left, r.Top, r.Right, r.Bottom))
+                "--record {0},{1},{2},{3},{4}", r.Left, r.Top, r.Right, r.Bottom, _recorderPriority))
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -1249,8 +1328,8 @@ public static class TemplateBench
     /// <summary>The --record child: streams "r time changed accumulated" per frame until killed.</summary>
     private static int RecordChild(string spec)
     {
-        D3DKMTSetProcessSchedulingPriorityClass(Process.GetCurrentProcess().Handle, 2);
         var p = spec.Split(',').Select(v => int.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+        D3DKMTSetProcessSchedulingPriorityClass(Process.GetCurrentProcess().Handle, p.Length > 4 ? p[4] : 2);
         var recorder = new RegionRecorder(new Rect32 { Left = p[0], Top = p[1], Right = p[2], Bottom = p[3] });
         var output = Console.Out;
         recorder.Sink = f =>
