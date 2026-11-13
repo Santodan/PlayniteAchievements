@@ -13,6 +13,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             namespacePrefix: string.Empty,
             appIdSeed: "WoW",
             logTag: "[BattleNet/WoW]",
+            dataForAzerothPath: "retail",
+            minimumDataForAzerothRarityEntries: 1000,
             realmSlug: s => s.WowRealmSlug,
             character: s => s.WowCharacter);
 
@@ -22,6 +24,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             namespacePrefix: "classic-",
             appIdSeed: "WoWClassic",
             logTag: "[BattleNet/WoWClassic]",
+            dataForAzerothPath: null,
+            minimumDataForAzerothRarityEntries: 0,
             realmSlug: s => s.WowClassicRealmSlug,
             character: s => s.WowClassicCharacter);
 
@@ -34,6 +38,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             namespacePrefix: "forever-",
             appIdSeed: "WoWForever",
             logTag: "[BattleNet/WoWForever]",
+            dataForAzerothPath: "forever",
+            minimumDataForAzerothRarityEntries: 25,
             realmSlug: s => null,
             character: s => null);
 
@@ -45,6 +51,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             string namespacePrefix,
             string appIdSeed,
             string logTag,
+            string dataForAzerothPath,
+            int minimumDataForAzerothRarityEntries,
             Func<BattleNetSettings, string> realmSlug,
             Func<BattleNetSettings, string> character)
         {
@@ -52,6 +60,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             NamespacePrefix = namespacePrefix;
             AppIdSeed = appIdSeed;
             LogTag = logTag;
+            DataForAzerothPath = dataForAzerothPath;
+            MinimumDataForAzerothRarityEntries = minimumDataForAzerothRarityEntries;
             _realmSlug = realmSlug;
             _character = character;
         }
@@ -66,8 +76,20 @@ namespace PlayniteAchievements.Providers.BattleNet
         public string LogTag { get; }
 
         /// <summary>
-        /// Retail builds its catalog from the public worldofwarcraft.com character pages and uses Data
-        /// for Azeroth rarity; the other versions build theirs from the official API only.
+        /// The version's folder on dataforazeroth.com, as in "{path}/dynamic/index.json", or null
+        /// when the site publishes no data for it.
+        /// </summary>
+        public string DataForAzerothPath { get; }
+
+        /// <summary>
+        /// The smallest Data for Azeroth rarity map accepted as complete for this version. The
+        /// version's achievement catalog sets the scale: retail lists thousands, Forever under 200.
+        /// </summary>
+        public int MinimumDataForAzerothRarityEntries { get; }
+
+        /// <summary>
+        /// Retail builds its catalog from the public worldofwarcraft.com character pages; the other
+        /// versions build theirs from the official API only.
         /// </summary>
         public bool IsRetail => NamespacePrefix.Length == 0;
 
