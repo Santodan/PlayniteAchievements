@@ -501,6 +501,30 @@ namespace PlayniteAchievements.Providers.BattleNet
                         var map = rarity?["achievements"] as JObject;
                         report.AppendLine($"rarity entries={map?.Count ?? 0}, sample={string.Join(",", map?.Properties().Take(3).Select(p => p.Name + "=" + p.Value) ?? Enumerable.Empty<string>())}");
                     }
+
+                    // Forever: save every file the index lists, to find where the site's Forever
+                    // percentages come from. Retail: the achievement files only, for comparison.
+                    foreach (var entry in root.Properties())
+                    {
+                        var path = entry.Value.Type == JTokenType.String ? entry.Value.Value<string>() : null;
+                        var wanted = version == "forever" ||
+                            (version == "retail" && (entry.Name == "achievementsrarity" || entry.Name == "achievementsseen" || entry.Name == "max"));
+                        if (!wanted || string.IsNullOrWhiteSpace(path))
+                        {
+                            continue;
+                        }
+
+                        report.AppendLine($"-- {version}/{entry.Name} {path}");
+                        var data = await GetDfaAsync(http, DataForAzerothClient.BuildDynamicUrl(path), header, report, ct).ConfigureAwait(false);
+                        if (string.IsNullOrEmpty(data))
+                        {
+                            continue;
+                        }
+
+                        var text = data.Length > MaxSavedBytes ? data.Substring(0, MaxSavedBytes) : data;
+                        File.WriteAllText(Path.Combine(folder, $"dfa-{version}-{SafeFileSegment(entry.Name)}.json"), text, Encoding.UTF8);
+                        report.AppendLine(DescribeDfaShape(data));
+                    }
                 }
 
                 // The site's bundle names its own data paths; list every version prefix it uses.
@@ -511,6 +535,34 @@ namespace PlayniteAchievements.Providers.BattleNet
                 foreach (var src in scripts)
                 {
                     var js = await GetDfaAsync(http, new Uri(new Uri(DataForAzerothClient.BaseUrl), src).ToString(), header, report, ct).ConfigureAwait(false) ?? string.Empty;
+                    var scriptFile = "dfa-bundle-" + SafeFileSegment(Path.GetFileName(new Uri(new Uri(DataForAzerothClient.BaseUrl), src).AbsolutePath));
+                    File.WriteAllText(Path.Combine(folder, scriptFile), js.Length > MaxSavedBytes ? js.Substring(0, MaxSavedBytes) : js, Encoding.UTF8);
+                    report.AppendLine($"saved {scriptFile}");
+
+                    // Every data path the bundle names, then the code around rarity, seen and Forever
+                    // hits, to show how a page turns a file into a percentage.
+                    var dataPaths = Regex.Matches(js, "[\"'`]([^\"'`\\s]{0,120}(?:\\.json|/api/|/dynamic/|/static/)[^\"'`\\s]{0,120})[\"'`]")
+                        .Cast<Match>().Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal).Take(120).ToList();
+                    report.AppendLine($"data paths ({dataPaths.Count}): {string.Join(" | ", dataPaths)}");
+                    foreach (var term in new[] { "rarity", "achievementsseen", "forever", "percent" })
+                    {
+                        var hits = Regex.Matches(js, Regex.Escape(term), RegexOptions.IgnoreCase).Cast<Match>().ToList();
+                        report.AppendLine($"term '{term}': {hits.Count} hits");
+                        var lastEnd = -1;
+                        foreach (var hit in hits.Take(25))
+                        {
+                            var start = Math.Max(0, hit.Index - 150);
+                            if (start < lastEnd)
+                            {
+                                continue;
+                            }
+
+                            var end = Math.Min(js.Length, hit.Index + 150);
+                            lastEnd = end;
+                            report.AppendLine($"  @{hit.Index}: {js.Substring(start, end - start).Replace("\r", " ").Replace("\n", " ")}");
+                        }
+                    }
+
                     foreach (Match match in Regex.Matches(js, "[\"'`/]([A-Za-z0-9_\\-]{2,24})/dynamic/"))
                     {
                         prefixes.Add(match.Groups[1].Value);
@@ -677,6 +729,49 @@ namespace PlayniteAchievements.Providers.BattleNet
             catch (JsonException)
             {
                 return null;
+            }
+        }
+
+        private static string SafeFileSegment(string value) =>
+            Regex.Replace(value ?? string.Empty, @"[^A-Za-z0-9_.\-]", "_");
+
+        /// <summary>
+        /// One line on a Data for Azeroth file: the top-level type and size, and for an object the
+        /// first keys with a short preview of each value.
+        /// </summary>
+        private static string DescribeDfaShape(string body)
+        {
+            JToken root;
+            try
+            {
+                root = JToken.Parse(body);
+            }
+            catch (JsonException ex)
+            {
+                return $"shape: not JSON ({ex.Message})";
+            }
+
+            string Preview(JToken token)
+            {
+                var text = token.ToString(Formatting.None);
+                return text.Length > 160 ? text.Substring(0, 160) + "..." : text;
+            }
+
+            switch (root)
+            {
+                case JObject obj:
+                    var lines = new StringBuilder($"shape: object, keys={obj.Count}");
+                    foreach (var prop in obj.Properties().Take(4))
+                    {
+                        var size = prop.Value is JContainer container ? $" ({prop.Value.Type}, count={container.Count})" : string.Empty;
+                        lines.Append($"{Environment.NewLine}  {prop.Name}{size}: {Preview(prop.Value)}");
+                    }
+
+                    return lines.ToString();
+                case JArray array:
+                    return $"shape: array, count={array.Count}, first={string.Join(" ; ", array.Take(3).Select(Preview))}";
+                default:
+                    return $"shape: {root.Type}: {Preview(root)}";
             }
         }
 
