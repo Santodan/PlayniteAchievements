@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -42,7 +43,6 @@ namespace PlayniteAchievements.Providers.BattleNet
         // One source of truth for the site lives on DataForAzerothClient; these aliases keep the
         // no-browser fallback path below readable.
         private const string DataForAzerothBaseUrl = DataForAzerothClient.BaseUrl;
-        private const string DataForAzerothIndexUrl = DataForAzerothClient.IndexUrl;
         private const string DefaultApiLocale = "en_US";
 
         private const string DefaultUserAgent =
@@ -76,7 +76,8 @@ namespace PlayniteAchievements.Providers.BattleNet
         private string _cachedTokenRegion;
         private string _cachedAccessToken;
         private DateTime _cachedAccessTokenExpiresUtc;
-        private Dictionary<string, double> _cachedDataForAzerothWowRarity;
+        private readonly ConcurrentDictionary<WowVersion, Dictionary<string, double>> _cachedDataForAzerothWowRarity =
+            new ConcurrentDictionary<WowVersion, Dictionary<string, double>>();
         private Dictionary<string, HashSet<int>> _cachedWowGuildCategoryIds;
         private readonly DataForAzerothClient _dataForAzeroth;
 
@@ -107,7 +108,7 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// </summary>
         internal void InvalidateDataForAzerothRarityCache()
         {
-            _cachedDataForAzerothWowRarity = null;
+            _cachedDataForAzerothWowRarity.Clear();
             _dataForAzeroth?.ResetGateState();
         }
 
@@ -509,27 +510,37 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// clears the site check mid-session gets rarity on their next refresh rather than after a
         /// Playnite restart.
         /// </summary>
-        public async Task<Dictionary<string, double>> GetDataForAzerothWowAchievementRarityAsync(CancellationToken ct)
+        public Task<Dictionary<string, double>> GetDataForAzerothWowAchievementRarityAsync(CancellationToken ct) =>
+            GetDataForAzerothWowAchievementRarityAsync(WowVersion.Retail, ct);
+
+        /// <summary>One version's rarity map, cached per version on the same terms as retail.</summary>
+        internal async Task<Dictionary<string, double>> GetDataForAzerothWowAchievementRarityAsync(WowVersion version, CancellationToken ct)
         {
-            if (_cachedDataForAzerothWowRarity != null)
+            version = version ?? WowVersion.Retail;
+            if (string.IsNullOrEmpty(version.DataForAzerothPath))
             {
-                return _cachedDataForAzerothWowRarity;
+                return new Dictionary<string, double>(StringComparer.Ordinal);
+            }
+
+            if (_cachedDataForAzerothWowRarity.TryGetValue(version, out var cached))
+            {
+                return cached;
             }
 
             if (_dataForAzeroth != null)
             {
-                var result = await _dataForAzeroth.LoadRarityAsync(ct).ConfigureAwait(false);
+                var result = await _dataForAzeroth.LoadRarityAsync(version, ct).ConfigureAwait(false);
                 if (result.Status != DataForAzerothStatus.Ok)
                 {
                     return new Dictionary<string, double>(StringComparer.Ordinal);
                 }
 
-                _cachedDataForAzerothWowRarity = result.Rarity;
-                _logger?.Info($"[BattleNet/WoW] Loaded Data for Azeroth achievement rarity. count={_cachedDataForAzerothWowRarity.Count}");
-                return _cachedDataForAzerothWowRarity;
+                _cachedDataForAzerothWowRarity[version] = result.Rarity;
+                _logger?.Info($"{version.LogTag} Loaded Data for Azeroth achievement rarity. count={result.Rarity.Count}");
+                return result.Rarity;
             }
 
-            return await LoadDataForAzerothRarityViaHttpAsync(ct).ConfigureAwait(false);
+            return await LoadDataForAzerothRarityViaHttpAsync(version, ct).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -537,17 +548,18 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// contexts and unit tests). It is also the path that would light up on its own if the site
         /// ever drops its bot check.
         /// </summary>
-        private async Task<Dictionary<string, double>> LoadDataForAzerothRarityViaHttpAsync(CancellationToken ct)
+        private async Task<Dictionary<string, double>> LoadDataForAzerothRarityViaHttpAsync(WowVersion version, CancellationToken ct)
         {
+            var indexUrl = DataForAzerothClient.BuildIndexUrl(version);
             var index = await RateLimiter.ExecuteWithRetryAsync(
-                async () => await GetJsonAsync<DataForAzerothDynamicIndex>(DataForAzerothIndexUrl, ct).ConfigureAwait(false),
+                async () => await GetJsonAsync<DataForAzerothDynamicIndex>(indexUrl, ct).ConfigureAwait(false),
                 IsTransientError, ct).ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(index?.AchievementsRarity))
             {
                 // Not cached: an unusable index is a condition that can clear on its own, and caching
                 // the empty result would keep rarity blank for the rest of the session.
-                _logger?.Warn("[BattleNet/WoW] Data for Azeroth dynamic index did not include achievementsrarity.");
+                _logger?.Warn($"{version.LogTag} Data for Azeroth dynamic index did not include achievementsrarity.");
                 return new Dictionary<string, double>(StringComparer.Ordinal);
             }
 
@@ -558,13 +570,14 @@ namespace PlayniteAchievements.Providers.BattleNet
 
             if (rarity?.Achievements == null)
             {
-                _logger?.Warn("[BattleNet/WoW] Data for Azeroth rarity document carried no achievements.");
+                _logger?.Warn($"{version.LogTag} Data for Azeroth rarity document carried no achievements.");
                 return new Dictionary<string, double>(StringComparer.Ordinal);
             }
 
-            _cachedDataForAzerothWowRarity = new Dictionary<string, double>(rarity.Achievements, StringComparer.Ordinal);
-            _logger?.Info($"[BattleNet/WoW] Loaded Data for Azeroth achievement rarity. count={_cachedDataForAzerothWowRarity.Count}");
-            return _cachedDataForAzerothWowRarity;
+            var map = new Dictionary<string, double>(rarity.Achievements, StringComparer.Ordinal);
+            _cachedDataForAzerothWowRarity[version] = map;
+            _logger?.Info($"{version.LogTag} Loaded Data for Azeroth achievement rarity. count={map.Count}");
+            return map;
         }
 
         /// <summary>
