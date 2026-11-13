@@ -153,6 +153,10 @@ namespace PlayniteAchievements.Services.UI
 
         // Per-frame work of a presented wave runs off this instead of CompositionTarget.Rendering.
         private DwmFramePump _activeFramePump;
+
+        // The border glow's pulse while a split wave's own window stands still at the pulse's peak:
+        // the presenter dims that window's thumbnail by it instead.
+        private HoldPulse _activeHoldPulse;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
         // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
         // cadence the motion actually got.
@@ -2825,6 +2829,8 @@ namespace PlayniteAchievements.Services.UI
             SizeChangedEventHandler onHoldSurfaceSized = null;
             ToastLiveBackdrop liveBackdrop = null;
             ToastOverlayTrackRecorder trackRecorder = null;
+            ToastHoldLayers holdLayers = null;
+            var needsPerMonitorWindow = false;
             // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
             // sampler saw against the samples it actually took is what shows the cadence landing where
             // the recording frame rate asks for it rather than aliasing to half of it.
@@ -2844,7 +2850,7 @@ namespace PlayniteAchievements.Services.UI
                 // WM_DPICHANGED through WPF's shared DPI state in this system-aware host process,
                 // which has been observed to rescale sibling windows and hard-crash the process on
                 // single-monitor high-DPI setups.
-                var needsPerMonitorWindow = systemScale > 0 &&
+                needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
                     $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
@@ -3230,7 +3236,40 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast countdown animation failed.");
                 }
 
+                // While the cards rest, an animated background plays from a layer of its own. The
+                // wave's own window must stay live for a track recorder, which samples its cards.
+                var holdWatch = Stopwatch.StartNew();
+                var holdMain = trackRecorder == null;
+                holdLayers = await BeginHoldLayersAsync(
+                    window, items, cardItems, template, needsPerMonitorWindow, holdMain).ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (holdLayers != null)
+                {
+                    // The content layer's bar is the one seen, and picks up where the bar under
+                    // it has got to; a held window's own bar stops there.
+                    AnimateCountdownBars(holdLayers.Content, remainingMs, holdWatch.Elapsed.TotalMilliseconds);
+                    if (holdMain)
+                    {
+                        StopCountdownBars(window);
+                    }
+                }
+
+                // What is left of the hold after building the layers and before handing back.
+                var handBackMs = holdLayers != null && holdMain ? HoldLayerHandBackMs : 0;
+                remainingMs = Math.Max(0, remainingMs - (int)holdWatch.ElapsedMilliseconds - handBackMs);
                 var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
+                if (holdLayers != null)
+                {
+                    await EndHoldLayersAsync(window, holdLayers, handBackMs).ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        return;
+                    }
+                }
 
                 // The hold is over, so the bar has reached (or is a skewed frame from) empty;
                 // detach its clock so nothing but the slide animates through the slide-out.
@@ -3351,6 +3390,7 @@ namespace PlayniteAchievements.Services.UI
 
                 StopActiveSlide();
                 StopPresenter();
+                holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
                 _activeSlideHost = null;
@@ -5064,6 +5104,7 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
+                presenter.MainOpacityScale = _activeHoldPulse?.Scale() ?? 1d;
                 presenter.Update(PresentedMotion(), host.Opacity);
             }
             catch
@@ -6246,7 +6287,7 @@ namespace PlayniteAchievements.Services.UI
         /// easing) comes from the themeable PlayAch.Storyboard.ToastCountdown storyboard; its duration
         /// is always the toast's runtime display time so the bar depletes exactly as it dismisses.
         /// </summary>
-        private void AnimateCountdownBars(DependencyObject root, int milliseconds)
+        private void AnimateCountdownBars(DependencyObject root, int milliseconds, double elapsedMs = 0d)
         {
             var duration = TimeSpan.FromMilliseconds(Math.Max(1, milliseconds));
             foreach (var bar in FindCountdownBars(root))
@@ -6264,7 +6305,353 @@ namespace PlayniteAchievements.Services.UI
                 // At the display's rate rather than an inherited process-wide default
                 // (AnimationFrameRate), which another extension can lower.
                 AnimationFrameRate.Apply(animation);
-                scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                if (elapsedMs > 0)
+                {
+                    // A bar that joins a countdown already under way starts where that has got to.
+                    var clock = animation.CreateClock();
+                    scale.ApplyAnimationClock(ScaleTransform.ScaleXProperty, clock);
+                    clock.Controller?.Seek(TimeSpan.FromMilliseconds(elapsedMs), TimeSeekOrigin.BeginTime);
+                }
+                else
+                {
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                }
+            }
+        }
+
+        // The layers are shown no sooner than this after they are created. A layer window's first
+        // frame waits in the GPU queue like any other WPF frame, and nothing reports when it has
+        // been presented; shown before it, the content layer would be empty over the background.
+        private const int HoldLayerSettleMs = 400;
+        private const int HoldLayerLoadPollMs = 20;
+
+        // How long before the hold ends the wave's own window is made live again, so it has
+        // presented the background's current frame by the time the layers over it go.
+        private const int HoldLayerHandBackMs = 250;
+
+        /// <summary>
+        /// Splits a resting wave into layers when it has an animated, opaque background: the
+        /// backgrounds and the content each go to a cloaked window of their own, drawn by the
+        /// presenter over the wave's own window. With <paramref name="holdMain"/> the wave's own
+        /// window then stands still under them (its animated images hold their frame and its
+        /// content's glow pulses pause), so it is redrawn only by what shows around the card.
+        /// Returns null when the wave is not presented, has nothing to split, or the layers could
+        /// not be built; the wave then rests as it is.
+        /// </summary>
+        private async Task<ToastHoldLayers> BeginHoldLayersAsync(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain)
+        {
+            var presenter = _activePresenter;
+            ToastHoldLayers layers = null;
+            try
+            {
+                if (presenter == null || surface == null || cards == null ||
+                    cards.Any(card => card.HasToastBlur) || !ToastLayer.CanSplit(surface))
+                {
+                    return null;
+                }
+
+                var created = Stopwatch.StartNew();
+                layers = ToastHoldLayers.TryCreate(_api, window, surface, cards, template, perMonitorWindow);
+                if (layers == null)
+                {
+                    _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
+                    return null;
+                }
+
+                while (created.ElapsedMilliseconds < HoldLayerSettleMs || !layers.IsLoadedLike(surface))
+                {
+                    if (created.ElapsedMilliseconds > 4 * HoldLayerSettleMs)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(HoldLayerLoadPollMs).ConfigureAwait(true);
+                    if (_disposed || !ReferenceEquals(_activePresenter, presenter))
+                    {
+                        layers.Dispose();
+                        return null;
+                    }
+                }
+
+                var loaded = layers.IsLoadedLike(surface);
+                var added = loaded && presenter.AddLayer(layers.Background) && presenter.AddLayer(layers.Content);
+                if (!added)
+                {
+                    presenter.RemoveLayers();
+                    layers.Dispose();
+                    _logger?.Info(
+                        $"[Toast] Hold layers: not shown (imagesLoaded={loaded}), the wave rests as one window.");
+                    return null;
+                }
+
+                presenter.ShowLayers();
+                if (holdMain)
+                {
+                    layers.MainHold = HoldMainUnderLayers(surface, out var mainIsStill);
+                    layers.MainIsStill = mainIsStill;
+                    if (mainIsStill)
+                    {
+                        // Nothing of the wave issues GPU work now, so nothing of it waits on the
+                        // GPU; EndHoldLayersAsync raises the class again for the hand-back.
+                        ToastGpuPriority.Restore();
+                    }
+                }
+
+                _logger?.Info(
+                    $"[Toast] Hold layers: shown after {created.ElapsedMilliseconds} ms, mainHeld={holdMain}, " +
+                    $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}");
+                return layers;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers failed; the wave rests as one window.");
+                try
+                {
+                    presenter?.RemoveLayers();
+                    layers?.Dispose();
+                }
+                catch
+                {
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Stands the wave's own window still under its layers: every animated image under the
+        /// card host holds the frame it is on, the glow pulses in each card's content pause, and
+        /// everything but what is drawn behind the card is hidden, since the layers cover it. The
+        /// pulse and rays behind the card keep running, as they show around it, and then redraw
+        /// only themselves.
+        /// </summary>
+        private IDisposable HoldMainUnderLayers(ItemsControl surface, out bool mainIsStill)
+        {
+            var heldPulses = HoldBackPulses(surface, out mainIsStill);
+            var stills = AsyncImage.HoldCurrentFrames(_activeSlideHost ?? surface);
+            var contents = new List<DependencyObject>();
+            foreach (var background in ToastLayer.Find(surface, ToastLayerRole.Background))
+            {
+                var content = VisualTreeHelper.GetParent(background);
+                if (content != null)
+                {
+                    contents.Add(content);
+                    RarityGlowPulse.PauseUnder(content);
+                }
+            }
+
+            var showAll = ToastLayer.ShowOnlyBack(surface);
+            return new HeldMain(() =>
+            {
+                ReleaseBackPulses(heldPulses);
+                showAll();
+                stills.Dispose();
+                foreach (var content in contents)
+                {
+                    RarityGlowPulse.ResumeUnder(content);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Hands the pulse of every card's border glow to the presenter: each glow stops at the
+        /// pulse's peak and the wave's own thumbnail is dimmed along the same sweep, once per DWM
+        /// composition. Dimming that thumbnail dims everything in the window alike, so this is
+        /// done only when every card's glow runs the same pulse and no card shows rays behind
+        /// it; otherwise the glows keep pulsing in the window. <paramref name="mainIsStill"/>
+        /// reports whether anything behind the cards is left animating in the window.
+        /// </summary>
+        private List<FrameworkElement> HoldBackPulses(ItemsControl surface, out bool mainIsStill)
+        {
+            var held = new List<FrameworkElement>();
+            mainIsStill = false;
+            var glows = new List<FrameworkElement>();
+            foreach (var back in ToastLayer.Find(surface, ToastLayerRole.Back))
+            {
+                if (back is Views.Controls.RarityRayBurst)
+                {
+                    if (back.IsVisible)
+                    {
+                        return held;
+                    }
+
+                    continue;
+                }
+
+                glows.Add(back);
+            }
+
+            var pulsing = glows.Where(RarityGlowPulse.GetIsActive).ToList();
+            if (pulsing.Count == 0)
+            {
+                mainIsStill = true;
+                return held;
+            }
+
+            if (pulsing.Count != glows.Count)
+            {
+                return held;
+            }
+
+            HoldPulse pulse = null;
+            foreach (var glow in pulsing)
+            {
+                if (!RarityGlowPulse.TryHoldEffectPulseAtPeak(glow, out var shown, out var floor, out var peak, out var seconds) ||
+                    (pulse != null && !pulse.Matches(floor, peak, seconds)))
+                {
+                    ReleaseBackPulses(held, pulse);
+                    held.Clear();
+                    return held;
+                }
+
+                held.Add(glow);
+                pulse = pulse ?? new HoldPulse(shown, floor, peak, seconds);
+            }
+
+            _activeHoldPulse = pulse;
+            mainIsStill = true;
+            return held;
+        }
+
+        private void ReleaseBackPulses(List<FrameworkElement> held, HoldPulse pulse = null)
+        {
+            pulse = pulse ?? _activeHoldPulse;
+            _activeHoldPulse = null;
+            var cycleSeconds = pulse?.CycleSeconds() ?? 0d;
+            foreach (var glow in held)
+            {
+                try
+                {
+                    RarityGlowPulse.ReleaseEffectPulse(glow, cycleSeconds);
+                }
+                catch
+                {
+                }
+            }
+
+            UpdatePresenter();
+        }
+
+        /// <summary>
+        /// The glow pulse's sweep on a clock of its own: from the floor to the peak and back, sine
+        /// eased each way, as RarityGlowPulse animates it, continuing from the opacity shown when
+        /// it was taken over.
+        /// </summary>
+        private sealed class HoldPulse
+        {
+            private readonly double _floor;
+            private readonly double _peak;
+            private readonly double _halfCycleSeconds;
+            private readonly double _startSeconds;
+            private readonly Stopwatch _clock = Stopwatch.StartNew();
+
+            public HoldPulse(double shown, double floor, double peak, double halfCycleSeconds)
+            {
+                _floor = floor;
+                _peak = peak;
+                _halfCycleSeconds = halfCycleSeconds;
+                var span = peak - floor;
+                var eased = span > 0 ? Math.Max(0d, Math.Min(1d, (shown - floor) / span)) : 1d;
+                // The rising half of the cycle at the opacity shown.
+                _startSeconds = Math.Acos(1d - (2d * eased)) / Math.PI * halfCycleSeconds;
+            }
+
+            public bool Matches(double floor, double peak, double halfCycleSeconds)
+            {
+                return Math.Abs(floor - _floor) < 1e-6 && Math.Abs(peak - _peak) < 1e-6 &&
+                    Math.Abs(halfCycleSeconds - _halfCycleSeconds) < 1e-6;
+            }
+
+            /// <summary>Seconds into the cycle (rise, then fall) now.</summary>
+            public double CycleSeconds()
+            {
+                return (_startSeconds + _clock.Elapsed.TotalSeconds) % (2d * _halfCycleSeconds);
+            }
+
+            /// <summary>The pulse's opacity now, as a fraction of its peak.</summary>
+            public double Scale()
+            {
+                if (_peak <= 0)
+                {
+                    return 1d;
+                }
+
+                var progress = CycleSeconds() / _halfCycleSeconds;
+                if (progress > 1d)
+                {
+                    progress = 2d - progress;
+                }
+
+                var eased = (1d - Math.Cos(Math.PI * progress)) / 2d;
+                return (_floor + ((_peak - _floor) * eased)) / _peak;
+            }
+        }
+
+        private sealed class HeldMain : IDisposable
+        {
+            private Action _release;
+
+            public HeldMain(Action release)
+            {
+                _release = release;
+            }
+
+            public void Dispose()
+            {
+                var release = _release;
+                _release = null;
+                release?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Returns a split wave to its own window before the exit, which moves and fades one
+        /// window. A held window first takes over the countdown bars where the content layer's
+        /// stand, goes live again, and is given <paramref name="handBackMs"/> to present before
+        /// the layers over it are removed.
+        /// </summary>
+        private async Task EndHoldLayersAsync(Window window, ToastHoldLayers layers, int handBackMs)
+        {
+            try
+            {
+                StopCountdownBars(layers.Content);
+                if (layers.MainHold != null)
+                {
+                    var shown = FindCountdownBars(layers.Content).ToList();
+                    var own = FindCountdownBars(window).ToList();
+                    for (var i = 0; i < own.Count && i < shown.Count; i++)
+                    {
+                        if (own[i].RenderTransform is ScaleTransform target &&
+                            shown[i].RenderTransform is ScaleTransform source)
+                        {
+                            target.ScaleX = source.ScaleX;
+                        }
+                    }
+
+                    if (layers.MainIsStill &&
+                        _settings?.Persisted?.NotificationRenderMode == NotificationRenderMode.Quality)
+                    {
+                        ToastGpuPriority.Raise();
+                    }
+
+                    layers.MainHold.Dispose();
+                    layers.MainHold = null;
+                    await Task.Delay(handBackMs).ConfigureAwait(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers hand-back failed.");
+            }
+
+            try
+            {
+                _activePresenter?.RemoveLayers();
+            }
+            catch
+            {
             }
         }
 
