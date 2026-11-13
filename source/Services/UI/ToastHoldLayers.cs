@@ -31,11 +31,18 @@ namespace PlayniteAchievements.Services.UI
     {
         private const double SizeToleranceDip = 0.01;
 
-        private ToastHoldLayers(Window background, Window content)
+        private ToastHoldLayers(Window rays, Window background, Window content)
         {
+            Rays = rays;
             Background = background;
             Content = content;
         }
+
+        /// <summary>
+        /// The rays around the cards alone, to be drawn under the wave's own window, or null when
+        /// no card shows rays or they were left in that window.
+        /// </summary>
+        public Window Rays { get; }
 
         /// <summary>
         /// Whether the wave's own window draws nothing while the layers are shown, so no window of
@@ -58,8 +65,10 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public static ToastHoldLayers TryCreate(
             IPlayniteAPI api, Window main, ItemsControl mainSurface,
-            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template, bool perMonitorWindow)
+            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template, bool perMonitorWindow,
+            bool withRays)
         {
+            Window rays = null;
             Window background = null;
             Window content = null;
             try
@@ -72,8 +81,16 @@ namespace PlayniteAchievements.Services.UI
 
                 background = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
                 content = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
-                if (background == null || content == null)
+                var mainRays = ToastLayer.Find(mainSurface, ToastLayerRole.Rays);
+                var needsRays = withRays && mainRays.Exists(burst => burst.IsVisible);
+                if (needsRays)
                 {
+                    rays = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
+                }
+
+                if (background == null || content == null || (needsRays && rays == null))
+                {
+                    Close(rays);
                     Close(background);
                     Close(content);
                     return null;
@@ -81,10 +98,24 @@ namespace PlayniteAchievements.Services.UI
 
                 ToastLayer.ShowOnlyBackground((DependencyObject)background.Content);
                 ToastLayer.ShowOnlyContent((DependencyObject)content.Content);
-                return new ToastHoldLayers(background, content);
+                if (rays != null)
+                {
+                    // Each burst continues the wave of the one it stands in for.
+                    var layerRays = ToastLayer.Find((DependencyObject)rays.Content, ToastLayerRole.Rays);
+                    for (var i = 0; i < layerRays.Count && i < mainRays.Count; i++)
+                    {
+                        (layerRays[i] as Views.Controls.RarityRayBurst)?.CopyEpochFrom(
+                            mainRays[i] as Views.Controls.RarityRayBurst);
+                    }
+
+                    ToastLayer.ShowOnly((DependencyObject)rays.Content, ToastLayerRole.Rays);
+                }
+
+                return new ToastHoldLayers(rays, background, content);
             }
             catch
             {
+                Close(rays);
                 Close(background);
                 Close(content);
                 return null;
@@ -113,6 +144,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             MainHold = null;
+            Close(Rays);
             Close(Background);
             Close(Content);
         }
