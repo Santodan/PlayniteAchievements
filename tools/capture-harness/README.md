@@ -736,6 +736,7 @@ cycles. Desktop updates arrived at about 105-110 per second in every run, so tha
 | presenter, normal | 89.6/s | 8.8/s | 92.2/s | - | - |
 | presenter and hold layers, normal | - | 59.0/s | 94.7/s | 109.3-109.5 | 9.7-9.9 ms |
 | presenter and hold layers, normal, `--no-rays` | - | 65.0/s | - | 109.5 | 9.7 ms |
+| presenter and hold layers with a rays layer, normal | - | 56.7/s | - | 111.6 | 10.3 ms |
 
 The entrance of a `--hold-layers` run is left out: the bench disposes the previous cycle's layer windows
 right before it, which a wave does only after its exit.
@@ -758,9 +759,14 @@ What it established:
 - Without card rays the border glow's pulse is reproduced by the main thumbnail's opacity and the card
   window draws nothing during the hold (`mainStill=True, pulsePresented=True` in the log line).
 
+- The rows above the last were taken with the card's rays left in the hardware card window, which then
+  kept redrawing (`mainStill=False`). With the rays in a third software layer drawn under the card
+  window (a second thumbnail of the card window is registered after it, since thumbnails stack in
+  registration order), the card window draws nothing during the hold, the longest gap between updates
+  fell from 124 ms to 50 ms, and the game held 111.6 fps against 112.2 with the card hidden.
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
-With card rays shown, the glow pulse and the rays stay in the hardware card window and are still starved
-at normal priority. A wave being sampled for an unlock clip keeps its card window live under the layers.
+A wave being sampled for an unlock clip keeps its card window live under the layers, rays included.
 
 ## The composer probe
 
