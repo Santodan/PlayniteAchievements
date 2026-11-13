@@ -65,6 +65,8 @@ public static class TemplateBench
     private static extern int D3DKMTSetProcessSchedulingPriorityClass(IntPtr process, int priority);
     private static bool _freezeMotion;
     private static bool _liveMotion;
+    private static bool _thumbnail;
+    private static bool _tinyAnimation;
     private static string _snapshot;
     private static string _decodePath;
     // Glow pulse and rays off and no countdown: only the background animates in the hold.
@@ -145,6 +147,13 @@ public static class TemplateBench
                 // through the slides.
                 case "--animate-motion": _freezeMotion = false; break;
                 case "--live-motion": _liveMotion = true; break;
+                // The card window stays cloaked and a surfaceless presenter window shows its DWM
+                // thumbnail; entrance and exit move the thumbnail from a pacing thread, so the
+                // motion needs no WPF frames.
+                case "--thumbnail": _thumbnail = true; break;
+                // A 6 px square in the window corner, away from the card, animating forever: a
+                // frame every composition that redraws none of the card.
+                case "--tiny-animation": _tinyAnimation = true; break;
             }
         }
 
@@ -296,6 +305,98 @@ public static class TemplateBench
         card.Window.Close();
     }
 
+    /// <summary>
+    /// A window with no surface of its own that shows the cloaked card window through a DWM
+    /// thumbnail and moves it, one step per DWM composition, from its own thread.
+    /// </summary>
+    private sealed class ThumbnailPresenter
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Props
+        {
+            public int Flags;
+            public Rect32 Destination;
+            public Rect32 Source;
+            public byte Opacity;
+            [MarshalAs(UnmanagedType.Bool)] public bool Visible;
+            [MarshalAs(UnmanagedType.Bool)] public bool SourceClientAreaOnly;
+        }
+
+        [DllImport("dwmapi.dll")] private static extern int DwmRegisterThumbnail(IntPtr dest, IntPtr src, out IntPtr thumb);
+        [DllImport("dwmapi.dll")] private static extern int DwmUpdateThumbnailProperties(IntPtr thumb, ref Props props);
+        [DllImport("dwmapi.dll")] private static extern int DwmFlush();
+
+        private sealed class Surfaceless : System.Windows.Forms.Form
+        {
+            protected override bool ShowWithoutActivation => true;
+
+            protected override System.Windows.Forms.CreateParams CreateParams
+            {
+                get
+                {
+                    var p = base.CreateParams;
+                    // TOPMOST | TRANSPARENT | TOOLWINDOW | NOACTIVATE | NOREDIRECTIONBITMAP
+                    p.ExStyle |= 0x8 | 0x20 | 0x80 | 0x08000000 | 0x00200000;
+                    return p;
+                }
+            }
+        }
+
+        private readonly IntPtr _thumb;
+        private readonly int _width, _height, _travel;
+        private readonly Surfaceless _form;
+
+        public ThumbnailPresenter(IntPtr source, Rect32 rect, int travelPx)
+        {
+            _width = rect.Right - rect.Left;
+            _height = rect.Bottom - rect.Top;
+            _travel = travelPx;
+            _form = new Surfaceless
+            {
+                FormBorderStyle = System.Windows.Forms.FormBorderStyle.None,
+                ShowInTaskbar = false,
+                StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                TopMost = true,
+                Bounds = new System.Drawing.Rectangle(rect.Left, rect.Top, _width, _height),
+            };
+            _form.Show();
+            var hr = DwmRegisterThumbnail(_form.Handle, source, out _thumb);
+            if (hr != 0) throw new InvalidOperationException("DwmRegisterThumbnail 0x" + hr.ToString("X"));
+            Place(_travel, false);
+        }
+
+        private void Place(int offsetY, bool visible)
+        {
+            var p = new Props
+            {
+                Flags = 1 | 4 | 8 | 16,
+                Destination = new Rect32 { Left = 0, Top = offsetY, Right = _width, Bottom = offsetY + _height },
+                Opacity = 255,
+                Visible = visible,
+                SourceClientAreaOnly = true,
+            };
+            DwmUpdateThumbnailProperties(_thumb, ref p);
+        }
+
+        /// <summary>Slides in (from the travel offset to rest) or out, sine eased, and returns at once.</summary>
+        public void Slide(bool entering, double durationMs)
+        {
+            var thread = new Thread(() =>
+            {
+                var clock = Stopwatch.StartNew();
+                while (true)
+                {
+                    var p = Math.Min(1.0, clock.Elapsed.TotalMilliseconds / durationMs);
+                    var shown = entering ? Math.Sin(p * Math.PI / 2) : Math.Cos(p * Math.PI / 2);
+                    Place((int)Math.Round(_travel * (1 - shown)), entering || p < 1.0);
+                    if (p >= 1.0) break;
+                    DwmFlush();
+                }
+            }) { IsBackground = true, Priority = ThreadPriority.AboveNormal };
+            thread.Start();
+        }
+    }
+
     private static void Cloak(Card card, bool cloaked)
     {
         _plugin.GetType("PlayniteAchievements.Services.UI.ToastWindowSurface").GetMethod("SetCloaked")
@@ -335,7 +436,7 @@ public static class TemplateBench
         var pluginType = _plugin.GetType("PlayniteAchievements.PlayniteAchievementsPlugin");
         var instance = FormatterServices.GetUninitializedObject(pluginType);
         var dataDir = Path.GetDirectoryName(_configPath);
-        var disk = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.DiskImageService"), _logger, dataDir, 8);
+        var disk = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.DiskImageService"), _logger, dataDir, 8, null);
         var memory = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.MemoryImageService"), _logger, disk, 512);
         var rays = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.RayTrackService"), _logger, memory, 1024);
         Set(instance, "_diskImageService", disk);
@@ -487,6 +588,30 @@ public static class TemplateBench
 
         StillBackground(card.Host);
 
+        if (_tinyAnimation)
+        {
+            var dot = new System.Windows.Shapes.Rectangle
+            {
+                Width = 6, Height = 6, Fill = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            };
+            card.Host.Children.Add(dot);
+            dot.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromSeconds(1))
+            {
+                AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
+            });
+        }
+
+        ThumbnailPresenter presenter = null;
+        if (_thumbnail)
+        {
+            var scale = PresentationSource.FromVisual(card.Window).CompositionTarget.TransformToDevice.M22;
+            presenter = new ThumbnailPresenter(new WindowInteropHelper(card.Window).Handle, card.Rect,
+                (int)Math.Round(card.TravelDip * scale));
+            Cloak(card, true);
+            Console.WriteLine("thumbnail presenter: travel {0} px", (int)Math.Round(card.TravelDip * scale));
+        }
+
         IRecorder recorder = _noCapture ? new NullRecorder()
             : _inProcessCapture ? new RegionRecorder(card.Rect)
             : (IRecorder)new RemoteRecorder(card.Rect);
@@ -515,7 +640,7 @@ public static class TemplateBench
                 var b0 = Stopwatch.GetTimestamp();
                 await Task.Delay(3000);
                 var b1 = Stopwatch.GetTimestamp();
-                surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
+                if (!_thumbnail) surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
                 Console.WriteLine("game with card hidden {0:0.0} fps, worst frame {1:0.0} ms", GameFps(b0, b1), GameMaxMs(b0, b1));
                 await Task.Delay(500);
             }
@@ -523,12 +648,31 @@ public static class TemplateBench
             for (var c = 0; c < _cycles; c++)
             {
                 // Entrance, as the wave runs it: cache realized a frame ahead, then the slide.
-                card.Slide.Y = card.TravelDip;
-                engage.Invoke(null, new object[] { card.Host, card.Window });
+                if (_thumbnail)
+                {
+                    card.Slide.Y = 0;
+                }
+                else
+                {
+                    card.Slide.Y = card.TravelDip;
+                    engage.Invoke(null, new object[] { card.Host, card.Window });
+                }
+
                 await Frames(3);
                 var t0 = Stopwatch.GetTimestamp();
-                run.Invoke(card.Service, new object[] { null, card.TravelDip, 0d, easeIn, inMs, true, "in", false });
-                if (_liveMotion)
+                if (_thumbnail)
+                {
+                    presenter.Slide(true, inMs);
+                }
+                else
+                {
+                    run.Invoke(card.Service, new object[] { null, card.TravelDip, 0d, easeIn, inMs, true, "in", false });
+                }
+
+                if (_thumbnail)
+                {
+                }
+                else if (_liveMotion)
                 {
                     svcType.GetMethod("DisposeSlideQuiet", Flags).Invoke(card.Service, null);
                 }
@@ -539,7 +683,7 @@ public static class TemplateBench
 
                 await Task.Delay((int)inMs + 20);
                 var t1 = Stopwatch.GetTimestamp();
-                stop.Invoke(card.Service, null);
+                if (!_thumbnail) stop.Invoke(card.Service, null);
                 StillBackground(card.Host);
 
                 // As the wave does at the settle: hits, and DWM composition, limited to the card.
@@ -570,11 +714,22 @@ public static class TemplateBench
                 {
                     Cloak(_overlay, true);
                 }
-                engage.Invoke(null, new object[] { card.Host, card.Window });
+                if (!_thumbnail) engage.Invoke(null, new object[] { card.Host, card.Window });
                 await Frames(1);
                 var t3 = Stopwatch.GetTimestamp();
-                run.Invoke(card.Service, new object[] { null, 0d, card.TravelDip, easeOut, outMs, true, "out", false });
-                if (_liveMotion)
+                if (_thumbnail)
+                {
+                    presenter.Slide(false, outMs);
+                }
+                else
+                {
+                    run.Invoke(card.Service, new object[] { null, 0d, card.TravelDip, easeOut, outMs, true, "out", false });
+                }
+
+                if (_thumbnail)
+                {
+                }
+                else if (_liveMotion)
                 {
                     svcType.GetMethod("DisposeSlideQuiet", Flags).Invoke(card.Service, null);
                 }
@@ -585,7 +740,7 @@ public static class TemplateBench
 
                 await Task.Delay((int)outMs + 20);
                 var t4 = Stopwatch.GetTimestamp();
-                stop.Invoke(card.Service, null);
+                if (!_thumbnail) stop.Invoke(card.Service, null);
                 StillBackground(card.Host);
                 await Task.Delay(300);
 
