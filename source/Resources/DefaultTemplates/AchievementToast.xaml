@@ -42,7 +42,7 @@
                  Gated on the notification-level glow rather than the icon's, so the card's halo and
                  its rays come and go together. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
-                                     helpers:ToastLayer.Role="Back"
+                                     helpers:ToastLayer.Role="Rays"
                                      UseCompletedColors="{Binding UsesCompletionColors}"
                                      IsActive="{Binding AnimateRarityGlows}"
                                      PhaseLock="{Binding IsPreview}"
