@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Services.UI
     ///
     /// The presenting window is layered with a colour key over its own fill, so nothing of it shows
     /// but the thumbnail, and transparent to input, so every click reaches what is underneath. It
-    /// sits directly below the cloaked window in the z-order and takes that window's rectangle, so
+    /// sits directly above the cloaked window in the z-order and takes that window's rectangle, so
     /// it clips the thumbnail exactly as the window clips its content.
     ///
     /// UI thread only. All members are wrapped so they can never throw into the toast pipeline.
@@ -41,6 +41,9 @@ namespace PlayniteAchievements.Services.UI
         private const uint GwHwndPrev = 3;
         private const int DwmwaCloaked = 14;
         private const int BlackBrush = 4;
+        private const int GwlExStyle = -20;
+        private const int WsExTopmost = 0x8;
+        private static readonly IntPtr HwndTopmost = new IntPtr(-1);
 
         private const int TnpRectDestination = 0x1;
         private const int TnpOpacity = 0x4;
@@ -86,6 +89,9 @@ namespace PlayniteAchievements.Services.UI
 
         [DllImport("user32.dll")]
         private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        private static extern int GetWindowLong(IntPtr hwnd, int index);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -433,8 +439,9 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Keeps the presenting window on the source's rectangle and directly below it in the
-        /// z-order. Read and set as physical pixels, like every other placement of the toast.
+        /// Keeps the presenting window on the source's rectangle and directly above it in the
+        /// z-order, which is where the toast's own placement expects the source to stay: the
+        /// window directly above the game. Read and set as physical pixels, like every other placement of the toast.
         /// </summary>
         private void Follow()
         {
@@ -454,13 +461,28 @@ namespace PlayniteAchievements.Services.UI
                 var moved = !_placed ||
                     rect.Left != _rect.Left || rect.Top != _rect.Top ||
                     rect.Right != _rect.Right || rect.Bottom != _rect.Bottom;
-                if (!moved && GetWindow(surface.Handle, GwHwndPrev) == _sourceHwnd)
+                // Directly above the source: SetWindowPos places a window below the one named, so
+                // this one goes below whatever is above the source now, or to the top of the
+                // source's band when nothing is.
+                var above = GetWindow(_sourceHwnd, GwHwndPrev);
+                if (!moved && above == surface.Handle)
                 {
                     return;
                 }
 
+                var insertAfter = above;
+                if (above == surface.Handle)
+                {
+                    insertAfter = GetWindow(surface.Handle, GwHwndPrev);
+                }
+
+                if (insertAfter == IntPtr.Zero)
+                {
+                    insertAfter = (GetWindowLong(_sourceHwnd, GwlExStyle) & WsExTopmost) != 0 ? HwndTopmost : IntPtr.Zero;
+                }
+
                 if (SetWindowPos(
-                    surface.Handle, _sourceHwnd, rect.Left, rect.Top,
+                    surface.Handle, insertAfter, rect.Left, rect.Top,
                     rect.Right - rect.Left, rect.Bottom - rect.Top, SwpNoActivate))
                 {
                     _rect = rect;
