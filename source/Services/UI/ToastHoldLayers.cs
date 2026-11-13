@@ -1,0 +1,185 @@
+using System;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
+using Playnite.SDK;
+using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Views.Helpers;
+
+namespace PlayniteAchievements.Services.UI
+{
+    /// <summary>
+    /// Two cloaked windows that each show one layer of a resting wave, for a thumbnail presenter to
+    /// draw over the wave's own window: the cards' backgrounds and the cards' content, both rendered
+    /// in software.
+    ///
+    /// Measured against a GPU-bound game with an animated background (tools/capture-harness
+    /// README.md, "The thumbnail probe"): at normal GPU priority the whole card reached the screen
+    /// about 10 times a second and a card without effects, rendered in software, at the video's
+    /// full rate, at no cost to the game; at realtime priority the whole card cost the game about
+    /// 9 fps of 102, of which about 3 remained without the card's effects. A software window issues
+    /// no GPU work from this process, and a window that holds only the content is not redrawn by a
+    /// background frame.
+    ///
+    /// Both windows build the wave's cards from the same view models and template as the wave's own
+    /// window, with its content scale and margins, so every element lands on the same pixels.
+    /// UI thread only.
+    /// </summary>
+    internal sealed class ToastHoldLayers : IDisposable
+    {
+        private const double SizeToleranceDip = 0.01;
+
+        private ToastHoldLayers(Window background, Window content)
+        {
+            Background = background;
+            Content = content;
+        }
+
+        /// <summary>
+        /// Whether the wave's own window draws nothing while the layers are shown, so no window of
+        /// the wave issues GPU work.
+        /// </summary>
+        public bool MainIsStill { get; set; }
+
+        /// <summary>The cards' backgrounds alone, rendered in software.</summary>
+        public Window Background { get; }
+
+        /// <summary>The cards' content alone, over nothing.</summary>
+        public Window Content { get; }
+
+        /// <summary>Whatever undoes the stand-downs applied to the wave's own window for the split.</summary>
+        public IDisposable MainHold { get; set; }
+
+        /// <summary>
+        /// Builds and shows both windows, cloaked, or returns null when they cannot be built to the
+        /// main window's exact size.
+        /// </summary>
+        public static ToastHoldLayers TryCreate(
+            IPlayniteAPI api, Window main, ItemsControl mainSurface,
+            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template, bool perMonitorWindow)
+        {
+            Window background = null;
+            Window content = null;
+            try
+            {
+                if (main == null || mainSurface == null || cards == null || template == null ||
+                    !ToastWindowPlacer.TryGetPhysicalRect(main, out var mainRect))
+                {
+                    return null;
+                }
+
+                background = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
+                content = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
+                if (background == null || content == null)
+                {
+                    Close(background);
+                    Close(content);
+                    return null;
+                }
+
+                ToastLayer.ShowOnlyBackground((DependencyObject)background.Content);
+                ToastLayer.ShowOnlyContent((DependencyObject)content.Content);
+                return new ToastHoldLayers(background, content);
+            }
+            catch
+            {
+                Close(background);
+                Close(content);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Whether both windows have every image <paramref name="mainSurface"/>, the wave's own
+        /// cards, has.
+        /// </summary>
+        public bool IsLoadedLike(DependencyObject mainSurface)
+        {
+            var wanted = AsyncImage.LoadedCountUnder(mainSurface);
+            return AsyncImage.LoadedCountUnder(Background) >= wanted &&
+                AsyncImage.LoadedCountUnder(Content) >= wanted;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                MainHold?.Dispose();
+            }
+            catch
+            {
+            }
+
+            MainHold = null;
+            Close(Background);
+            Close(Content);
+        }
+
+        private static Window Build(
+            IPlayniteAPI api, Window main, ItemsControl mainSurface,
+            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template,
+            bool perMonitorWindow, System.Drawing.Rectangle mainRect)
+        {
+            var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(api, main.Title);
+            GlowAnimationGate.SetIsExempt(window, true);
+            ToastWindowSurface.UseDwmComposition(window);
+            window.Topmost = false;
+
+            var surface = ToastSurfaceFactory.BuildToastSurface(cards, template);
+            if (mainSurface.LayoutTransform is ScaleTransform scale)
+            {
+                surface.LayoutTransform = new ScaleTransform(scale.ScaleX, scale.ScaleY);
+            }
+
+            surface.Margin = mainSurface.Margin;
+            window.Content = ToastSurfaceFactory.BuildSlideHost(surface, out _);
+
+            using (perMonitorWindow ? Common.DpiAwarenessScope.PerMonitorV2() : null)
+            {
+                new WindowInteropHelper(window).EnsureHandle();
+            }
+
+            // Cloaked before and after Show, as the wave's own window is: DWM can compose a newly
+            // shown window before a cloak set afterwards takes hold.
+            ToastWindowSurface.SetCloaked(window, true);
+            ToastWindowPlacer.MovePhysical(window, mainRect.X, mainRect.Y);
+            window.Show();
+            ToastWindowSurface.SetCloaked(window, true);
+            // Software: WPF presents every window of the process from one render thread, so a
+            // hardware frame that waits in the GPU queue holds back a software one beside it.
+            if (PresentationSource.FromVisual(window) is HwndSource source && source.CompositionTarget != null)
+            {
+                source.CompositionTarget.RenderMode = RenderMode.SoftwareOnly;
+            }
+
+            window.UpdateLayout();
+            ToastSurfaceFactory.ApplyMeasuredCardGaps(surface);
+            window.UpdateLayout();
+
+            // A layer of another size would be resampled onto the wave's rectangle.
+            if (Math.Abs(window.ActualWidth - main.ActualWidth) > SizeToleranceDip ||
+                Math.Abs(window.ActualHeight - main.ActualHeight) > SizeToleranceDip ||
+                !ToastWindowPlacer.TryGetPhysicalRect(window, out var rect) ||
+                rect.Width != mainRect.Width || rect.Height != mainRect.Height)
+            {
+                Close(window);
+                return null;
+            }
+
+            return window;
+        }
+
+        private static void Close(Window window)
+        {
+            try
+            {
+                window?.Close();
+            }
+            catch
+            {
+            }
+        }
+    }
+}
