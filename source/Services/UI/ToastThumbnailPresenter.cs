@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Forms;
@@ -130,15 +131,26 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>One registered thumbnail and what was last sent for it.</summary>
+        private sealed class Thumb
+        {
+            public IntPtr Handle;
+            public bool HasPushed;
+            public ThumbnailProperties Pushed;
+        }
+
         private readonly Window _source;
         private readonly IntPtr _sourceHwnd;
+        private readonly Thumb _main = new Thumb();
+        private readonly List<Thumb> _layers = new List<Thumb>();
         private Surface _surface;
         private IntPtr _thumbnail;
         private RectI _rect;
         private bool _placed;
         private bool _revealed;
-        private bool _hasPushed;
-        private ThumbnailProperties _pushed;
+        private bool _layersShown;
+        private RectI _destination;
+        private byte _level;
 
         private ToastThumbnailPresenter(Window source, IntPtr sourceHwnd, Surface surface, IntPtr thumbnail)
         {
@@ -146,6 +158,7 @@ namespace PlayniteAchievements.Services.UI
             _sourceHwnd = sourceHwnd;
             _surface = surface;
             _thumbnail = thumbnail;
+            _main.Handle = thumbnail;
         }
 
         /// <summary>
@@ -204,7 +217,7 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var presenter = new ToastThumbnailPresenter(source, sourceHwnd, surface, thumbnail);
-                presenter.Push(new RectI(), 0, false);
+                Push(presenter._main, new RectI(), 0, false);
                 presenter.Follow();
                 ShowWindow(surface.Handle, SwShowNoActivate);
                 return presenter;
@@ -222,6 +235,12 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
         }
+
+        /// <summary>
+        /// A factor on the main thumbnail's opacity alone, 1 by default. The layers over it are
+        /// not dimmed by it.
+        /// </summary>
+        public double MainOpacityScale { get; set; } = 1d;
 
         /// <summary>Lets the thumbnail show from the next <see cref="Update"/> on.</summary>
         public void Reveal()
@@ -267,15 +286,104 @@ namespace PlayniteAchievements.Services.UI
                 };
 
                 var level = (byte)Math.Round(255d * Math.Max(0d, Math.Min(1d, double.IsNaN(opacity) ? 1d : opacity)));
-                Push(destination, level, _revealed && level > 0);
+                _destination = destination;
+                _level = level;
+                var visible = _revealed && level > 0;
+                var scale = MainOpacityScale;
+                var mainLevel = scale >= 1d || double.IsNaN(scale)
+                    ? level
+                    : (byte)Math.Round(level * Math.Max(0d, scale));
+                Push(_main, destination, mainLevel, visible);
+                foreach (var layer in _layers)
+                {
+                    Push(layer, destination, level, visible && _layersShown);
+                }
             }
             catch
             {
             }
         }
 
+        /// <summary>
+        /// Registers <paramref name="source"/>, a cloaked window of the main source's size, as a
+        /// further thumbnail drawn over those registered before it, hidden until
+        /// <see cref="ShowLayers"/>. False when it cannot be registered or differs in size.
+        /// </summary>
+        public bool AddLayer(Window source)
+        {
+            try
+            {
+                var surface = _surface;
+                var hwnd = source == null ? IntPtr.Zero : new WindowInteropHelper(source).Handle;
+                if (surface == null || hwnd == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                using (Common.DpiAwarenessScope.PerMonitorV2())
+                {
+                    if (!GetWindowRect(hwnd, out var rect) || !GetWindowRect(_sourceHwnd, out var mainRect) ||
+                        rect.Right - rect.Left != mainRect.Right - mainRect.Left ||
+                        rect.Bottom - rect.Top != mainRect.Bottom - mainRect.Top)
+                    {
+                        return false;
+                    }
+                }
+
+                if (DwmGetWindowAttribute(hwnd, DwmwaCloaked, out var cloaked, sizeof(int)) != 0 || cloaked == 0 ||
+                    DwmRegisterThumbnail(surface.Handle, hwnd, out var thumbnail) != 0 || thumbnail == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                var layer = new Thumb { Handle = thumbnail };
+                Push(layer, _destination, _level, false);
+                _layers.Add(layer);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Shows the layers over the main thumbnail, which stays underneath. The top layer appears
+        /// first, so if the calls land in different compositions the content is never missing over
+        /// a layer below it.
+        /// </summary>
+        public void ShowLayers()
+        {
+            _layersShown = true;
+            var visible = _revealed && _level > 0;
+            for (var i = _layers.Count - 1; i >= 0; i--)
+            {
+                Push(_layers[i], _destination, _level, visible);
+            }
+        }
+
+        /// <summary>Hides and unregisters the layers, lowest first, leaving the main thumbnail.</summary>
+        public void RemoveLayers()
+        {
+            _layersShown = false;
+            foreach (var layer in _layers)
+            {
+                try
+                {
+                    Push(layer, _destination, _level, false);
+                    DwmUnregisterThumbnail(layer.Handle);
+                }
+                catch
+                {
+                }
+            }
+
+            _layers.Clear();
+        }
+
         public void Dispose()
         {
+            RemoveLayers();
             try
             {
                 if (_thumbnail != IntPtr.Zero)
@@ -299,12 +407,12 @@ namespace PlayniteAchievements.Services.UI
             _surface = null;
         }
 
-        private void Push(RectI destination, byte opacity, bool visible)
+        private static void Push(Thumb thumb, RectI destination, byte opacity, bool visible)
         {
-            if (_hasPushed &&
-                _pushed.Visible == visible && _pushed.Opacity == opacity &&
-                _pushed.Destination.Left == destination.Left && _pushed.Destination.Top == destination.Top &&
-                _pushed.Destination.Right == destination.Right && _pushed.Destination.Bottom == destination.Bottom)
+            if (thumb.HasPushed &&
+                thumb.Pushed.Visible == visible && thumb.Pushed.Opacity == opacity &&
+                thumb.Pushed.Destination.Left == destination.Left && thumb.Pushed.Destination.Top == destination.Top &&
+                thumb.Pushed.Destination.Right == destination.Right && thumb.Pushed.Destination.Bottom == destination.Bottom)
             {
                 return;
             }
@@ -317,10 +425,10 @@ namespace PlayniteAchievements.Services.UI
                 Visible = visible,
                 SourceClientAreaOnly = true,
             };
-            if (DwmUpdateThumbnailProperties(_thumbnail, ref properties) == 0)
+            if (DwmUpdateThumbnailProperties(thumb.Handle, ref properties) == 0)
             {
-                _pushed = properties;
-                _hasPushed = true;
+                thumb.Pushed = properties;
+                thumb.HasPushed = true;
             }
         }
 
