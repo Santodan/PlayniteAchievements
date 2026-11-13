@@ -142,6 +142,17 @@ namespace PlayniteAchievements.Services.UI
         private int _wavePrimedSubmitCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
+
+        // A wave shown through a thumbnail presenter keeps its card still inside the cloaked window:
+        // the entrance and exit storyboards then animate this empty stand-in beside the card's host,
+        // and the presenter applies the stand-in's transform and opacity to the thumbnail. Null when
+        // the card's own host carries the motion, as it does without a presenter.
+        private FrameworkElement _activeMotionHost;
+        private ToastThumbnailPresenter _activePresenter;
+        private EventHandler _activePresenterTick;
+
+        // Per-frame work of a presented wave runs off this instead of CompositionTarget.Rendering.
+        private DwmFramePump _activeFramePump;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
         // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
         // cadence the motion actually got.
@@ -1202,7 +1213,7 @@ namespace PlayniteAchievements.Services.UI
                 // it. Only the still-image composites bake it in here; the clip track records it
                 // per sample instead and replays it at export, because its pixels are held frozen
                 // for a slide storyboard's whole span — which is exactly when a fade runs.
-                var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
+                var hostOpacity = applyHostOpacity ? MotionHost()?.Opacity ?? 1d : 1d;
 
                 // The container's offset within its parent panel: zero for a single-card wave and
                 // for the first card of a stack, non-zero below that. Read before any temporary
@@ -1548,7 +1559,7 @@ namespace PlayniteAchievements.Services.UI
             // it. One read covers every card — the whole surface slides as one.
             var slideXPhys = (_activeSlideTransform?.X ?? 0d) * pxPerDipX;
             var slideYPhys = (_activeSlideTransform?.Y ?? 0d) * pxPerDipY;
-            var hostOpacity = Math.Max(0d, Math.Min(1d, _activeSlideHost?.Opacity ?? 1d));
+            var hostOpacity = Math.Max(0d, Math.Min(1d, MotionHost()?.Opacity ?? 1d));
             // A zoom scales the host about the card's center; recorded like the opacity so export can
             // replay it, since the card pixels are rendered without the host's transform.
             var hostScale = SlideHostScale()?.ScaleX ?? 1d;
@@ -2712,7 +2723,23 @@ namespace PlayniteAchievements.Services.UI
             _activeCardSurface = items;
             _activeSlideHost = slideHost;
             _activeSlideTransform = slideTransform;
-            window.Content = slideHost;
+            _activeMotionHost = null;
+            if (_activeDwmComposed && ToastThumbnailPresenter.IsSupported && WaveMotionIsPresentable())
+            {
+                // The motion's stand-in shares the card host's layout slot, so the two have the
+                // same size and a pivot measured on one holds for the other.
+                var motionHost = ToastSurfaceFactory.BuildSlideHost(null, out var motionTransform);
+                var root = new Grid { IsHitTestVisible = false };
+                root.Children.Add(motionHost);
+                root.Children.Add(slideHost);
+                _activeMotionHost = motionHost;
+                _activeSlideTransform = motionTransform;
+                window.Content = root;
+            }
+            else
+            {
+                window.Content = slideHost;
+            }
 
             // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
             // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
@@ -2858,6 +2885,11 @@ namespace PlayniteAchievements.Services.UI
                     ToastWindowSurface.SetCloaked(window, true);
                 }
 
+                if (_activeMotionHost != null)
+                {
+                    StartPresenter(window, needsPerMonitorWindow);
+                }
+
                 // Moving the per-monitor window onto the target monitor raises WM_DPICHANGED
                 // asynchronously; WPF then resizes/repositions the window. Wait for that to settle (the
                 // window's render scale reaches the target monitor's scale) while it is still invisible
@@ -2905,6 +2937,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     liveBackdrop = ToastLiveBackdrop.TryStart(
                         window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero, out var blurSkipped);
+                    if (liveBackdrop != null && _activePresenter != null)
+                    {
+                        liveBackdrop.Motion = PresentedMotion;
+                    }
+
                     if (blurSkipped != null)
                     {
                         _logger?.Info($"[Toast] Blur: not started ({blurSkipped}).");
@@ -2939,7 +2976,11 @@ namespace PlayniteAchievements.Services.UI
                     slideHost.Visibility = Visibility.Visible;
                 }
 
-                EngageMotionCache(_activeSlideHost, window);
+                if (_activePresenter == null)
+                {
+                    EngageMotionCache(_activeSlideHost, window);
+                }
+
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
                     .ConfigureAwait(true);
                 if (_disposed)
@@ -3058,7 +3099,7 @@ namespace PlayniteAchievements.Services.UI
                         }
                     };
                     trackRenderWatch = renderWatch;
-                    CompositionTarget.Rendering += onTrackSample;
+                    HookFrame(onTrackSample);
 
                     // The ray-burst glow invalidates at its own fixed default rate; sampling above it
                     // stores duplicate ray frames with beat-dependent phase, which plays back as
@@ -3137,7 +3178,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // While the card rests, only its own bounds take clicks; the travel room passes them
                 // to the game. Re-applied if the cards resize during the hold.
-                if (_activeDwmComposed && _activeCardSurface != null)
+                if (_activeDwmComposed && _activePresenter == null && _activeCardSurface != null)
                 {
                     ToastWindowSurface.SetHitRegion(window, _activeCardSurface, HitRegionAllowanceDip);
                     onHoldSurfaceSized = (s, e) =>
@@ -3168,7 +3209,7 @@ namespace PlayniteAchievements.Services.UI
                             // Ignore transient placement failures (e.g. window closing).
                         }
                     };
-                    CompositionTarget.Rendering += onRendering;
+                    HookFrame(onRendering);
                 }
 
                 var durationMs = EffectiveDurationSeconds() * 1000;
@@ -3197,7 +3238,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                     onRendering = null;
                 }
 
@@ -3220,7 +3261,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     // Realize the slide-out's motion cache at rest, where it matches the live card,
                     // a frame before the slide-out starts timing itself.
-                    EngageMotionCache(_activeSlideHost, window);
+                    if (_activePresenter == null)
+                    {
+                        EngageMotionCache(_activeSlideHost, window);
+                    }
+
                     await WaitForComposedFramesAsync(1, WarmFrameTimeoutMs).ConfigureAwait(true);
                     if (_disposed)
                     {
@@ -3233,7 +3278,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                     onTrackSample = null;
                     RayAnimationDriver.ClearSamplingFps();
                 }
@@ -3276,12 +3321,12 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                 }
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                 }
 
                 if (onHoldSurfaceSized != null && _activeCardSurface != null)
@@ -3305,9 +3350,11 @@ namespace PlayniteAchievements.Services.UI
                     trackRecorder != null ? cardItems.Where(vm => vm.NeedsFramedClip).ToList() : null);
 
                 StopActiveSlide();
+                StopPresenter();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
                 _activeSlideHost = null;
+                _activeMotionHost = null;
                 _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
@@ -4113,6 +4160,8 @@ namespace PlayniteAchievements.Services.UI
                 ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
             }
 
+            // A presented wave's thumbnail window takes the new rectangle and z-order in the same pass.
+            UpdatePresenter();
             return placed;
         }
 
@@ -4633,12 +4682,23 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 try
                 {
                     if (ReferenceEquals(_activeWindow, window))
                     {
-                        ToastWindowSurface.SetCloaked(window, false);
+                        if (_activePresenter != null)
+                        {
+                            // The window stays cloaked; its thumbnail is what appears, at the
+                            // motion's held start.
+                            _activePresenter.Reveal();
+                            UpdatePresenter();
+                        }
+                        else
+                        {
+                            ToastWindowSurface.SetCloaked(window, false);
+                        }
+
                         var release = _releaseHeldSlide;
                         _releaseHeldSlide = null;
                         release?.Invoke();
@@ -4651,7 +4711,7 @@ namespace PlayniteAchievements.Services.UI
 
                 started.TrySetResult(true);
             };
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             return started.Task;
         }
 
@@ -4692,7 +4752,7 @@ namespace PlayniteAchievements.Services.UI
             var storyboard = ToastMotionStoryboardFactory.Build(
                 motion, entering, _activeMotionPlan.Feel, durationMs, offset);
 
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             var scale = SlideHostScale();
             var fades = motion == ToastMotion.Fade || motion == ToastMotion.Zoom;
@@ -4763,11 +4823,284 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// The element the entrance and exit animate: the presenter's stand-in when the wave has
+        /// one, otherwise the card's own host.
+        /// </summary>
+        private FrameworkElement MotionHost()
+        {
+            return _activeMotionHost ?? _activeSlideHost;
+        }
+
+        /// <summary>
+        /// Whether a presenter can reproduce this wave's entrance and exit. It shows the motion
+        /// host's transform and opacity and nothing else, which covers the style motions and the
+        /// built-in slide; a theme storyboard qualifies when every child the plugin aims at the
+        /// host animates one of those.
+        /// </summary>
+        private bool WaveMotionIsPresentable()
+        {
+            if (_activeMotionPlan != null)
+            {
+                return true;
+            }
+
+            return StoryboardIsPresentable(_activeSlideInStoryboard) &&
+                StoryboardIsPresentable(_activeSlideOutStoryboard);
+        }
+
+        private static bool StoryboardIsPresentable(Storyboard storyboard)
+        {
+            if (storyboard == null)
+            {
+                return true;
+            }
+
+            foreach (var child in storyboard.Children)
+            {
+                if (!IsUntargeted(child) || AnimatesSlide(child))
+                {
+                    continue;
+                }
+
+                var path = Storyboard.GetTargetProperty(child)?.Path;
+                if (path == null ||
+                    (path.IndexOf("RenderTransform", StringComparison.Ordinal) < 0 &&
+                     path.IndexOf("Opacity", StringComparison.Ordinal) < 0))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Creates the wave's thumbnail presenter and starts mirroring the motion host onto it every
+        /// composed frame. When the presenter cannot be created the card moves back under the motion
+        /// host, which then carries the motion inside the window as it does without a presenter.
+        /// </summary>
+        private void StartPresenter(Window window, bool perMonitorWindow)
+        {
+            ToastThumbnailPresenter presenter;
+            using (perMonitorWindow ? Common.DpiAwarenessScope.PerMonitorV2() : null)
+            {
+                presenter = ToastThumbnailPresenter.TryCreate(window);
+            }
+
+            if (presenter == null)
+            {
+                _logger?.Info("[Toast] Presenter: unavailable, the window shows itself.");
+                if (_activeSlideHost is Panel cardHost && _activeMotionHost is Panel motionHost &&
+                    _activeCardSurface != null)
+                {
+                    cardHost.Children.Remove(_activeCardSurface);
+                    motionHost.Children.Add(_activeCardSurface);
+                    motionHost.Visibility = cardHost.Visibility;
+                    _activeSlideHost = motionHost;
+                }
+
+                _activeMotionHost = null;
+                return;
+            }
+
+            _activePresenter = presenter;
+            _activeFramePump = new DwmFramePump(window.Dispatcher);
+            _activePresenterTick = (s, e) => UpdatePresenter();
+            HookFrame(_activePresenterTick);
+        }
+
+        /// <summary>
+        /// Subscribes a per-frame handler for the active wave: to the wave's frame pump when it has
+        /// one, otherwise to WPF's render loop.
+        /// </summary>
+        private void HookFrame(EventHandler handler)
+        {
+            if (handler == null)
+            {
+                return;
+            }
+
+            if (_activeFramePump != null)
+            {
+                _activeFramePump.Frame += handler;
+            }
+            else
+            {
+                CompositionTarget.Rendering += handler;
+            }
+        }
+
+        private void UnhookFrame(EventHandler handler)
+        {
+            if (handler == null)
+            {
+                return;
+            }
+
+            // From both: the pump may have started or stopped since the handler was hooked.
+            if (_activeFramePump != null)
+            {
+                _activeFramePump.Frame -= handler;
+            }
+
+            CompositionTarget.Rendering -= handler;
+        }
+
+        /// <summary>
+        /// Raises <see cref="Frame"/> on the UI thread once per DWM composition.
+        ///
+        /// A presented wave changes nothing in its window while it moves, and WPF then raised
+        /// CompositionTarget.Rendering about three times a second under a GPU-bound game
+        /// (TemplateBench --presenter), which is what the slide's clock drive, the thumbnail and
+        /// the track sampler would have stepped at. DwmFlush returns at each composition whatever
+        /// WPF has to draw. A frame the UI thread has not handled yet is not queued again.
+        /// </summary>
+        private sealed class DwmFramePump : IDisposable
+        {
+            [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+            private static extern int DwmFlush();
+
+            private readonly System.Windows.Threading.Dispatcher _dispatcher;
+            private readonly Action _raise;
+            private volatile bool _running = true;
+            private int _pending;
+
+            public DwmFramePump(System.Windows.Threading.Dispatcher dispatcher)
+            {
+                _dispatcher = dispatcher;
+                _raise = Raise;
+                new System.Threading.Thread(Run)
+                {
+                    IsBackground = true,
+                    Name = "PlayAch toast frame pump",
+                    Priority = System.Threading.ThreadPriority.AboveNormal,
+                }.Start();
+            }
+
+            public event EventHandler Frame;
+
+            public void Dispose()
+            {
+                _running = false;
+                Frame = null;
+            }
+
+            private void Run()
+            {
+                while (_running)
+                {
+                    try
+                    {
+                        if (DwmFlush() != 0)
+                        {
+                            System.Threading.Thread.Sleep(8);
+                        }
+
+                        if (_running && System.Threading.Interlocked.CompareExchange(ref _pending, 1, 0) == 0)
+                        {
+                            _dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, _raise);
+                        }
+                    }
+                    catch
+                    {
+                        System.Threading.Thread.Sleep(8);
+                    }
+                }
+            }
+
+            private void Raise()
+            {
+                System.Threading.Volatile.Write(ref _pending, 0);
+                var handlers = Frame;
+                if (!_running || handlers == null)
+                {
+                    return;
+                }
+
+                foreach (EventHandler handler in handlers.GetInvocationList())
+                {
+                    try
+                    {
+                        handler(this, EventArgs.Empty);
+                    }
+                    catch
+                    {
+                        // One handler's failure must not cost the others their frame.
+                    }
+                }
+            }
+        }
+
+        private void StopPresenter()
+        {
+            if (_activePresenterTick != null)
+            {
+                UnhookFrame(_activePresenterTick);
+                _activePresenterTick = null;
+            }
+
+            var presenter = _activePresenter;
+            _activePresenter = null;
+            presenter?.Dispose();
+
+            var pump = _activeFramePump;
+            _activeFramePump = null;
+            pump?.Dispose();
+        }
+
+        /// <summary>
+        /// Shows the thumbnail where the motion host's render transform and opacity put the card.
+        /// The transform is taken as WPF applies it, about the host's RenderTransformOrigin.
+        /// </summary>
+        private void UpdatePresenter()
+        {
+            var presenter = _activePresenter;
+            var host = _activeMotionHost;
+            if (presenter == null || host == null)
+            {
+                return;
+            }
+
+            try
+            {
+                presenter.Update(PresentedMotion(), host.Opacity);
+            }
+            catch
+            {
+                // A frame without an update keeps the thumbnail where it was.
+            }
+        }
+
+        /// <summary>
+        /// The motion host's render transform in window DIPs, as WPF applies it about the host's
+        /// RenderTransformOrigin: where a presented wave's thumbnail is drawn relative to the card
+        /// at rest. Identity when the wave has no presenter.
+        /// </summary>
+        private Matrix PresentedMotion()
+        {
+            var host = _activeMotionHost;
+            if (host == null)
+            {
+                return Matrix.Identity;
+            }
+
+            var origin = new Point(
+                host.RenderTransformOrigin.X * host.ActualWidth,
+                host.RenderTransformOrigin.Y * host.ActualHeight);
+            var motion = Matrix.Identity;
+            motion.Translate(-origin.X, -origin.Y);
+            motion.Append(host.RenderTransform?.Value ?? Matrix.Identity);
+            motion.Translate(origin.X, origin.Y);
+            return motion;
+        }
+
         /// <summary>The scale at index 0 of the slide host's transform group, or null.</summary>
         private ScaleTransform SlideHostScale()
         {
-            return (_activeSlideHost?.RenderTransform as TransformGroup)?.Children.Count > 0
-                ? ((TransformGroup)_activeSlideHost.RenderTransform).Children[0] as ScaleTransform
+            var host = MotionHost();
+            return (host?.RenderTransform as TransformGroup)?.Children.Count > 0
+                ? ((TransformGroup)host.RenderTransform).Children[0] as ScaleTransform
                 : null;
         }
 
@@ -4787,10 +5120,20 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
+                // A stand-in host does not contain the card and may already hold the motion's
+                // start; the card's own host has the same layout slot and no transform.
+                var reference = ReferenceEquals(host, _activeMotionHost) && _activeSlideHost != null
+                    ? _activeSlideHost
+                    : host;
+                if (reference.ActualWidth <= 0 || reference.ActualHeight <= 0)
+                {
+                    return;
+                }
+
                 var center = card.TranslatePoint(
-                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), host);
+                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), reference);
                 host.RenderTransformOrigin = new Point(
-                    center.X / host.ActualWidth, center.Y / host.ActualHeight);
+                    center.X / reference.ActualWidth, center.Y / reference.ActualHeight);
             }
             catch (InvalidOperationException)
             {
@@ -4972,7 +5315,7 @@ namespace PlayniteAchievements.Services.UI
             double durationMs, bool travels, string label, bool holdAtStart = false)
         {
             StopActiveSlide();
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             if (host == null || transform == null)
             {
@@ -5087,7 +5430,7 @@ namespace PlayniteAchievements.Services.UI
             // or invalidates stands down so the slide gets the whole frame budget. Completed
             // releases it at the slide's natural end (attached before Begin — later subscribers
             // never reach the running clock); StopActiveSlide backstops every cut-short path.
-            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow);
+            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow, _activeSlideHost, _activePresenter == null);
             storyboard.Completed += (s, e) => DisposeSlideQuiet();
 
             // A held entrance seeds its START instead, until it reaches its end. Recorded in Playnite:
@@ -5101,7 +5444,7 @@ namespace PlayniteAchievements.Services.UI
                 _restoreRestBase = () => transform.Y = restDip;
             }
 
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             try
             {
                 storyboard.Begin(host, isControllable: true);
@@ -5135,7 +5478,7 @@ namespace PlayniteAchievements.Services.UI
                 // tree. Land the card where the slide would have left it rather than mid-travel.
                 _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
                 DisposeSlideQuiet();
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 _activeSlideTick = null;
                 _runningSlideStoryboard = null;
                 RestoreRestBase();
@@ -5565,13 +5908,24 @@ namespace PlayniteAchievements.Services.UI
             private IDisposable _gate;
             private bool _disposed;
 
-            public SlideQuietScope(FrameworkElement host, Window window)
+            /// <param name="host">The element the motion animates.</param>
+            /// <param name="cardHost">
+            /// The element holding the card, when that is not <paramref name="host"/> (a presented
+            /// wave): the stand-downs apply to the card.
+            /// </param>
+            public SlideQuietScope(FrameworkElement host, Window window, FrameworkElement cardHost = null, bool cacheHost = true)
             {
+                host = cardHost ?? host;
                 _host = host;
                 _gate = RenderQuietGate.Engage();
 
-                // Normally engaged a frame earlier; this covers a motion started without that.
-                EngageMotionCache(host, window);
+                // Normally engaged a frame earlier; this covers a motion started without that. A
+                // card shown through a presenter does not move inside its window, so it has
+                // nothing to cache.
+                if (cacheHost)
+                {
+                    EngageMotionCache(host, window);
+                }
 
                 try
                 {
@@ -5658,7 +6012,7 @@ namespace PlayniteAchievements.Services.UI
 
             if (_activeSlideTick != null)
             {
-                CompositionTarget.Rendering -= _activeSlideTick;
+                UnhookFrame(_activeSlideTick);
                 _activeSlideTick = null;
             }
 
@@ -5670,12 +6024,13 @@ namespace PlayniteAchievements.Services.UI
             // ignored and the card could never be nudged back to rest.
             var storyboard = _runningSlideStoryboard;
             _runningSlideStoryboard = null;
-            if (storyboard != null && _activeSlideHost != null)
+            var motionHost = MotionHost();
+            if (storyboard != null && motionHost != null)
             {
                 try
                 {
-                    storyboard.Stop(_activeSlideHost);
-                    storyboard.Remove(_activeSlideHost);
+                    storyboard.Stop(motionHost);
+                    storyboard.Remove(motionHost);
                 }
                 catch (Exception ex)
                 {
