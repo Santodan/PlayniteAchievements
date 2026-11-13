@@ -706,6 +706,62 @@ prices a game leaving independent flip, and nothing is measured at 165 Hz.
 The pacing thread sets whole-pixel positions at the time it wakes; residual against the ideal curve
 (`--truth`) is not measured for it.
 
+### The plugin's presenter and hold layers: `TemplateBench --presenter [--hold-layers]`
+
+```powershell
+tools\capture-harness\bin\TemplateBench.exe --game 2500 --presenter [--hold-layers]
+    [--recorder-priority 5] [--no-capture] [--layers-compare --snapshot <prefix>]
+```
+
+`--presenter` drives the plugin's own `ToastThumbnailPresenter`: the card window stays cloaked, the slide
+storyboards run on the service's empty motion stand-in, and the service mirrors the stand-in's transform
+and opacity onto the thumbnail from a pump that waits on `DwmFlush`.
+`--hold-layers` also calls the service's `BeginHoldLayersAsync` / `EndHoldLayersAsync` around the hold: the
+cards' backgrounds and content are shown from two software-rendered layer windows (`ToastHoldLayers`) over
+the card window, which holds its animated images on a still and hides everything but what is drawn behind
+the card.
+`--recorder-priority 5` runs the capture child at the realtime GPU class, so it is not starved by the
+game; read cadence from such a run and game fps from a `--no-capture` one.
+`--layers-compare` captures the card on screen before and after the split.
+
+Measured 2026-11-13 on the 165 Hz display (2560x1440) against `GameLoad --work 2500` (about 112 fps alone),
+the user's settings (animated WebM background, border glow pulse, card rays), card scale 1, medians of 3
+cycles. Desktop updates arrived at about 105-110 per second in every run, so that is the ceiling for
+`changed/s`.
+
+| mode | entrance | hold | exit | game fps in hold | game worst frame |
+|---|---|---|---|---|---|
+| window, GPU priority normal (Performance) | 28.1/s | 8.5/s | 25.4/s | 111.6-112.0 | 9.5 ms |
+| window, GPU priority realtime (Quality) | 78.0/s | 40.7/s | 76.0/s | 105.8 | 15.5 ms |
+| presenter, normal | 89.6/s | 8.8/s | 92.2/s | - | - |
+| presenter and hold layers, normal | - | 59.0/s | 94.7/s | 109.3-109.5 | 9.7-9.9 ms |
+| presenter and hold layers, normal, `--no-rays` | - | 65.0/s | - | 109.5 | 9.7 ms |
+
+The entrance of a `--hold-layers` run is left out: the bench disposes the previous cycle's layer windows
+right before it, which a wave does only after its exit.
+
+What it established:
+
+- With the card still in its window, WPF raised `CompositionTarget.Rendering` about 3 times a second
+  under the game, and a slide mirrored from that event stepped at that rate (entrance 3.0/s). Stepped from
+  a thread that waits on `DwmFlush` and posts to the dispatcher, it reached 78-93/s at normal priority.
+- WPF presents every window of the process from one render thread. A software-rendered background layer
+  beside hardware layers reached the screen 3.3 times a second at normal priority, the rate of the starved
+  hardware frames; with both layers in software it reached 59/s.
+- Splitting layers does not lower the cost of the realtime class: three hardware windows cost the game
+  about 8 fps of 112 against about 6 for the one window.
+- The layers match the single window on screen. With hardware content: 1 level on about 11,500 pixels
+  and at most 7 levels on three corner pixels, measured while the background video differed between the
+  two captures. With software content: at most 10 levels, in the soft shadows around text and icons.
+- An animated image stops decoding when its `Image` is not visible, so the background layer must not hide
+  the template's zero-size decoding image.
+- Without card rays the border glow's pulse is reproduced by the main thumbnail's opacity and the card
+  window draws nothing during the hold (`mainStill=True, pulsePresented=True` in the log line).
+
+Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
+With card rays shown, the glow pulse and the rays stay in the hardware card window and are still starved
+at normal priority. A wave being sampled for an unlock clip keeps its card window live under the layers.
+
 ## The composer probe
 
 ```powershell
