@@ -88,7 +88,11 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             var hold = service.IndexOf(
                 "await HoldWaveAsync(remainingMs).ConfigureAwait(true);", StringComparison.Ordinal);
-            var stop = service.IndexOf("StopCountdownBars(window);", StringComparison.Ordinal);
+            // From the hold on: a wave split into layers also stops its own window's bar when the
+            // layers take over, before the hold.
+            var stop = hold < 0
+                ? -1
+                : service.IndexOf("StopCountdownBars(window);", hold, StringComparison.Ordinal);
             var slideOut = service.IndexOf("SlideOutPhysical(window);", StringComparison.Ordinal);
 
             Assert.IsTrue(hold >= 0, "The wave hold call was renamed.");
