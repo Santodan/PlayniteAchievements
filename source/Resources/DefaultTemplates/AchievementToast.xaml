@@ -42,6 +42,7 @@
                  Gated on the notification-level glow rather than the icon's, so the card's halo and
                  its rays come and go together. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                     helpers:ToastLayer.Role="Back"
                                      UseCompletedColors="{Binding UsesCompletionColors}"
                                      IsActive="{Binding AnimateRarityGlows}"
                                      PhaseLock="{Binding IsPreview}"
@@ -52,6 +53,7 @@
                  carries the effect as well as the visible image. Text and icons remain in the
                  separate effect-free content layer below, so they stay crisp at every DPI. -->
             <Grid helpers:RarityGlowPulse.Target="Effect"
+                  helpers:ToastLayer.Role="Back"
                   helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}">
                 <Grid.Style>
                     <Style TargetType="Grid">
@@ -155,8 +157,10 @@
                          rasterized to an intermediate first, and the card's DPI compensation applies a
                          fractional LayoutTransform, so an intermediate would resample the image.
                          Shares the decoding Image above, so animated backgrounds stay in step with the
-                         backing copy for free. -->
+                         backing copy for free. Marked as the background layer: while the card rests
+                         it can be shown from a window of its own (ToastLayer). -->
                     <Border CornerRadius="8"
+                            helpers:ToastLayer.Role="Background"
                             Visibility="{Binding HasToastBackground, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Border.Background>
                             <ImageBrush Stretch="UniformToFill"
