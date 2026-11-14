@@ -130,6 +130,89 @@ public static class TemplateBench
         return prepared;
     }
     private static bool _tinyAnimation;
+    // Which bursts --no-rays hides: all, the card's own (ToastLayer.Role Rays) or the icon's.
+    private static string _hideRays = "all";
+    // Bursts draw one geometry per copy, whatever their template asks.
+    private static bool _rayGeometry;
+    // The content layer's effects are removed once it is shown, to measure what they cost there.
+    private static bool _contentNoEffects;
+    // The glow pulses inside the content layer are stopped once it is shown.
+    private static bool _contentNoPulse;
+
+    private static int StopPulses(DependencyObject root)
+    {
+        var pulse = _plugin.GetType("PlayniteAchievements.Views.Helpers.RarityGlowPulse");
+        var get = pulse.GetMethod("GetIsActive", BindingFlags.Public | BindingFlags.Static);
+        var set = pulse.GetMethod("SetIsActive", BindingFlags.Public | BindingFlags.Static);
+        var stopped = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            var which = Environment.GetEnvironmentVariable("BENCH_PULSES") ?? "all";
+            if (child is FrameworkElement pulsing && (bool)get.Invoke(null, new object[] { child }) &&
+                (which == "all" || (which == "hidden") == !pulsing.IsVisible))
+            {
+                set.Invoke(null, new object[] { child, false });
+                stopped++;
+            }
+
+            stopped += StopPulses(child);
+        }
+
+        return stopped;
+    }
+    // The background's decoding Image is collapsed in the content and rays layers.
+    private static bool _layersStopDecode;
+
+    private static int CollapseNamed(DependencyObject root, string name)
+    {
+        var done = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement element && element.Name == name)
+            {
+                element.Visibility = Visibility.Collapsed;
+                done++;
+            }
+
+            done += CollapseNamed(child, name);
+        }
+
+        return done;
+    }
+
+    private static int RemoveEffects(DependencyObject root)
+    {
+        var removed = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is UIElement element && element.Effect != null)
+            {
+                element.Effect = null;
+                removed++;
+            }
+
+            removed += RemoveEffects(child);
+        }
+
+        return removed;
+    }
+
+    private static void UseRayGeometry(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child.GetType().Name == "RarityRayBurst")
+            {
+                child.GetType().GetProperty("IsRasterized").SetValue(child, false);
+            }
+
+            UseRayGeometry(child);
+        }
+    }
     // The ray driver's invalidations per second when above its own 30, through SetSamplingFps.
     private static double _rayFps;
     private static string _snapshot;
@@ -194,6 +277,12 @@ public static class TemplateBench
                 case "--game": _gameWork = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--no-pulse": _noPulse = true; break;
                 case "--no-rays": _noRays = true; break;
+                case "--ray-geometry": _rayGeometry = true; break;
+                case "--content-no-effects": _contentNoEffects = true; break;
+                case "--content-no-pulse": _contentNoPulse = true; break;
+                case "--layers-stop-decode": _layersStopDecode = true; break;
+                case "--no-icon-rays": _noRays = true; _hideRays = "icon"; break;
+                case "--no-card-rays": _noRays = true; _hideRays = "card"; break;
                 case "--no-countdown": _noCountdown = true; break;
                 case "--still-background": _stillBackground = true; break;
                 // Pauses the card and icon glow pulses only; --no-pulse also stops the rays.
@@ -698,6 +787,11 @@ public static class TemplateBench
             if (_overlay != null) HideRays(_overlay.Host);
         }
 
+        if (_rayGeometry)
+        {
+            UseRayGeometry(card.Host);
+        }
+
         StillBackground(card.Host);
 
         if (_rayFps > 0)
@@ -836,6 +930,42 @@ public static class TemplateBench
                     await begun;
                     layers = begun.GetType().GetProperty("Result").GetValue(begun);
                     if (c == 0) Console.WriteLine("hold layers: " + (layers != null ? "shown" : "none"));
+                    if (layers != null && _layersStopDecode)
+                    {
+                        foreach (var name in new[] { "Rays", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            if (layerWindow != null)
+                            {
+                                var done = CollapseNamed((DependencyObject)layerWindow.Content, "ToastBackgroundSourceHost");
+                                if (c == 0) Console.WriteLine(name + " layer decode hosts collapsed: " + done);
+                            }
+                        }
+                    }
+
+                    if (layers != null && _contentNoPulse)
+                    {
+                        var contentWindow = (Window)layers.GetType().GetProperty("Content").GetValue(layers);
+                        var stopped = StopPulses((DependencyObject)contentWindow.Content);
+                        if (c == 0) Console.WriteLine("content layer pulses stopped: " + stopped);
+                    }
+
+                    if (layers != null && _contentNoEffects)
+                    {
+                        var contentWindow = (Window)layers.GetType().GetProperty("Content").GetValue(layers);
+                        var removed = RemoveEffects((DependencyObject)contentWindow.Content);
+                        if (c == 0) Console.WriteLine("content layer effects removed: " + removed);
+                    }
+
+                    if (layers != null && _rayGeometry)
+                    {
+                        foreach (var name in new[] { "Rays", "Background", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            if (layerWindow != null) UseRayGeometry((DependencyObject)layerWindow.Content);
+                        }
+                    }
+
                     if (layers != null && _noRays)
                     {
                         foreach (var name in new[] { "Background", "Content" })
@@ -1200,12 +1330,20 @@ public static class TemplateBench
         }
     }
 
+    private static bool IsCardBurst(DependencyObject burst)
+    {
+        var role = _plugin.GetType("PlayniteAchievements.Views.Helpers.ToastLayer")
+            .GetMethod("GetRole", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { burst });
+        return role.ToString() == "Rays";
+    }
+
     private static void HideRays(DependencyObject root)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
         {
             var child = VisualTreeHelper.GetChild(root, i);
-            if (child.GetType().Name == "RarityRayBurst" && child is UIElement element)
+            if (child.GetType().Name == "RarityRayBurst" && child is UIElement element &&
+                (_hideRays == "all" || (_hideRays == "card") == IsCardBurst(child)))
             {
                 element.Visibility = Visibility.Hidden;
             }
