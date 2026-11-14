@@ -204,6 +204,8 @@ namespace PlayniteAchievements.Views.Helpers
 
             public bool IgnoresGlowGate => false;
 
+            public bool TakesEveryHeldFrame => false;
+
             public void OnRayFrame()
             {
                 var opacity = CurrentPulseOpacity(Settings);
@@ -490,6 +492,65 @@ namespace PlayniteAchievements.Views.Helpers
                 (element.GetValue(EffectClockProperty) as AnimationClock)?.Controller?.Pause();
                 (element.GetValue(ElementPulseProperty) as ElementPulse)?.Pause();
             });
+        }
+
+        /// <summary>
+        /// Stops <paramref name="element"/>'s Effect-target pulse with the effect at the pulse's
+        /// peak, and reports the opacity it showed at that moment and the sweep it was running
+        /// (floor, peak, seconds per half cycle). For a caller that shows the element through
+        /// something it can dim itself: the element then stands still at the peak and the caller
+        /// reproduces the sweep. False, changing nothing, when the element has no running Effect
+        /// pulse. Undone by <see cref="ReleaseEffectPulse"/>. UI thread only.
+        /// </summary>
+        internal static bool TryHoldEffectPulseAtPeak(
+            FrameworkElement element, out double shown, out double floor, out double peak, out double halfCycleSeconds)
+        {
+            shown = floor = peak = halfCycleSeconds = 0d;
+            if (element == null || !GetIsActive(element) || (bool)element.GetValue(IsPausedProperty) ||
+                !(element.GetValue(EffectClockProperty) is AnimationClock clock) ||
+                !(clock.Timeline is DoubleAnimation sweep) || clock.Controller == null ||
+                !(element.Effect is DropShadowEffect effect) ||
+                !sweep.From.HasValue || !sweep.To.HasValue || !sweep.Duration.HasTimeSpan)
+            {
+                return false;
+            }
+
+            shown = effect.Opacity;
+            floor = sweep.From.Value;
+            peak = sweep.To.Value;
+            halfCycleSeconds = sweep.Duration.TimeSpan.TotalSeconds;
+            if (halfCycleSeconds <= 0)
+            {
+                return false;
+            }
+
+            element.SetValue(IsPausedProperty, true);
+            clock.Controller.Pause();
+            clock.Controller.SeekAlignedToLastTick(sweep.Duration.TimeSpan, TimeSeekOrigin.BeginTime);
+            return true;
+        }
+
+        /// <summary>
+        /// Resumes a pulse held by <see cref="TryHoldEffectPulseAtPeak"/> from
+        /// <paramref name="cycleSeconds"/> into its cycle (the rise, then the fall).
+        /// </summary>
+        internal static void ReleaseEffectPulse(FrameworkElement element, double cycleSeconds)
+        {
+            if (element == null || !(bool)element.GetValue(IsPausedProperty))
+            {
+                return;
+            }
+
+            element.ClearValue(IsPausedProperty);
+            var controller = (element.GetValue(EffectClockProperty) as AnimationClock)?.Controller;
+            if (controller == null)
+            {
+                return;
+            }
+
+            controller.SeekAlignedToLastTick(
+                TimeSpan.FromSeconds(Math.Max(0d, cycleSeconds)), TimeSeekOrigin.BeginTime);
+            controller.Resume();
         }
 
         /// <summary>Resumes the clocks <see cref="PauseUnder"/> paused. UI thread only.</summary>

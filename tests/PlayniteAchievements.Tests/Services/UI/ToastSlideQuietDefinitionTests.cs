@@ -22,8 +22,12 @@ namespace PlayniteAchievements.Tests.Services.UI
             // touching the invariant under test, which is only where the engage happens.
             var engage = service.IndexOf(
                 "_activeSlideQuiet = new SlideQuietScope(host", StringComparison.Ordinal);
-            var completed = service.IndexOf(
-                "storyboard.Completed += (s, e) => DisposeSlideQuiet();", StringComparison.Ordinal);
+            // The handler is a block: it first passes over a Completed raised by sampling the
+            // motion track, then releases the scope.
+            var completed = service.IndexOf("storyboard.Completed += (s, e) =>", StringComparison.Ordinal);
+            var release = completed < 0
+                ? -1
+                : service.IndexOf("DisposeSlideQuiet();", completed, StringComparison.Ordinal);
             var begin = service.IndexOf(
                 "storyboard.Begin(host, isControllable: true);", StringComparison.Ordinal);
 
@@ -34,7 +38,7 @@ namespace PlayniteAchievements.Tests.Services.UI
             // Completed subscribers attached after Begin never reach the running clock, and a
             // scope engaged after Begin leaves the slide's first frames contended.
             Assert.IsTrue(
-                engage < begin && completed < begin,
+                engage < begin && completed < begin && release > completed && release < begin,
                 "The quiet scope and its Completed release must be wired before the storyboard begins.");
         }
 
@@ -88,7 +92,11 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             var hold = service.IndexOf(
                 "await HoldWaveAsync(remainingMs).ConfigureAwait(true);", StringComparison.Ordinal);
-            var stop = service.IndexOf("StopCountdownBars(window);", StringComparison.Ordinal);
+            // From the hold on: a wave split into layers also stops its own window's bar when the
+            // layers take over, before the hold.
+            var stop = hold < 0
+                ? -1
+                : service.IndexOf("StopCountdownBars(window);", hold, StringComparison.Ordinal);
             var slideOut = service.IndexOf("SlideOutPhysical(window);", StringComparison.Ordinal);
 
             Assert.IsTrue(hold >= 0, "The wave hold call was renamed.");

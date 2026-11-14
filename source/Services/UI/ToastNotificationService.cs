@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -133,6 +133,10 @@ namespace PlayniteAchievements.Services.UI
         // Per-wave rasterization surfaces for the track sampler, one per card; created with the
         // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
         private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
+
+        // The layers a held wave is shown from, which the track sampler then reads its cards
+        // from in place of the wave's own window. Null whenever that window is live.
+        private ToastHoldLayers _activeSampleLayers;
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
@@ -142,6 +146,21 @@ namespace PlayniteAchievements.Services.UI
         private int _wavePrimedSubmitCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
+
+        // A wave shown through a thumbnail presenter keeps its card still inside the cloaked window:
+        // the entrance and exit storyboards then animate this empty stand-in beside the card's host,
+        // and the presenter applies the stand-in's transform and opacity to the thumbnail. Null when
+        // the card's own host carries the motion, as it does without a presenter.
+        private FrameworkElement _activeMotionHost;
+        private ToastThumbnailPresenter _activePresenter;
+        private EventHandler _activePresenterTick;
+
+        // Per-frame work of a presented wave runs off this instead of CompositionTarget.Rendering.
+        private DwmFramePump _activeFramePump;
+
+        // The border glow's pulse while a split wave's own window stands still at the pulse's peak:
+        // the presenter dims that window's thumbnail by it instead.
+        private HoldPulse _activeHoldPulse;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
         // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
         // cadence the motion actually got.
@@ -1159,8 +1178,11 @@ namespace PlayniteAchievements.Services.UI
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
             double captureScale, string probeCase,
             out byte[] pixels, out int width, out int height,
-            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false)
+            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false,
+            FrameworkElement renderFrom = null, FrameworkElement renderOver = null)
         {
+            // renderFrom, then renderOver on top of it, are drawn in place of the container, which
+            // still gives the geometry: the same card's containers in a held wave's layer windows.
             pixels = null;
             width = 0;
             height = 0;
@@ -1202,7 +1224,7 @@ namespace PlayniteAchievements.Services.UI
                 // it. Only the still-image composites bake it in here; the clip track records it
                 // per sample instead and replays it at export, because its pixels are held frozen
                 // for a slide storyboard's whole span — which is exactly when a fade runs.
-                var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
+                var hostOpacity = applyHostOpacity ? MotionHost()?.Opacity ?? 1d : 1d;
 
                 // The container's offset within its parent panel: zero for a single-card wave and
                 // for the first card of a stack, non-zero below that. Read before any temporary
@@ -1220,18 +1242,20 @@ namespace PlayniteAchievements.Services.UI
                 var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
                 var buffer = takeBuffer(stride * ph);
                 var direct = CanRenderDirect(offset);
+                var source = renderFrom ?? container;
 
                 // Saved outputs blur their own frame under a blurred card, so its live background
                 // stays out of every render here (see ToastBlurLayers).
                 double renderMs;
                 using (ToastBlurLayers.HideForOutput(container, keepCardSurface))
+                using (ToastBlurLayers.HideForOutput(renderFrom, keepCardSurface))
                 {
                     renderMs = direct
-                        ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
-                        : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+                        ? RenderCardDirect(rtb, source, hostOpacity, buffer, stride, renderOver)
+                        : RenderCardViaBrush(rtb, source, local, offset, hostOpacity, buffer, stride, renderOver);
                 }
 
-                if (ToastCaptureProbe.Enabled && direct)
+                if (ToastCaptureProbe.Enabled && direct && renderFrom == null)
                 {
                     ProbeAgainstBrushRender(
                         container, local, offset, hostOpacity, pw, ph, dpiX, dpiY, stride,
@@ -1299,7 +1323,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardDirect(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            double hostOpacity, byte[] buffer, int stride)
+            double hostOpacity, byte[] buffer, int stride, FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var previousOpacity = container.Opacity;
@@ -1314,6 +1338,11 @@ namespace PlayniteAchievements.Services.UI
             {
                 rtb.Clear();
                 rtb.Render(container);
+                if (over != null)
+                {
+                    // A second render draws over what the target already holds.
+                    rtb.Render(over);
+                }
             }
             finally
             {
@@ -1344,7 +1373,8 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardViaBrush(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride)
+            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride,
+            FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var started = Stopwatch.GetTimestamp();
@@ -1365,6 +1395,17 @@ namespace PlayniteAchievements.Services.UI
                     Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
                 };
                 dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+                if (over != null)
+                {
+                    dc.DrawRectangle(
+                        new VisualBrush(over)
+                        {
+                            Stretch = Stretch.Fill,
+                            ViewboxUnits = BrushMappingMode.Absolute,
+                            Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
+                        },
+                        null, new Rect(0, 0, local.Width, local.Height));
+                }
 
                 if (fading)
                 {
@@ -1548,10 +1589,14 @@ namespace PlayniteAchievements.Services.UI
             // it. One read covers every card — the whole surface slides as one.
             var slideXPhys = (_activeSlideTransform?.X ?? 0d) * pxPerDipX;
             var slideYPhys = (_activeSlideTransform?.Y ?? 0d) * pxPerDipY;
-            var hostOpacity = Math.Max(0d, Math.Min(1d, _activeSlideHost?.Opacity ?? 1d));
+            var hostOpacity = Math.Max(0d, Math.Min(1d, MotionHost()?.Opacity ?? 1d));
             // A zoom scales the host about the card's center; recorded like the opacity so export can
             // replay it, since the card pixels are rendered without the host's transform.
             var hostScale = SlideHostScale()?.ScaleX ?? 1d;
+
+            // A held wave's own window stands still under its layers, so the cards are read from
+            // the layer windows: the background's container with the content's drawn over it.
+            var layers = _activeSampleLayers;
 
             for (var i = 0; i < toastItems.Count; i++)
             {
@@ -1564,6 +1609,11 @@ namespace PlayniteAchievements.Services.UI
 
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
+                if (layers != null && _activeHoldPulse != null)
+                {
+                    // The glow is held at its peak in the window while the presenter pulses it.
+                    glowScale *= _activeHoldPulse.Scale();
+                }
 
                 // The clip draws its own blur under a blurred card; the card's place in its frame
                 // does not change across the wave, so it is measured once.
@@ -1637,7 +1687,19 @@ namespace PlayniteAchievements.Services.UI
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 var rayBursts = new List<Views.Controls.RarityRayBurst>();
                 CollectEffects(container, effects, rayBursts);
+                var layerUnder = layers?.CardContainer(layers.Background, i);
+                var layerOver = layers?.CardContainer(layers.Content, i);
+                var layerRays = layers?.CardContainer(layers.Rays, i);
+                var layered = layerUnder != null && layerOver != null;
+                var layerEffects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                if (layered)
+                {
+                    CollectEffects(layerUnder, layerEffects);
+                    CollectEffects(layerOver, layerEffects);
+                }
+
                 StripEffects(effects);
+                StripEffects(layerEffects);
                 HideRayBursts(rayBursts);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
@@ -1647,11 +1709,13 @@ namespace PlayniteAchievements.Services.UI
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
                         applyHostOpacity: false, captureScale, probeCase: null,
-                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys,
+                        renderFrom: layered ? layerUnder : null, renderOver: layered ? layerOver : null);
                 }
                 finally
                 {
                     RestoreRayBursts(rayBursts);
+                    RestoreEffects(layerEffects);
                     RestoreEffects(effects);
                 }
 
@@ -1667,7 +1731,8 @@ namespace PlayniteAchievements.Services.UI
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
                 // Rate-limited — the capture is the expensive path this design exists to avoid.
-                if (effects.Count > 0 &&
+                // Not from a held window, whose card is hidden: the halo it gave before stands.
+                if (!layered && effects.Count > 0 &&
                     elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
                     (pw != scratch.ShadowW || ph != scratch.ShadowH ||
                      !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
@@ -1686,13 +1751,17 @@ namespace PlayniteAchievements.Services.UI
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 &&
+                if ((layered ? layerRays != null : rayBursts.Count > 0) &&
                     _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
-                    rayDelta = ComputeRayLayerDelta(
-                        recorder, window, container, vm, pixels, pw, ph, captureScale,
-                        out rayW, out rayH);
+                    rayDelta = layered
+                        ? ComputeLayeredRayDelta(
+                            recorder, window, container, layerRays, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH)
+                        : ComputeRayLayerDelta(
+                            recorder, window, container, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH);
                     if (rayDelta != null)
                     {
                         scratch.LastRayCaptureMs = elapsedMs;
@@ -1756,6 +1825,56 @@ namespace PlayniteAchievements.Services.UI
             rayW = rw;
             rayH = rh;
             return withRays;
+        }
+
+        /// <summary>
+        /// The ray-burst difference layer of a held wave's card: its rays, rendered alone from
+        /// the rays layer's container, where this tick's bare render does not cover them. Equal
+        /// to what <see cref="ComputeRayLayerDelta"/> takes from a live card, whose rays are
+        /// drawn behind it. Null when the render fails or the sizes disagree.
+        /// </summary>
+        private byte[] ComputeLayeredRayDelta(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            FrameworkElement raysContainer, AchievementToastViewModel vm, byte[] barePixels,
+            int pw, int ph, double captureScale, out int rayW, out int rayH)
+        {
+            rayW = 0;
+            rayH = 0;
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => recorder.RentBuffer(vm, len),
+                    applyHostOpacity: false, captureScale, probeCase: null,
+                    out var rays, out var rw, out var rh, out _, out _, renderFrom: raysContainer))
+            {
+                return null;
+            }
+
+            if (rw != pw || rh != ph || rays.Length != barePixels.Length)
+            {
+                recorder.ReturnRentedBuffer(vm, rays);
+                return null;
+            }
+
+            KeepWhereUncovered(rays, barePixels);
+            rayW = rw;
+            rayH = rh;
+            return rays;
+        }
+
+        /// <summary>
+        /// Leaves of <paramref name="under"/> what shows once <paramref name="cover"/> is drawn
+        /// over it. Both premultiplied BGRA of one size: each channel is scaled by the
+        /// transparency of the cover's pixel.
+        /// </summary>
+        internal static void KeepWhereUncovered(byte[] under, byte[] cover)
+        {
+            for (var i = 0; i + 3 < under.Length && i + 3 < cover.Length; i += 4)
+            {
+                var keep = 255 - cover[i + 3];
+                under[i] = (byte)((under[i] * keep) / 255);
+                under[i + 1] = (byte)((under[i + 1] * keep) / 255);
+                under[i + 2] = (byte)((under[i + 2] * keep) / 255);
+                under[i + 3] = (byte)((under[i + 3] * keep) / 255);
+            }
         }
 
         /// <summary>
@@ -2712,7 +2831,23 @@ namespace PlayniteAchievements.Services.UI
             _activeCardSurface = items;
             _activeSlideHost = slideHost;
             _activeSlideTransform = slideTransform;
-            window.Content = slideHost;
+            _activeMotionHost = null;
+            if (_activeDwmComposed && ToastThumbnailPresenter.IsSupported && WaveMotionIsPresentable())
+            {
+                // The motion's stand-in shares the card host's layout slot, so the two have the
+                // same size and a pivot measured on one holds for the other.
+                var motionHost = ToastSurfaceFactory.BuildSlideHost(null, out var motionTransform);
+                var root = new Grid { IsHitTestVisible = false };
+                root.Children.Add(motionHost);
+                root.Children.Add(slideHost);
+                _activeMotionHost = motionHost;
+                _activeSlideTransform = motionTransform;
+                window.Content = root;
+            }
+            else
+            {
+                window.Content = slideHost;
+            }
 
             // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
             // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
@@ -2798,6 +2933,8 @@ namespace PlayniteAchievements.Services.UI
             SizeChangedEventHandler onHoldSurfaceSized = null;
             ToastLiveBackdrop liveBackdrop = null;
             ToastOverlayTrackRecorder trackRecorder = null;
+            ToastHoldLayers holdLayers = null;
+            var needsPerMonitorWindow = false;
             // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
             // sampler saw against the samples it actually took is what shows the cadence landing where
             // the recording frame rate asks for it rather than aliasing to half of it.
@@ -2817,7 +2954,7 @@ namespace PlayniteAchievements.Services.UI
                 // WM_DPICHANGED through WPF's shared DPI state in this system-aware host process,
                 // which has been observed to rescale sibling windows and hard-crash the process on
                 // single-monitor high-DPI setups.
-                var needsPerMonitorWindow = systemScale > 0 &&
+                needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
                     $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
@@ -2848,14 +2985,15 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 PlaceWindow(window, "preshow");
-                if (_settings?.Persisted?.NotificationRenderMode == NotificationRenderMode.Quality)
-                {
-                    ToastGpuPriority.Raise();
-                }
                 window.Show();
                 if (_activeDwmComposed)
                 {
                     ToastWindowSurface.SetCloaked(window, true);
+                }
+
+                if (_activeMotionHost != null)
+                {
+                    StartPresenter(window, needsPerMonitorWindow);
                 }
 
                 // Moving the per-monitor window onto the target monitor raises WM_DPICHANGED
@@ -2905,6 +3043,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     liveBackdrop = ToastLiveBackdrop.TryStart(
                         window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero, out var blurSkipped);
+                    if (liveBackdrop != null && _activePresenter != null)
+                    {
+                        liveBackdrop.Motion = PresentedMotion;
+                    }
+
                     if (blurSkipped != null)
                     {
                         _logger?.Info($"[Toast] Blur: not started ({blurSkipped}).");
@@ -2939,7 +3082,25 @@ namespace PlayniteAchievements.Services.UI
                     slideHost.Visibility = Visibility.Visible;
                 }
 
-                EngageMotionCache(_activeSlideHost, window);
+                if (_activePresenter == null)
+                {
+                    EngageMotionCache(_activeSlideHost, window);
+                }
+
+                // The hold's layers are built here, ahead of the entrance, so they have loaded
+                // and presented by the time the cards rest; at the settle instead when the
+                // background's image has not arrived yet. Building them took 70 to 140 ms of the
+                // UI thread (TemplateBench --early-layers), which the card spends still cloaked.
+                // Built while the card slid in, the slide stood still on screen for 150 ms,
+                // though the presenter was stepped every composition.
+                var recordsTrack = _activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
+                    (_activeWaveCaptures?.EnableUnlockRecordings ?? _settings?.Persisted?.EnableUnlockRecordings ?? false);
+                if (visible)
+                {
+                    holdLayers = PrepareHoldLayers(
+                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: true, ahead: true);
+                }
+
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
                     .ConfigureAwait(true);
                 if (_disposed)
@@ -2967,8 +3128,7 @@ namespace PlayniteAchievements.Services.UI
                 // anchor only — a test fire out of game has no video — and only with recordings
                 // enabled, since nothing else consumes a track. Progress waves never own a clip,
                 // so they skip the track entirely.
-                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
-                    (_activeWaveCaptures?.EnableUnlockRecordings ?? _settings?.Persisted?.EnableUnlockRecordings ?? false))
+                if (recordsTrack)
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
@@ -3058,7 +3218,7 @@ namespace PlayniteAchievements.Services.UI
                         }
                     };
                     trackRenderWatch = renderWatch;
-                    CompositionTarget.Rendering += onTrackSample;
+                    HookFrame(onTrackSample);
 
                     // The ray-burst glow invalidates at its own fixed default rate; sampling above it
                     // stores duplicate ray frames with beat-dependent phase, which plays back as
@@ -3137,7 +3297,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // While the card rests, only its own bounds take clicks; the travel room passes them
                 // to the game. Re-applied if the cards resize during the hold.
-                if (_activeDwmComposed && _activeCardSurface != null)
+                if (_activeDwmComposed && _activePresenter == null && _activeCardSurface != null)
                 {
                     ToastWindowSurface.SetHitRegion(window, _activeCardSurface, HitRegionAllowanceDip);
                     onHoldSurfaceSized = (s, e) =>
@@ -3168,7 +3328,7 @@ namespace PlayniteAchievements.Services.UI
                             // Ignore transient placement failures (e.g. window closing).
                         }
                     };
-                    CompositionTarget.Rendering += onRendering;
+                    HookFrame(onRendering);
                 }
 
                 var durationMs = EffectiveDurationSeconds() * 1000;
@@ -3189,7 +3349,42 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast countdown animation failed.");
                 }
 
+                // While the cards rest, an animated background plays from a layer of its own and
+                // the wave's own window stands still. A track recorder then samples the cards
+                // from the layers (SampleWaveTracks).
+                var holdWatch = Stopwatch.StartNew();
+                var holdMain = true;
+                holdLayers = await BeginHoldLayersAsync(
+                    window, items, cardItems, template, needsPerMonitorWindow, holdMain, holdLayers)
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (holdLayers != null)
+                {
+                    // The content layer's bar is the one seen, and picks up where the bar under
+                    // it has got to; a held window's own bar stops there.
+                    AnimateCountdownBars(holdLayers.Content, remainingMs, holdWatch.Elapsed.TotalMilliseconds);
+                    if (holdMain)
+                    {
+                        StopCountdownBars(window);
+                    }
+                }
+
+                // What is left of the hold after building the layers and before handing back.
+                var handBackMs = holdLayers != null && holdMain ? HoldLayerHandBackMs : 0;
+                remainingMs = Math.Max(0, remainingMs - (int)holdWatch.ElapsedMilliseconds - handBackMs);
                 var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
+                if (holdLayers != null)
+                {
+                    await EndHoldLayersAsync(window, holdLayers, handBackMs).ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        return;
+                    }
+                }
 
                 // The hold is over, so the bar has reached (or is a skewed frame from) empty;
                 // detach its clock so nothing but the slide animates through the slide-out.
@@ -3197,7 +3392,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                     onRendering = null;
                 }
 
@@ -3220,7 +3415,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     // Realize the slide-out's motion cache at rest, where it matches the live card,
                     // a frame before the slide-out starts timing itself.
-                    EngageMotionCache(_activeSlideHost, window);
+                    if (_activePresenter == null)
+                    {
+                        EngageMotionCache(_activeSlideHost, window);
+                    }
+
                     await WaitForComposedFramesAsync(1, WarmFrameTimeoutMs).ConfigureAwait(true);
                     if (_disposed)
                     {
@@ -3233,7 +3432,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                     onTrackSample = null;
                     RayAnimationDriver.ClearSamplingFps();
                 }
@@ -3276,12 +3475,12 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                 }
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                 }
 
                 if (onHoldSurfaceSized != null && _activeCardSurface != null)
@@ -3297,6 +3496,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
                 RayAnimationDriver.ClearSamplingFps();
+                RayAnimationDriver.ClearHeldFps();
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
@@ -3305,9 +3505,16 @@ namespace PlayniteAchievements.Services.UI
                     trackRecorder != null ? cardItems.Where(vm => vm.NeedsFramedClip).ToList() : null);
 
                 StopActiveSlide();
+                StopPresenter();
+                _activeSampleLayers = null;
+                _activeHoldPulse = null;
+                _preHeldPulses = null;
+                _mainRaysHiddenAhead = null;
+                holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
                 _activeSlideHost = null;
+                _activeMotionHost = null;
                 _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
@@ -3324,7 +3531,6 @@ namespace PlayniteAchievements.Services.UI
                 {
                 }
 
-                ToastGpuPriority.Restore();
                 if (ReferenceEquals(_activeWindow, window))
                 {
                     _activeWindow = null;
@@ -4113,6 +4319,8 @@ namespace PlayniteAchievements.Services.UI
                 ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
             }
 
+            // A presented wave's thumbnail window takes the new rectangle and z-order in the same pass.
+            UpdatePresenter();
             return placed;
         }
 
@@ -4633,12 +4841,23 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 try
                 {
                     if (ReferenceEquals(_activeWindow, window))
                     {
-                        ToastWindowSurface.SetCloaked(window, false);
+                        if (_activePresenter != null)
+                        {
+                            // The window stays cloaked; its thumbnail is what appears, at the
+                            // motion's held start.
+                            _activePresenter.Reveal();
+                            UpdatePresenter();
+                        }
+                        else
+                        {
+                            ToastWindowSurface.SetCloaked(window, false);
+                        }
+
                         var release = _releaseHeldSlide;
                         _releaseHeldSlide = null;
                         release?.Invoke();
@@ -4651,7 +4870,7 @@ namespace PlayniteAchievements.Services.UI
 
                 started.TrySetResult(true);
             };
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             return started.Task;
         }
 
@@ -4692,7 +4911,7 @@ namespace PlayniteAchievements.Services.UI
             var storyboard = ToastMotionStoryboardFactory.Build(
                 motion, entering, _activeMotionPlan.Feel, durationMs, offset);
 
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             var scale = SlideHostScale();
             var fades = motion == ToastMotion.Fade || motion == ToastMotion.Zoom;
@@ -4763,11 +4982,303 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// The element the entrance and exit animate: the presenter's stand-in when the wave has
+        /// one, otherwise the card's own host.
+        /// </summary>
+        private FrameworkElement MotionHost()
+        {
+            return _activeMotionHost ?? _activeSlideHost;
+        }
+
+        /// <summary>
+        /// Whether a presenter can reproduce this wave's entrance and exit. It shows the motion
+        /// host's transform and opacity and nothing else, which covers the style motions and the
+        /// built-in slide; a theme storyboard qualifies when every child the plugin aims at the
+        /// host animates one of those.
+        /// </summary>
+        private bool WaveMotionIsPresentable()
+        {
+            if (_activeMotionPlan != null)
+            {
+                return true;
+            }
+
+            return StoryboardIsPresentable(_activeSlideInStoryboard) &&
+                StoryboardIsPresentable(_activeSlideOutStoryboard);
+        }
+
+        private static bool StoryboardIsPresentable(Storyboard storyboard)
+        {
+            if (storyboard == null)
+            {
+                return true;
+            }
+
+            foreach (var child in storyboard.Children)
+            {
+                if (!IsUntargeted(child) || AnimatesSlide(child))
+                {
+                    continue;
+                }
+
+                var path = Storyboard.GetTargetProperty(child)?.Path;
+                if (path == null ||
+                    (path.IndexOf("RenderTransform", StringComparison.Ordinal) < 0 &&
+                     path.IndexOf("Opacity", StringComparison.Ordinal) < 0))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Creates the wave's thumbnail presenter and starts mirroring the motion host onto it every
+        /// composed frame. When the presenter cannot be created the card moves back under the motion
+        /// host, which then carries the motion inside the window as it does without a presenter.
+        /// </summary>
+        private void StartPresenter(Window window, bool perMonitorWindow)
+        {
+            ToastThumbnailPresenter presenter;
+            using (perMonitorWindow ? Common.DpiAwarenessScope.PerMonitorV2() : null)
+            {
+                presenter = ToastThumbnailPresenter.TryCreate(window);
+            }
+
+            if (presenter == null)
+            {
+                _logger?.Info("[Toast] Presenter: unavailable, the window shows itself.");
+                if (_activeSlideHost is Panel cardHost && _activeMotionHost is Panel motionHost &&
+                    _activeCardSurface != null)
+                {
+                    cardHost.Children.Remove(_activeCardSurface);
+                    motionHost.Children.Add(_activeCardSurface);
+                    motionHost.Visibility = cardHost.Visibility;
+                    _activeSlideHost = motionHost;
+                }
+
+                _activeMotionHost = null;
+                return;
+            }
+
+            _activePresenter = presenter;
+            _activeFramePump = new DwmFramePump(window.Dispatcher) { Flushed = presenter.StepTrack };
+            _activePresenterTick = (s, e) => UpdatePresenter();
+            HookFrame(_activePresenterTick);
+        }
+
+        /// <summary>
+        /// Subscribes a per-frame handler for the active wave: to the wave's frame pump when it has
+        /// one, otherwise to WPF's render loop.
+        /// </summary>
+        private void HookFrame(EventHandler handler)
+        {
+            if (handler == null)
+            {
+                return;
+            }
+
+            if (_activeFramePump != null)
+            {
+                _activeFramePump.Frame += handler;
+            }
+            else
+            {
+                CompositionTarget.Rendering += handler;
+            }
+        }
+
+        private void UnhookFrame(EventHandler handler)
+        {
+            if (handler == null)
+            {
+                return;
+            }
+
+            // From both: the pump may have started or stopped since the handler was hooked.
+            if (_activeFramePump != null)
+            {
+                _activeFramePump.Frame -= handler;
+            }
+
+            CompositionTarget.Rendering -= handler;
+        }
+
+        /// <summary>
+        /// Raises <see cref="Frame"/> on the UI thread once per DWM composition.
+        ///
+        /// A presented wave changes nothing in its window while it moves, and WPF then raised
+        /// CompositionTarget.Rendering about three times a second under a GPU-bound game
+        /// (TemplateBench --presenter), which is what the slide's clock drive, the thumbnail and
+        /// the track sampler would have stepped at. DwmFlush returns at each composition whatever
+        /// WPF has to draw. A frame the UI thread has not handled yet is not queued again.
+        /// <see cref="Flushed"/> runs on the pump's own thread at each composition, whether or not
+        /// the UI thread is free.
+        /// </summary>
+        private sealed class DwmFramePump : IDisposable
+        {
+            [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+            private static extern int DwmFlush();
+
+            private readonly System.Windows.Threading.Dispatcher _dispatcher;
+            private readonly Action _raise;
+            private volatile bool _running = true;
+            private int _pending;
+
+            public DwmFramePump(System.Windows.Threading.Dispatcher dispatcher)
+            {
+                _dispatcher = dispatcher;
+                _raise = Raise;
+                new System.Threading.Thread(Run)
+                {
+                    IsBackground = true,
+                    Name = "PlayAch toast frame pump",
+                    Priority = System.Threading.ThreadPriority.AboveNormal,
+                }.Start();
+            }
+
+            public event EventHandler Frame;
+
+            /// <summary>Called on the pump's thread after each composition.</summary>
+            public Action Flushed { get; set; }
+
+            public void Dispose()
+            {
+                _running = false;
+                Frame = null;
+                Flushed = null;
+            }
+
+            private void Run()
+            {
+                while (_running)
+                {
+                    try
+                    {
+                        if (DwmFlush() != 0)
+                        {
+                            System.Threading.Thread.Sleep(8);
+                        }
+
+                        if (_running)
+                        {
+                            Flushed?.Invoke();
+                        }
+
+                        if (_running && System.Threading.Interlocked.CompareExchange(ref _pending, 1, 0) == 0)
+                        {
+                            _dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, _raise);
+                        }
+                    }
+                    catch
+                    {
+                        System.Threading.Thread.Sleep(8);
+                    }
+                }
+            }
+
+            private void Raise()
+            {
+                System.Threading.Volatile.Write(ref _pending, 0);
+                var handlers = Frame;
+                if (!_running || handlers == null)
+                {
+                    return;
+                }
+
+                foreach (EventHandler handler in handlers.GetInvocationList())
+                {
+                    try
+                    {
+                        handler(this, EventArgs.Empty);
+                    }
+                    catch
+                    {
+                        // One handler's failure must not cost the others their frame.
+                    }
+                }
+            }
+        }
+
+        private void StopPresenter()
+        {
+            if (_activePresenterTick != null)
+            {
+                UnhookFrame(_activePresenterTick);
+                _activePresenterTick = null;
+            }
+
+            var presenter = _activePresenter;
+            _activePresenter = null;
+            presenter?.Dispose();
+
+            var pump = _activeFramePump;
+            _activeFramePump = null;
+            pump?.Dispose();
+        }
+
+        /// <summary>
+        /// Shows the thumbnail where the motion host's render transform and opacity put the card.
+        /// The transform is taken as WPF applies it, about the host's RenderTransformOrigin.
+        /// </summary>
+        private void UpdatePresenter()
+        {
+            var presenter = _activePresenter;
+            var host = _activeMotionHost;
+            if (presenter == null || host == null)
+            {
+                return;
+            }
+
+            try
+            {
+                // The pulse is a function of its own clock, so the presenter reads it on the
+                // frame pump's thread at every composition, whatever the UI thread is doing.
+                var pulse = _activeHoldPulse;
+                if (!ReferenceEquals(presenter.MainOpacitySource?.Target, pulse))
+                {
+                    presenter.MainOpacitySource = pulse != null ? pulse.Scale : (Func<double>)null;
+                }
+
+                presenter.Update(PresentedMotion(), host.Opacity);
+            }
+            catch
+            {
+                // A frame without an update keeps the thumbnail where it was.
+            }
+        }
+
+        /// <summary>
+        /// The motion host's render transform in window DIPs, as WPF applies it about the host's
+        /// RenderTransformOrigin: where a presented wave's thumbnail is drawn relative to the card
+        /// at rest. Identity when the wave has no presenter.
+        /// </summary>
+        private Matrix PresentedMotion()
+        {
+            var host = _activeMotionHost;
+            if (host == null)
+            {
+                return Matrix.Identity;
+            }
+
+            var origin = new Point(
+                host.RenderTransformOrigin.X * host.ActualWidth,
+                host.RenderTransformOrigin.Y * host.ActualHeight);
+            var motion = Matrix.Identity;
+            motion.Translate(-origin.X, -origin.Y);
+            motion.Append(host.RenderTransform?.Value ?? Matrix.Identity);
+            motion.Translate(origin.X, origin.Y);
+            return motion;
+        }
+
         /// <summary>The scale at index 0 of the slide host's transform group, or null.</summary>
         private ScaleTransform SlideHostScale()
         {
-            return (_activeSlideHost?.RenderTransform as TransformGroup)?.Children.Count > 0
-                ? ((TransformGroup)_activeSlideHost.RenderTransform).Children[0] as ScaleTransform
+            var host = MotionHost();
+            return (host?.RenderTransform as TransformGroup)?.Children.Count > 0
+                ? ((TransformGroup)host.RenderTransform).Children[0] as ScaleTransform
                 : null;
         }
 
@@ -4787,10 +5298,20 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
+                // A stand-in host does not contain the card and may already hold the motion's
+                // start; the card's own host has the same layout slot and no transform.
+                var reference = ReferenceEquals(host, _activeMotionHost) && _activeSlideHost != null
+                    ? _activeSlideHost
+                    : host;
+                if (reference.ActualWidth <= 0 || reference.ActualHeight <= 0)
+                {
+                    return;
+                }
+
                 var center = card.TranslatePoint(
-                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), host);
+                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), reference);
                 host.RenderTransformOrigin = new Point(
-                    center.X / host.ActualWidth, center.Y / host.ActualHeight);
+                    center.X / reference.ActualWidth, center.Y / reference.ActualHeight);
             }
             catch (InvalidOperationException)
             {
@@ -4972,7 +5493,7 @@ namespace PlayniteAchievements.Services.UI
             double durationMs, bool travels, string label, bool holdAtStart = false)
         {
             StopActiveSlide();
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             if (host == null || transform == null)
             {
@@ -5037,6 +5558,9 @@ namespace PlayniteAchievements.Services.UI
             // frames before that are not the slide's, so they are neither driven nor counted.
             var held = holdAtStart;
             var tickFailed = false;
+            // What the presenter shows of this slide between UI frames (SampleMotionTrack).
+            ToastThumbnailPresenter.MotionTrack track = null;
+            var trackMisses = 0;
             EventHandler tick = (s, e) =>
             {
                 if (held || !ticks.TryAdvance(e, out _))
@@ -5049,12 +5573,31 @@ namespace PlayniteAchievements.Services.UI
                     try
                     {
                         // At its end the card shows its rest, so the base values can return there too.
-                        if (clock.Elapsed.TotalMilliseconds >= durationMs)
+                        var elapsed = clock.Elapsed;
+                        if (elapsed.TotalMilliseconds >= durationMs)
                         {
                             RestoreRestBase();
                         }
 
-                        driving = DriveSlideByClock(storyboard, host, clock.Elapsed, durationMs);
+                        driving = DriveSlideByClock(storyboard, host, elapsed, durationMs);
+
+                        // The track must be where the storyboard is. Twice in a row, since WPF can
+                        // show the base value in place of the animated one for a single frame.
+                        if (track != null && driving)
+                        {
+                            if (track.Agrees(elapsed.TotalMilliseconds, PresentedMotion(), host.Opacity))
+                            {
+                                trackMisses = 0;
+                            }
+                            else if (++trackMisses >= 2)
+                            {
+                                track = null;
+                                EndMotionTrack();
+                                _logger?.Info(
+                                    $"[Toast] Presenter: the {label} motion's track left the storyboard " +
+                                    $"at {elapsed.TotalMilliseconds:0} ms; the UI thread steps it.");
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -5087,8 +5630,23 @@ namespace PlayniteAchievements.Services.UI
             // or invalidates stands down so the slide gets the whole frame budget. Completed
             // releases it at the slide's natural end (attached before Begin — later subscribers
             // never reach the running clock); StopActiveSlide backstops every cut-short path.
-            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow);
-            storyboard.Completed += (s, e) => DisposeSlideQuiet();
+            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow, _activeSlideHost, _activePresenter == null);
+            storyboard.Completed += (s, e) =>
+            {
+                // Sampling the motion track seeks the storyboard close to its end, and WPF then
+                // raises Completed on a later tick. A driven storyboard reaches its real end only
+                // once the clock has run the duration.
+                if (driving && clock.Elapsed.TotalMilliseconds < durationMs)
+                {
+                    return;
+                }
+
+                DisposeSlideQuiet();
+                if (ReferenceEquals(_runningSlideStoryboard, storyboard))
+                {
+                    EndMotionTrack();
+                }
+            };
 
             // A held entrance seeds its START instead, until it reaches its end. Recorded in Playnite:
             // for a frame after Begin/Pause and again at the first seek, WPF can drop the animated
@@ -5101,7 +5659,7 @@ namespace PlayniteAchievements.Services.UI
                 _restoreRestBase = () => transform.Y = restDip;
             }
 
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             try
             {
                 storyboard.Begin(host, isControllable: true);
@@ -5109,6 +5667,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     storyboard.Pause(host);
                     driving = true;
+                    track = SampleMotionTrack(storyboard, host, durationMs, clock);
+                    _activePresenter?.PlayTrack(track);
                     if (held)
                     {
                         _releaseHeldSlide = () =>
@@ -5135,7 +5695,7 @@ namespace PlayniteAchievements.Services.UI
                 // tree. Land the card where the slide would have left it rather than mid-travel.
                 _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
                 DisposeSlideQuiet();
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 _activeSlideTick = null;
                 _runningSlideStoryboard = null;
                 RestoreRestBase();
@@ -5565,13 +6125,24 @@ namespace PlayniteAchievements.Services.UI
             private IDisposable _gate;
             private bool _disposed;
 
-            public SlideQuietScope(FrameworkElement host, Window window)
+            /// <param name="host">The element the motion animates.</param>
+            /// <param name="cardHost">
+            /// The element holding the card, when that is not <paramref name="host"/> (a presented
+            /// wave): the stand-downs apply to the card.
+            /// </param>
+            public SlideQuietScope(FrameworkElement host, Window window, FrameworkElement cardHost = null, bool cacheHost = true)
             {
+                host = cardHost ?? host;
                 _host = host;
                 _gate = RenderQuietGate.Engage();
 
-                // Normally engaged a frame earlier; this covers a motion started without that.
-                EngageMotionCache(host, window);
+                // Normally engaged a frame earlier; this covers a motion started without that. A
+                // card shown through a presenter does not move inside its window, so it has
+                // nothing to cache.
+                if (cacheHost)
+                {
+                    EngageMotionCache(host, window);
+                }
 
                 try
                 {
@@ -5658,7 +6229,7 @@ namespace PlayniteAchievements.Services.UI
 
             if (_activeSlideTick != null)
             {
-                CompositionTarget.Rendering -= _activeSlideTick;
+                UnhookFrame(_activeSlideTick);
                 _activeSlideTick = null;
             }
 
@@ -5670,12 +6241,13 @@ namespace PlayniteAchievements.Services.UI
             // ignored and the card could never be nudged back to rest.
             var storyboard = _runningSlideStoryboard;
             _runningSlideStoryboard = null;
-            if (storyboard != null && _activeSlideHost != null)
+            var motionHost = MotionHost();
+            if (storyboard != null && motionHost != null)
             {
                 try
                 {
-                    storyboard.Stop(_activeSlideHost);
-                    storyboard.Remove(_activeSlideHost);
+                    storyboard.Stop(motionHost);
+                    storyboard.Remove(motionHost);
                 }
                 catch (Exception ex)
                 {
@@ -5686,6 +6258,66 @@ namespace PlayniteAchievements.Services.UI
             // Outside the guard: a slide that reached its final frame already unhooked itself and
             // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
             ReportActiveSlide("stopped");
+            EndMotionTrack();
+        }
+
+        // The spacing of a motion track's samples. The presenter reads between two samples in a
+        // straight line.
+        private const double MotionTrackStepMs = 2d;
+
+        /// <summary>
+        /// Samples a begun, paused storyboard into a track for the presenter: the motion host's
+        /// transform and opacity every <see cref="MotionTrackStepMs"/> of the storyboard's run,
+        /// read by seeking it, and timed by <paramref name="clock"/>, the clock the storyboard
+        /// itself is seeked to each frame. The presenter then shows the motion from the frame
+        /// pump's thread at every DWM composition, so a UI thread that is late for a frame does
+        /// not hold the card where it was. Leaves the storyboard at its start. Null when the wave
+        /// has no presenter or the storyboard cannot be seeked.
+        /// </summary>
+        private ToastThumbnailPresenter.MotionTrack SampleMotionTrack(
+            Storyboard storyboard, FrameworkElement host, double durationMs, Stopwatch clock)
+        {
+            if (_activePresenter == null || !ReferenceEquals(host, _activeMotionHost) || durationMs <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var count = Math.Max(2, (int)Math.Ceiling(durationMs / MotionTrackStepMs) + 1);
+                var stepMs = durationMs / (count - 1);
+                var motions = new Matrix[count];
+                var opacities = new double[count];
+                // Short of the end itself, where a seek would complete the storyboard.
+                var lastMs = durationMs - 0.05;
+                for (var i = 0; i < count; i++)
+                {
+                    storyboard.SeekAlignedToLastTick(
+                        host, TimeSpan.FromMilliseconds(Math.Min(i * stepMs, lastMs)), TimeSeekOrigin.BeginTime);
+                    motions[i] = PresentedMotion();
+                    opacities[i] = host.Opacity;
+                }
+
+                storyboard.SeekAlignedToLastTick(host, TimeSpan.Zero, TimeSeekOrigin.BeginTime);
+                return new ToastThumbnailPresenter.MotionTrack(motions, opacities, stepMs, clock);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast motion track could not be sampled; the UI thread steps the motion.");
+                return null;
+            }
+        }
+
+        /// <summary>Returns the presenter to the motion host's own transform and opacity.</summary>
+        private void EndMotionTrack()
+        {
+            var presenter = _activePresenter;
+            var stepped = presenter?.EndTrack();
+            if (stepped != null)
+            {
+                _logger?.Info($"[Toast] Presenter track: {stepped}");
+                UpdatePresenter();
+            }
         }
 
         /// <summary>
@@ -5891,7 +6523,7 @@ namespace PlayniteAchievements.Services.UI
         /// easing) comes from the themeable PlayAch.Storyboard.ToastCountdown storyboard; its duration
         /// is always the toast's runtime display time so the bar depletes exactly as it dismisses.
         /// </summary>
-        private void AnimateCountdownBars(DependencyObject root, int milliseconds)
+        private void AnimateCountdownBars(DependencyObject root, int milliseconds, double elapsedMs = 0d)
         {
             var duration = TimeSpan.FromMilliseconds(Math.Max(1, milliseconds));
             foreach (var bar in FindCountdownBars(root))
@@ -5909,7 +6541,651 @@ namespace PlayniteAchievements.Services.UI
                 // At the display's rate rather than an inherited process-wide default
                 // (AnimationFrameRate), which another extension can lower.
                 AnimationFrameRate.Apply(animation);
-                scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                if (elapsedMs > 0)
+                {
+                    // A bar that joins a countdown already under way starts where that has got to.
+                    var clock = animation.CreateClock();
+                    scale.ApplyAnimationClock(ScaleTransform.ScaleXProperty, clock);
+                    clock.Controller?.Seek(TimeSpan.FromMilliseconds(elapsedMs), TimeSeekOrigin.BeginTime);
+                }
+                else
+                {
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                }
+            }
+        }
+
+        // The layers are shown no sooner than this after they are created, and are given up on
+        // when their images have not loaded HoldLayerLoadTimeoutMs into the hold. Nothing reports
+        // when a layer window's first frame has been presented, and shown before it the content
+        // layer would be empty over the background. With no wait at all, no capture of the 30
+        // compositions after the split missed content (TemplateBench --layers-compare under
+        // GameLoad, 6 cycles); the wait is margin.
+        private const int HoldLayerSettleMs = 100;
+        private const int HoldLayerLoadTimeoutMs = 1600;
+        private const int HoldLayerLoadPollMs = 20;
+
+        // How long before the hold ends the wave's own window is made live again, so it has
+        // presented the background's current frame by the time the layers over it go.
+        private const int HoldLayerHandBackMs = 250;
+
+        // Redraws per second, while the card's rays rest in a layer of their own, of the bursts
+        // that are not served at every frame (the icon's); the card's burst is.
+        private const double HoldLayerRayFps = 60d;
+
+        /// <summary>
+        /// Splits a resting wave into layers when its backgrounds are opaque images: the
+        /// backgrounds and the content each go to a cloaked window of their own, drawn by the
+        /// presenter over the wave's own window. With <paramref name="holdMain"/> the wave's own
+        /// window then stands still under them (its animated images hold their frame and its
+        /// content's glow pulses pause), so it is redrawn only by what shows around the card.
+        /// <paramref name="prepared"/> are layers built ahead by <see cref="PrepareHoldLayers"/>,
+        /// which are shown as soon as they are ready; without them, or when the cards have
+        /// changed size since, the layers are built here.
+        /// Returns null when the wave is not presented, has nothing to split, or the layers could
+        /// not be built; the wave then rests as it is.
+        /// </summary>
+        private async Task<ToastHoldLayers> BeginHoldLayersAsync(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain, ToastHoldLayers prepared = null)
+        {
+            var layers = await BeginHoldLayersCoreAsync(
+                window, surface, cards, template, perMonitorWindow, holdMain, prepared).ConfigureAwait(true);
+            if (layers == null)
+            {
+                ReleasePreHeldPulses();
+                DropRaysAhead();
+            }
+
+            return layers;
+        }
+
+        // The wave's own rays hidden because a layer shows them for the whole wave.
+        private List<FrameworkElement> _mainRaysHiddenAhead;
+
+        /// <summary>
+        /// Shows the cards' rays from their layer for the whole wave, entrance and exit included,
+        /// and hides them in the wave's own window, while that window is still hidden. Rays that
+        /// changed hands when the wave came to rest were drawn by both for as long as the window
+        /// took to redraw without them, at twice their strength.
+        /// </summary>
+        private void ShowRaysAhead(ItemsControl surface, ToastHoldLayers layers)
+        {
+            try
+            {
+                if (layers.Rays == null || _mainRaysHiddenAhead != null || _activePresenter == null ||
+                    !_activePresenter.AddUnderlayAhead(layers.Rays))
+                {
+                    return;
+                }
+
+                _mainRaysHiddenAhead = new List<FrameworkElement>();
+                foreach (var rays in ToastLayer.Find(surface, ToastLayerRole.Rays))
+                {
+                    if (rays.Visibility == Visibility.Visible)
+                    {
+                        rays.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
+                        _mainRaysHiddenAhead.Add(rays);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast rays could not be shown from their layer ahead of the hold.");
+            }
+        }
+
+        /// <summary>Gives the rays back to the wave's own window, when their layer is going.</summary>
+        private void DropRaysAhead()
+        {
+            var hidden = _mainRaysHiddenAhead;
+            _mainRaysHiddenAhead = null;
+            if (hidden == null)
+            {
+                return;
+            }
+
+            try
+            {
+                foreach (var rays in hidden)
+                {
+                    if (rays.Visibility == Visibility.Hidden)
+                    {
+                        rays.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
+                    }
+                }
+
+                _activePresenter?.RemoveUnderlay();
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task<ToastHoldLayers> BeginHoldLayersCoreAsync(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain, ToastHoldLayers prepared)
+        {
+            var presenter = _activePresenter;
+            var layers = prepared;
+            try
+            {
+                var waited = Stopwatch.StartNew();
+                if (layers != null && (presenter == null || !layers.HasSizeOf(window)))
+                {
+                    DropRaysAhead();
+                    layers.Dispose();
+                    layers = null;
+                }
+
+                layers = layers ?? PrepareHoldLayers(window, surface, cards, template, perMonitorWindow, holdMain);
+                if (layers == null)
+                {
+                    return null;
+                }
+
+                while (layers.AgeMs < HoldLayerSettleMs || !layers.IsLoadedLike(surface))
+                {
+                    if (waited.ElapsedMilliseconds > HoldLayerLoadTimeoutMs)
+                    {
+                        break;
+                    }
+
+                    await Task.Delay(HoldLayerLoadPollMs).ConfigureAwait(true);
+                    if (_disposed || !ReferenceEquals(_activePresenter, presenter))
+                    {
+                        layers.Dispose();
+                        return null;
+                    }
+                }
+
+                var loaded = layers.IsLoadedLike(surface);
+                var added = loaded &&
+                    (layers.Rays == null || _mainRaysHiddenAhead != null || presenter.AddUnderlay(layers.Rays)) &&
+                    presenter.AddLayer(layers.Background) && presenter.AddLayer(layers.Content);
+                if (!added)
+                {
+                    presenter.RemoveLayers();
+                    layers.Dispose();
+                    _logger?.Info(
+                        $"[Toast] Hold layers: not shown (imagesLoaded={loaded}), the wave rests as one window.");
+                    return null;
+                }
+
+                presenter.ShowLayers();
+                if (layers.Rays != null)
+                {
+                    RayAnimationDriver.SetHeldFps(HoldLayerRayFps);
+                }
+
+                if (holdMain)
+                {
+                    layers.MainHold = HoldMainUnderLayers(surface, layers.Rays != null, out var mainIsStill);
+                    layers.MainIsStill = mainIsStill;
+                    _activeSampleLayers = layers;
+                }
+
+                _logger?.Info(
+                    $"[Toast] Hold layers: shown {waited.ElapsedMilliseconds} ms into the hold, " +
+                    $"built {layers.AgeMs} ms ago, mainHeld={holdMain}, " +
+                    $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}, " +
+                    $"pulseHeldAhead={_pulseHeldAhead}, raysAhead={_mainRaysHiddenAhead != null}");
+                return layers;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers failed; the wave rests as one window.");
+                RayAnimationDriver.ClearHeldFps();
+                _activeSampleLayers = null;
+                try
+                {
+                    presenter?.RemoveLayers();
+                    layers?.Dispose();
+                }
+                catch
+                {
+                }
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Builds the layers of a wave whose cards each have an opaque base (ToastLayer.CanSplit),
+        /// cloaked and not yet presented, or returns null when the wave is not presented, has
+        /// nothing to split (which includes a background whose image has not loaded over a
+        /// surface that draws nothing), or the layers could not be built.
+        /// </summary>
+        private ToastHoldLayers PrepareHoldLayers(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain, bool ahead = false)
+        {
+            try
+            {
+                if (_activePresenter == null || surface == null || cards == null)
+                {
+                    return null;
+                }
+
+                var whyNot = ToastLayer.WhyNotSplit(surface);
+                if (whyNot != null)
+                {
+                    _logger?.Info($"[Toast] Hold layers: not split, {whyNot}; the wave rests as one window.");
+                    return null;
+                }
+
+                // Rays move to a layer only with the window held: left live, it shows its own.
+                var layers = ToastHoldLayers.TryCreate(
+                    _api, window, surface, cards, template, perMonitorWindow, withRays: holdMain);
+                if (layers == null)
+                {
+                    _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
+                }
+                else if (holdMain && _preHeldPulses == null)
+                {
+                    if (ahead)
+                    {
+                        ShowRaysAhead(surface, layers);
+                    }
+
+                    _preHeldPulses = PreHoldBackPulses(surface, layers.Rays != null);
+                }
+
+                return layers;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers could not be built.");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Stands the wave's own window still under its layers: every animated image under the
+        /// card host holds the frame it is on, the glow pulses in each card's content pause, and
+        /// everything but what is drawn behind the card is hidden, since the layers cover it. The
+        /// pulse and rays behind the card keep running, as they show around it, and then redraw
+        /// only themselves.
+        /// </summary>
+        private IDisposable HoldMainUnderLayers(ItemsControl surface, bool raysLayered, out bool mainIsStill)
+        {
+            var heldPulses = HoldBackPulses(surface, raysLayered, out mainIsStill);
+            var stills = AsyncImage.HoldCurrentFrames(_activeSlideHost ?? surface);
+            var contents = new List<DependencyObject>();
+            foreach (var background in ToastLayer.Find(surface, ToastLayerRole.Background))
+            {
+                var content = VisualTreeHelper.GetParent(background);
+                if (content != null && !contents.Contains(content))
+                {
+                    contents.Add(content);
+                    RarityGlowPulse.PauseUnder(content);
+                }
+            }
+
+            var showAll = ToastLayer.ShowOnlyBack(surface, hideRays: raysLayered);
+
+            // A blurred card's live background keeps changing; hidden here, it would still have
+            // this window redrawn at each of its frames.
+            var restoreImages = ToastLayer.ReleaseHiddenImages(surface);
+            return new HeldMain(() =>
+            {
+                // heldPulses stay at their peak for what is left of the wave.
+                FadeBackPulsesToPeak(HoldLayerHandBackMs / 2);
+                restoreImages();
+                showAll();
+                stills.Dispose();
+                foreach (var content in contents)
+                {
+                    RarityGlowPulse.ResumeUnder(content);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Hands the pulse of every card's border glow to the presenter: each glow stops at the
+        /// pulse's peak and the wave's own thumbnail is dimmed along the same sweep, once per DWM
+        /// composition. Dimming that thumbnail dims everything in the window alike, so this is
+        /// done only when every card's glow runs the same pulse and any rays behind the cards
+        /// are shown from a layer of their own (<paramref name="raysLayered"/>); otherwise the
+        /// glows keep pulsing in the window. <paramref name="mainIsStill"/>
+        /// reports whether anything behind the cards is left animating in the window.
+        /// </summary>
+        private List<FrameworkElement> HoldBackPulses(ItemsControl surface, bool raysLayered, out bool mainIsStill)
+        {
+            var held = new List<FrameworkElement>();
+            mainIsStill = false;
+            var ahead = _preHeldPulses;
+            _preHeldPulses = null;
+            _pulseHeldAhead = ahead != null;
+            if (!raysLayered && ToastLayer.Find(surface, ToastLayerRole.Rays).Exists(rays => rays.IsVisible))
+            {
+                ReleasePreHeldPulses(ahead);
+                return held;
+            }
+
+            if (ahead != null)
+            {
+                // The glows already stand at their peak, so the presented pulse starts there at
+                // full opacity: nothing changes on screen at this moment, whenever the window and
+                // the thumbnail's opacity each reach it.
+                _activeHoldPulse = new HoldPulse(ahead.Peak, ahead.Floor, ahead.Peak, ahead.HalfCycleSeconds);
+                mainIsStill = true;
+                UpdatePresenter();
+                return ahead.Glows;
+            }
+
+            var glows = ToastLayer.Find(surface, ToastLayerRole.Back);
+
+            var pulsing = glows.Where(RarityGlowPulse.GetIsActive).ToList();
+            if (pulsing.Count == 0)
+            {
+                mainIsStill = true;
+                return held;
+            }
+
+            if (pulsing.Count != glows.Count)
+            {
+                return held;
+            }
+
+            HoldPulse pulse = null;
+            foreach (var glow in pulsing)
+            {
+                if (!RarityGlowPulse.TryHoldEffectPulseAtPeak(glow, out var shown, out var floor, out var peak, out var seconds) ||
+                    (pulse != null && !pulse.Matches(floor, peak, seconds)))
+                {
+                    ReleaseBackPulses(held, pulse);
+                    held.Clear();
+                    return held;
+                }
+
+                held.Add(glow);
+                pulse = pulse ?? new HoldPulse(shown, floor, peak, seconds);
+            }
+
+            _activeHoldPulse = pulse;
+            mainIsStill = true;
+            UpdatePresenter();
+            return held;
+        }
+
+        /// <summary>
+        /// Glows held at their peak before the wave is shown, for <see cref="HoldBackPulses"/> to
+        /// take over when the wave comes to rest.
+        /// </summary>
+        private sealed class PreHeldPulses
+        {
+            public List<FrameworkElement> Glows;
+            public double Floor;
+            public double Peak;
+            public double HalfCycleSeconds;
+        }
+
+        private PreHeldPulses _preHeldPulses;
+
+        // Whether the pulse the presenter shows now was held before the wave was shown.
+        private bool _pulseHeldAhead;
+
+        /// <summary>
+        /// Stands every card's border glow still at its pulse's peak, under the conditions
+        /// <see cref="HoldBackPulses"/> hands a pulse to the presenter under, or returns null
+        /// having changed nothing. Called while the wave is still hidden: the glow then shows at
+        /// its peak through the entrance, and the presented pulse starts from that peak when the
+        /// wave comes to rest. Holding a glow that is mid-sweep at that moment instead shows its
+        /// jump to the peak for as long as the thumbnail's opacity takes to follow.
+        /// </summary>
+        private PreHeldPulses PreHoldBackPulses(ItemsControl surface, bool raysLayered)
+        {
+            try
+            {
+                if (!raysLayered && ToastLayer.Find(surface, ToastLayerRole.Rays).Exists(rays => rays.IsVisible))
+                {
+                    return null;
+                }
+
+                var glows = ToastLayer.Find(surface, ToastLayerRole.Back);
+                var pulsing = glows.Where(RarityGlowPulse.GetIsActive).ToList();
+                if (pulsing.Count == 0 || pulsing.Count != glows.Count)
+                {
+                    return null;
+                }
+
+                var ahead = new PreHeldPulses { Glows = new List<FrameworkElement>() };
+                foreach (var glow in pulsing)
+                {
+                    if (!RarityGlowPulse.TryHoldEffectPulseAtPeak(glow, out _, out var floor, out var peak, out var seconds) ||
+                        (ahead.Glows.Count > 0 &&
+                         (Math.Abs(floor - ahead.Floor) > 1e-6 || Math.Abs(peak - ahead.Peak) > 1e-6 ||
+                          Math.Abs(seconds - ahead.HalfCycleSeconds) > 1e-6)))
+                    {
+                        ReleasePreHeldPulses(ahead);
+                        return null;
+                    }
+
+                    ahead.Glows.Add(glow);
+                    ahead.Floor = floor;
+                    ahead.Peak = peak;
+                    ahead.HalfCycleSeconds = seconds;
+                }
+
+                return ahead;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Lets glows held ahead pulse in the window again, from their peak.</summary>
+        private void ReleasePreHeldPulses(PreHeldPulses ahead = null)
+        {
+            if (ahead == null)
+            {
+                ahead = _preHeldPulses;
+                _preHeldPulses = null;
+            }
+
+            if (ahead?.Glows == null)
+            {
+                return;
+            }
+
+            foreach (var glow in ahead.Glows)
+            {
+                try
+                {
+                    RarityGlowPulse.ReleaseEffectPulse(glow, ahead.HalfCycleSeconds);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        /// <summary>
+        /// Brings the presented pulse up to its peak over <paramref name="milliseconds"/> and
+        /// leaves the glows standing at theirs: the wave's own window then shows the glow as the
+        /// thumbnail did, without either having to change at one instant. For the hand-back
+        /// before the exit, where the window is about to show the whole card at full opacity.
+        /// </summary>
+        private void FadeBackPulsesToPeak(int milliseconds)
+        {
+            var pulse = _activeHoldPulse;
+            if (pulse == null)
+            {
+                return;
+            }
+
+            if (_activePresenter?.MainOpacitySource != null)
+            {
+                _logger?.Info("[Toast] Presenter pulse: " + _activePresenter.RestReport());
+            }
+
+            pulse.FadeToPeak(milliseconds);
+        }
+
+        private void ReleaseBackPulses(List<FrameworkElement> held, HoldPulse pulse = null)
+        {
+            pulse = pulse ?? _activeHoldPulse;
+            if (_activeHoldPulse != null && _activePresenter?.MainOpacitySource != null)
+            {
+                _logger.Info("[Toast] Presenter pulse: " + _activePresenter.RestReport());
+            }
+
+            _activeHoldPulse = null;
+            var cycleSeconds = pulse?.CycleSeconds() ?? 0d;
+            foreach (var glow in held)
+            {
+                try
+                {
+                    RarityGlowPulse.ReleaseEffectPulse(glow, cycleSeconds);
+                }
+                catch
+                {
+                }
+            }
+
+            UpdatePresenter();
+        }
+
+        /// <summary>
+        /// The glow pulse's sweep on a clock of its own: from the floor to the peak and back, sine
+        /// eased each way, as RarityGlowPulse animates it, continuing from the opacity shown when
+        /// it was taken over.
+        /// </summary>
+        private sealed class HoldPulse
+        {
+            private readonly double _floor;
+            private readonly double _peak;
+            private readonly double _halfCycleSeconds;
+            private readonly double _startSeconds;
+            private readonly Stopwatch _clock = Stopwatch.StartNew();
+
+            public HoldPulse(double shown, double floor, double peak, double halfCycleSeconds)
+            {
+                _floor = floor;
+                _peak = peak;
+                _halfCycleSeconds = halfCycleSeconds;
+                var span = peak - floor;
+                var eased = span > 0 ? Math.Max(0d, Math.Min(1d, (shown - floor) / span)) : 1d;
+                // The rising half of the cycle at the opacity shown.
+                _startSeconds = Math.Acos(1d - (2d * eased)) / Math.PI * halfCycleSeconds;
+            }
+
+            public bool Matches(double floor, double peak, double halfCycleSeconds)
+            {
+                return Math.Abs(floor - _floor) < 1e-6 && Math.Abs(peak - _peak) < 1e-6 &&
+                    Math.Abs(halfCycleSeconds - _halfCycleSeconds) < 1e-6;
+            }
+
+            /// <summary>Seconds into the cycle (rise, then fall) now.</summary>
+            public double CycleSeconds()
+            {
+                return (_startSeconds + _clock.Elapsed.TotalSeconds) % (2d * _halfCycleSeconds);
+            }
+
+            private double _fadeFrom = -1d;
+            private double _fadeMs;
+            private readonly Stopwatch _fade = new Stopwatch();
+
+            /// <summary>
+            /// Leaves the sweep and rises from the opacity shown now to the peak over
+            /// <paramref name="milliseconds"/>, then stays there. Read from other threads.
+            /// </summary>
+            public void FadeToPeak(double milliseconds)
+            {
+                var from = Scale();
+                _fadeMs = Math.Max(1d, milliseconds);
+                _fade.Restart();
+                System.Threading.Volatile.Write(ref _fadeFrom, from);
+            }
+
+            /// <summary>The pulse's opacity now, as a fraction of its peak.</summary>
+            public double Scale()
+            {
+                var fadeFrom = System.Threading.Volatile.Read(ref _fadeFrom);
+                if (fadeFrom >= 0d)
+                {
+                    var t = Math.Min(1d, _fade.Elapsed.TotalMilliseconds / _fadeMs);
+                    return fadeFrom + ((1d - fadeFrom) * ((1d - Math.Cos(Math.PI * t)) / 2d));
+                }
+
+                if (_peak <= 0)
+                {
+                    return 1d;
+                }
+
+                var progress = CycleSeconds() / _halfCycleSeconds;
+                if (progress > 1d)
+                {
+                    progress = 2d - progress;
+                }
+
+                var eased = (1d - Math.Cos(Math.PI * progress)) / 2d;
+                return (_floor + ((_peak - _floor) * eased)) / _peak;
+            }
+        }
+
+        private sealed class HeldMain : IDisposable
+        {
+            private Action _release;
+
+            public HeldMain(Action release)
+            {
+                _release = release;
+            }
+
+            public void Dispose()
+            {
+                var release = _release;
+                _release = null;
+                release?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Returns a split wave to its own window before the exit, which moves and fades one
+        /// window. A held window first takes over the countdown bars where the content layer's
+        /// stand, goes live again, and is given <paramref name="handBackMs"/> to present before
+        /// the layers over it are removed.
+        /// </summary>
+        private async Task EndHoldLayersAsync(Window window, ToastHoldLayers layers, int handBackMs)
+        {
+            RayAnimationDriver.ClearHeldFps();
+            try
+            {
+                StopCountdownBars(layers.Content);
+                if (layers.MainHold != null)
+                {
+                    var shown = FindCountdownBars(layers.Content).ToList();
+                    var own = FindCountdownBars(window).ToList();
+                    for (var i = 0; i < own.Count && i < shown.Count; i++)
+                    {
+                        if (own[i].RenderTransform is ScaleTransform target &&
+                            shown[i].RenderTransform is ScaleTransform source)
+                        {
+                            target.ScaleX = source.ScaleX;
+                        }
+                    }
+
+                    // Live again, so the sampler reads the window's own cards from here on.
+                    _activeSampleLayers = null;
+                    layers.MainHold.Dispose();
+                    layers.MainHold = null;
+                    await Task.Delay(handBackMs).ConfigureAwait(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers hand-back failed.");
+            }
+
+            try
+            {
+                _activePresenter?.RemoveLayers();
+            }
+            catch
+            {
             }
         }
 
@@ -6016,8 +7292,6 @@ namespace PlayniteAchievements.Services.UI
             catch
             {
             }
-
-            ToastGpuPriority.Restore();
         }
     }
 }

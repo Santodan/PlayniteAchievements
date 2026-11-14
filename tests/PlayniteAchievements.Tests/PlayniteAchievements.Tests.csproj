@@ -639,7 +639,6 @@
     <Compile Include="..\..\source\Models\Settings\IconScaleMode.cs" Link="Source\Models\Settings\IconScaleMode.cs" />
     <Compile Include="..\..\source\Models\Settings\CategoryColumnDisplay.cs" Link="Source\Models\Settings\CategoryColumnDisplay.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastScreenCorner.cs" Link="Source\Models\Settings\ToastScreenCorner.cs" />
-    <Compile Include="..\..\source\Models\Settings\NotificationRenderMode.cs" Link="Source\Models\Settings\NotificationRenderMode.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastHorizontalAlignment.cs" Link="Source\Models\Settings\ToastHorizontalAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\ToastMotion.cs" Link="Source\Models\Settings\ToastMotion.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
@@ -738,6 +737,7 @@
     <Compile Include="..\..\source\Models\Achievements\RarityAppearanceHelper.cs" Link="Source\Models\Achievements\RarityAppearanceHelper.cs" />
     <Compile Include="..\..\source\Models\Achievements\RarityAppearanceHelper.RayGlow.cs" Link="Source\Models\Achievements\RarityAppearanceHelper.RayGlow.cs" />
     <Compile Include="..\..\source\Views\Controls\RayGlow\RayArrowLayout.cs" Link="Source\Views\Controls\RayGlow\RayArrowLayout.cs" />
+    <Compile Include="..\..\source\Views\Controls\RayGlow\RayQuadRasterizer.cs" Link="Source\Views\Controls\RayGlow\RayQuadRasterizer.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStats.cs" Link="Source\Models\Achievements\AchievementRarityStats.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStatsCombiner.cs" Link="Source\Models\Achievements\AchievementRarityStatsCombiner.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementCompletionPercentCalculator.cs" Link="Source\Models\Achievements\AchievementCompletionPercentCalculator.cs" />

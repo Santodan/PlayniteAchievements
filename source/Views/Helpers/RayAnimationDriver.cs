@@ -28,6 +28,31 @@ namespace PlayniteAchievements.Views.Helpers
         /// over a running game, such as the unlock notification card).
         /// </summary>
         bool IgnoresGlowGate { get; }
+
+        /// <summary>
+        /// Served at every composed frame while a held rate is set, where the other targets are
+        /// served at that rate. For a target whose frame costs little.
+        /// </summary>
+        bool TakesEveryHeldFrame { get; }
+    }
+
+    /// <summary>
+    /// A target whose frame has a part that can be worked out on any thread. The driver begins
+    /// every such target's frame on the UI thread, fills them all at once across threads, and
+    /// ends each on the UI thread again: a wave of several notification cards then waits for the
+    /// longest of its bursts' fills, where one after another it waited for their sum
+    /// (tools/capture-harness README.md, "Waves of several cards").
+    /// </summary>
+    internal interface IRayBatchTarget
+    {
+        /// <summary>UI thread. False when this frame has nothing to fill; OnRayFrame is then called.</summary>
+        bool BeginRayFrame();
+
+        /// <summary>Any thread, at the same time as other targets'. Touches only the target's own buffers.</summary>
+        void FillRayFrame();
+
+        /// <summary>UI thread, after every begun target has been filled.</summary>
+        void EndRayFrame();
     }
 
     /// <summary>
@@ -74,6 +99,10 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static readonly List<IRayAnimationTarget> Subscribers = new List<IRayAnimationTarget>();
         private static readonly List<IRayAnimationTarget> Dispatch = new List<IRayAnimationTarget>();
+
+        // The targets whose frames were begun this tick and are filled together.
+        private static readonly List<IRayBatchTarget> Batch = new List<IRayBatchTarget>();
+        private static readonly Action<int> FillBatched = index => Batch[index].FillRayFrame();
 
         private static Dispatcher _owner;
         private static TimeSpan _lastRenderingTime = TimeSpan.MinValue;
@@ -128,6 +157,25 @@ namespace PlayniteAchievements.Views.Helpers
         {
             _samplingFps = 0;
         }
+
+        /// <summary>
+        /// Raises the tick rate while a notification rests with its rays in a layer of their own,
+        /// and serves the targets that take every held frame at every composed frame.
+        /// Measured there (tools/capture-harness README.md, "The plugin's presenter and hold
+        /// layers" and "The rays' cost"): 60 against 30 took the same processor time and the same
+        /// game frame rate. A recording's sampling rate takes its place while one is set.
+        /// </summary>
+        public static void SetHeldFps(double fps)
+        {
+            _heldFps = fps > 0 && !double.IsNaN(fps) && !double.IsInfinity(fps) ? fps : 0;
+        }
+
+        public static void ClearHeldFps()
+        {
+            _heldFps = 0;
+        }
+
+        private static double _heldFps;
 
         public static void Unsubscribe(IRayAnimationTarget target)
         {
@@ -226,23 +274,29 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var nowMs = GlowAnimationClock.ElapsedMilliseconds;
-            if (nowMs < _nextDueMs - DueToleranceMs)
+            var due = nowMs >= _nextDueMs - DueToleranceMs;
+            var everyFrame = _samplingFps <= 0 && _heldFps > 0;
+            if (!due && !everyFrame)
             {
                 return;
             }
 
-            // Step the due time forward in whole intervals rather than from now, so a stall resumes on
-            // cadence instead of bunching the frames it missed.
-            var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps);
-            do
+            if (due)
             {
-                _nextDueMs += intervalMs;
-            }
-            while (_nextDueMs <= nowMs);
+                // Step the due time forward in whole intervals rather than from now, so a stall
+                // resumes on cadence instead of bunching the frames it missed.
+                var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps > 0 ? _samplingFps : _heldFps);
+                do
+                {
+                    _nextDueMs += intervalMs;
+                }
+                while (_nextDueMs <= nowMs);
 
-            // Bursts that share a shape build their arrow geometry once for the whole frame, keyed
-            // on this number.
-            FrameNumber = unchecked(FrameNumber + 1);
+                // Bursts that share a shape build their arrow geometry once for the whole frame,
+                // keyed on this number.
+                FrameNumber = unchecked(FrameNumber + 1);
+            }
+
             var suspended = GlowAnimationGate.IsSuspended;
 
             // A target may unsubscribe itself while being served, so walk a copy.
@@ -262,15 +316,43 @@ namespace PlayniteAchievements.Views.Helpers
                         continue;
                     }
 
+                    if (!due && !target.TakesEveryHeldFrame)
+                    {
+                        continue;
+                    }
+
                     if (target.WantsRayFrames)
                     {
-                        target.OnRayFrame();
+                        if (target is IRayBatchTarget batched && batched.BeginRayFrame())
+                        {
+                            Batch.Add(batched);
+                        }
+                        else
+                        {
+                            target.OnRayFrame();
+                        }
                     }
                     else
                     {
                         Unsubscribe(target);
                     }
                 }
+
+                if (Batch.Count == 1)
+                {
+                    Batch[0].FillRayFrame();
+                }
+                else if (Batch.Count > 1)
+                {
+                    System.Threading.Tasks.Parallel.For(0, Batch.Count, FillBatched);
+                }
+
+                for (var i = 0; i < Batch.Count; i++)
+                {
+                    Batch[i].EndRayFrame();
+                }
+
+                Batch.Clear();
             }
 
             Dispatch.Clear();
