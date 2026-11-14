@@ -28,6 +28,12 @@ namespace PlayniteAchievements.Views.Helpers
         /// over a running game, such as the unlock notification card).
         /// </summary>
         bool IgnoresGlowGate { get; }
+
+        /// <summary>
+        /// Served at every composed frame while a held rate is set, where the other targets are
+        /// served at that rate. For a target whose frame costs little.
+        /// </summary>
+        bool TakesEveryHeldFrame { get; }
     }
 
     /// <summary>
@@ -130,10 +136,11 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Raises the tick rate while a notification rests with its rays in a layer of their own.
+        /// Raises the tick rate while a notification rests with its rays in a layer of their own,
+        /// and serves the targets that take every held frame at every composed frame.
         /// Measured there (tools/capture-harness README.md, "The plugin's presenter and hold
-        /// layers"): 60 against 30 took the same processor time and the same game frame rate.
-        /// A recording's sampling rate takes its place while one is set.
+        /// layers" and "The rays' cost"): 60 against 30 took the same processor time and the same
+        /// game frame rate. A recording's sampling rate takes its place while one is set.
         /// </summary>
         public static void SetHeldFps(double fps)
         {
@@ -244,23 +251,29 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var nowMs = GlowAnimationClock.ElapsedMilliseconds;
-            if (nowMs < _nextDueMs - DueToleranceMs)
+            var due = nowMs >= _nextDueMs - DueToleranceMs;
+            var everyFrame = _samplingFps <= 0 && _heldFps > 0;
+            if (!due && !everyFrame)
             {
                 return;
             }
 
-            // Step the due time forward in whole intervals rather than from now, so a stall resumes on
-            // cadence instead of bunching the frames it missed.
-            var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps > 0 ? _samplingFps : _heldFps);
-            do
+            if (due)
             {
-                _nextDueMs += intervalMs;
-            }
-            while (_nextDueMs <= nowMs);
+                // Step the due time forward in whole intervals rather than from now, so a stall
+                // resumes on cadence instead of bunching the frames it missed.
+                var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps > 0 ? _samplingFps : _heldFps);
+                do
+                {
+                    _nextDueMs += intervalMs;
+                }
+                while (_nextDueMs <= nowMs);
 
-            // Bursts that share a shape build their arrow geometry once for the whole frame, keyed
-            // on this number.
-            FrameNumber = unchecked(FrameNumber + 1);
+                // Bursts that share a shape build their arrow geometry once for the whole frame,
+                // keyed on this number.
+                FrameNumber = unchecked(FrameNumber + 1);
+            }
+
             var suspended = GlowAnimationGate.IsSuspended;
 
             // A target may unsubscribe itself while being served, so walk a copy.
@@ -277,6 +290,11 @@ namespace PlayniteAchievements.Views.Helpers
                     if (suspended && !target.IgnoresGlowGate)
                     {
                         // Held still, not dropped: it resumes when the gate opens.
+                        continue;
+                    }
+
+                    if (!due && !target.TakesEveryHeldFrame)
+                    {
                         continue;
                     }
 
