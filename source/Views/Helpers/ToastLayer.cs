@@ -19,8 +19,16 @@ namespace PlayniteAchievements.Views.Helpers
         /// <summary>Rays around the card, drawn behind its glow or shadow.</summary>
         Rays,
 
-        /// <summary>The background image as the user sees it.</summary>
+        /// <summary>
+        /// The background as the user sees it: an image, or a live image with a tint over it.
+        /// </summary>
         Background,
+
+        /// <summary>
+        /// The card's own surface, drawn inside a <see cref="Back"/> element as what casts its
+        /// glow or shadow. It is the card's background where no image covers it.
+        /// </summary>
+        Surface,
     }
 
     /// <summary>
@@ -32,7 +40,9 @@ namespace PlayniteAchievements.Views.Helpers
     /// is split as well: its rays, glow pulse and countdown then reach the screen without a
     /// frame from the card's own window.
     ///
-    /// A template without a shown <see cref="ToastLayerRole.Background"/> element is never split.
+    /// A card is split when the lowest thing its <see cref="ToastLayerRole.Surface"/> and
+    /// <see cref="ToastLayerRole.Background"/> elements draw is opaque; a template that marks
+    /// neither is never split.
     /// </summary>
     public static class ToastLayer
     {
@@ -82,17 +92,32 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static void ShowOnlyBackground(DependencyObject root)
         {
-            ShowOnly(root, ToastLayerRole.Background);
+            ShowOnly(root, ToastLayerRole.Background, ToastLayerRole.Surface);
+
+            // The surface sits inside the back element, which stays shown as its ancestor. Its
+            // glow or shadow belongs to the card's own window.
+            foreach (var back in Find(root, ToastLayerRole.Back))
+            {
+                if (back.Visibility == Visibility.Visible)
+                {
+                    RarityGlowPulse.SetIsActive(back, false);
+                    back.SetCurrentValue(UIElement.EffectProperty, null);
+                }
+            }
         }
 
         /// <summary>
-        /// Leaves only the elements with <paramref name="role"/> under <paramref name="root"/>
-        /// drawn: every element that is neither one of them nor an ancestor of one is hidden,
-        /// keeping its layout.
+        /// Leaves only the elements with <paramref name="role"/> or <paramref name="alsoRole"/>
+        /// under <paramref name="root"/> drawn: every element that is neither one of them nor an
+        /// ancestor of one is hidden, keeping its layout.
         /// </summary>
-        public static void ShowOnly(DependencyObject root, ToastLayerRole role)
+        public static void ShowOnly(DependencyObject root, ToastLayerRole role, ToastLayerRole? alsoRole = null)
         {
             var backgrounds = Find(root, role);
+            if (alsoRole.HasValue)
+            {
+                backgrounds.AddRange(Find(root, alsoRole.Value));
+            }
             var kept = new HashSet<DependencyObject>();
             foreach (var background in backgrounds)
             {
@@ -136,6 +161,70 @@ namespace PlayniteAchievements.Views.Helpers
         /// time. In the content layer that was what kept a resting card below the display's rate
         /// (tools/capture-harness README.md, "The rays' cost").
         /// </summary>
+        /// <summary>
+        /// Takes the image brush off every hidden border and panel under <paramref name="root"/>
+        /// and returns what puts them back. For the card's own window while its layers are shown:
+        /// a hidden element painted with an image that changes, a live blurred background, would
+        /// have the window redrawn at each change.
+        /// </summary>
+        public static Action ReleaseHiddenImages(DependencyObject root)
+        {
+            var taken = new List<KeyValuePair<FrameworkElement, Brush>>();
+            CollectHiddenImages(root, false, taken);
+            foreach (var pair in taken)
+            {
+                SetPaint(pair.Key, null);
+            }
+
+            return () =>
+            {
+                foreach (var pair in taken)
+                {
+                    SetPaint(pair.Key, pair.Value);
+                }
+
+                taken.Clear();
+            };
+        }
+
+        private static void CollectHiddenImages(
+            DependencyObject node, bool hidden, List<KeyValuePair<FrameworkElement, Brush>> found)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(node, i);
+                var childHidden = hidden || (child is UIElement element && element.Visibility != Visibility.Visible);
+                if (childHidden && child is FrameworkElement painted)
+                {
+                    var paint = (painted as Border)?.Background ?? (painted as Panel)?.Background;
+                    if (paint is ImageBrush)
+                    {
+                        found.Add(new KeyValuePair<FrameworkElement, Brush>(painted, paint));
+                    }
+                }
+
+                CollectHiddenImages(child, childHidden, found);
+            }
+        }
+
+        private static void SetPaint(FrameworkElement element, Brush paint)
+        {
+            if (element is Border border)
+            {
+                border.SetCurrentValue(Border.BackgroundProperty, paint);
+            }
+            else if (element is Panel panel)
+            {
+                panel.SetCurrentValue(Panel.BackgroundProperty, paint);
+            }
+        }
+
         private static void QuietHidden(DependencyObject node, bool hidden)
         {
             if (node == null)
@@ -244,35 +333,110 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Whether the cards under <paramref name="root"/> can rest as separate layers: a
-        /// background is shown, and every shown background is an image that fills its element and
-        /// is opaque in every pixel. While the layers take over from the card's own window and
-        /// hand back to it, the background layer is drawn over that window's own copy, which a
-        /// translucent background would show through.
+        /// Whether the cards under <paramref name="root"/> can rest as separate layers: in every
+        /// card, the lowest of its shown surface and background elements that draws anything is
+        /// opaque, a solid surface or an image that fills its element. While the layers take over
+        /// from the card's own window and hand back to it, the background layer is drawn over that
+        /// window's own copy, and the window's glow is dimmed as a whole under it; a translucent
+        /// base would show both through.
         /// </summary>
         public static bool CanSplit(DependencyObject root)
         {
-            var shown = false;
-            foreach (var background in Find(root, ToastLayerRole.Background))
+            var bases = new List<FrameworkElement>();
+            CollectBases(root, bases);
+            var seen = new HashSet<DependencyObject>();
+            var settled = new HashSet<DependencyObject>();
+            foreach (var element in bases)
             {
-                if (!background.IsVisible)
+                if (!element.IsVisible)
                 {
                     continue;
                 }
 
-                var brush = (background as Border)?.Background as ImageBrush;
-                var source = brush?.ImageSource as BitmapSource;
-                if (source == null || background.Opacity < 1d || brush.Opacity < 1d ||
-                    (brush.Stretch != Stretch.UniformToFill && brush.Stretch != Stretch.Fill) ||
-                    !IsOpaque(source))
+                var card = CardOf(element, root);
+                seen.Add(card);
+                if (settled.Contains(card))
+                {
+                    continue;
+                }
+
+                var paint = (element as Border)?.Background ?? (element as Panel)?.Background;
+                if (DrawsNothing(paint))
+                {
+                    continue;
+                }
+
+                if (element.Opacity < 1d || !IsOpaque(paint))
                 {
                     return false;
                 }
 
-                shown = true;
+                settled.Add(card);
             }
 
-            return shown;
+            return settled.Count > 0 && settled.Count == seen.Count;
+        }
+
+        // Surface and background elements in the order they are drawn.
+        private static void CollectBases(DependencyObject node, List<FrameworkElement> found)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(node, i);
+                if (child is FrameworkElement element &&
+                    (GetRole(element) == ToastLayerRole.Surface || GetRole(element) == ToastLayerRole.Background))
+                {
+                    found.Add(element);
+                }
+
+                CollectBases(child, found);
+            }
+        }
+
+        // The card an element belongs to: its outermost content presenter under the root.
+        private static DependencyObject CardOf(DependencyObject element, DependencyObject root)
+        {
+            DependencyObject card = root;
+            for (var node = VisualTreeHelper.GetParent(element); node != null && !ReferenceEquals(node, root);
+                node = VisualTreeHelper.GetParent(node))
+            {
+                if (node is ContentPresenter)
+                {
+                    card = node;
+                }
+            }
+
+            return card;
+        }
+
+        private static bool DrawsNothing(Brush paint)
+        {
+            return paint == null || paint.Opacity <= 0d ||
+                (paint is SolidColorBrush solid && solid.Color.A == 0) ||
+                (paint is ImageBrush image && image.ImageSource == null);
+        }
+
+        private static bool IsOpaque(Brush paint)
+        {
+            if (paint.Opacity < 1d)
+            {
+                return false;
+            }
+
+            if (paint is SolidColorBrush solid)
+            {
+                return solid.Color.A == 255;
+            }
+
+            return paint is ImageBrush image && image.ImageSource is BitmapSource source &&
+                (image.Stretch == Stretch.UniformToFill || image.Stretch == Stretch.Fill) &&
+                IsOpaque(source);
         }
 
         // Per bitmap: a still background is the same cached bitmap from one notification to the
@@ -282,6 +446,13 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static bool IsOpaque(BitmapSource source)
         {
+            // A format without an alpha channel, as the live blurred capture's is.
+            if (source.Format == PixelFormats.Bgr32 || source.Format == PixelFormats.Bgr24 ||
+                source.Format == PixelFormats.Rgb24)
+            {
+                return true;
+            }
+
             if (OpaqueByBitmap.TryGetValue(source, out var known))
             {
                 return (bool)known;
