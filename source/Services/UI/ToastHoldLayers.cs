@@ -52,6 +52,49 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public bool MainIsStill { get; set; }
 
+        /// <summary>
+        /// The container of card <paramref name="index"/> in <paramref name="layer"/>, one of
+        /// this object's windows, or null. It has the layout of the same card in the wave's own
+        /// window.
+        /// </summary>
+        public FrameworkElement CardContainer(Window layer, int index)
+        {
+            if (layer == null)
+            {
+                return null;
+            }
+
+            if (!_surfaces.TryGetValue(layer, out var surface))
+            {
+                surface = FindSurface(layer.Content as DependencyObject);
+                _surfaces[layer] = surface;
+            }
+
+            return surface?.ItemContainerGenerator.ContainerFromIndex(index) as FrameworkElement;
+        }
+
+        private readonly Dictionary<Window, ItemsControl> _surfaces = new Dictionary<Window, ItemsControl>();
+
+        private static ItemsControl FindSurface(DependencyObject node)
+        {
+            if (node == null || node is ItemsControl)
+            {
+                return node as ItemsControl;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+            {
+                var found = FindSurface(VisualTreeHelper.GetChild(node, i));
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>Milliseconds since the windows were built.</summary>
         public long AgeMs => _created.ElapsedMilliseconds;
 
