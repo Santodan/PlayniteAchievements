@@ -129,6 +129,24 @@ namespace PlayniteAchievements.Views.Helpers
             _samplingFps = 0;
         }
 
+        /// <summary>
+        /// Raises the tick rate while a notification rests with its rays in a layer of their own.
+        /// Measured there (tools/capture-harness README.md, "The plugin's presenter and hold
+        /// layers"): 60 against 30 took the same processor time and the same game frame rate.
+        /// A recording's sampling rate takes its place while one is set.
+        /// </summary>
+        public static void SetHeldFps(double fps)
+        {
+            _heldFps = fps > 0 && !double.IsNaN(fps) && !double.IsInfinity(fps) ? fps : 0;
+        }
+
+        public static void ClearHeldFps()
+        {
+            _heldFps = 0;
+        }
+
+        private static double _heldFps;
+
         public static void Unsubscribe(IRayAnimationTarget target)
         {
             if (target == null || !Subscribers.Remove(target))
@@ -233,7 +251,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             // Step the due time forward in whole intervals rather than from now, so a stall resumes on
             // cadence instead of bunching the frames it missed.
-            var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps);
+            var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps > 0 ? _samplingFps : _heldFps);
             do
             {
                 _nextDueMs += intervalMs;
