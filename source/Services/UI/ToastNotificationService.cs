@@ -3098,7 +3098,7 @@ namespace PlayniteAchievements.Services.UI
                 if (visible)
                 {
                     holdLayers = PrepareHoldLayers(
-                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: true);
+                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: true, ahead: true);
                 }
 
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
@@ -3509,6 +3509,7 @@ namespace PlayniteAchievements.Services.UI
                 _activeSampleLayers = null;
                 _activeHoldPulse = null;
                 _preHeldPulses = null;
+                _mainRaysHiddenAhead = null;
                 holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
@@ -6593,9 +6594,72 @@ namespace PlayniteAchievements.Services.UI
             if (layers == null)
             {
                 ReleasePreHeldPulses();
+                DropRaysAhead();
             }
 
             return layers;
+        }
+
+        // The wave's own rays hidden because a layer shows them for the whole wave.
+        private List<FrameworkElement> _mainRaysHiddenAhead;
+
+        /// <summary>
+        /// Shows the cards' rays from their layer for the whole wave, entrance and exit included,
+        /// and hides them in the wave's own window, while that window is still hidden. Rays that
+        /// changed hands when the wave came to rest were drawn by both for as long as the window
+        /// took to redraw without them, at twice their strength.
+        /// </summary>
+        private void ShowRaysAhead(ItemsControl surface, ToastHoldLayers layers)
+        {
+            try
+            {
+                if (layers.Rays == null || _mainRaysHiddenAhead != null || _activePresenter == null ||
+                    !_activePresenter.AddUnderlayAhead(layers.Rays))
+                {
+                    return;
+                }
+
+                _mainRaysHiddenAhead = new List<FrameworkElement>();
+                foreach (var rays in ToastLayer.Find(surface, ToastLayerRole.Rays))
+                {
+                    if (rays.Visibility == Visibility.Visible)
+                    {
+                        rays.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
+                        _mainRaysHiddenAhead.Add(rays);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast rays could not be shown from their layer ahead of the hold.");
+            }
+        }
+
+        /// <summary>Gives the rays back to the wave's own window, when their layer is going.</summary>
+        private void DropRaysAhead()
+        {
+            var hidden = _mainRaysHiddenAhead;
+            _mainRaysHiddenAhead = null;
+            if (hidden == null)
+            {
+                return;
+            }
+
+            try
+            {
+                foreach (var rays in hidden)
+                {
+                    if (rays.Visibility == Visibility.Hidden)
+                    {
+                        rays.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Visible);
+                    }
+                }
+
+                _activePresenter?.RemoveUnderlay();
+            }
+            catch
+            {
+            }
         }
 
         private async Task<ToastHoldLayers> BeginHoldLayersCoreAsync(
@@ -6609,6 +6673,7 @@ namespace PlayniteAchievements.Services.UI
                 var waited = Stopwatch.StartNew();
                 if (layers != null && (presenter == null || !layers.HasSizeOf(window)))
                 {
+                    DropRaysAhead();
                     layers.Dispose();
                     layers = null;
                 }
@@ -6636,7 +6701,7 @@ namespace PlayniteAchievements.Services.UI
 
                 var loaded = layers.IsLoadedLike(surface);
                 var added = loaded &&
-                    (layers.Rays == null || presenter.AddUnderlay(layers.Rays)) &&
+                    (layers.Rays == null || _mainRaysHiddenAhead != null || presenter.AddUnderlay(layers.Rays)) &&
                     presenter.AddLayer(layers.Background) && presenter.AddLayer(layers.Content);
                 if (!added)
                 {
@@ -6664,7 +6729,7 @@ namespace PlayniteAchievements.Services.UI
                     $"[Toast] Hold layers: shown {waited.ElapsedMilliseconds} ms into the hold, " +
                     $"built {layers.AgeMs} ms ago, mainHeld={holdMain}, " +
                     $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}, " +
-                    $"pulseHeldAhead={_pulseHeldAhead}");
+                    $"pulseHeldAhead={_pulseHeldAhead}, raysAhead={_mainRaysHiddenAhead != null}");
                 return layers;
             }
             catch (Exception ex)
@@ -6693,7 +6758,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private ToastHoldLayers PrepareHoldLayers(
             Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
-            DataTemplate template, bool perMonitorWindow, bool holdMain)
+            DataTemplate template, bool perMonitorWindow, bool holdMain, bool ahead = false)
         {
             try
             {
@@ -6718,6 +6783,11 @@ namespace PlayniteAchievements.Services.UI
                 }
                 else if (holdMain && _preHeldPulses == null)
                 {
+                    if (ahead)
+                    {
+                        ShowRaysAhead(surface, layers);
+                    }
+
                     _preHeldPulses = PreHoldBackPulses(surface, layers.Rays != null);
                 }
 
