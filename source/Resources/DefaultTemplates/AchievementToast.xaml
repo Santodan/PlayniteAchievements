@@ -89,8 +89,11 @@
                      backing image below, instead of a solid rectangle. A blurred card keeps it
                      opaque, so its glow keeps the full card shape and never shows through the
                      translucent tint; the live blur covers it from the content layer. Named so the
-                     saved-output renders can leave it out (ToastBlurLayers). -->
+                     saved-output renders can leave it out (ToastBlurLayers). Marked as the surface:
+                     while the card rests it is the base of the background layer (ToastLayer), under
+                     the live blur and tint or alone where the card has no image. -->
                 <Border x:Name="CardSurface"
+                        helpers:ToastLayer.Role="Surface"
                         CornerRadius="8"
                         BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}">
                     <Border.Style>
@@ -137,6 +140,7 @@
                          through the tint. Named so the saved-output renders can leave the image out:
                          screenshots and clips blur their own frame under the card. -->
                     <Border x:Name="LiveBlurImage"
+                            helpers:ToastLayer.Role="Background"
                             CornerRadius="8"
                             RenderOptions.BitmapScalingMode="Linear"
                             Visibility="{Binding HasToastBlur, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -148,6 +152,7 @@
                         </Border.Background>
                     </Border>
                     <Border CornerRadius="8"
+                            helpers:ToastLayer.Role="Background"
                             Background="{Binding ToastBlurTintBrush}"
                             BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                             BorderThickness="1"
