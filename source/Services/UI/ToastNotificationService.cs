@@ -2988,8 +2988,11 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 // The hold's layers are built here, ahead of the entrance, so they have loaded
-                // and presented by the time the cards settle. Built at the settle instead when
-                // the background's image has not arrived yet.
+                // and presented by the time the cards rest; at the settle instead when the
+                // background's image has not arrived yet. Building them took 70 to 140 ms of the
+                // UI thread (TemplateBench --early-layers), which the card spends still cloaked.
+                // Built while the card slid in, the slide stood still on screen for 150 ms,
+                // though the presenter was stepped every composition.
                 var recordsTrack = _activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
                     (_activeWaveCaptures?.EnableUnlockRecordings ?? _settings?.Persisted?.EnableUnlockRecordings ?? false);
                 if (visible)
@@ -6440,10 +6443,14 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        // The layers are shown no sooner than this after they are created. A layer window's first
-        // frame waits in the GPU queue like any other WPF frame, and nothing reports when it has
-        // been presented; shown before it, the content layer would be empty over the background.
-        private const int HoldLayerSettleMs = 400;
+        // The layers are shown no sooner than this after they are created, and are given up on
+        // when their images have not loaded HoldLayerLoadTimeoutMs into the hold. Nothing reports
+        // when a layer window's first frame has been presented, and shown before it the content
+        // layer would be empty over the background. With no wait at all, no capture of the 30
+        // compositions after the split missed content (TemplateBench --layers-compare under
+        // GameLoad, 6 cycles); the wait is margin.
+        private const int HoldLayerSettleMs = 100;
+        private const int HoldLayerLoadTimeoutMs = 1600;
         private const int HoldLayerLoadPollMs = 20;
 
         // How long before the hold ends the wave's own window is made live again, so it has
@@ -6485,7 +6492,7 @@ namespace PlayniteAchievements.Services.UI
 
                 while (layers.AgeMs < HoldLayerSettleMs || !layers.IsLoadedLike(surface))
                 {
-                    if (waited.ElapsedMilliseconds > 4 * HoldLayerSettleMs)
+                    if (waited.ElapsedMilliseconds > HoldLayerLoadTimeoutMs)
                     {
                         break;
                     }
