@@ -117,11 +117,13 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void ToastBackground_UsesOneImageHostAndOneRenderedBrush()
         {
-            var path = FindRepoFile("source", "Resources", "DefaultTemplates", "AchievementToast.xaml");
+            // The card's background is part of controls:ToastCard, whose template is in the
+            // assembly's theme dictionary; the bundled notification template holds only content.
+            var path = FindRepoFile("source", "Themes", "Generic.xaml");
             var document = XDocument.Parse(File.ReadAllText(path));
             XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
             XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-            XNamespace helpers = "clr-namespace:PlayniteAchievements.Views.Helpers;assembly=PlayniteAchievements";
+            XNamespace helpers = "clr-namespace:PlayniteAchievements.Views.Helpers";
 
             var sourceHost = document
                 .Descendants(presentation + "Image")
