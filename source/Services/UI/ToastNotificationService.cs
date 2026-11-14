@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -2987,6 +2987,17 @@ namespace PlayniteAchievements.Services.UI
                     EngageMotionCache(_activeSlideHost, window);
                 }
 
+                // The hold's layers are built here, ahead of the entrance, so they have loaded
+                // and presented by the time the cards settle. Built at the settle instead when
+                // the background's image has not arrived yet.
+                var recordsTrack = _activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
+                    (_activeWaveCaptures?.EnableUnlockRecordings ?? _settings?.Persisted?.EnableUnlockRecordings ?? false);
+                if (visible)
+                {
+                    holdLayers = PrepareHoldLayers(
+                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: !recordsTrack);
+                }
+
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
                     .ConfigureAwait(true);
                 if (_disposed)
@@ -3014,8 +3025,7 @@ namespace PlayniteAchievements.Services.UI
                 // anchor only — a test fire out of game has no video — and only with recordings
                 // enabled, since nothing else consumes a track. Progress waves never own a clip,
                 // so they skip the track entirely.
-                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
-                    (_activeWaveCaptures?.EnableUnlockRecordings ?? _settings?.Persisted?.EnableUnlockRecordings ?? false))
+                if (recordsTrack)
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
@@ -3241,7 +3251,8 @@ namespace PlayniteAchievements.Services.UI
                 var holdWatch = Stopwatch.StartNew();
                 var holdMain = trackRecorder == null;
                 holdLayers = await BeginHoldLayersAsync(
-                    window, items, cardItems, template, needsPerMonitorWindow, holdMain).ConfigureAwait(true);
+                    window, items, cardItems, template, needsPerMonitorWindow, holdMain, holdLayers)
+                    .ConfigureAwait(true);
                 if (_disposed)
                 {
                     return;
@@ -4945,7 +4956,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             _activePresenter = presenter;
-            _activeFramePump = new DwmFramePump(window.Dispatcher);
+            _activeFramePump = new DwmFramePump(window.Dispatcher) { Flushed = presenter.StepTrack };
             _activePresenterTick = (s, e) => UpdatePresenter();
             HookFrame(_activePresenterTick);
         }
@@ -4995,6 +5006,8 @@ namespace PlayniteAchievements.Services.UI
         /// (TemplateBench --presenter), which is what the slide's clock drive, the thumbnail and
         /// the track sampler would have stepped at. DwmFlush returns at each composition whatever
         /// WPF has to draw. A frame the UI thread has not handled yet is not queued again.
+        /// <see cref="Flushed"/> runs on the pump's own thread at each composition, whether or not
+        /// the UI thread is free.
         /// </summary>
         private sealed class DwmFramePump : IDisposable
         {
@@ -5020,10 +5033,14 @@ namespace PlayniteAchievements.Services.UI
 
             public event EventHandler Frame;
 
+            /// <summary>Called on the pump's thread after each composition.</summary>
+            public Action Flushed { get; set; }
+
             public void Dispose()
             {
                 _running = false;
                 Frame = null;
+                Flushed = null;
             }
 
             private void Run()
@@ -5035,6 +5052,11 @@ namespace PlayniteAchievements.Services.UI
                         if (DwmFlush() != 0)
                         {
                             System.Threading.Thread.Sleep(8);
+                        }
+
+                        if (_running)
+                        {
+                            Flushed?.Invoke();
                         }
 
                         if (_running && System.Threading.Interlocked.CompareExchange(ref _pending, 1, 0) == 0)
@@ -5421,6 +5443,9 @@ namespace PlayniteAchievements.Services.UI
             // frames before that are not the slide's, so they are neither driven nor counted.
             var held = holdAtStart;
             var tickFailed = false;
+            // What the presenter shows of this slide between UI frames (SampleMotionTrack).
+            ToastThumbnailPresenter.MotionTrack track = null;
+            var trackMisses = 0;
             EventHandler tick = (s, e) =>
             {
                 if (held || !ticks.TryAdvance(e, out _))
@@ -5433,12 +5458,31 @@ namespace PlayniteAchievements.Services.UI
                     try
                     {
                         // At its end the card shows its rest, so the base values can return there too.
-                        if (clock.Elapsed.TotalMilliseconds >= durationMs)
+                        var elapsed = clock.Elapsed;
+                        if (elapsed.TotalMilliseconds >= durationMs)
                         {
                             RestoreRestBase();
                         }
 
-                        driving = DriveSlideByClock(storyboard, host, clock.Elapsed, durationMs);
+                        driving = DriveSlideByClock(storyboard, host, elapsed, durationMs);
+
+                        // The track must be where the storyboard is. Twice in a row, since WPF can
+                        // show the base value in place of the animated one for a single frame.
+                        if (track != null && driving)
+                        {
+                            if (track.Agrees(elapsed.TotalMilliseconds, PresentedMotion(), host.Opacity))
+                            {
+                                trackMisses = 0;
+                            }
+                            else if (++trackMisses >= 2)
+                            {
+                                track = null;
+                                EndMotionTrack();
+                                _logger?.Info(
+                                    $"[Toast] Presenter: the {label} motion's track left the storyboard " +
+                                    $"at {elapsed.TotalMilliseconds:0} ms; the UI thread steps it.");
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -5472,7 +5516,22 @@ namespace PlayniteAchievements.Services.UI
             // releases it at the slide's natural end (attached before Begin — later subscribers
             // never reach the running clock); StopActiveSlide backstops every cut-short path.
             _activeSlideQuiet = new SlideQuietScope(host, _activeWindow, _activeSlideHost, _activePresenter == null);
-            storyboard.Completed += (s, e) => DisposeSlideQuiet();
+            storyboard.Completed += (s, e) =>
+            {
+                // Sampling the motion track seeks the storyboard close to its end, and WPF then
+                // raises Completed on a later tick. A driven storyboard reaches its real end only
+                // once the clock has run the duration.
+                if (driving && clock.Elapsed.TotalMilliseconds < durationMs)
+                {
+                    return;
+                }
+
+                DisposeSlideQuiet();
+                if (ReferenceEquals(_runningSlideStoryboard, storyboard))
+                {
+                    EndMotionTrack();
+                }
+            };
 
             // A held entrance seeds its START instead, until it reaches its end. Recorded in Playnite:
             // for a frame after Begin/Pause and again at the first seek, WPF can drop the animated
@@ -5493,6 +5552,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     storyboard.Pause(host);
                     driving = true;
+                    track = SampleMotionTrack(storyboard, host, durationMs, clock);
+                    _activePresenter?.PlayTrack(track);
                     if (held)
                     {
                         _releaseHeldSlide = () =>
@@ -6082,6 +6143,66 @@ namespace PlayniteAchievements.Services.UI
             // Outside the guard: a slide that reached its final frame already unhooked itself and
             // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
             ReportActiveSlide("stopped");
+            EndMotionTrack();
+        }
+
+        // The spacing of a motion track's samples. The presenter reads between two samples in a
+        // straight line.
+        private const double MotionTrackStepMs = 2d;
+
+        /// <summary>
+        /// Samples a begun, paused storyboard into a track for the presenter: the motion host's
+        /// transform and opacity every <see cref="MotionTrackStepMs"/> of the storyboard's run,
+        /// read by seeking it, and timed by <paramref name="clock"/>, the clock the storyboard
+        /// itself is seeked to each frame. The presenter then shows the motion from the frame
+        /// pump's thread at every DWM composition, so a UI thread that is late for a frame does
+        /// not hold the card where it was. Leaves the storyboard at its start. Null when the wave
+        /// has no presenter or the storyboard cannot be seeked.
+        /// </summary>
+        private ToastThumbnailPresenter.MotionTrack SampleMotionTrack(
+            Storyboard storyboard, FrameworkElement host, double durationMs, Stopwatch clock)
+        {
+            if (_activePresenter == null || !ReferenceEquals(host, _activeMotionHost) || durationMs <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var count = Math.Max(2, (int)Math.Ceiling(durationMs / MotionTrackStepMs) + 1);
+                var stepMs = durationMs / (count - 1);
+                var motions = new Matrix[count];
+                var opacities = new double[count];
+                // Short of the end itself, where a seek would complete the storyboard.
+                var lastMs = durationMs - 0.05;
+                for (var i = 0; i < count; i++)
+                {
+                    storyboard.SeekAlignedToLastTick(
+                        host, TimeSpan.FromMilliseconds(Math.Min(i * stepMs, lastMs)), TimeSeekOrigin.BeginTime);
+                    motions[i] = PresentedMotion();
+                    opacities[i] = host.Opacity;
+                }
+
+                storyboard.SeekAlignedToLastTick(host, TimeSpan.Zero, TimeSeekOrigin.BeginTime);
+                return new ToastThumbnailPresenter.MotionTrack(motions, opacities, stepMs, clock);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast motion track could not be sampled; the UI thread steps the motion.");
+                return null;
+            }
+        }
+
+        /// <summary>Returns the presenter to the motion host's own transform and opacity.</summary>
+        private void EndMotionTrack()
+        {
+            var presenter = _activePresenter;
+            var stepped = presenter?.EndTrack();
+            if (stepped != null)
+            {
+                _logger?.Info($"[Toast] Presenter track: {stepped}");
+                UpdatePresenter();
+            }
         }
 
         /// <summary>
@@ -6335,36 +6456,36 @@ namespace PlayniteAchievements.Services.UI
         /// presenter over the wave's own window. With <paramref name="holdMain"/> the wave's own
         /// window then stands still under them (its animated images hold their frame and its
         /// content's glow pulses pause), so it is redrawn only by what shows around the card.
+        /// <paramref name="prepared"/> are layers built ahead by <see cref="PrepareHoldLayers"/>,
+        /// which are shown as soon as they are ready; without them, or when the cards have
+        /// changed size since, the layers are built here.
         /// Returns null when the wave is not presented, has nothing to split, or the layers could
         /// not be built; the wave then rests as it is.
         /// </summary>
         private async Task<ToastHoldLayers> BeginHoldLayersAsync(
             Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
-            DataTemplate template, bool perMonitorWindow, bool holdMain)
+            DataTemplate template, bool perMonitorWindow, bool holdMain, ToastHoldLayers prepared = null)
         {
             var presenter = _activePresenter;
-            ToastHoldLayers layers = null;
+            var layers = prepared;
             try
             {
-                if (presenter == null || surface == null || cards == null ||
-                    cards.Any(card => card.HasToastBlur) || !ToastLayer.CanSplit(surface))
+                var waited = Stopwatch.StartNew();
+                if (layers != null && (presenter == null || !layers.HasSizeOf(window)))
                 {
-                    return null;
+                    layers.Dispose();
+                    layers = null;
                 }
 
-                var created = Stopwatch.StartNew();
-                // Rays move to a layer only with the window held: left live, it shows its own.
-                layers = ToastHoldLayers.TryCreate(
-                    _api, window, surface, cards, template, perMonitorWindow, withRays: holdMain);
+                layers = layers ?? PrepareHoldLayers(window, surface, cards, template, perMonitorWindow, holdMain);
                 if (layers == null)
                 {
-                    _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
                     return null;
                 }
 
-                while (created.ElapsedMilliseconds < HoldLayerSettleMs || !layers.IsLoadedLike(surface))
+                while (layers.AgeMs < HoldLayerSettleMs || !layers.IsLoadedLike(surface))
                 {
-                    if (created.ElapsedMilliseconds > 4 * HoldLayerSettleMs)
+                    if (waited.ElapsedMilliseconds > 4 * HoldLayerSettleMs)
                     {
                         break;
                     }
@@ -6404,7 +6525,8 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 _logger?.Info(
-                    $"[Toast] Hold layers: shown after {created.ElapsedMilliseconds} ms, mainHeld={holdMain}, " +
+                    $"[Toast] Hold layers: shown {waited.ElapsedMilliseconds} ms into the hold, " +
+                    $"built {layers.AgeMs} ms ago, mainHeld={holdMain}, " +
                     $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}");
                 return layers;
             }
@@ -6420,6 +6542,40 @@ namespace PlayniteAchievements.Services.UI
                 {
                 }
 
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Builds the layers of a wave with an animated, opaque background, cloaked and not yet
+        /// presented, or returns null when the wave is not presented, has nothing to split (which
+        /// includes a background whose image has not loaded), or the layers could not be built.
+        /// </summary>
+        private ToastHoldLayers PrepareHoldLayers(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain)
+        {
+            try
+            {
+                if (_activePresenter == null || surface == null || cards == null ||
+                    cards.Any(card => card.HasToastBlur) || !ToastLayer.CanSplit(surface))
+                {
+                    return null;
+                }
+
+                // Rays move to a layer only with the window held: left live, it shows its own.
+                var layers = ToastHoldLayers.TryCreate(
+                    _api, window, surface, cards, template, perMonitorWindow, withRays: holdMain);
+                if (layers == null)
+                {
+                    _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
+                }
+
+                return layers;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast hold layers could not be built.");
                 return null;
             }
         }
