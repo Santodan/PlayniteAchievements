@@ -29,6 +29,13 @@ namespace PlayniteAchievements.Views.Helpers
         /// glow or shadow. It is the card's background where no image covers it.
         /// </summary>
         Surface,
+
+        /// <summary>
+        /// Content that animates and is drawn directly over the background, with nothing else of
+        /// the content under it: an icon's rays and pulsing halo. While the card rests it is
+        /// shown with the background, so its redraws do not reach the content's effects.
+        /// </summary>
+        Underlay,
     }
 
     /// <summary>
@@ -92,7 +99,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static void ShowOnlyBackground(DependencyObject root)
         {
-            ShowOnly(root, ToastLayerRole.Background, ToastLayerRole.Surface);
+            ShowOnly(root, ToastLayerRole.Background, ToastLayerRole.Surface, ToastLayerRole.Underlay);
 
             // The surface sits inside the back element, which stays shown as its ancestor. Its
             // glow or shadow belongs to the card's own window.
@@ -107,16 +114,16 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Leaves only the elements with <paramref name="role"/> or <paramref name="alsoRole"/>
-        /// under <paramref name="root"/> drawn: every element that is neither one of them nor an
+        /// Leaves only the elements with one of <paramref name="roles"/> under
+        /// <paramref name="root"/> drawn: every element that is neither one of them nor an
         /// ancestor of one is hidden, keeping its layout.
         /// </summary>
-        public static void ShowOnly(DependencyObject root, ToastLayerRole role, ToastLayerRole? alsoRole = null)
+        public static void ShowOnly(DependencyObject root, params ToastLayerRole[] roles)
         {
-            var backgrounds = Find(root, role);
-            if (alsoRole.HasValue)
+            var backgrounds = new List<FrameworkElement>();
+            foreach (var role in roles)
             {
-                backgrounds.AddRange(Find(root, alsoRole.Value));
+                backgrounds.AddRange(Find(root, role));
             }
             var kept = new HashSet<DependencyObject>();
             foreach (var background in backgrounds)
@@ -310,6 +317,11 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static void ShowOnlyContent(DependencyObject root)
         {
+            foreach (var underlay in Find(root, ToastLayerRole.Underlay))
+            {
+                underlay.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
+            }
+
             foreach (var back in Find(root, ToastLayerRole.Back))
             {
                 back.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
