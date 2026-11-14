@@ -6570,7 +6570,8 @@ namespace PlayniteAchievements.Services.UI
         // presented the background's current frame by the time the layers over it go.
         private const int HoldLayerHandBackMs = 250;
 
-        // The rays' redraws per second while they rest in a layer of their own.
+        // Redraws per second, while the card's rays rest in a layer of their own, of the bursts
+        // that are not served at every frame (the icon's); the card's burst is.
         private const double HoldLayerRayFps = 60d;
 
         /// <summary>
