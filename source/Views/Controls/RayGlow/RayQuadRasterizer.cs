@@ -41,8 +41,14 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private const int MaxReach = 48;
 
         private float[] _area = new float[0];
+
+        // Per row, the columns touched left of the middle and from the middle on. A loop around a
+        // card touches both ends of most rows and nothing between them.
         private int[] _rowMin = new int[0];
         private int[] _rowMax = new int[0];
+        private int[] _rightMin = new int[0];
+        private int[] _rightMax = new int[0];
+        private int _middle;
         private int _width;
         private int _height;
         private int _stride;
@@ -85,12 +91,17 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
             {
                 _rowMin = new int[_height];
                 _rowMax = new int[_height];
+                _rightMin = new int[_height];
+                _rightMax = new int[_height];
             }
 
+            _middle = _stride / 2;
             for (var y = 0; y < _height; y++)
             {
                 _rowMin[y] = int.MaxValue;
                 _rowMax[y] = -1;
+                _rightMin[y] = int.MaxValue;
+                _rightMax[y] = -1;
             }
         }
 
@@ -486,10 +497,9 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                 {
                     var second = perPixel * (1.5f - enter);
                     Add(row, first + 1, signed * (second - firstArea));
-                    var start = row * _stride;
                     for (var column = first + 2; column < last - 1; column++)
                     {
-                        _area[start + column] += signed * perPixel;
+                        Add(row, column, signed * perPixel);
                     }
 
                     var beforeLast = second + ((last - first - 3) * perPixel);
@@ -503,14 +513,29 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         private void Add(int row, int column, float value)
         {
             _area[(row * _stride) + column] += value;
-            if (column < _rowMin[row])
+            if (column < _middle)
             {
-                _rowMin[row] = column;
-            }
+                if (column < _rowMin[row])
+                {
+                    _rowMin[row] = column;
+                }
 
-            if (column > _rowMax[row])
+                if (column > _rowMax[row])
+                {
+                    _rowMax[row] = column;
+                }
+            }
+            else
             {
-                _rowMax[row] = column;
+                if (column < _rightMin[row])
+                {
+                    _rightMin[row] = column;
+                }
+
+                if (column > _rightMax[row])
+                {
+                    _rightMax[row] = column;
+                }
             }
         }
 
@@ -520,8 +545,9 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
         {
             for (var row = 0; row < _height; row++)
             {
-                var touchedTo = _rowMax[row];
-                if (touchedTo < 0)
+                var leftTo = _rowMax[row];
+                var rightTo = _rightMax[row];
+                if (leftTo < 0 && rightTo < 0)
                 {
                     continue;
                 }
@@ -529,11 +555,9 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                 var start = row * _stride;
                 var pixelRow = row * _width;
                 var running = 0f;
-                var from = _rowMin[row];
-
-                // Past the last touched column the sum stays what it is: zero for an outline that
-                // closed inside the buffer, the coverage of what the buffer's right side cut off.
-                for (var column = from; column < _width; column++)
+                var column = leftTo >= 0 ? _rowMin[row] : _rightMin[row];
+                var touchedTo = rightTo >= 0 ? rightTo : leftTo;
+                while (column < _width)
                 {
                     if (column <= touchedTo)
                     {
@@ -549,6 +573,15 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                             break;
                         }
 
+                        // Nothing open here: past the left stretch, the next thing is the right one.
+                        if (column >= leftTo && rightTo >= 0 && column < _rightMin[row])
+                        {
+                            running = 0f;
+                            column = _rightMin[row];
+                            continue;
+                        }
+
+                        column++;
                         continue;
                     }
 
@@ -558,27 +591,30 @@ namespace PlayniteAchievements.Views.Controls.RayGlow
                     }
 
                     var source = (int)((coverage * alpha) + 0.5f);
-                    if (source <= 0)
+                    if (source > 0)
                     {
-                        continue;
+                        var under = pixels[pixelRow + column];
+                        var keep = 255 - source;
+                        var a = Scale(255, source) + Scale((under >> 24) & 0xFF, keep);
+                        var r = Scale(red, source) + Scale((under >> 16) & 0xFF, keep);
+                        var g = Scale(green, source) + Scale((under >> 8) & 0xFF, keep);
+                        var b = Scale(blue, source) + Scale(under & 0xFF, keep);
+                        pixels[pixelRow + column] = (a << 24) | (r << 16) | (g << 8) | b;
                     }
 
-                    var under = pixels[pixelRow + column];
-                    var keep = 255 - source;
-                    var a = Scale(255, source) + Scale((under >> 24) & 0xFF, keep);
-                    var r = Scale(red, source) + Scale((under >> 16) & 0xFF, keep);
-                    var g = Scale(green, source) + Scale((under >> 8) & 0xFF, keep);
-                    var b = Scale(blue, source) + Scale(under & 0xFF, keep);
-                    pixels[pixelRow + column] = (a << 24) | (r << 16) | (g << 8) | b;
+                    column++;
                 }
 
-                for (var column = Math.Max(from, _width); column <= touchedTo; column++)
+                // The slack columns past the last pixel.
+                for (var slack = _width; slack <= touchedTo; slack++)
                 {
-                    _area[start + column] = 0f;
+                    _area[start + slack] = 0f;
                 }
 
                 _rowMin[row] = int.MaxValue;
                 _rowMax[row] = -1;
+                _rightMin[row] = int.MaxValue;
+                _rightMax[row] = -1;
             }
         }
 
