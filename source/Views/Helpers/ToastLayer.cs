@@ -28,9 +28,11 @@ namespace PlayniteAchievements.Views.Helpers
     /// at a time. While a card rests, an animated background redraws everything drawn over it, and
     /// WPF re-runs every shadow effect in a redrawn region; with the background and the content each
     /// in a window of their own, a background frame redraws only the background
-    /// (tools/capture-harness/README.md, "The thumbnail probe").
+    /// (tools/capture-harness/README.md, "The thumbnail probe"). A card with a still background
+    /// is split as well: its rays, glow pulse and countdown then reach the screen without a
+    /// frame from the card's own window.
     ///
-    /// A template without a <see cref="ToastLayerRole.Background"/> element is never split.
+    /// A template without a shown <see cref="ToastLayerRole.Background"/> element is never split.
     /// </summary>
     public static class ToastLayer
     {
@@ -197,13 +199,15 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Whether the cards under <paramref name="root"/> can rest as separate layers: at least one
-        /// shown background is animated, and every shown background is opaque in every pixel, since
-        /// the background layer is drawn over the whole card, which carries its own copy.
+        /// Whether the cards under <paramref name="root"/> can rest as separate layers: a
+        /// background is shown, and every shown background is an image that fills its element and
+        /// is opaque in every pixel. While the layers take over from the card's own window and
+        /// hand back to it, the background layer is drawn over that window's own copy, which a
+        /// translucent background would show through.
         /// </summary>
         public static bool CanSplit(DependencyObject root)
         {
-            var animated = false;
+            var shown = false;
             foreach (var background in Find(root, ToastLayerRole.Background))
             {
                 if (!background.IsVisible)
@@ -211,19 +215,46 @@ namespace PlayniteAchievements.Views.Helpers
                     continue;
                 }
 
-                var source = ((background as Border)?.Background as ImageBrush)?.ImageSource as BitmapSource;
-                if (source == null || !IsOpaque(source))
+                var brush = (background as Border)?.Background as ImageBrush;
+                var source = brush?.ImageSource as BitmapSource;
+                if (source == null || background.Opacity < 1d || brush.Opacity < 1d ||
+                    (brush.Stretch != Stretch.UniformToFill && brush.Stretch != Stretch.Fill) ||
+                    !IsOpaque(source))
                 {
                     return false;
                 }
 
-                animated |= source is WriteableBitmap;
+                shown = true;
             }
 
-            return animated;
+            return shown;
         }
 
+        // Per bitmap: a still background is the same cached bitmap from one notification to the
+        // next, and reading every pixel of it takes milliseconds.
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, object> OpaqueByBitmap =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<BitmapSource, object>();
+
         private static bool IsOpaque(BitmapSource source)
+        {
+            if (OpaqueByBitmap.TryGetValue(source, out var known))
+            {
+                return (bool)known;
+            }
+
+            var opaque = ReadIsOpaque(source);
+            try
+            {
+                OpaqueByBitmap.Add(source, opaque);
+            }
+            catch (ArgumentException)
+            {
+            }
+
+            return opaque;
+        }
+
+        private static bool ReadIsOpaque(BitmapSource source)
         {
             try
             {
