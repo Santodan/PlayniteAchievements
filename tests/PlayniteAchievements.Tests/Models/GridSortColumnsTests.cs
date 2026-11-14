@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -29,6 +30,24 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("SortingName", JsonConvert.DeserializeObject<GameSummaryGridOptions>(@"{ ""SortMode"": 4 }").SortColumn);
             Assert.AreEqual("RemainingAchievements", JsonConvert.DeserializeObject<GameSummaryGridOptions>(@"{ ""SortMode"": ""Remaining"" }").SortColumn);
             Assert.AreEqual(GridSortColumns.SourceOrder, JsonConvert.DeserializeObject<GameSummaryGridOptions>(@"{ ""SortMode"": ""PinOrder"" }").SortColumn);
+        }
+
+        [TestMethod]
+        public void SettingsModels_KeepJsonPropertiesPublic()
+        {
+            // Playnite's settings serializer skips non-public members even with [JsonProperty], so a
+            // private legacy reader works under JsonConvert and silently drops the value in Playnite.
+            const BindingFlags NonPublic = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            var offenders = typeof(AchievementGridOptions).Assembly
+                .GetTypes()
+                .Where(type => type.Namespace?.StartsWith("PlayniteAchievements.Models", System.StringComparison.Ordinal) == true)
+                .SelectMany(type => type.GetProperties(NonPublic).Cast<MemberInfo>()
+                    .Concat(type.GetFields(NonPublic)))
+                .Where(member => member.GetCustomAttribute<JsonPropertyAttribute>() != null)
+                .Select(member => member.DeclaringType.Name + "." + member.Name)
+                .ToList();
+
+            CollectionAssert.AreEqual(new List<string>(), offenders, string.Join(", ", offenders));
         }
 
         [TestMethod]
