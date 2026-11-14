@@ -22,8 +22,12 @@ namespace PlayniteAchievements.Tests.Services.UI
             // touching the invariant under test, which is only where the engage happens.
             var engage = service.IndexOf(
                 "_activeSlideQuiet = new SlideQuietScope(host", StringComparison.Ordinal);
-            var completed = service.IndexOf(
-                "storyboard.Completed += (s, e) => DisposeSlideQuiet();", StringComparison.Ordinal);
+            // The handler is a block: it first passes over a Completed raised by sampling the
+            // motion track, then releases the scope.
+            var completed = service.IndexOf("storyboard.Completed += (s, e) =>", StringComparison.Ordinal);
+            var release = completed < 0
+                ? -1
+                : service.IndexOf("DisposeSlideQuiet();", completed, StringComparison.Ordinal);
             var begin = service.IndexOf(
                 "storyboard.Begin(host, isControllable: true);", StringComparison.Ordinal);
 
@@ -34,7 +38,7 @@ namespace PlayniteAchievements.Tests.Services.UI
             // Completed subscribers attached after Begin never reach the running clock, and a
             // scope engaged after Begin leaves the slide's first frames contended.
             Assert.IsTrue(
-                engage < begin && completed < begin,
+                engage < begin && completed < begin && release > completed && release < begin,
                 "The quiet scope and its Completed release must be wired before the storyboard begins.");
         }
 
