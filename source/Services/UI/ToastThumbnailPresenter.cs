@@ -329,6 +329,52 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public double MainOpacityScale { get; set; } = 1d;
 
+        /// <summary>
+        /// When set, read for the factor on the main thumbnail's opacity in place of
+        /// <see cref="MainOpacityScale"/>, and <see cref="StepTrack"/> shows its value at every
+        /// call while no track plays. Called under the lock from any thread.
+        /// </summary>
+        public Func<double> MainOpacitySource
+        {
+            get => _mainOpacitySource;
+            set
+            {
+                lock (_gate)
+                {
+                    _mainOpacitySource = value;
+                    _restSteps = 0;
+                    _restLevels = 0;
+                    _restMaxGapMs = 0d;
+                    _restWatch.Reset();
+                }
+            }
+        }
+
+        /// <summary>
+        /// How the opacity source was shown since it was set: the steps taken off the UI thread,
+        /// the longest time between two of them, and the steps that changed the main thumbnail's
+        /// opacity level.
+        /// </summary>
+        public string RestReport()
+        {
+            lock (_gate)
+            {
+                return string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "steps={0} maxGapMs={1:0.0} levels={2}", _restSteps, _restMaxGapMs, _restLevels);
+            }
+        }
+
+        private readonly System.Diagnostics.Stopwatch _restWatch = new System.Diagnostics.Stopwatch();
+        private int _restSteps;
+        private int _restLevels;
+        private double _restMaxGapMs;
+
+        private volatile Func<double> _mainOpacitySource;
+        private Matrix _lastMotion = Matrix.Identity;
+        private double _lastOpacity = 1d;
+        private bool _hasPushed;
+
         /// <summary>Lets the thumbnail show from the next <see cref="Update"/> on.</summary>
         public void Reveal()
         {
@@ -387,8 +433,31 @@ namespace PlayniteAchievements.Services.UI
                 lock (_gate)
                 {
                     var track = _track;
-                    if (track == null || _thumbnail == IntPtr.Zero || !_geometryKnown)
+                    if (_thumbnail == IntPtr.Zero || !_geometryKnown)
                     {
+                        return;
+                    }
+
+                    if (track == null)
+                    {
+                        // The card at rest: only the main thumbnail's opacity factor moves.
+                        if (_mainOpacitySource != null && _hasPushed)
+                        {
+                            if (_restWatch.IsRunning)
+                            {
+                                _restMaxGapMs = Math.Max(_restMaxGapMs, _restWatch.Elapsed.TotalMilliseconds);
+                            }
+
+                            _restWatch.Restart();
+                            _restSteps++;
+                            var before = _main.HasPushed ? _main.Pushed.Opacity : (byte)0;
+                            PushAll(_lastMotion, _lastOpacity);
+                            if (_main.HasPushed && _main.Pushed.Opacity != before)
+                            {
+                                _restLevels++;
+                            }
+                        }
+
                         return;
                     }
 
@@ -470,7 +539,11 @@ namespace PlayniteAchievements.Services.UI
             _destination = destination;
             _level = level;
             var visible = _revealed && level > 0;
-            var scale = MainOpacityScale;
+            _lastMotion = motion;
+            _lastOpacity = opacity;
+            _hasPushed = true;
+            var source = _mainOpacitySource;
+            var scale = source != null ? source() : MainOpacityScale;
             var mainLevel = scale >= 1d || double.IsNaN(scale)
                 ? level
                 : (byte)Math.Round(level * Math.Max(0d, scale));
