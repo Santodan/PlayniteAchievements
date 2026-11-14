@@ -130,6 +130,8 @@ public static class TemplateBench
         return prepared;
     }
     private static bool _tinyAnimation;
+    // The ray driver's invalidations per second when above its own 30, through SetSamplingFps.
+    private static double _rayFps;
     private static string _snapshot;
     private static string _decodePath;
     // Glow pulse and rays off and no countdown: only the background animates in the hold.
@@ -236,6 +238,7 @@ public static class TemplateBench
                 // A 6 px square in the window corner, away from the card, animating forever: a
                 // frame every composition that redraws none of the card.
                 case "--tiny-animation": _tinyAnimation = true; break;
+                case "--ray-fps": _rayFps = double.Parse(args[++i], CultureInfo.InvariantCulture); break;
             }
         }
 
@@ -696,6 +699,12 @@ public static class TemplateBench
         }
 
         StillBackground(card.Host);
+
+        if (_rayFps > 0)
+        {
+            _plugin.GetType("PlayniteAchievements.Views.Helpers.RayAnimationDriver")
+                .GetMethod("SetSamplingFps", Flags | BindingFlags.Public).Invoke(null, new object[] { _rayFps });
+        }
 
         if (_tinyAnimation)
         {
