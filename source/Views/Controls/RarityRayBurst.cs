@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Views.Controls
     /// nothing here accumulates across frames: the phase is read from the shared clock, so a surface
     /// that renders once into a bitmap gets the same picture as one that has been ticking all session.
     /// </summary>
-    public class RarityRayBurst : Panel, IRayAnimationTarget
+    public class RarityRayBurst : Panel, IRayAnimationTarget, IRayBatchTarget
     {
         private readonly DrawingVisual _visual = new DrawingVisual();
 
@@ -689,6 +689,15 @@ namespace PlayniteAchievements.Views.Controls
         private const int RasterMaxSide = 4096;
         private const int RasterMaxPixels = 6 * 1024 * 1024;
 
+        // What one rasterized frame is filled and drawn from, set by PrepareRaster.
+        private int _rasterWidth;
+        private int _rasterHeight;
+        private int _rasterWritten;
+        private double _rasterOriginX;
+        private double _rasterOriginY;
+        private Matrix _rasterToDevice;
+        private Color[] _rasterColors;
+
         /// <summary>
         /// Draws the arrows as one bitmap whose pixels are the window's own, so nothing resamples
         /// it. False when this element has no window or is not placed by scale and offset alone,
@@ -696,6 +705,24 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private bool TryDrawRasterized(
             DrawingContext context, RayArrowLayout.MappedTrack mapped, double laps, int count,
+            RarityAppearanceHelper.RayGlowPalette palette)
+        {
+            if (!PrepareRaster(mapped, laps, count, palette))
+            {
+                return false;
+            }
+
+            FillRaster();
+            CommitRaster(context);
+            return true;
+        }
+
+        /// <summary>
+        /// Lays out one frame's quads and the bitmap they are filled into. UI thread. False when
+        /// the frame cannot be rasterized (see <see cref="TryDrawRasterized"/>).
+        /// </summary>
+        private bool PrepareRaster(
+            RayArrowLayout.MappedTrack mapped, double laps, int count,
             RarityAppearanceHelper.RayGlowPalette palette)
         {
             Matrix toDevice;
@@ -737,6 +764,8 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     _layerQuads[i] = new RayArrowLayout.RayArrowQuad[_spines.Length];
                 }
+
+                _rasterColors = new Color[layerCount];
             }
 
             double left = double.MaxValue, top = double.MaxValue, right = double.MinValue, bottom = double.MinValue;
@@ -744,6 +773,7 @@ namespace PlayniteAchievements.Views.Controls
             {
                 var layer = palette.Layers[i];
                 var quads = _layerQuads[i];
+                _rasterColors[i] = layer.Brush.Color;
                 RayArrowLayout.Emit(_spines, written, layer.WidthMultiplier, layer.HeightFraction, quads);
                 for (var q = 0; q < written; q++)
                 {
@@ -793,29 +823,46 @@ namespace PlayniteAchievements.Views.Controls
             _rasterReach = new Int32Rect(reachLeft, reachTop, reachRight - reachLeft, reachBottom - reachTop);
 
             // The bitmap's first pixel, on the window's pixel grid.
-            var originX = Math.Floor(toDevice.OffsetX) + reachLeft;
-            var originY = Math.Floor(toDevice.OffsetY) + reachTop;
+            _rasterOriginX = Math.Floor(toDevice.OffsetX) + reachLeft;
+            _rasterOriginY = Math.Floor(toDevice.OffsetY) + reachTop;
             if (_rasterPixels == null || _rasterPixels.Length != width * height)
             {
                 _rasterPixels = new int[width * height];
             }
-            else
-            {
-                Array.Clear(_rasterPixels, 0, _rasterPixels.Length);
-            }
 
             _rasterizer = _rasterizer ?? new RayQuadRasterizer();
-            _rasterizer.Begin(width, height);
-            var offsetX = toDevice.OffsetX - originX + RayQuadRasterizer.WpfBiasX;
-            var offsetY = toDevice.OffsetY - originY + RayQuadRasterizer.WpfBiasY;
-            for (var i = 0; i < layerCount; i++)
+            _rasterWidth = width;
+            _rasterHeight = height;
+            _rasterWritten = written;
+            _rasterToDevice = toDevice;
+            return true;
+        }
+
+        /// <summary>
+        /// Fills the prepared frame's pixels. It reads and writes only what
+        /// <see cref="PrepareRaster"/> left in this burst's own buffers, so several bursts can be
+        /// filled at once on different threads.
+        /// </summary>
+        private void FillRaster()
+        {
+            Array.Clear(_rasterPixels, 0, _rasterPixels.Length);
+            _rasterizer.Begin(_rasterWidth, _rasterHeight);
+            var offsetX = _rasterToDevice.OffsetX - _rasterOriginX + RayQuadRasterizer.WpfBiasX;
+            var offsetY = _rasterToDevice.OffsetY - _rasterOriginY + RayQuadRasterizer.WpfBiasY;
+            for (var i = 0; i < _layerQuads.Length; i++)
             {
-                var color = palette.Layers[i].Brush.Color;
+                var color = _rasterColors[i];
                 _rasterizer.Fill(
-                    _layerQuads[i], written, toDevice.M11, toDevice.M22, offsetX, offsetY,
+                    _layerQuads[i], _rasterWritten, _rasterToDevice.M11, _rasterToDevice.M22, offsetX, offsetY,
                     color.A, color.R, color.G, color.B, _rasterPixels);
             }
+        }
 
+        /// <summary>Draws the filled frame. UI thread.</summary>
+        private void CommitRaster(DrawingContext context)
+        {
+            var width = _rasterWidth;
+            var height = _rasterHeight;
             if (_rasterBitmap == null || _rasterBitmap.PixelWidth != width || _rasterBitmap.PixelHeight != height)
             {
                 _rasterBitmap = new System.Windows.Media.Imaging.WriteableBitmap(
@@ -826,11 +873,63 @@ namespace PlayniteAchievements.Views.Controls
             context.DrawImage(
                 _rasterBitmap,
                 new Rect(
-                    (originX - toDevice.OffsetX) / toDevice.M11,
-                    (originY - toDevice.OffsetY) / toDevice.M22,
-                    width / toDevice.M11,
-                    height / toDevice.M22));
-            return true;
+                    (_rasterOriginX - _rasterToDevice.OffsetX) / _rasterToDevice.M11,
+                    (_rasterOriginY - _rasterToDevice.OffsetY) / _rasterToDevice.M22,
+                    width / _rasterToDevice.M11,
+                    height / _rasterToDevice.M22));
+        }
+
+        // Whether a frame begun by BeginRayFrame is waiting to be filled and drawn.
+        private bool _rasterFramePending;
+
+        bool IRayBatchTarget.BeginRayFrame()
+        {
+            _rasterFramePending = false;
+            if (!IsRasterized || !IsWithinViewport() || !ShouldDraw())
+            {
+                return false;
+            }
+
+            var mapped = EnsureMappedTrack();
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            var palette = mapped == null ? null : EnsurePalette(persisted);
+            if (palette == null)
+            {
+                return false;
+            }
+
+            var count = RayArrowLayout.ArrowCountFor(mapped);
+            if (_spines == null || _spines.Length < count)
+            {
+                _spines = new RayArrowLayout.RayArrowSpine[count];
+                _quads = new RayArrowLayout.RayArrowQuad[count];
+            }
+
+            var laps = RayArrowLayout.ScaleLapsToTrack(CurrentLaps(persisted), mapped);
+            _rasterFramePending = PrepareRaster(mapped, laps, count, palette);
+            return _rasterFramePending;
+        }
+
+        void IRayBatchTarget.FillRayFrame()
+        {
+            if (_rasterFramePending)
+            {
+                FillRaster();
+            }
+        }
+
+        void IRayBatchTarget.EndRayFrame()
+        {
+            if (!_rasterFramePending)
+            {
+                return;
+            }
+
+            _rasterFramePending = false;
+            using (var context = _visual.RenderOpen())
+            {
+                CommitRaster(context);
+            }
         }
 
         private static void Reach(Point point, ref double left, ref double top, ref double right, ref double bottom)
