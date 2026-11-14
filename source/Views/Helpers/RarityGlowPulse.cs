@@ -204,6 +204,8 @@ namespace PlayniteAchievements.Views.Helpers
 
             public bool IgnoresGlowGate => false;
 
+            public bool TakesEveryHeldFrame => false;
+
             public void OnRayFrame()
             {
                 var opacity = CurrentPulseOpacity(Settings);
