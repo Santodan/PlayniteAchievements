@@ -178,11 +178,46 @@ namespace PlayniteAchievements.Tests.Views
             RarityGlowPulse.SetIsActive(library, false);
         });
 
+        [TestMethod]
+        public void HeldRateServesEveryFrameTargetsAtEveryFrameAndTheRestAtTheRate() => Sta(() =>
+        {
+            var rated = new CountingTarget { IgnoresGlowGate = true };
+            var everyFrame = new CountingTarget { IgnoresGlowGate = true, TakesEveryHeldFrame = true };
+            RayAnimationDriver.Subscribe(rated);
+            RayAnimationDriver.Subscribe(everyFrame);
+            try
+            {
+                // A held rate below the default leaves the rated target at the default; the
+                // other is served on the frames in between as well.
+                RayAnimationDriver.SetHeldFps(1);
+                Pump(400);
+                Assert.IsTrue(rated.Frames > 0, "a rated target must still receive frames");
+                Assert.IsTrue(
+                    everyFrame.Frames >= rated.Frames,
+                    "every-frame " + everyFrame.Frames + " against rated " + rated.Frames);
+
+                RayAnimationDriver.ClearHeldFps();
+                var ratedBefore = rated.Frames;
+                var everyBefore = everyFrame.Frames;
+                Pump(300);
+                Assert.AreEqual(
+                    rated.Frames - ratedBefore, everyFrame.Frames - everyBefore,
+                    "without a held rate both are served on the same frames");
+            }
+            finally
+            {
+                RayAnimationDriver.ClearHeldFps();
+                RayAnimationDriver.Unsubscribe(rated);
+                RayAnimationDriver.Unsubscribe(everyFrame);
+            }
+        });
+
         private sealed class CountingTarget : IRayAnimationTarget
         {
             public int Frames;
             public bool WantsRayFrames => true;
             public bool IgnoresGlowGate { get; set; }
+            public bool TakesEveryHeldFrame { get; set; }
             public void OnRayFrame() => Frames++;
         }
 
