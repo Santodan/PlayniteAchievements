@@ -124,6 +124,49 @@ namespace PlayniteAchievements.Views.Helpers
                     }
                 }
             }
+
+            QuietHidden(root, false);
+        }
+
+        /// <summary>
+        /// Takes what still animates off every hidden element under <paramref name="root"/>: its
+        /// glow pulse, and an image brush it paints a border or panel with. Either one on a
+        /// hidden element still had its window redrawn, at every frame for the pulse and at each
+        /// of the image's frames for the brush, and WPF ran every effect in the window again each
+        /// time. In the content layer that was what kept a resting card below the display's rate
+        /// (tools/capture-harness README.md, "The rays' cost").
+        /// </summary>
+        private static void QuietHidden(DependencyObject node, bool hidden)
+        {
+            if (node == null)
+            {
+                return;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(node, i);
+                var childHidden = hidden || (child is UIElement element && element.Visibility != Visibility.Visible);
+                if (childHidden)
+                {
+                    if (RarityGlowPulse.GetIsActive(child))
+                    {
+                        RarityGlowPulse.SetIsActive(child, false);
+                    }
+
+                    if (child is Border border && border.Background is ImageBrush)
+                    {
+                        border.SetCurrentValue(Border.BackgroundProperty, null);
+                    }
+                    else if (child is Panel panel && panel.Background is ImageBrush)
+                    {
+                        panel.SetCurrentValue(Panel.BackgroundProperty, null);
+                    }
+                }
+
+                QuietHidden(child, childHidden);
+            }
         }
 
         /// <summary>
@@ -196,6 +239,8 @@ namespace PlayniteAchievements.Views.Helpers
                     border.SetCurrentValue(Border.BackgroundProperty, null);
                 }
             }
+
+            QuietHidden(root, false);
         }
 
         /// <summary>
