@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -23,7 +23,9 @@ namespace PlayniteAchievements.Services.UI
     /// sits directly above the cloaked window in the z-order and takes that window's rectangle, so
     /// it clips the thumbnail exactly as the window clips its content.
     ///
-    /// UI thread only. All members are wrapped so they can never throw into the toast pipeline.
+    /// UI thread only, except <see cref="StepTrack"/>, which any thread may call; the members
+    /// that touch a thumbnail take one lock. All members are wrapped so they can never throw into
+    /// the toast pipeline.
     /// </summary>
     internal sealed class ToastThumbnailPresenter : IDisposable
     {
@@ -137,6 +139,68 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// A motion sampled ahead at even steps of time, read against a clock: what the thumbnail
+        /// shows at any instant without asking the UI thread. Before the clock starts it reads its
+        /// first sample, past the last sample its last. Immutable, so any thread may read it.
+        /// </summary>
+        public sealed class MotionTrack
+        {
+            private readonly Matrix[] _motions;
+            private readonly double[] _opacities;
+            private readonly double _stepMs;
+            private readonly System.Diagnostics.Stopwatch _clock;
+
+            public MotionTrack(Matrix[] motions, double[] opacities, double stepMs, System.Diagnostics.Stopwatch clock)
+            {
+                _motions = motions;
+                _opacities = opacities;
+                _stepMs = stepMs;
+                _clock = clock;
+            }
+
+            /// <summary>The motion and opacity at the clock's time now.</summary>
+            public void Now(out Matrix motion, out double opacity)
+            {
+                At(_clock.Elapsed.TotalMilliseconds, out motion, out opacity);
+            }
+
+            /// <summary>The motion and opacity <paramref name="ms"/> in, between the two samples around it.</summary>
+            public void At(double ms, out Matrix motion, out double opacity)
+            {
+                var last = _motions.Length - 1;
+                var position = _stepMs > 0 ? Math.Max(0d, ms) / _stepMs : last;
+                if (double.IsNaN(position) || position >= last)
+                {
+                    motion = _motions[last];
+                    opacity = _opacities[last];
+                    return;
+                }
+
+                var index = (int)position;
+                var t = position - index;
+                var a = _motions[index];
+                var b = _motions[index + 1];
+                motion = new Matrix(
+                    a.M11 + ((b.M11 - a.M11) * t), a.M12 + ((b.M12 - a.M12) * t),
+                    a.M21 + ((b.M21 - a.M21) * t), a.M22 + ((b.M22 - a.M22) * t),
+                    a.OffsetX + ((b.OffsetX - a.OffsetX) * t), a.OffsetY + ((b.OffsetY - a.OffsetY) * t));
+                opacity = _opacities[index] + ((_opacities[index + 1] - _opacities[index]) * t);
+            }
+
+            /// <summary>
+            /// Whether the track <paramref name="ms"/> in is where <paramref name="motion"/> and
+            /// <paramref name="opacity"/> are, to within a DIP and a few hundredths.
+            /// </summary>
+            public bool Agrees(double ms, Matrix motion, double opacity)
+            {
+                At(ms, out var mine, out var myOpacity);
+                return Math.Abs(mine.OffsetX - motion.OffsetX) <= 1d && Math.Abs(mine.OffsetY - motion.OffsetY) <= 1d &&
+                    Math.Abs(mine.M11 - motion.M11) <= 0.02 && Math.Abs(mine.M22 - motion.M22) <= 0.02 &&
+                    Math.Abs(myOpacity - opacity) <= 0.03;
+            }
+        }
+
         /// <summary>One registered thumbnail and what was last sent for it.</summary>
         private sealed class Thumb
         {
@@ -163,6 +227,17 @@ namespace PlayniteAchievements.Services.UI
         private bool _layersShown;
         private RectI _destination;
         private byte _level;
+        private readonly object _gate = new object();
+        private MotionTrack _track;
+        private readonly System.Diagnostics.Stopwatch _trackWatch = new System.Diagnostics.Stopwatch();
+        private int _trackSteps;
+        private double _trackMaxGapMs;
+        private int _trackFailures;
+        private bool _geometryKnown;
+        private int _width;
+        private int _height;
+        private double _pxPerDipX;
+        private double _pxPerDipY;
 
         private ToastThumbnailPresenter(Window source, IntPtr sourceHwnd, Surface surface, IntPtr thumbnail)
         {
@@ -229,7 +304,7 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 var presenter = new ToastThumbnailPresenter(source, sourceHwnd, surface, thumbnail);
-                Push(presenter._main, new RectI(), 0, false);
+                presenter.Push(presenter._main, new RectI(), 0, false);
                 presenter.Follow();
                 ShowWindow(surface.Handle, SwShowNoActivate);
                 return presenter;
@@ -257,7 +332,80 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>Lets the thumbnail show from the next <see cref="Update"/> on.</summary>
         public void Reveal()
         {
-            _revealed = true;
+            lock (_gate)
+            {
+                _revealed = true;
+            }
+        }
+
+        /// <summary>
+        /// Makes <paramref name="track"/> what the thumbnail shows, in place of the motion given to
+        /// <see cref="Update"/>, until it is replaced or ended with null. <see cref="StepTrack"/>
+        /// then shows it from any thread.
+        /// </summary>
+        public void PlayTrack(MotionTrack track)
+        {
+            lock (_gate)
+            {
+                _track = track;
+                _trackSteps = 0;
+                _trackMaxGapMs = 0d;
+                _trackFailures = 0;
+                _trackWatch.Reset();
+            }
+        }
+
+        /// <summary>
+        /// Ends the playing track and reports how it was stepped: the steps taken off the UI
+        /// thread, the longest time between two of them, and the thumbnail updates DWM refused.
+        /// Null when no track was playing.
+        /// </summary>
+        public string EndTrack()
+        {
+            lock (_gate)
+            {
+                if (_track == null)
+                {
+                    return null;
+                }
+
+                _track = null;
+                return string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "steps={0} maxGapMs={1:0.0} refused={2}", _trackSteps, _trackMaxGapMs, _trackFailures);
+            }
+        }
+
+        /// <summary>
+        /// Shows the playing track at its clock's time now. Any thread. It moves no window, so it
+        /// sends nothing to the UI thread and does not wait on it beyond the lock.
+        /// </summary>
+        public void StepTrack()
+        {
+            try
+            {
+                lock (_gate)
+                {
+                    var track = _track;
+                    if (track == null || _thumbnail == IntPtr.Zero || !_geometryKnown)
+                    {
+                        return;
+                    }
+
+                    if (_trackWatch.IsRunning)
+                    {
+                        _trackMaxGapMs = Math.Max(_trackMaxGapMs, _trackWatch.Elapsed.TotalMilliseconds);
+                    }
+
+                    _trackWatch.Restart();
+                    _trackSteps++;
+                    track.Now(out var motion, out var opacity);
+                    PushAll(motion, opacity);
+                }
+            }
+            catch
+            {
+            }
         }
 
         /// <summary>
@@ -275,51 +423,68 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                Follow();
-                var width = _rect.Right - _rect.Left;
-                var height = _rect.Bottom - _rect.Top;
-                var dipWidth = _source.ActualWidth;
-                var dipHeight = _source.ActualHeight;
-                if (!_placed || width <= 0 || height <= 0 || dipWidth <= 0 || dipHeight <= 0)
+                lock (_gate)
                 {
-                    return;
-                }
+                    Follow();
+                    var width = _rect.Right - _rect.Left;
+                    var height = _rect.Bottom - _rect.Top;
+                    var dipWidth = _source.ActualWidth;
+                    var dipHeight = _source.ActualHeight;
+                    _geometryKnown = _placed && width > 0 && height > 0 && dipWidth > 0 && dipHeight > 0;
+                    if (!_geometryKnown)
+                    {
+                        return;
+                    }
 
-                var pxPerDipX = width / dipWidth;
-                var pxPerDipY = height / dipHeight;
-                var left = (int)Math.Round(motion.OffsetX * pxPerDipX);
-                var top = (int)Math.Round(motion.OffsetY * pxPerDipY);
-                var destination = new RectI
-                {
-                    Left = left,
-                    Top = top,
-                    Right = left + Math.Max(1, (int)Math.Round(width * Math.Abs(motion.M11))),
-                    Bottom = top + Math.Max(1, (int)Math.Round(height * Math.Abs(motion.M22))),
-                };
+                    _width = width;
+                    _height = height;
+                    _pxPerDipX = width / dipWidth;
+                    _pxPerDipY = height / dipHeight;
+                    if (_track != null)
+                    {
+                        _track.Now(out motion, out opacity);
+                    }
 
-                var level = (byte)Math.Round(255d * Math.Max(0d, Math.Min(1d, double.IsNaN(opacity) ? 1d : opacity)));
-                _destination = destination;
-                _level = level;
-                var visible = _revealed && level > 0;
-                var scale = MainOpacityScale;
-                var mainLevel = scale >= 1d || double.IsNaN(scale)
-                    ? level
-                    : (byte)Math.Round(level * Math.Max(0d, scale));
-                var under = _underlay != null && _layersShown;
-                Push(_main, destination, mainLevel, visible && !under);
-                if (_underlay != null)
-                {
-                    Push(_underlay, destination, level, visible && under);
-                    Push(_mainOver, destination, mainLevel, visible && under);
-                }
-
-                foreach (var layer in _layers)
-                {
-                    Push(layer, destination, level, visible && _layersShown);
+                    PushAll(motion, opacity);
                 }
             }
             catch
             {
+            }
+        }
+
+        /// <summary>Sends every thumbnail its place and opacity under <paramref name="motion"/>. Under the lock.</summary>
+        private void PushAll(Matrix motion, double opacity)
+        {
+            var left = (int)Math.Round(motion.OffsetX * _pxPerDipX);
+            var top = (int)Math.Round(motion.OffsetY * _pxPerDipY);
+            var destination = new RectI
+            {
+                Left = left,
+                Top = top,
+                Right = left + Math.Max(1, (int)Math.Round(_width * Math.Abs(motion.M11))),
+                Bottom = top + Math.Max(1, (int)Math.Round(_height * Math.Abs(motion.M22))),
+            };
+
+            var level = (byte)Math.Round(255d * Math.Max(0d, Math.Min(1d, double.IsNaN(opacity) ? 1d : opacity)));
+            _destination = destination;
+            _level = level;
+            var visible = _revealed && level > 0;
+            var scale = MainOpacityScale;
+            var mainLevel = scale >= 1d || double.IsNaN(scale)
+                ? level
+                : (byte)Math.Round(level * Math.Max(0d, scale));
+            var under = _underlay != null && _layersShown;
+            Push(_main, destination, mainLevel, visible && !under);
+            if (_underlay != null)
+            {
+                Push(_underlay, destination, level, visible && under);
+                Push(_mainOver, destination, mainLevel, visible && under);
+            }
+
+            foreach (var layer in _layers)
+            {
+                Push(layer, destination, level, visible && _layersShown);
             }
         }
 
@@ -329,6 +494,14 @@ namespace PlayniteAchievements.Services.UI
         /// <see cref="ShowLayers"/>. False when it cannot be registered or differs in size.
         /// </summary>
         public bool AddLayer(Window source)
+        {
+            lock (_gate)
+            {
+                return AddLayerLocked(source);
+            }
+        }
+
+        private bool AddLayerLocked(Window source)
         {
             try
             {
@@ -373,7 +546,15 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public bool AddUnderlay(Window source)
         {
-            if (_underlay != null || _layers.Count > 0 || !AddLayer(source))
+            lock (_gate)
+            {
+                return AddUnderlayLocked(source);
+            }
+        }
+
+        private bool AddUnderlayLocked(Window source)
+        {
+            if (_underlay != null || _layers.Count > 0 || !AddLayerLocked(source))
             {
                 return false;
             }
@@ -412,6 +593,14 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         public void ShowLayers()
         {
+            lock (_gate)
+            {
+                ShowLayersLocked();
+            }
+        }
+
+        private void ShowLayersLocked()
+        {
             _layersShown = true;
             var visible = _revealed && _level > 0;
             if (_underlay != null)
@@ -432,6 +621,14 @@ namespace PlayniteAchievements.Services.UI
 
         /// <summary>Hides and unregisters the layers, lowest first, leaving the main thumbnail.</summary>
         public void RemoveLayers()
+        {
+            lock (_gate)
+            {
+                RemoveLayersLocked();
+            }
+        }
+
+        private void RemoveLayersLocked()
         {
             _layersShown = false;
             if (_underlay != null)
@@ -470,17 +667,21 @@ namespace PlayniteAchievements.Services.UI
 
         public void Dispose()
         {
-            RemoveLayers();
-            try
+            lock (_gate)
             {
-                if (_thumbnail != IntPtr.Zero)
+                _track = null;
+                RemoveLayersLocked();
+                try
                 {
-                    DwmUnregisterThumbnail(_thumbnail);
-                    _thumbnail = IntPtr.Zero;
+                    if (_thumbnail != IntPtr.Zero)
+                    {
+                        DwmUnregisterThumbnail(_thumbnail);
+                        _thumbnail = IntPtr.Zero;
+                    }
                 }
-            }
-            catch
-            {
+                catch
+                {
+                }
             }
 
             try
@@ -494,7 +695,7 @@ namespace PlayniteAchievements.Services.UI
             _surface = null;
         }
 
-        private static void Push(Thumb thumb, RectI destination, byte opacity, bool visible)
+        private void Push(Thumb thumb, RectI destination, byte opacity, bool visible)
         {
             if (thumb.HasPushed &&
                 thumb.Pushed.Visible == visible && thumb.Pushed.Opacity == opacity &&
@@ -516,6 +717,10 @@ namespace PlayniteAchievements.Services.UI
             {
                 thumb.Pushed = properties;
                 thumb.HasPushed = true;
+            }
+            else
+            {
+                _trackFailures++;
             }
         }
 
