@@ -3975,6 +3975,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             using var replaceScope = Common.PerfScope.Start(_logger, "Editor.ReplaceRows", thresholdMs: 5);
             var previousSelectedId = SelectedRow?.NormalizedId;
+            var previousSelectedApiName = SelectedRow?.OriginalApiName;
             var previousSelectedApiNames = _selectedRows
                 .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
                 .Select(row => row.OriginalApiName)
@@ -4129,10 +4130,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
-            // should stay on the achievement they were editing.
+            // should stay on the achievement they were editing. Provider rows carry no id, so
+            // they are matched on the ApiName they were loaded under.
             SelectedRow = AchievementRows.FirstOrDefault(row =>
                               !string.IsNullOrWhiteSpace(previousSelectedId) &&
                               string.Equals(row?.NormalizedId, previousSelectedId, StringComparison.OrdinalIgnoreCase))
+                          ?? AchievementRows.FirstOrDefault(row =>
+                              !string.IsNullOrWhiteSpace(previousSelectedApiName) &&
+                              string.Equals(row?.OriginalApiName, previousSelectedApiName, StringComparison.OrdinalIgnoreCase))
                           ?? AchievementRows.FirstOrDefault();
 
             // SelectedRow restores one row, so a multi-row selection would otherwise come back as
@@ -6042,8 +6047,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     unlocked[row.OriginalApiName] = row.UnlockTime;
                 }
 
+                // Before the write, as in ApplyHistoryStep. The cache projection below raises the
+                // cache-updated event synchronously, and the host skips the refresh that brings
+                // back only if this marker is already set. Unmarked, every unlock edit rebuilt all
+                // rows, and the selection of a provider row did not survive the rebuild.
+                SuppressExternalRefresh = true;
                 if (!_achievementOverridesService.SetManualUnlockStates(_gameId, unlocked))
                 {
+                    SuppressExternalRefresh = false;
                     return;
                 }
 
@@ -6052,6 +6063,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             catch (Exception ex)
             {
+                // Set above for a cascade this failed write may never have started.
+                SuppressExternalRefresh = false;
                 _logger?.Error(ex, $"Failed saving manual unlock state for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
