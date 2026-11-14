@@ -68,7 +68,7 @@ public static class TemplateBench
     private static bool _liveMotion;
     private static bool _thumbnail;
     private static bool _presenter;
-    private static bool _holdLayers, _layersCompare;
+    private static bool _holdLayers, _layersCompare, _earlyLayers;
     private static bool _tinyAnimation;
     private static string _snapshot;
     private static string _decodePath;
@@ -165,6 +165,9 @@ public static class TemplateBench
                 // With --presenter: while the card rests, the plugin shows its background and its
                 // content from layer windows (ToastHoldLayers) over the card window, which stands still.
                 case "--hold-layers": _holdLayers = true; break;
+                // With --hold-layers: builds the layers before the entrance, as the wave does,
+                // so the hold only shows them.
+                case "--early-layers": _earlyLayers = true; break;
                 // With --hold-layers: captures the card on screen before and after the split and
                 // counts differing pixels. Use with --still-background --no-pulse --no-rays.
                 case "--layers-compare": _layersCompare = true; break;
@@ -702,6 +705,15 @@ public static class TemplateBench
                     if (!_presenter) engage.Invoke(null, new object[] { card.Host, card.Window });
                 }
 
+                object prepared = null;
+                if (_holdLayers && _earlyLayers)
+                {
+                    var build = Stopwatch.StartNew();
+                    prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
+                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true });
+                    if (c == 0) Console.WriteLine("hold layers built before the entrance in {0} ms: {1}", build.ElapsedMilliseconds, prepared != null);
+                }
+
                 await Frames(3);
                 var t0 = Stopwatch.GetTimestamp();
                 if (_thumbnail)
@@ -745,7 +757,7 @@ public static class TemplateBench
                     var before = _layersCompare ? Capture(card.Rect) : null;
                     if (_layersCompare && _snapshot != null) SaveCapture(card.Rect, _snapshot + "-one.png");
                     var begun = (Task)svcType.GetMethod("BeginHoldLayersAsync", Flags).Invoke(
-                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true });
+                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true, prepared });
                     await begun;
                     layers = begun.GetType().GetProperty("Result").GetValue(begun);
                     if (c == 0) Console.WriteLine("hold layers: " + (layers != null ? "shown" : "none"));
