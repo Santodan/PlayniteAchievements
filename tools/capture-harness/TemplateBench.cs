@@ -1,4 +1,4 @@
-// Benchmarks and compares the real notification card: the user's own settings (config.json, with its
+﻿// Benchmarks and compares the real notification card: the user's own settings (config.json, with its
 // background, glow, sizes and shadows), the bundled template or a template file, built and animated by
 // the plugin's own code driven through reflection, in a DWM-composited window as the plugin shows it.
 //
@@ -68,7 +68,16 @@ public static class TemplateBench
     private static bool _liveMotion;
     private static bool _thumbnail;
     private static bool _presenter;
-    private static bool _holdLayers, _layersCompare, _earlyLayers;
+    private static bool _holdLayers, _layersCompare, _earlyLayers, _layersMidSlide;
+
+    private static object PrepareLayers(Type svcType, dynamic card, bool report, string when)
+    {
+        var build = Stopwatch.StartNew();
+        object prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
+            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, true });
+        if (report) Console.WriteLine("hold layers built {0} the entrance in {1} ms: {2}", when, build.ElapsedMilliseconds, prepared != null);
+        return prepared;
+    }
     private static bool _tinyAnimation;
     private static string _snapshot;
     private static string _decodePath;
@@ -168,6 +177,8 @@ public static class TemplateBench
                 // With --hold-layers: builds the layers before the entrance, as the wave does,
                 // so the hold only shows them.
                 case "--early-layers": _earlyLayers = true; break;
+                // With --early-layers: builds them once the slide is under way instead.
+                case "--layers-mid-slide": _layersMidSlide = true; break;
                 // With --hold-layers: captures the card on screen before and after the split and
                 // counts differing pixels. Use with --still-background --no-pulse --no-rays.
                 case "--layers-compare": _layersCompare = true; break;
@@ -706,12 +717,9 @@ public static class TemplateBench
                 }
 
                 object prepared = null;
-                if (_holdLayers && _earlyLayers)
+                if (_holdLayers && _earlyLayers && !_layersMidSlide)
                 {
-                    var build = Stopwatch.StartNew();
-                    prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
-                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true });
-                    if (c == 0) Console.WriteLine("hold layers built before the entrance in {0} ms: {1}", build.ElapsedMilliseconds, prepared != null);
+                    prepared = PrepareLayers(svcType, card, c == 0, "before");
                 }
 
                 await Frames(3);
@@ -723,6 +731,11 @@ public static class TemplateBench
                 else
                 {
                     run.Invoke(card.Service, new object[] { null, card.TravelDip, 0d, easeIn, inMs, true, "in", false });
+                }
+
+                if (_holdLayers && _earlyLayers && _layersMidSlide)
+                {
+                    prepared = PrepareLayers(svcType, card, c == 0, "during");
                 }
 
                 if (_thumbnail)
@@ -772,6 +785,35 @@ public static class TemplateBench
 
                     if (before != null && layers != null)
                     {
+                        // The compositions right after the layers were shown: what a layer that had
+                        // not presented yet would leave missing while the card under it is hidden.
+                        int missing = 0, worst = 0, worstFrame = 0;
+                        for (var frame = 1; frame <= 30; frame++)
+                        {
+                            await Frames(1);
+                            var atOnce = Capture(card.Rect);
+                            var count = 0;
+                            for (var i = 0; i < before.Length; i++)
+                            {
+                                var a = before[i];
+                                var b = atOnce[i];
+                                var d = Math.Max(Math.Abs(((a >> 16) & 255) - ((b >> 16) & 255)),
+                                    Math.Max(Math.Abs(((a >> 8) & 255) - ((b >> 8) & 255)), Math.Abs((a & 255) - (b & 255))));
+                                if (d > 16) count++;
+                                if (d > worst) worst = d;
+                            }
+
+                            if (count > missing)
+                            {
+                                missing = count;
+                                worstFrame = frame;
+                                if (_snapshot != null) SaveCapture(card.Rect, _snapshot + "-atonce.png");
+                            }
+                        }
+
+                        Console.WriteLine(
+                            "layers over 30 frames vs one window: at most {0} px differ by more than 16 levels (frame {1}), max {2}",
+                            missing, worstFrame, worst);
                         await Task.Delay(500);
                         var after = Capture(card.Rect);
                         if (_snapshot != null)
