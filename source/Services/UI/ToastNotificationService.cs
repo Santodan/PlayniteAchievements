@@ -1248,6 +1248,7 @@ namespace PlayniteAchievements.Services.UI
                 // stays out of every render here (see ToastBlurLayers).
                 double renderMs;
                 using (ToastBlurLayers.HideForOutput(container, keepCardSurface))
+                using (ToastBlurLayers.HideForOutput(renderFrom, keepCardSurface))
                 {
                     renderMs = direct
                         ? RenderCardDirect(rtb, source, hostOpacity, buffer, stride, renderOver)
@@ -6679,9 +6680,10 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Builds the layers of a wave whose backgrounds are opaque images, cloaked and not yet
-        /// presented, or returns null when the wave is not presented, has nothing to split (which
-        /// includes a background whose image has not loaded), or the layers could not be built.
+        /// Builds the layers of a wave whose cards each have an opaque base (ToastLayer.CanSplit),
+        /// cloaked and not yet presented, or returns null when the wave is not presented, has
+        /// nothing to split (which includes a background whose image has not loaded over a
+        /// surface that draws nothing), or the layers could not be built.
         /// </summary>
         private ToastHoldLayers PrepareHoldLayers(
             Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
@@ -6690,7 +6692,7 @@ namespace PlayniteAchievements.Services.UI
             try
             {
                 if (_activePresenter == null || surface == null || cards == null ||
-                    cards.Any(card => card.HasToastBlur) || !ToastLayer.CanSplit(surface))
+                    !ToastLayer.CanSplit(surface))
                 {
                     return null;
                 }
@@ -6727,7 +6729,7 @@ namespace PlayniteAchievements.Services.UI
             foreach (var background in ToastLayer.Find(surface, ToastLayerRole.Background))
             {
                 var content = VisualTreeHelper.GetParent(background);
-                if (content != null)
+                if (content != null && !contents.Contains(content))
                 {
                     contents.Add(content);
                     RarityGlowPulse.PauseUnder(content);
@@ -6735,9 +6737,14 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var showAll = ToastLayer.ShowOnlyBack(surface, hideRays: raysLayered);
+
+            // A blurred card's live background keeps changing; hidden here, it would still have
+            // this window redrawn at each of its frames.
+            var restoreImages = ToastLayer.ReleaseHiddenImages(surface);
             return new HeldMain(() =>
             {
                 ReleaseBackPulses(heldPulses);
+                restoreImages();
                 showAll();
                 stills.Dispose();
                 foreach (var content in contents)
