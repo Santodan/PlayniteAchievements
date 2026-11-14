@@ -799,6 +799,30 @@ Medians of 3 cycles; the game with the card hidden ran at 112.4-112.7 fps in the
   The two matched except where the card animates between the captures: 694 of 111,584 pixels on the
   still PNG card, along the countdown bar and in the animated icon.
 
+What sets the hold's rate, measured 2026-11-14 with no game and under `GameLoad --work 2500`
+(card window 634x392 px, medians of 3 cycles):
+
+- The background video file is 50 frames a second (`DefaultDuration` 20 ms).
+  With every glow animation off (`--still-background --no-pulse`; the layers still play the video) the
+  hold changed 49.4 times a second.
+  `--no-pulse` switches `AnimateRarityGlows` off, which stops the rays as well as the pulse.
+- The glow pulse is read on the frame pump's thread (`MainOpacitySource`): 165 steps a second with no
+  game and 107 under it, longest gap 7.8 and 11.3 ms, of which about 20 a second changed the
+  thumbnail's 8-bit opacity (`Presenter pulse: steps=825 maxGapMs=7.7 levels=98` over 5 s).
+- The rays are invalidated by `RayAnimationDriver` at 30 a second.
+  At 60 (`--ray-fps 60`) the still PNG card's hold went from 43.2 to 60.0 changed/s with no game and
+  from 42.8 to 56.6 under it, longest gap 56.2 to 46.9 ms; at 165 it reached 59.8.
+  The WebM card measured 56.8 and 55.8.
+  The process took the same processor time at 30 and 60 (about 1.22 and 1.25 s per second with the WebM
+  card, 1.03 and 1.03 with the PNG card; 0.80 and 0.57 without rays) and the game ran at 111.5-111.7
+  fps in all four.
+  The plugin sets 60 while the rays rest in their layer (`SetHeldFps`).
+- The same card in one hardware window without the presenter took about 1.08 s of processor time per
+  second, and 0.48 with the presenter and no rays.
+
+With the held rate in the plugin: WebM card 148.1 / 59.0 / 144.1 with no game and 87.3 / 58.0 / 92.8
+under it; PNG card 147.6 / 59.4 / 147.1 and 93.1 / 56.8 / 92.3; game 111.5 fps in the hold for both.
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
 The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
 from the presented pulse are not exercised by the bench.
