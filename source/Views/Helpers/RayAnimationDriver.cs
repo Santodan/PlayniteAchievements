@@ -37,6 +37,25 @@ namespace PlayniteAchievements.Views.Helpers
     }
 
     /// <summary>
+    /// A target whose frame has a part that can be worked out on any thread. The driver begins
+    /// every such target's frame on the UI thread, fills them all at once across threads, and
+    /// ends each on the UI thread again: a wave of several notification cards then waits for the
+    /// longest of its bursts' fills, where one after another it waited for their sum
+    /// (tools/capture-harness README.md, "Waves of several cards").
+    /// </summary>
+    internal interface IRayBatchTarget
+    {
+        /// <summary>UI thread. False when this frame has nothing to fill; OnRayFrame is then called.</summary>
+        bool BeginRayFrame();
+
+        /// <summary>Any thread, at the same time as other targets'. Touches only the target's own buffers.</summary>
+        void FillRayFrame();
+
+        /// <summary>UI thread, after every begun target has been filled.</summary>
+        void EndRayFrame();
+    }
+
+    /// <summary>
     /// The single composition tick behind every animated rarity glow on screen: the ray bursts and
     /// the phase-locked glow pulse (<see cref="RarityGlowPulse"/>).
     ///
@@ -80,6 +99,10 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static readonly List<IRayAnimationTarget> Subscribers = new List<IRayAnimationTarget>();
         private static readonly List<IRayAnimationTarget> Dispatch = new List<IRayAnimationTarget>();
+
+        // The targets whose frames were begun this tick and are filled together.
+        private static readonly List<IRayBatchTarget> Batch = new List<IRayBatchTarget>();
+        private static readonly Action<int> FillBatched = index => Batch[index].FillRayFrame();
 
         private static Dispatcher _owner;
         private static TimeSpan _lastRenderingTime = TimeSpan.MinValue;
@@ -300,13 +323,36 @@ namespace PlayniteAchievements.Views.Helpers
 
                     if (target.WantsRayFrames)
                     {
-                        target.OnRayFrame();
+                        if (target is IRayBatchTarget batched && batched.BeginRayFrame())
+                        {
+                            Batch.Add(batched);
+                        }
+                        else
+                        {
+                            target.OnRayFrame();
+                        }
                     }
                     else
                     {
                         Unsubscribe(target);
                     }
                 }
+
+                if (Batch.Count == 1)
+                {
+                    Batch[0].FillRayFrame();
+                }
+                else if (Batch.Count > 1)
+                {
+                    System.Threading.Tasks.Parallel.For(0, Batch.Count, FillBatched);
+                }
+
+                for (var i = 0; i < Batch.Count; i++)
+                {
+                    Batch[i].EndRayFrame();
+                }
+
+                Batch.Clear();
             }
 
             Dispatch.Clear();
