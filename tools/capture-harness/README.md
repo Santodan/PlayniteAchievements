@@ -709,7 +709,7 @@ The pacing thread sets whole-pixel positions at the time it wakes; residual agai
 ### The plugin's presenter and hold layers: `TemplateBench --presenter [--hold-layers]`
 
 ```powershell
-tools\capture-harness\bin\TemplateBench.exe --game 2500 --presenter [--hold-layers]
+tools\capture-harness\bin\TemplateBench.exe --game 2500 --presenter [--hold-layers [--early-layers]]
     [--recorder-priority 5] [--no-capture] [--layers-compare --snapshot <prefix>]
 ```
 
@@ -765,8 +765,45 @@ What it established:
   registration order), the card window draws nothing during the hold, the longest gap between updates
   fell from 124 ms to 50 ms, and the game held 111.6 fps against 112.2 with the card hidden.
 
+Measured 2026-11-14 on the same display and load, with three changes in the plugin: the layers are built
+before the entrance (`--early-layers` calls `PrepareHoldLayers` there), the slide is sampled into a motion
+track that the frame pump's thread shows at every composition, and a card with a still opaque background
+image is split as well.
+Medians of 3 cycles; the game with the card hidden ran at 112.4-112.7 fps in the `--no-capture` runs.
+
+| mode | entrance | hold | exit | game fps in hold | game worst frame |
+|---|---|---|---|---|---|
+| animated WebM background, presenter and early layers | 90.3/s | 56.7/s | 88.5/s | 111.5 | 9.6 ms |
+| the same with `--still-background` | 83.6/s | 57.3/s | 90.9/s | 111.5 | 10.2 ms |
+| `--still-background`, presenter without layers | 94.7/s | 8.3/s | 93.9/s | - | - |
+| still PNG background, presenter and early layers | 96.0/s | 44.8/s | 91.9/s | 111.6 | 9.5 ms |
+| still PNG background, presenter without layers | 93.3/s | 8.5/s | 93.8/s | - | - |
+
+- Building the layers took 70 to 185 ms of the UI thread.
+  Built before the entrance they were shown 0 to 7 ms into the hold (`Hold layers: shown N ms into the
+  hold`); built at the settle with the 400 ms wait they were shown about 400 ms in.
+- Built while the card slid in (`--layers-mid-slide`), the entrance fell to 61.9/s with a longest gap of
+  150.9 ms, though the pump thread stepped the thumbnail every 11 ms at most (`Presenter track:
+  steps=33 maxGapMs=11.0`).
+  Creating the windows held the thumbnail on screen whichever thread moved it.
+- Built before the entrance with the motion still stepped on the UI thread, the entrance reached
+  45.9-48.3/s with gaps of 165 ms: the UI thread was up to 380 ms late for a frame while the new windows
+  loaded.
+  Stepped from the pump thread it reached 90.3-92.8/s with a longest gap of 20-34 ms.
+- Seeking a begun, paused storyboard to sample it raises its `Completed` event on a later tick.
+  The slide ignores a `Completed` that arrives before its clock has run the duration.
+- With the wait before the layers are shown set to 0, none of the 30 compositions captured after the
+  split was missing content (6 cycles under the game, `--layers-compare`); the plugin waits 100 ms.
+- `--layers-compare` also renders the card as the clip sampler does (`TryRenderToastItemBytes`, effects
+  stripped, rays hidden) from the card window before the split and from the layer windows after it.
+  The two matched except where the card animates between the captures: 694 of 111,584 pixels on the
+  still PNG card, along the countdown bar and in the animated icon.
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
-A wave being sampled for an unlock clip keeps its card window live under the layers, rays included.
+The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
+from the presented pulse are not exercised by the bench.
+A card without a background image is not split: its card surface is drawn inside the glow's element in
+the card window, which the presented pulse would dim along with the glow.
 
 ## The composer probe
 
