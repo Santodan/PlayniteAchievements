@@ -125,6 +125,8 @@
                              notification swaps in a prebuilt badge image with no path to trace, and
                              falls back to a rounded rectangle. -->
                         <controls:RarityRayBurst Rarity="{Binding Rarity}"
+                                                 helpers:ToastLayer.Role="Underlay"
+                                                 IsRasterized="True"
                                                  UseCompletedColors="{Binding UsesCompletionColors}"
                                                  IsActive="{Binding AnimateRarityGlows}"
                                                  PhaseLock="{Binding IsPreview}"
@@ -132,8 +134,13 @@
                                                  Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <!-- Completion's other half: game and category art stack two copies, one glow
                              thrown from each corner, and it is the pair that reads as the completion
-                             gradient. Only shown for completion, so a normal unlock is unaffected. -->
+                             gradient. Only shown for completion, so a normal unlock is unaffected.
+                             The rays above, this and the halo below are marked Underlay: they are
+                             the lowest of the content and the halo and rays animate, so a resting
+                             card shows them with its background (ToastLayer) and their redraws do
+                             not run the content's shadows again. -->
                         <Image Stretch="Uniform"
+                               helpers:ToastLayer.Role="Underlay"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                helpers:AsyncImage.DecodePixel="160"
                                IsHitTestVisible="False">
@@ -156,6 +163,7 @@
                              the halo always appears once the async icon loads, and the pulse fades
                              this layer's opacity. -->
                         <Image Stretch="Uniform"
+                               helpers:ToastLayer.Role="Underlay"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                helpers:AsyncImage.DecodePixel="160"
                                helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}"
