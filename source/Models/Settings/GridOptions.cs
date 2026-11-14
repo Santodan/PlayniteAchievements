@@ -439,8 +439,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         // Records saved before column keys hold the sort as an enum; read only, never written.
+        // Public because Playnite's settings serializer reads only public members.
         [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
-        private CompactListSortMode LegacySortMode
+        public CompactListSortMode LegacySortMode
         {
             set => _sortColumn = GridSortColumns.FromAchievementMode(value);
         }
@@ -633,8 +634,9 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         // Records saved before column keys hold the sort as an enum; read only, never written.
+        // Public because Playnite's settings serializer reads only public members.
         [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
-        private GameSummariesSortMode LegacySortMode
+        public GameSummariesSortMode LegacySortMode
         {
             set => _sortColumn = GridSortColumns.FromGameSummariesMode(value);
         }
