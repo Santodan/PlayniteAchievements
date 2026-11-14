@@ -335,6 +335,10 @@ public static class TemplateBench
         AppDomain.CurrentDomain.AssemblyResolve += Resolve;
         var code = 0;
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        // The popup brushes a Playnite theme supplies; without them a card with no background image
+        // has no surface. The plugin's neutral preview theme's values.
+        app.Resources["PlayAch.Brush.PopupSurface"] = Frozen(Color.FromRgb(0x23, 0x29, 0x33));
+        app.Resources["PlayAch.Brush.PopupBorder"] = Frozen(Color.FromRgb(0x34, 0x3B, 0x46));
         var loads = new List<Process>();
         if (_gpuPriority >= 0)
         {
@@ -1335,6 +1339,13 @@ public static class TemplateBench
         var role = _plugin.GetType("PlayniteAchievements.Views.Helpers.ToastLayer")
             .GetMethod("GetRole", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { burst });
         return role.ToString() == "Rays";
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private static void HideRays(DependencyObject root)
