@@ -6563,7 +6563,7 @@ namespace PlayniteAchievements.Services.UI
         private const int HoldLayerHandBackMs = 250;
 
         /// <summary>
-        /// Splits a resting wave into layers when it has an animated, opaque background: the
+        /// Splits a resting wave into layers when its backgrounds are opaque images: the
         /// backgrounds and the content each go to a cloaked window of their own, drawn by the
         /// presenter over the wave's own window. With <paramref name="holdMain"/> the wave's own
         /// window then stands still under them (its animated images hold their frame and its
@@ -6661,7 +6661,7 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Builds the layers of a wave with an animated, opaque background, cloaked and not yet
+        /// Builds the layers of a wave whose backgrounds are opaque images, cloaked and not yet
         /// presented, or returns null when the wave is not presented, has nothing to split (which
         /// includes a background whose image has not loaded), or the layers could not be built.
         /// </summary>
