@@ -121,11 +121,24 @@ public static class TemplateBench
         using (var file = File.Create(path)) encoder.Save(file);
     }
 
+    private static object _layersToDrop;
+
+    // What the end of a wave does to its layers: the rays go back to the card's own window and
+    // the layer windows close.
+    private static void DropLayers(Type svcType, object service)
+    {
+        if (_layersToDrop == null) return;
+        svcType.GetMethod("DropRaysAhead", Flags).Invoke(service, null);
+        ((IDisposable)_layersToDrop).Dispose();
+        _layersToDrop = null;
+    }
+
     private static object PrepareLayers(Type svcType, dynamic card, bool report, string when)
     {
+        DropLayers(svcType, (object)card.Service);
         var build = Stopwatch.StartNew();
         object prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
-            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, true });
+            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, true, when == "before" });
         if (report) Console.WriteLine("hold layers built {0} the entrance in {1} ms: {2}", when, build.ElapsedMilliseconds, prepared != null);
         return prepared;
     }
@@ -1090,8 +1103,9 @@ public static class TemplateBench
                 {
                     await (Task)svcType.GetMethod("EndHoldLayersAsync", Flags).Invoke(
                         card.Service, new object[] { card.Window, layers, 250 });
-                    // The wave disposes its layers when it ends; here the card lives on.
-                    ((IDisposable)layers).Dispose();
+                    // The wave disposes its layers when it ends, after the exit; here the card
+                    // lives on, so they go before the next cycle builds its own.
+                    _layersToDrop = layers;
                 }
 
                 if (!_backgroundOnly && !_noCountdown)
