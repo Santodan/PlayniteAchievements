@@ -134,6 +134,8 @@ public static class TemplateBench
     private static string _hideRays = "all";
     // Bursts draw one geometry per copy, whatever their template asks.
     private static bool _rayGeometry;
+    // Cards in the wave, stacked as the service stacks a wave of several notifications.
+    private static int _cards = 1;
     // The content layer's effects are removed once it is shown, to measure what they cost there.
     private static bool _contentNoEffects;
     // The glow pulses inside the content layer are stopped once it is shown.
@@ -278,6 +280,7 @@ public static class TemplateBench
                 case "--no-pulse": _noPulse = true; break;
                 case "--no-rays": _noRays = true; break;
                 case "--ray-geometry": _rayGeometry = true; break;
+                case "--cards": _cards = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--content-no-effects": _contentNoEffects = true; break;
                 case "--content-no-pulse": _contentNoPulse = true; break;
                 case "--layers-stop-decode": _layersStopDecode = true; break;
@@ -662,11 +665,13 @@ public static class TemplateBench
             : p.ParameterType == persisted.GetType() ? persisted
             : p.ParameterType == typeof(bool) ? (object)false
             : null).ToArray();
-        var vm = ctor.Invoke(values);
-        await (Task)vmType.GetMethod("PrepareImagesAsync").Invoke(vm, null);
-
         var items = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(vmType));
-        items.Add(vm);
+        for (var n = 0; n < Math.Max(1, _cards); n++)
+        {
+            var vm = ctor.Invoke(values);
+            await (Task)vmType.GetMethod("PrepareImagesAsync").Invoke(vm, null);
+            items.Add(vm);
+        }
         var factory = _plugin.GetType("PlayniteAchievements.Services.UI.ToastSurfaceFactory");
         var surface = (ItemsControl)factory.GetMethod("BuildToastSurface", Flags).Invoke(null, new object[] { items, template });
         if (Math.Abs(_cardScale - 1) > 1e-6)
