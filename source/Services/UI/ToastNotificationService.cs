@@ -6680,9 +6680,15 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                if (_activePresenter == null || surface == null || cards == null ||
-                    !ToastLayer.CanSplit(surface))
+                if (_activePresenter == null || surface == null || cards == null)
                 {
+                    return null;
+                }
+
+                var whyNot = ToastLayer.WhyNotSplit(surface);
+                if (whyNot != null)
+                {
+                    _logger?.Info($"[Toast] Hold layers: not split, {whyNot}; the wave rests as one window.");
                     return null;
                 }
 
