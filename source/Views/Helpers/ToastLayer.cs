@@ -342,8 +342,23 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static bool CanSplit(DependencyObject root)
         {
+            return WhyNotSplit(root) == null;
+        }
+
+        /// <summary>
+        /// Why the cards under <paramref name="root"/> cannot rest as separate layers, for a log
+        /// line a template's author can act on, or null when they can (<see cref="CanSplit"/>).
+        /// </summary>
+        public static string WhyNotSplit(DependencyObject root)
+        {
             var bases = new List<FrameworkElement>();
             CollectBases(root, bases);
+            if (bases.Count == 0)
+            {
+                return "the template marks no element with ToastLayer.Role Surface or Background " +
+                    "(controls:ToastCard carries the marks)";
+            }
+
             var seen = new HashSet<DependencyObject>();
             var settled = new HashSet<DependencyObject>();
             foreach (var element in bases)
@@ -368,13 +383,22 @@ namespace PlayniteAchievements.Views.Helpers
 
                 if (element.Opacity < 1d || !IsOpaque(paint))
                 {
-                    return false;
+                    return "the lowest surface or background of a card is not opaque (" +
+                        (string.IsNullOrEmpty(element.Name) ? element.GetType().Name : element.Name) +
+                        ", " + GetRole(element) + ")";
                 }
 
                 settled.Add(card);
             }
 
-            return settled.Count > 0 && settled.Count == seen.Count;
+            if (seen.Count == 0)
+            {
+                return "no marked surface or background is shown";
+            }
+
+            return settled.Count == seen.Count
+                ? null
+                : "the surface and backgrounds of a card draw nothing (a background image may not have loaded)";
         }
 
         // Surface and background elements in the order they are drawn.
