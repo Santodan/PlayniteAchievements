@@ -70,6 +70,57 @@ public static class TemplateBench
     private static bool _presenter;
     private static bool _holdLayers, _layersCompare, _earlyLayers, _layersMidSlide;
 
+    // The card as the clip sampler renders it (effects stripped, rays hidden), through the
+    // service's own TryRenderToastItemBytes: from the card window, or with layers from the
+    // background layer's container with the content layer's drawn over it.
+    private static byte[] SamplerRender(Type svcType, Card card, object layers, out int width, out int height)
+    {
+        width = height = 0;
+        var container = (FrameworkElement)card.Surface.ItemContainerGenerator.ContainerFromIndex(0);
+        FrameworkElement under = null, over = null;
+        if (layers != null)
+        {
+            var find = layers.GetType().GetMethod("CardContainer");
+            under = (FrameworkElement)find.Invoke(layers, new object[] { layers.GetType().GetProperty("Background").GetValue(layers), 0 });
+            over = (FrameworkElement)find.Invoke(layers, new object[] { layers.GetType().GetProperty("Content").GetValue(layers), 0 });
+        }
+
+        var pairType = typeof(KeyValuePair<,>).MakeGenericType(typeof(FrameworkElement), typeof(System.Windows.Media.Effects.Effect));
+        var effects = Activator.CreateInstance(typeof(List<>).MakeGenericType(pairType));
+        var burstType = _plugin.GetType("PlayniteAchievements.Views.Controls.RarityRayBurst");
+        var bursts = Activator.CreateInstance(typeof(List<>).MakeGenericType(burstType));
+        var collect = svcType.GetMethod("CollectEffects", Flags);
+        collect.Invoke(null, new object[] { container, effects, bursts });
+        if (under != null) collect.Invoke(null, new object[] { under, effects, null });
+        if (over != null) collect.Invoke(null, new object[] { over, effects, null });
+        svcType.GetMethod("StripEffects", Flags).Invoke(null, new object[] { effects });
+        svcType.GetMethod("HideRayBursts", Flags).Invoke(null, new object[] { bursts });
+        try
+        {
+            Func<int, byte[]> take = length => new byte[length];
+            var call = new object[] { card.Window, container, null, take, false, 1d, null, null, 0, 0, 0, 0, false, under, over };
+            var ok = (bool)svcType.GetMethod("TryRenderToastItemBytes", Flags).Invoke(card.Service, call);
+            if (!ok) return null;
+            width = (int)call[8];
+            height = (int)call[9];
+            return (byte[])call[7];
+        }
+        finally
+        {
+            svcType.GetMethod("RestoreRayBursts", Flags).Invoke(null, new object[] { bursts });
+            svcType.GetMethod("RestoreEffects", Flags).Invoke(null, new object[] { effects });
+        }
+    }
+
+    private static void SavePixels(byte[] pixels, int width, int height, string path)
+    {
+        var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(
+            width, height, 96, 96, PixelFormats.Pbgra32, null, pixels, width * 4);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using (var file = File.Create(path)) encoder.Save(file);
+    }
+
     private static object PrepareLayers(Type svcType, dynamic card, bool report, string when)
     {
         var build = Stopwatch.StartNew();
@@ -767,6 +818,8 @@ public static class TemplateBench
                 object layers = null;
                 if (_holdLayers)
                 {
+                    int sampledW = 0, sampledH = 0;
+                    var sampledOne = _layersCompare ? SamplerRender(svcType, card, null, out sampledW, out sampledH) : null;
                     var before = _layersCompare ? Capture(card.Rect) : null;
                     if (_layersCompare && _snapshot != null) SaveCapture(card.Rect, _snapshot + "-one.png");
                     var begun = (Task)svcType.GetMethod("BeginHoldLayersAsync", Flags).Invoke(
@@ -844,6 +897,33 @@ public static class TemplateBench
                         }
 
                         Console.WriteLine("layers vs one window: {0} of {1} px differ, max {2} levels", differing, before.Length, max);
+
+                        // The clip sampler's render of the card, from its window before the split
+                        // and from the layers now.
+                        var sampledLayers = SamplerRender(svcType, card, layers, out var layeredW, out var layeredH);
+                        if (sampledOne == null || sampledLayers == null || layeredW != sampledW || layeredH != sampledH)
+                        {
+                            Console.WriteLine("sampler render: failed or sizes differ ({0}x{1} vs {2}x{3})", sampledW, sampledH, layeredW, layeredH);
+                        }
+                        else
+                        {
+                            int off = 0, most = 0;
+                            for (var i = 0; i < sampledOne.Length; i++)
+                            {
+                                var d = Math.Abs(sampledOne[i] - sampledLayers[i]);
+                                if (d > 2 && i % 4 == 0) off++;
+                                if (d > most) most = d;
+                            }
+
+                            Console.WriteLine(
+                                "sampler render, layers vs one window: {0}x{1}, {2} px differ by more than 2 levels in blue, max {3} in any channel",
+                                sampledW, sampledH, off, most);
+                            if (_snapshot != null)
+                            {
+                                SavePixels(sampledOne, sampledW, sampledH, _snapshot + "-sampler-one.png");
+                                SavePixels(sampledLayers, sampledW, sampledH, _snapshot + "-sampler-layers.png");
+                            }
+                        }
                     }
 
                     // The hold is measured from the split.
