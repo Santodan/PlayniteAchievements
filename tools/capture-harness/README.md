@@ -823,6 +823,74 @@ What sets the hold's rate, measured 2026-11-14 with no game and under `GameLoad 
 With the held rate in the plugin: WebM card 148.1 / 59.0 / 144.1 with no game and 87.3 / 58.0 / 92.8
 under it; PNG card 147.6 / 59.4 / 147.1 and 93.1 / 56.8 / 92.3; game 111.5 fps in the hold for both.
 
+#### The rays' cost
+
+Measured 2026-11-14, same display, card window 634x392 px, no game unless noted.
+Processor time is the bench process's, sampled once a second through a 10 s hold (`--no-capture`).
+
+The card's own burst (224 arrows in 6 copies, slot 550x92 DIP) was most of a resting card's cost, in every
+mode:
+
+| hidden with | layers, WebM card | one hardware window |
+|---|---|---|
+| nothing | 1.23 s/s | 1.08 s/s |
+| `--no-icon-rays` (the icon's burst, 32 arrows) | 1.25 s/s | 1.08 s/s |
+| `--no-card-rays` | 0.91 s/s | 0.35 s/s |
+| `--no-rays` | 0.80 s/s | 0.48 s/s |
+
+- The UI thread's share was 0.15-0.3 ms a redraw; the rest was WPF filling the geometry.
+- With only the narrowest copy drawn the burst cost about nothing (0.93 s/s); with three of the six, 1.14.
+  `EdgeMode.Aliased` changed nothing (1.22).
+  The quads of the wide copies (width multiples 9.0 to 2.1) each overlap several neighbours inside one
+  nonzero geometry.
+- Each copy drawn as 16 geometries of quads that do not overlap each other took 1.00 s/s, with a
+  brighter picture where quads overlap; the same inside an opacity group, which restores the picture,
+  1.19.
+- With the rays invalidated at every frame (`--ray-fps 165`, still PNG card) the hold reached 59.4
+  changed/s as drawn, 82.9 split into sets, 119.3 with one copy and 156.2 without the card burst.
+
+`RayQuadRasterizer` fills the same picture into a bitmap on the UI thread (`RarityRayBurst.IsRasterized`,
+set on the card burst in the bundled template): each quad edge is clipped against the quads near it in
+the loop, and what is left, the union's outline, is summed as signed areas.
+`RayQuadRasterizerTests` compares it with a `RenderTargetBitmap` of the geometry: mean difference
+0.07-0.13 levels of 255 a channel, at most 19 on a pixel, after offsetting by (1/16, 1/32) px, the offset at
+which WPF's own fill differed least.
+It took 1.4-1.5 ms a redraw for a 593x129 px bitmap (2.5 ms before the clipping stopped at the quads whose
+boxes meet).
+`--ray-geometry` puts every burst back on geometry.
+
+Two more things kept the content layer redrawing with its 15 effects run again each time
+(`--content-no-effects` removes them: hold 164.3 changed/s on both cards, against 93.6 and 83.2):
+
+- the pulse of the card's glow, which is hidden in that layer and animates its effect's opacity at every
+  frame (`--content-no-pulse` with `BENCH_PULSES=hidden` stops only it: 162.6 on the WebM card; stopping
+  only the visible icon halo's pulse, 83.2);
+- the hidden backing copy of an animated background, an `ImageBrush` on the shared bitmap, at each of the
+  video's frames (with the pulse stopped and the brush kept, the WebM card held 104.0; the PNG card 164.8).
+
+`ToastLayer` stops the pulse and takes the image brush off every hidden element of a layer window.
+Collapsing the decoding `Image` in the content and rays layers (`--layers-stop-decode`) changed nothing.
+
+With all of it, medians of 3 cycles (entrance / hold / exit, changed/s):
+
+| card | no game | under `GameLoad --work 2500` | game fps in hold | process |
+|---|---|---|---|---|
+| WebM | 150.8 / 161.8 / 148.6 | 94.3 / 79.8 / 88.7 | 110.1, worst frame 9.6 ms | 0.80 s/s |
+| still PNG | 147.2 / 164.6 / 147.3 | 93.6 / 76.2 / 92.0 | 109.8, worst frame 9.9 ms | 0.58 s/s |
+| WebM, `--ray-geometry` | 149.1 / 59.0 / 142.9 | - | - | 1.17 s/s |
+| one hardware window, WebM | - | - | - | 0.58 s/s (1.08 on geometry) |
+
+- Under the game the desktop was presented 105-110 times a second in the hold and the recorder missed
+  557 to 694 of the updates over the three cycles, so the hold's changed/s there is a lower bound.
+- The glow pulse was stepped 103 times a second under the game (`Presenter pulse: steps=517` over 5 s).
+- The game ran at 111.5 fps in the hold while the card changed 57 times a second (the rows above this
+  section) and at 110.1 with it changing at the display's rate.
+- The icon's burst is served 60 times a second while the card rests and the card's burst at every frame
+  (`RayAnimationDriver.SetHeldFps`, `IRayAnimationTarget.TakesEveryHeldFrame`); at 30 for the icon's the
+  hold measured 159.0 and 164.4.
+- Serving the two bursts on alternate frames changed nothing (91.6 against 92.1, before the pulse was
+  stopped).
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
 The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
 from the presented pulse are not exercised by the bench.
