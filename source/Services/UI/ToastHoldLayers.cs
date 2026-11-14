@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Services.UI
     {
         private const double SizeToleranceDip = 0.01;
 
+        private readonly System.Diagnostics.Stopwatch _created = System.Diagnostics.Stopwatch.StartNew();
+
         private ToastHoldLayers(Window rays, Window background, Window content)
         {
             Rays = rays;
@@ -49,6 +51,20 @@ namespace PlayniteAchievements.Services.UI
         /// the wave issues GPU work.
         /// </summary>
         public bool MainIsStill { get; set; }
+
+        /// <summary>Milliseconds since the windows were built.</summary>
+        public long AgeMs => _created.ElapsedMilliseconds;
+
+        /// <summary>
+        /// Whether every window still has <paramref name="main"/>'s exact size, which the cards
+        /// can change after the windows were built.
+        /// </summary>
+        public bool HasSizeOf(Window main)
+        {
+            return ToastWindowPlacer.TryGetPhysicalRect(main, out var mainRect) &&
+                (Rays == null || HasSizeOf(Rays, main, mainRect)) &&
+                HasSizeOf(Background, main, mainRect) && HasSizeOf(Content, main, mainRect);
+        }
 
         /// <summary>The cards' backgrounds alone, rendered in software.</summary>
         public Window Background { get; }
@@ -191,16 +207,21 @@ namespace PlayniteAchievements.Services.UI
             window.UpdateLayout();
 
             // A layer of another size would be resampled onto the wave's rectangle.
-            if (Math.Abs(window.ActualWidth - main.ActualWidth) > SizeToleranceDip ||
-                Math.Abs(window.ActualHeight - main.ActualHeight) > SizeToleranceDip ||
-                !ToastWindowPlacer.TryGetPhysicalRect(window, out var rect) ||
-                rect.Width != mainRect.Width || rect.Height != mainRect.Height)
+            if (!HasSizeOf(window, main, mainRect))
             {
                 Close(window);
                 return null;
             }
 
             return window;
+        }
+
+        private static bool HasSizeOf(Window window, Window main, System.Drawing.Rectangle mainRect)
+        {
+            return Math.Abs(window.ActualWidth - main.ActualWidth) <= SizeToleranceDip &&
+                Math.Abs(window.ActualHeight - main.ActualHeight) <= SizeToleranceDip &&
+                ToastWindowPlacer.TryGetPhysicalRect(window, out var rect) &&
+                rect.Width == mainRect.Width && rect.Height == mainRect.Height;
         }
 
         private static void Close(Window window)
