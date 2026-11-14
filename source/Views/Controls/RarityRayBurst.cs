@@ -167,6 +167,24 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// When true the arrows are filled into a bitmap by <see cref="RayQuadRasterizer"/> on the
+        /// UI thread and drawn as one image, in place of one geometry per copy. For a burst with
+        /// many arrows whose wide copies overlap, a notification card's: WPF's fill of those
+        /// geometries was most of that burst's cost. The picture is the same. A burst that is in
+        /// no window, or is rotated or skewed in its window, draws geometry whatever this says.
+        /// </summary>
+        public static readonly DependencyProperty IsRasterizedProperty =
+            DependencyProperty.Register(
+                nameof(IsRasterized), typeof(bool), typeof(RarityRayBurst),
+                new PropertyMetadata(false, OnRenderAffectingChanged));
+
+        public bool IsRasterized
+        {
+            get => (bool)GetValue(IsRasterizedProperty);
+            set => SetValue(IsRasterizedProperty, value);
+        }
+
+        /// <summary>
         /// How far the effect may reach beyond its layout slot, as a multiple of it. The tallest arrow
         /// reaches half the excess past the subject's short side, so this is what caps the burst's
         /// overall size. Completed game art passes its own value, being much larger than an icon.
@@ -284,6 +302,8 @@ namespace PlayniteAchievements.Views.Controls
         bool IRayAnimationTarget.WantsRayFrames => IsActive && IsVisible && ShouldDraw();
 
         bool IRayAnimationTarget.IgnoresGlowGate => GlowAnimationGate.GetIsExempt(this);
+
+        bool IRayAnimationTarget.TakesEveryHeldFrame => IsRasterized;
 
         /// <summary>
         /// Whether any part of this burst falls inside the window. IsVisible stays true for an
@@ -626,6 +646,10 @@ namespace PlayniteAchievements.Views.Controls
                 // Scaled by the track's length, so arrows cross the screen at one speed whatever they
                 // are going around: a lap of a notification card is several laps of an icon.
                 var laps = RayArrowLayout.ScaleLapsToTrack(CurrentLaps(persisted), mapped);
+                if (IsRasterized && TryDrawRasterized(context, mapped, laps, count, palette))
+                {
+                    return;
+                }
 
                 // Every phase-locked burst of the same size and artwork traces the same arrows at
                 // the same phase, so the geometry is identical across all of them - only the tier
@@ -647,6 +671,179 @@ namespace PlayniteAchievements.Views.Controls
                     }
                 }
             }
+        }
+
+        private RayQuadRasterizer _rasterizer;
+        private RayArrowLayout.RayArrowQuad[][] _layerQuads;
+        private int[] _rasterPixels;
+        private System.Windows.Media.Imaging.WriteableBitmap _rasterBitmap;
+
+        // The pixels the arrows have reached, relative to this element's origin in the window.
+        // It only grows, so the bitmap keeps one size while the wave changes the arrows' heights.
+        private Int32Rect _rasterReach;
+        private Size _rasterReachSlot;
+        private double _rasterReachScaleX;
+        private double _rasterReachScaleY;
+
+        private const int RasterReachStep = 16;
+        private const int RasterMaxSide = 4096;
+        private const int RasterMaxPixels = 6 * 1024 * 1024;
+
+        /// <summary>
+        /// Draws the arrows as one bitmap whose pixels are the window's own, so nothing resamples
+        /// it. False when this element has no window or is not placed by scale and offset alone,
+        /// or the arrows span more than a bitmap is made for; the caller then draws geometry.
+        /// </summary>
+        private bool TryDrawRasterized(
+            DrawingContext context, RayArrowLayout.MappedTrack mapped, double laps, int count,
+            RarityAppearanceHelper.RayGlowPalette palette)
+        {
+            Matrix toDevice;
+            try
+            {
+                var source = PresentationSource.FromVisual(this);
+                var root = source?.RootVisual;
+                if (root == null || source.CompositionTarget == null ||
+                    !(TransformToAncestor(root) is Transform toRoot))
+                {
+                    return false;
+                }
+
+                toDevice = toRoot.Value * source.CompositionTarget.TransformToDevice;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+
+            if (Math.Abs(toDevice.M12) > 1e-9 || Math.Abs(toDevice.M21) > 1e-9 ||
+                !(toDevice.M11 > 1e-6) || !(toDevice.M22 > 1e-6) ||
+                double.IsNaN(toDevice.OffsetX) || double.IsNaN(toDevice.OffsetY))
+            {
+                return false;
+            }
+
+            var written = RayArrowLayout.BuildSpines(mapped, laps, BurstScale, count, _spines);
+            var layerCount = palette.Layers.Count;
+            if (written <= 0 || layerCount == 0)
+            {
+                return false;
+            }
+
+            if (_layerQuads == null || _layerQuads.Length != layerCount || _layerQuads[0].Length < written)
+            {
+                _layerQuads = new RayArrowLayout.RayArrowQuad[layerCount][];
+                for (var i = 0; i < layerCount; i++)
+                {
+                    _layerQuads[i] = new RayArrowLayout.RayArrowQuad[_spines.Length];
+                }
+            }
+
+            double left = double.MaxValue, top = double.MaxValue, right = double.MinValue, bottom = double.MinValue;
+            for (var i = 0; i < layerCount; i++)
+            {
+                var layer = palette.Layers[i];
+                var quads = _layerQuads[i];
+                RayArrowLayout.Emit(_spines, written, layer.WidthMultiplier, layer.HeightFraction, quads);
+                for (var q = 0; q < written; q++)
+                {
+                    Reach(quads[q].BaseLeft, ref left, ref top, ref right, ref bottom);
+                    Reach(quads[q].TipLeft, ref left, ref top, ref right, ref bottom);
+                    Reach(quads[q].TipRight, ref left, ref top, ref right, ref bottom);
+                    Reach(quads[q].BaseRight, ref left, ref top, ref right, ref bottom);
+                }
+            }
+
+            if (!(right > left) || !(bottom > top) || double.IsInfinity(left + top + right + bottom))
+            {
+                return false;
+            }
+
+            if (_rasterReachSlot != _mappedSlot || _rasterReachScaleX != toDevice.M11 || _rasterReachScaleY != toDevice.M22)
+            {
+                _rasterReach = Int32Rect.Empty;
+                _rasterReachSlot = _mappedSlot;
+                _rasterReachScaleX = toDevice.M11;
+                _rasterReachScaleY = toDevice.M22;
+            }
+
+            // In pixels from this element's origin, rounded outward to a step so a taller arrow
+            // seldom grows it.
+            var reachLeft = FloorToStep(left * toDevice.M11);
+            var reachTop = FloorToStep(top * toDevice.M22);
+            var reachRight = -FloorToStep(-right * toDevice.M11);
+            var reachBottom = -FloorToStep(-bottom * toDevice.M22);
+            if (!_rasterReach.IsEmpty)
+            {
+                reachLeft = Math.Min(reachLeft, _rasterReach.X);
+                reachTop = Math.Min(reachTop, _rasterReach.Y);
+                reachRight = Math.Max(reachRight, _rasterReach.X + _rasterReach.Width);
+                reachBottom = Math.Max(reachBottom, _rasterReach.Y + _rasterReach.Height);
+            }
+
+            // One more column and row: the element's origin sits at a fraction of a pixel.
+            var width = reachRight - reachLeft + 1;
+            var height = reachBottom - reachTop + 1;
+            if (width <= 0 || height <= 0 || width > RasterMaxSide || height > RasterMaxSide ||
+                (long)width * height > RasterMaxPixels)
+            {
+                return false;
+            }
+
+            _rasterReach = new Int32Rect(reachLeft, reachTop, reachRight - reachLeft, reachBottom - reachTop);
+
+            // The bitmap's first pixel, on the window's pixel grid.
+            var originX = Math.Floor(toDevice.OffsetX) + reachLeft;
+            var originY = Math.Floor(toDevice.OffsetY) + reachTop;
+            if (_rasterPixels == null || _rasterPixels.Length != width * height)
+            {
+                _rasterPixels = new int[width * height];
+            }
+            else
+            {
+                Array.Clear(_rasterPixels, 0, _rasterPixels.Length);
+            }
+
+            _rasterizer = _rasterizer ?? new RayQuadRasterizer();
+            _rasterizer.Begin(width, height);
+            var offsetX = toDevice.OffsetX - originX + RayQuadRasterizer.WpfBiasX;
+            var offsetY = toDevice.OffsetY - originY + RayQuadRasterizer.WpfBiasY;
+            for (var i = 0; i < layerCount; i++)
+            {
+                var color = palette.Layers[i].Brush.Color;
+                _rasterizer.Fill(
+                    _layerQuads[i], written, toDevice.M11, toDevice.M22, offsetX, offsetY,
+                    color.A, color.R, color.G, color.B, _rasterPixels);
+            }
+
+            if (_rasterBitmap == null || _rasterBitmap.PixelWidth != width || _rasterBitmap.PixelHeight != height)
+            {
+                _rasterBitmap = new System.Windows.Media.Imaging.WriteableBitmap(
+                    width, height, 96, 96, PixelFormats.Pbgra32, null);
+            }
+
+            _rasterBitmap.WritePixels(new Int32Rect(0, 0, width, height), _rasterPixels, width * 4, 0);
+            context.DrawImage(
+                _rasterBitmap,
+                new Rect(
+                    (originX - toDevice.OffsetX) / toDevice.M11,
+                    (originY - toDevice.OffsetY) / toDevice.M22,
+                    width / toDevice.M11,
+                    height / toDevice.M22));
+            return true;
+        }
+
+        private static void Reach(Point point, ref double left, ref double top, ref double right, ref double bottom)
+        {
+            if (point.X < left) left = point.X;
+            if (point.X > right) right = point.X;
+            if (point.Y < top) top = point.Y;
+            if (point.Y > bottom) bottom = point.Y;
+        }
+
+        private static int FloorToStep(double value)
+        {
+            return (int)Math.Floor(value / RasterReachStep) * RasterReachStep;
         }
 
         // Keyed by everything the arrow geometry depends on, so a stale entry can never be reused:
