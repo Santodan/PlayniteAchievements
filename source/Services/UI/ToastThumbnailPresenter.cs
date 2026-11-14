@@ -547,7 +547,7 @@ namespace PlayniteAchievements.Services.UI
             var mainLevel = scale >= 1d || double.IsNaN(scale)
                 ? level
                 : (byte)Math.Round(level * Math.Max(0d, scale));
-            var under = _underlay != null && _layersShown;
+            var under = _underlay != null && (_layersShown || _underlayAhead);
             Push(_main, destination, mainLevel, visible && !under);
             if (_underlay != null)
             {
@@ -622,6 +622,40 @@ namespace PlayniteAchievements.Services.UI
             lock (_gate)
             {
                 return AddUnderlayLocked(source);
+            }
+        }
+
+        // Whether the underlay is drawn from the reveal on, whether or not the layers are shown.
+        private bool _underlayAhead;
+
+        /// <summary>
+        /// Registers <paramref name="source"/> as <see cref="AddUnderlay"/> does and draws it
+        /// under the main source for as long as the thumbnail is shown, not only while the layers
+        /// are. For what the main source never draws itself: nothing then changes hands when the
+        /// layers come and go. <see cref="RemoveLayers"/> leaves it; <see cref="RemoveUnderlay"/>
+        /// takes it away.
+        /// </summary>
+        public bool AddUnderlayAhead(Window source)
+        {
+            lock (_gate)
+            {
+                if (!AddUnderlayLocked(source))
+                {
+                    return false;
+                }
+
+                _underlayAhead = true;
+                return true;
+            }
+        }
+
+        /// <summary>Hides and unregisters the layers and an underlay drawn ahead of them.</summary>
+        public void RemoveUnderlay()
+        {
+            lock (_gate)
+            {
+                _underlayAhead = false;
+                RemoveLayersLocked();
             }
         }
 
@@ -704,7 +738,7 @@ namespace PlayniteAchievements.Services.UI
         private void RemoveLayersLocked()
         {
             _layersShown = false;
-            if (_underlay != null)
+            if (_underlay != null && !_underlayAhead)
             {
                 try
                 {
