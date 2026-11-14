@@ -877,8 +877,7 @@ namespace PlayniteAchievements.Models.Tests
                 NotificationDelaySeconds = 0.4,
                 CaptureDelaySeconds = 0.7,
                 MaxConcurrentToasts = 4,
-                ToastPosition = ToastScreenCorner.TopLeft,
-                NotificationRenderMode = NotificationRenderMode.Quality
+                ToastPosition = ToastScreenCorner.TopLeft
             };
 
             var clone = source.Clone();
@@ -2241,7 +2240,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.CaptureDelaySeconds, actual.CaptureDelaySeconds);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
-            Assert.AreEqual(expected.NotificationRenderMode, actual.NotificationRenderMode);
         }
     }
 }
