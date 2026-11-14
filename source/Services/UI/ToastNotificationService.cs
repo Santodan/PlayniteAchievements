@@ -133,6 +133,10 @@ namespace PlayniteAchievements.Services.UI
         // Per-wave rasterization surfaces for the track sampler, one per card; created with the
         // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
         private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
+
+        // The layers a held wave is shown from, which the track sampler then reads its cards
+        // from in place of the wave's own window. Null whenever that window is live.
+        private ToastHoldLayers _activeSampleLayers;
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
@@ -1174,8 +1178,11 @@ namespace PlayniteAchievements.Services.UI
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
             double captureScale, string probeCase,
             out byte[] pixels, out int width, out int height,
-            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false)
+            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false,
+            FrameworkElement renderFrom = null, FrameworkElement renderOver = null)
         {
+            // renderFrom, then renderOver on top of it, are drawn in place of the container, which
+            // still gives the geometry: the same card's containers in a held wave's layer windows.
             pixels = null;
             width = 0;
             height = 0;
@@ -1235,6 +1242,7 @@ namespace PlayniteAchievements.Services.UI
                 var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
                 var buffer = takeBuffer(stride * ph);
                 var direct = CanRenderDirect(offset);
+                var source = renderFrom ?? container;
 
                 // Saved outputs blur their own frame under a blurred card, so its live background
                 // stays out of every render here (see ToastBlurLayers).
@@ -1242,11 +1250,11 @@ namespace PlayniteAchievements.Services.UI
                 using (ToastBlurLayers.HideForOutput(container, keepCardSurface))
                 {
                     renderMs = direct
-                        ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
-                        : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+                        ? RenderCardDirect(rtb, source, hostOpacity, buffer, stride, renderOver)
+                        : RenderCardViaBrush(rtb, source, local, offset, hostOpacity, buffer, stride, renderOver);
                 }
 
-                if (ToastCaptureProbe.Enabled && direct)
+                if (ToastCaptureProbe.Enabled && direct && renderFrom == null)
                 {
                     ProbeAgainstBrushRender(
                         container, local, offset, hostOpacity, pw, ph, dpiX, dpiY, stride,
@@ -1314,7 +1322,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardDirect(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            double hostOpacity, byte[] buffer, int stride)
+            double hostOpacity, byte[] buffer, int stride, FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var previousOpacity = container.Opacity;
@@ -1329,6 +1337,11 @@ namespace PlayniteAchievements.Services.UI
             {
                 rtb.Clear();
                 rtb.Render(container);
+                if (over != null)
+                {
+                    // A second render draws over what the target already holds.
+                    rtb.Render(over);
+                }
             }
             finally
             {
@@ -1359,7 +1372,8 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardViaBrush(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride)
+            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride,
+            FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var started = Stopwatch.GetTimestamp();
@@ -1380,6 +1394,17 @@ namespace PlayniteAchievements.Services.UI
                     Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
                 };
                 dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+                if (over != null)
+                {
+                    dc.DrawRectangle(
+                        new VisualBrush(over)
+                        {
+                            Stretch = Stretch.Fill,
+                            ViewboxUnits = BrushMappingMode.Absolute,
+                            Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
+                        },
+                        null, new Rect(0, 0, local.Width, local.Height));
+                }
 
                 if (fading)
                 {
@@ -1568,6 +1593,10 @@ namespace PlayniteAchievements.Services.UI
             // replay it, since the card pixels are rendered without the host's transform.
             var hostScale = SlideHostScale()?.ScaleX ?? 1d;
 
+            // A held wave's own window stands still under its layers, so the cards are read from
+            // the layer windows: the background's container with the content's drawn over it.
+            var layers = _activeSampleLayers;
+
             for (var i = 0; i < toastItems.Count; i++)
             {
                 var vm = toastItems[i];
@@ -1579,6 +1608,11 @@ namespace PlayniteAchievements.Services.UI
 
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
+                if (layers != null && _activeHoldPulse != null)
+                {
+                    // The glow is held at its peak in the window while the presenter pulses it.
+                    glowScale *= _activeHoldPulse.Scale();
+                }
 
                 // The clip draws its own blur under a blurred card; the card's place in its frame
                 // does not change across the wave, so it is measured once.
@@ -1652,7 +1686,19 @@ namespace PlayniteAchievements.Services.UI
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 var rayBursts = new List<Views.Controls.RarityRayBurst>();
                 CollectEffects(container, effects, rayBursts);
+                var layerUnder = layers?.CardContainer(layers.Background, i);
+                var layerOver = layers?.CardContainer(layers.Content, i);
+                var layerRays = layers?.CardContainer(layers.Rays, i);
+                var layered = layerUnder != null && layerOver != null;
+                var layerEffects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                if (layered)
+                {
+                    CollectEffects(layerUnder, layerEffects);
+                    CollectEffects(layerOver, layerEffects);
+                }
+
                 StripEffects(effects);
+                StripEffects(layerEffects);
                 HideRayBursts(rayBursts);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
@@ -1662,11 +1708,13 @@ namespace PlayniteAchievements.Services.UI
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
                         applyHostOpacity: false, captureScale, probeCase: null,
-                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys,
+                        renderFrom: layered ? layerUnder : null, renderOver: layered ? layerOver : null);
                 }
                 finally
                 {
                     RestoreRayBursts(rayBursts);
+                    RestoreEffects(layerEffects);
                     RestoreEffects(effects);
                 }
 
@@ -1682,7 +1730,8 @@ namespace PlayniteAchievements.Services.UI
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
                 // Rate-limited — the capture is the expensive path this design exists to avoid.
-                if (effects.Count > 0 &&
+                // Not from a held window, whose card is hidden: the halo it gave before stands.
+                if (!layered && effects.Count > 0 &&
                     elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
                     (pw != scratch.ShadowW || ph != scratch.ShadowH ||
                      !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
@@ -1701,13 +1750,17 @@ namespace PlayniteAchievements.Services.UI
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 &&
+                if ((layered ? layerRays != null : rayBursts.Count > 0) &&
                     _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
-                    rayDelta = ComputeRayLayerDelta(
-                        recorder, window, container, vm, pixels, pw, ph, captureScale,
-                        out rayW, out rayH);
+                    rayDelta = layered
+                        ? ComputeLayeredRayDelta(
+                            recorder, window, container, layerRays, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH)
+                        : ComputeRayLayerDelta(
+                            recorder, window, container, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH);
                     if (rayDelta != null)
                     {
                         scratch.LastRayCaptureMs = elapsedMs;
@@ -1771,6 +1824,56 @@ namespace PlayniteAchievements.Services.UI
             rayW = rw;
             rayH = rh;
             return withRays;
+        }
+
+        /// <summary>
+        /// The ray-burst difference layer of a held wave's card: its rays, rendered alone from
+        /// the rays layer's container, where this tick's bare render does not cover them. Equal
+        /// to what <see cref="ComputeRayLayerDelta"/> takes from a live card, whose rays are
+        /// drawn behind it. Null when the render fails or the sizes disagree.
+        /// </summary>
+        private byte[] ComputeLayeredRayDelta(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            FrameworkElement raysContainer, AchievementToastViewModel vm, byte[] barePixels,
+            int pw, int ph, double captureScale, out int rayW, out int rayH)
+        {
+            rayW = 0;
+            rayH = 0;
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => recorder.RentBuffer(vm, len),
+                    applyHostOpacity: false, captureScale, probeCase: null,
+                    out var rays, out var rw, out var rh, out _, out _, renderFrom: raysContainer))
+            {
+                return null;
+            }
+
+            if (rw != pw || rh != ph || rays.Length != barePixels.Length)
+            {
+                recorder.ReturnRentedBuffer(vm, rays);
+                return null;
+            }
+
+            KeepWhereUncovered(rays, barePixels);
+            rayW = rw;
+            rayH = rh;
+            return rays;
+        }
+
+        /// <summary>
+        /// Leaves of <paramref name="under"/> what shows once <paramref name="cover"/> is drawn
+        /// over it. Both premultiplied BGRA of one size: each channel is scaled by the
+        /// transparency of the cover's pixel.
+        /// </summary>
+        internal static void KeepWhereUncovered(byte[] under, byte[] cover)
+        {
+            for (var i = 0; i + 3 < under.Length && i + 3 < cover.Length; i += 4)
+            {
+                var keep = 255 - cover[i + 3];
+                under[i] = (byte)((under[i] * keep) / 255);
+                under[i + 1] = (byte)((under[i + 1] * keep) / 255);
+                under[i + 2] = (byte)((under[i + 2] * keep) / 255);
+                under[i + 3] = (byte)((under[i + 3] * keep) / 255);
+            }
         }
 
         /// <summary>
@@ -2998,7 +3101,7 @@ namespace PlayniteAchievements.Services.UI
                 if (visible)
                 {
                     holdLayers = PrepareHoldLayers(
-                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: !recordsTrack);
+                        window, items, cardItems, template, needsPerMonitorWindow, holdMain: true);
                 }
 
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
@@ -3249,10 +3352,11 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast countdown animation failed.");
                 }
 
-                // While the cards rest, an animated background plays from a layer of its own. The
-                // wave's own window must stay live for a track recorder, which samples its cards.
+                // While the cards rest, an animated background plays from a layer of its own and
+                // the wave's own window stands still. A track recorder then samples the cards
+                // from the layers (SampleWaveTracks).
                 var holdWatch = Stopwatch.StartNew();
-                var holdMain = trackRecorder == null;
+                var holdMain = true;
                 holdLayers = await BeginHoldLayersAsync(
                     window, items, cardItems, template, needsPerMonitorWindow, holdMain, holdLayers)
                     .ConfigureAwait(true);
@@ -3404,6 +3508,7 @@ namespace PlayniteAchievements.Services.UI
 
                 StopActiveSlide();
                 StopPresenter();
+                _activeSampleLayers = null;
                 holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
@@ -6523,6 +6628,7 @@ namespace PlayniteAchievements.Services.UI
                 {
                     layers.MainHold = HoldMainUnderLayers(surface, layers.Rays != null, out var mainIsStill);
                     layers.MainIsStill = mainIsStill;
+                    _activeSampleLayers = layers;
                     if (mainIsStill)
                     {
                         // Nothing of the wave issues GPU work now, so nothing of it waits on the
@@ -6540,6 +6646,7 @@ namespace PlayniteAchievements.Services.UI
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast hold layers failed; the wave rests as one window.");
+                _activeSampleLayers = null;
                 try
                 {
                     presenter?.RemoveLayers();
@@ -6795,6 +6902,8 @@ namespace PlayniteAchievements.Services.UI
                         ToastGpuPriority.Raise();
                     }
 
+                    // Live again, so the sampler reads the window's own cards from here on.
+                    _activeSampleLayers = null;
                     layers.MainHold.Dispose();
                     layers.MainHold = null;
                     await Task.Delay(handBackMs).ConfigureAwait(true);
