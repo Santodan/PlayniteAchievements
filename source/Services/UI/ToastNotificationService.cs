@@ -2985,10 +2985,6 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 PlaceWindow(window, "preshow");
-                if (_settings?.Persisted?.NotificationRenderMode == NotificationRenderMode.Quality)
-                {
-                    ToastGpuPriority.Raise();
-                }
                 window.Show();
                 if (_activeDwmComposed)
                 {
@@ -3532,7 +3528,6 @@ namespace PlayniteAchievements.Services.UI
                 {
                 }
 
-                ToastGpuPriority.Restore();
                 if (ReferenceEquals(_activeWindow, window))
                 {
                     _activeWindow = null;
@@ -6647,12 +6642,6 @@ namespace PlayniteAchievements.Services.UI
                     layers.MainHold = HoldMainUnderLayers(surface, layers.Rays != null, out var mainIsStill);
                     layers.MainIsStill = mainIsStill;
                     _activeSampleLayers = layers;
-                    if (mainIsStill)
-                    {
-                        // Nothing of the wave issues GPU work now, so nothing of it waits on the
-                        // GPU; EndHoldLayersAsync raises the class again for the hand-back.
-                        ToastGpuPriority.Restore();
-                    }
                 }
 
                 _logger?.Info(
@@ -6927,12 +6916,6 @@ namespace PlayniteAchievements.Services.UI
                         }
                     }
 
-                    if (layers.MainIsStill &&
-                        _settings?.Persisted?.NotificationRenderMode == NotificationRenderMode.Quality)
-                    {
-                        ToastGpuPriority.Raise();
-                    }
-
                     // Live again, so the sampler reads the window's own cards from here on.
                     _activeSampleLayers = null;
                     layers.MainHold.Dispose();
@@ -7057,8 +7040,6 @@ namespace PlayniteAchievements.Services.UI
             catch
             {
             }
-
-            ToastGpuPriority.Restore();
         }
     }
 }
