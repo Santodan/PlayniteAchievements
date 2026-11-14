@@ -155,6 +155,15 @@ namespace PlayniteAchievements.Services.UI
                     return null;
                 }
 
+                // A burst shown with the background continues the wave of the one it stands in for.
+                var mainUnder = ToastLayer.Find(mainSurface, ToastLayerRole.Underlay);
+                var layerUnder = ToastLayer.Find((DependencyObject)background.Content, ToastLayerRole.Underlay);
+                for (var i = 0; i < layerUnder.Count && i < mainUnder.Count; i++)
+                {
+                    (layerUnder[i] as Views.Controls.RarityRayBurst)?.CopyEpochFrom(
+                        mainUnder[i] as Views.Controls.RarityRayBurst);
+                }
+
                 ToastLayer.ShowOnlyBackground((DependencyObject)background.Content);
                 ToastLayer.ShowOnlyContent((DependencyObject)content.Content);
                 if (rays != null)
