@@ -95,6 +95,44 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "run the persistence hook for every field of every changed row.");
         }
 
+        [TestMethod]
+        public void AReload_KeepsAProviderRowSelectedByItsApiName()
+        {
+            var source = ReadRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs");
+
+            // Provider rows have no id. Restored by id alone, the selection of a linked manual
+            // row fell to the first row on every reload, and the details pane's next unlock-time
+            // edit was written to that row instead.
+            var byApiName = source.IndexOf(
+                "string.Equals(row?.OriginalApiName, previousSelectedApiName, StringComparison.OrdinalIgnoreCase))",
+                StringComparison.Ordinal);
+            Assert.IsTrue(byApiName >= 0, "The selection restore must fall back to the ApiName.");
+
+            var firstRow = source.IndexOf(
+                "?? AchievementRows.FirstOrDefault();", byApiName, StringComparison.Ordinal);
+            Assert.IsTrue(firstRow > byApiName, "The first row is the last resort, after the ApiName match.");
+        }
+
+        [TestMethod]
+        public void TheManualUnlockWrite_IsMarkedAsTheEditorsOwnBeforeItRuns()
+        {
+            var source = ReadRepoFile(
+                "source", "ViewModels", "ManageAchievements", "ManageAchievementsEditorViewModel.cs");
+
+            var start = source.IndexOf("private void FlushManualUnlocks()", StringComparison.Ordinal);
+            Assert.IsTrue(start >= 0, "Could not find FlushManualUnlocks.");
+            var end = source.IndexOf("private void ", start + 20, StringComparison.Ordinal);
+            var body = source.Substring(start, end - start);
+
+            // The cache projection raises the cache-updated event inside the write, so a marker
+            // set afterwards arrives after the host has already scheduled a full reload.
+            var marker = body.IndexOf("SuppressExternalRefresh = true;", StringComparison.Ordinal);
+            var write = body.IndexOf("SetManualUnlockStates(", StringComparison.Ordinal);
+            Assert.IsTrue(marker >= 0 && write > marker,
+                "The self-write marker must be set before the manual unlock write.");
+        }
+
         private static string ReadRestoreBody()
         {
             var source = ReadRepoFile(
