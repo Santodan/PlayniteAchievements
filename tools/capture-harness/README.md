@@ -917,6 +917,51 @@ medians of 3 cycles, hold changed/s and the game's fps in the hold (`--no-captur
   The live image reaching the background layer, and the card's own window standing still while it changes
   (`ToastLayer.ReleaseHiddenImages`), are not measured.
 
+#### The card control, the hand-over, and waves of several cards
+
+Measured 2026-11-14 on the 60 Hz virtual display (one card's window 951x588 px).
+
+`controls:ToastCard` (Themes/Generic.xaml) carries the rays, glow, surface and background with their
+`ToastLayer` roles; the bundled template is the control around its content.
+`--compare` of the previous bundled template against it: 0 of 559,188 pixels differ on the WebM, still PNG,
+no-image and blurred cards.
+A five-line theme template built on the control was split and held 59.7/s under `GameLoad --work 4000`; one
+with a plain `Border` root logs `Hold layers: not split, the template marks no element ...` and held 0.0/s
+(nothing in it animates).
+
+The hand-over when the wave comes to rest, `--layers-compare` under `GameLoad --work 4000`, the most pixels
+of any of the 30 compositions after it that differ by more than 16 levels from the one before it:
+
+| path | runs |
+|---|---|
+| layers built at the hold: glow held at its peak there, rays change hands | 57,198 / 57,212 / 13,405 |
+| layers built before the entrance: glow held and rays shown from their layer before the reveal | 7,262 / 7,268 / 7,791 |
+
+The second row is what the card's own animation changes in that time.
+In the first the saved composition shows the glow brighter than before the hand-over.
+
+Waves of several cards (`--cards N`), hold changed/s with no game unless noted:
+
+| | 1 card | 2 cards | 4 cards |
+|---|---|---|---|
+| one window under `GameLoad --work 4000` | 12.4 | 6.0 | 1.0 |
+| layers, as first measured (WebM, under the game) | 59.0 | 38.2 | 32.0 |
+| layers now, still PNG | 59.8 | 57.2 | 42.8-44.4 |
+| layers now, WebM | 59.6 | 42.6 | 40.0-42.6 |
+
+- Building the layers took 118-166 ms for one card and 255-1609 ms for two to four when first measured, and
+  187-414 ms for four after the changes below.
+- With four cards: the icon halos' pulses and the icons' rays, in the content layer, each had the
+  content's effects run again around every icon.
+  Marked `ToastLayer.Role` `Underlay`, they are shown with the background: four cards without rays then held
+  56.2-56.8, where with the halos pulsing in the content layer they held 48.2.
+- The icon's burst rasterized (`IsRasterized`): icon rays alone, four cards, 42.8 to 47.0-55.8.
+- One card's burst took 2.1-3.0 ms a frame at this size (fill 1.9 ms, bitmap 881x193).
+  The driver fills the bursts of a tick across threads (`IRayBatchTarget`); the hold with four cards' card
+  rays alone stayed at 39.4-43.2 with WPF's frame callback at 30 a second, so the fill is not what holds it.
+  Drawing the bitmaps unfiltered changed nothing (44.4, 40.0).
+  What a frame of four card bursts spends its time on is not measured.
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
 The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
 from the presented pulse are not exercised by the bench.
