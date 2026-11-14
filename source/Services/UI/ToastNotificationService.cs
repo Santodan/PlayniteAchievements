@@ -3499,6 +3499,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
                 RayAnimationDriver.ClearSamplingFps();
+                RayAnimationDriver.ClearHeldFps();
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
@@ -5234,7 +5235,14 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
-                presenter.MainOpacityScale = _activeHoldPulse?.Scale() ?? 1d;
+                // The pulse is a function of its own clock, so the presenter reads it on the
+                // frame pump's thread at every composition, whatever the UI thread is doing.
+                var pulse = _activeHoldPulse;
+                if (!ReferenceEquals(presenter.MainOpacitySource?.Target, pulse))
+                {
+                    presenter.MainOpacitySource = pulse != null ? pulse.Scale : (Func<double>)null;
+                }
+
                 presenter.Update(PresentedMotion(), host.Opacity);
             }
             catch
@@ -6562,6 +6570,9 @@ namespace PlayniteAchievements.Services.UI
         // presented the background's current frame by the time the layers over it go.
         private const int HoldLayerHandBackMs = 250;
 
+        // The rays' redraws per second while they rest in a layer of their own.
+        private const double HoldLayerRayFps = 60d;
+
         /// <summary>
         /// Splits a resting wave into layers when its backgrounds are opaque images: the
         /// backgrounds and the content each go to a cloaked window of their own, drawn by the
@@ -6624,6 +6635,11 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 presenter.ShowLayers();
+                if (layers.Rays != null)
+                {
+                    RayAnimationDriver.SetHeldFps(HoldLayerRayFps);
+                }
+
                 if (holdMain)
                 {
                     layers.MainHold = HoldMainUnderLayers(surface, layers.Rays != null, out var mainIsStill);
@@ -6646,6 +6662,7 @@ namespace PlayniteAchievements.Services.UI
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Toast hold layers failed; the wave rests as one window.");
+                RayAnimationDriver.ClearHeldFps();
                 _activeSampleLayers = null;
                 try
                 {
@@ -6784,6 +6801,11 @@ namespace PlayniteAchievements.Services.UI
         private void ReleaseBackPulses(List<FrameworkElement> held, HoldPulse pulse = null)
         {
             pulse = pulse ?? _activeHoldPulse;
+            if (_activeHoldPulse != null && _activePresenter?.MainOpacitySource != null)
+            {
+                _logger.Info("[Toast] Presenter pulse: " + _activePresenter.RestReport());
+            }
+
             _activeHoldPulse = null;
             var cycleSeconds = pulse?.CycleSeconds() ?? 0d;
             foreach (var glow in held)
@@ -6880,6 +6902,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private async Task EndHoldLayersAsync(Window window, ToastHoldLayers layers, int handBackMs)
         {
+            RayAnimationDriver.ClearHeldFps();
             try
             {
                 StopCountdownBars(layers.Content);
