@@ -3507,6 +3507,8 @@ namespace PlayniteAchievements.Services.UI
                 StopActiveSlide();
                 StopPresenter();
                 _activeSampleLayers = null;
+                _activeHoldPulse = null;
+                _preHeldPulses = null;
                 holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
@@ -6586,6 +6588,20 @@ namespace PlayniteAchievements.Services.UI
             Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
             DataTemplate template, bool perMonitorWindow, bool holdMain, ToastHoldLayers prepared = null)
         {
+            var layers = await BeginHoldLayersCoreAsync(
+                window, surface, cards, template, perMonitorWindow, holdMain, prepared).ConfigureAwait(true);
+            if (layers == null)
+            {
+                ReleasePreHeldPulses();
+            }
+
+            return layers;
+        }
+
+        private async Task<ToastHoldLayers> BeginHoldLayersCoreAsync(
+            Window window, ItemsControl surface, IReadOnlyList<AchievementToastViewModel> cards,
+            DataTemplate template, bool perMonitorWindow, bool holdMain, ToastHoldLayers prepared)
+        {
             var presenter = _activePresenter;
             var layers = prepared;
             try
@@ -6647,7 +6663,8 @@ namespace PlayniteAchievements.Services.UI
                 _logger?.Info(
                     $"[Toast] Hold layers: shown {waited.ElapsedMilliseconds} ms into the hold, " +
                     $"built {layers.AgeMs} ms ago, mainHeld={holdMain}, " +
-                    $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}");
+                    $"mainStill={layers.MainIsStill}, pulsePresented={_activeHoldPulse != null}, " +
+                    $"pulseHeldAhead={_pulseHeldAhead}");
                 return layers;
             }
             catch (Exception ex)
@@ -6699,6 +6716,10 @@ namespace PlayniteAchievements.Services.UI
                 {
                     _logger?.Info("[Toast] Hold layers: not built, the wave rests as one window.");
                 }
+                else if (holdMain && _preHeldPulses == null)
+                {
+                    _preHeldPulses = PreHoldBackPulses(surface, layers.Rays != null);
+                }
 
                 return layers;
             }
@@ -6738,7 +6759,8 @@ namespace PlayniteAchievements.Services.UI
             var restoreImages = ToastLayer.ReleaseHiddenImages(surface);
             return new HeldMain(() =>
             {
-                ReleaseBackPulses(heldPulses);
+                // heldPulses stay at their peak for what is left of the wave.
+                FadeBackPulsesToPeak(HoldLayerHandBackMs / 2);
                 restoreImages();
                 showAll();
                 stills.Dispose();
@@ -6762,9 +6784,24 @@ namespace PlayniteAchievements.Services.UI
         {
             var held = new List<FrameworkElement>();
             mainIsStill = false;
+            var ahead = _preHeldPulses;
+            _preHeldPulses = null;
+            _pulseHeldAhead = ahead != null;
             if (!raysLayered && ToastLayer.Find(surface, ToastLayerRole.Rays).Exists(rays => rays.IsVisible))
             {
+                ReleasePreHeldPulses(ahead);
                 return held;
+            }
+
+            if (ahead != null)
+            {
+                // The glows already stand at their peak, so the presented pulse starts there at
+                // full opacity: nothing changes on screen at this moment, whenever the window and
+                // the thumbnail's opacity each reach it.
+                _activeHoldPulse = new HoldPulse(ahead.Peak, ahead.Floor, ahead.Peak, ahead.HalfCycleSeconds);
+                mainIsStill = true;
+                UpdatePresenter();
+                return ahead.Glows;
             }
 
             var glows = ToastLayer.Find(surface, ToastLayerRole.Back);
@@ -6798,7 +6835,123 @@ namespace PlayniteAchievements.Services.UI
 
             _activeHoldPulse = pulse;
             mainIsStill = true;
+            UpdatePresenter();
             return held;
+        }
+
+        /// <summary>
+        /// Glows held at their peak before the wave is shown, for <see cref="HoldBackPulses"/> to
+        /// take over when the wave comes to rest.
+        /// </summary>
+        private sealed class PreHeldPulses
+        {
+            public List<FrameworkElement> Glows;
+            public double Floor;
+            public double Peak;
+            public double HalfCycleSeconds;
+        }
+
+        private PreHeldPulses _preHeldPulses;
+
+        // Whether the pulse the presenter shows now was held before the wave was shown.
+        private bool _pulseHeldAhead;
+
+        /// <summary>
+        /// Stands every card's border glow still at its pulse's peak, under the conditions
+        /// <see cref="HoldBackPulses"/> hands a pulse to the presenter under, or returns null
+        /// having changed nothing. Called while the wave is still hidden: the glow then shows at
+        /// its peak through the entrance, and the presented pulse starts from that peak when the
+        /// wave comes to rest. Holding a glow that is mid-sweep at that moment instead shows its
+        /// jump to the peak for as long as the thumbnail's opacity takes to follow.
+        /// </summary>
+        private PreHeldPulses PreHoldBackPulses(ItemsControl surface, bool raysLayered)
+        {
+            try
+            {
+                if (!raysLayered && ToastLayer.Find(surface, ToastLayerRole.Rays).Exists(rays => rays.IsVisible))
+                {
+                    return null;
+                }
+
+                var glows = ToastLayer.Find(surface, ToastLayerRole.Back);
+                var pulsing = glows.Where(RarityGlowPulse.GetIsActive).ToList();
+                if (pulsing.Count == 0 || pulsing.Count != glows.Count)
+                {
+                    return null;
+                }
+
+                var ahead = new PreHeldPulses { Glows = new List<FrameworkElement>() };
+                foreach (var glow in pulsing)
+                {
+                    if (!RarityGlowPulse.TryHoldEffectPulseAtPeak(glow, out _, out var floor, out var peak, out var seconds) ||
+                        (ahead.Glows.Count > 0 &&
+                         (Math.Abs(floor - ahead.Floor) > 1e-6 || Math.Abs(peak - ahead.Peak) > 1e-6 ||
+                          Math.Abs(seconds - ahead.HalfCycleSeconds) > 1e-6)))
+                    {
+                        ReleasePreHeldPulses(ahead);
+                        return null;
+                    }
+
+                    ahead.Glows.Add(glow);
+                    ahead.Floor = floor;
+                    ahead.Peak = peak;
+                    ahead.HalfCycleSeconds = seconds;
+                }
+
+                return ahead;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Lets glows held ahead pulse in the window again, from their peak.</summary>
+        private void ReleasePreHeldPulses(PreHeldPulses ahead = null)
+        {
+            if (ahead == null)
+            {
+                ahead = _preHeldPulses;
+                _preHeldPulses = null;
+            }
+
+            if (ahead?.Glows == null)
+            {
+                return;
+            }
+
+            foreach (var glow in ahead.Glows)
+            {
+                try
+                {
+                    RarityGlowPulse.ReleaseEffectPulse(glow, ahead.HalfCycleSeconds);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        /// <summary>
+        /// Brings the presented pulse up to its peak over <paramref name="milliseconds"/> and
+        /// leaves the glows standing at theirs: the wave's own window then shows the glow as the
+        /// thumbnail did, without either having to change at one instant. For the hand-back
+        /// before the exit, where the window is about to show the whole card at full opacity.
+        /// </summary>
+        private void FadeBackPulsesToPeak(int milliseconds)
+        {
+            var pulse = _activeHoldPulse;
+            if (pulse == null)
+            {
+                return;
+            }
+
+            if (_activePresenter?.MainOpacitySource != null)
+            {
+                _logger?.Info("[Toast] Presenter pulse: " + _activePresenter.RestReport());
+            }
+
+            pulse.FadeToPeak(milliseconds);
         }
 
         private void ReleaseBackPulses(List<FrameworkElement> held, HoldPulse pulse = null)
@@ -6861,9 +7014,32 @@ namespace PlayniteAchievements.Services.UI
                 return (_startSeconds + _clock.Elapsed.TotalSeconds) % (2d * _halfCycleSeconds);
             }
 
+            private double _fadeFrom = -1d;
+            private double _fadeMs;
+            private readonly Stopwatch _fade = new Stopwatch();
+
+            /// <summary>
+            /// Leaves the sweep and rises from the opacity shown now to the peak over
+            /// <paramref name="milliseconds"/>, then stays there. Read from other threads.
+            /// </summary>
+            public void FadeToPeak(double milliseconds)
+            {
+                var from = Scale();
+                _fadeMs = Math.Max(1d, milliseconds);
+                _fade.Restart();
+                System.Threading.Volatile.Write(ref _fadeFrom, from);
+            }
+
             /// <summary>The pulse's opacity now, as a fraction of its peak.</summary>
             public double Scale()
             {
+                var fadeFrom = System.Threading.Volatile.Read(ref _fadeFrom);
+                if (fadeFrom >= 0d)
+                {
+                    var t = Math.Min(1d, _fade.Elapsed.TotalMilliseconds / _fadeMs);
+                    return fadeFrom + ((1d - fadeFrom) * ((1d - Math.Cos(Math.PI * t)) / 2d));
+                }
+
                 if (_peak <= 0)
                 {
                     return 1d;
