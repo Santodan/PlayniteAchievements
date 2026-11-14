@@ -891,6 +891,32 @@ With all of it, medians of 3 cycles (entrance / hold / exit, changed/s):
 - Serving the two bursts on alternate frames changed nothing (91.6 against 92.1, before the pulse was
   stopped).
 
+#### Cards without a background image, and blurred cards
+
+A card is split when the lowest thing its `ToastLayer.Role` `Surface` and `Background` elements draw is
+opaque (`ToastLayer.CanSplit`).
+The bundled template marks its card surface `Surface` and a blurred card's live image and tint `Background`,
+so the background layer shows the surface where no image covers it, without the glow of the element it
+sits in.
+The bench gives the popup brushes a Playnite theme supplies (`PlayAch.Brush.PopupSurface`, opaque here);
+with a translucent one a card without an image rests as one window.
+
+Measured 2026-11-14 on the 60 Hz virtual display (card window 951x588 px) under `GameLoad --work 4000`,
+medians of 3 cycles, hold changed/s and the game's fps in the hold (`--no-capture`):
+
+| card | one window | layers |
+|---|---|---|
+| no background image | 12.4/s, game 99.0 | 59.0/s, game 99.9 |
+| blurred background, no live image | 12.2/s, game 99.6 | 59.4/s, game 100.0 |
+| WebM background | - | 58.4/s |
+
+- With no game the two held at 59.2-59.4 and 59.7 of 60.
+- `--layers-compare` snapshots of both cards before and after the split show the same picture; the sampler's
+  render from the layers has the surface under the content.
+- The bench does not start `ToastLiveBackdrop`, so a blurred card here is its tint over the surface.
+  The live image reaching the background layer, and the card's own window standing still while it changes
+  (`ToastLayer.ReleaseHiddenImages`), are not measured.
+
 Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
 The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
 from the presented pulse are not exercised by the bench.
