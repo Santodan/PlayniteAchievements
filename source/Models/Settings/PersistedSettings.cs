@@ -151,7 +151,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
-        private NotificationRenderMode _notificationRenderMode = NotificationRenderMode.Performance;
         private int _recentRefreshGamesCount = 10;
         private RefreshModeType _defaultOverviewRefreshMode = RefreshModeType.Installed;
         private bool _enableAchievementHotkeys = true;
@@ -1403,16 +1402,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastPosition;
             set => SetValue(ref _toastPosition, value);
-        }
-
-        /// <summary>
-        /// Whether a shown notification takes realtime GPU scheduling (Quality) or leaves the game
-        /// its frame rate (Performance).
-        /// </summary>
-        public NotificationRenderMode NotificationRenderMode
-        {
-            get => _notificationRenderMode;
-            set => SetValue(ref _notificationRenderMode, value);
         }
 
         /// <summary>
@@ -3366,7 +3355,6 @@ namespace PlayniteAchievements.Models.Settings
                 CaptureDelaySeconds = this.CaptureDelaySeconds,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
-                NotificationRenderMode = this.NotificationRenderMode,
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
