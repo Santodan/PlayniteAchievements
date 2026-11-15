@@ -1111,11 +1111,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">解除済みアイコンにレア度発光を表示する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GameMetadataHeader">ゲームメタデータ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewMiniShowcase">ミニショーケースを表示する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PieCenter">Pie Center</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieCenter">円グラフ中心</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Percentage">百分率</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Empty">Empty</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Filled">Filled</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPieIcons">Show Pie Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Empty">中抜き</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Filled">塗りつぶし</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPieIcons">円グラフアイコンを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieLegendPosition">凡例の位置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardBadgePosition">バッジの位置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardUseCustomColors">カスタムレア度色を使用する</sys:String>
@@ -1144,9 +1144,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">プログレスバーの上に名前を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">レア度バッジをプログレスバーの下に表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">ツリーのみを表示</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PieIncludeLocked">Show locked slice</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">Small Slice Handling</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">Exact</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieIncludeLocked">未解除スライスを生じ</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode">小スライス処理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Exact">精確</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OverviewPieSmallSliceMode_Round">四捨五入</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StatsPreview">統計</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">表示</sys:String>
@@ -1238,8 +1238,8 @@
     <sys:String x:Key="LOCPlayAch_Dynamic_NoLastUnlock">No Last Unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Overview_GameSummaries">ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Overview_Incomplete">未クリア</sys:String>
-    <sys:String x:Key="LOCPlayAch_Overview_NoGameSelected">No game selected in the overview.</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_Title">Friends Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_Overview_NoGameSelected">概要でゲームが選択されていません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_Title">フレンドの概要</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_FriendSummaries">フレンド</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SearchFriends">フレンドを検索</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">すべてのプラットフォーム</sys:String>
@@ -1256,7 +1256,7 @@
     <sys:String x:Key="LOCPlayAch_FriendsOverview_NoData">フレンドの実績データがまだありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_LoadFailed">Failed to load friend achievement data.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_RefreshFailed">フレンドの更新に失敗しました。</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_NotAvailable">Friends Overview is not available.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_NotAvailable">フレンドの概要は利用できません。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectTargetForRefresh">Select a friend or game before refreshing selected friend data.</sys:String>
     <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_WindowTitle">{0} - フレンドの実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_TitleFallback">フレンドの実績</sys:String>
@@ -1540,7 +1540,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Day">{0} 日</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Days">{0} 日</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Hours">{0:N0} 時間</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ThousandsHours">{0:N1} 千時間</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ThousandsHours">{0:N1} k時間</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PerDay">{0:N1}/日</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCards">スコアカード</sys:String>
@@ -1568,7 +1568,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_FinishNext">Finish next</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion">次に狙う実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_Easiest">最も解除しやすい実績</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_ClosestToCompletion">まもなくクリア</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_ClosestToCompletion">まもなく達成</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_LastPlayedWindow">指定期間内にプレイ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MaxPerGame">Most per game</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_IncludeHiddenAchievements">隠し実績を含める</sys:String>
