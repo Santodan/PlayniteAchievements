@@ -939,11 +939,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">プログレスバーの下に表示するバッジを選択します。&quot;トロフィー&quot; は、トロフィーデータがあるゲームにはトロフィーを表示し、それ以外のゲームではレア度分布を表示します。&quot;レア度&quot; は常にレア度分布を表示します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge">カテゴリークリアバッジ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadgeMode_First">先頭</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn">Category column</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn">カテゴリー列</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Subcategory">サブカテゴリー</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_TopLevel">Top level</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_TopLevel">最上位の階層</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_FullPath">フルパス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">Which part of a nested category the Category column shows. Hover a cell to see the full path.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">階層構造のカテゴリーのうち、カテゴリー列に表示する部分を指定します。セルにカーソルを合わせるとフルパスが表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">カテゴリーモード時、プログレスバーの下にクリアバッジを表示するカテゴリー行を指定します。先頭を選択すると設定したカテゴリー順の最初のカテゴリーが対象となり、列でグリッドを並べ替えてもそのカテゴリーに追従します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Image scaling in columns</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Stretch to fill</sys:String>
