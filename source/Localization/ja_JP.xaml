@@ -195,7 +195,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Column_Avatar">アバター</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Primary">プライマリ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_PrimaryHint">The account whose avatar and name represent this merged friend.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_PrimaryHint">この統合済みフレンドのアバターと表示名に使用されるアカウントです。</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Accounts">アカウント</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Status">状態</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Cover">カバー</sys:String>
@@ -476,9 +476,9 @@
     <sys:String x:Key="LOCPlayAch_CategorySummaries_FilterPlaceholder">カテゴリーをフィルター...</sys:String>
     <sys:String x:Key="LOCPlayAch_CategorySummaries_ToggleToolTip">Group achievements by category</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode">カテゴリーモードで開始</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HideCategorySummaryRow">Hide Category Grid After Selection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HideCategorySummaryRow">選択後にカテゴリーグリッドを隠す</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGrid">カテゴリーグリッド</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Use Covers Instead of Icons for Missing Art</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">カテゴリー画像がない場合はアイコンの代わりにカバー画像を使用</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Editor">編集</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">グローバルにする</sys:String>
@@ -486,7 +486,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GlobalHeader">グローバルタグ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GameHeader">ゲームタグ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_Empty">このゲームにはまだタグがありません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_FetchedHint">From this game's achievement data: it can be renamed and recolored, but not deleted.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_FetchedHint">このゲームの実績データから取得された項目です。名前の変更や色の変更は可能ですが、削除はできません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">目標実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Revert">復元</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">選択した実績への変更を破棄し、取得元の値を再表示します。</sys:String>
@@ -780,7 +780,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_FontThemeDefault">テーマデフォルト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTexts">ヘッダーテキスト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderTextsHint">ローカライズされたデフォルトを使用する場合は空欄のままにしてください。{0} にはフレンド名、またはゲーム完全クリア! タイトルのゲーム名が挿入されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendUnlock">Friend unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendUnlock">フレンドが解除しました</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderCongratulations">100% クリア率</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendCompleted">フレンドがゲームをクリアしました</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFormatInvalid">The friend header must include {0} for the friend's name.</sys:String>
@@ -945,10 +945,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_FullPath">フルパス</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryColumn_Help">階層構造のカテゴリーのうち、カテゴリー列に表示する部分を指定します。セルにカーソルを合わせるとフルパスが表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge_Help">カテゴリーモード時、プログレスバーの下にクリアバッジを表示するカテゴリー行を指定します。先頭を選択すると設定したカテゴリー順の最初のカテゴリーが対象となり、列でグリッドを並べ替えてもそのカテゴリーに追従します。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">Image scaling in columns</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">Stretch to fill</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">元のサイズまで</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Help">How art sizes in resizable grid columns, such as the achievement icon, category and game columns, the Overview game list and the Manage Achievements editor. Stretch to fill grows art to fill the cell; Up to own size grows it no larger than its own pixel size. Both shrink art to fit a narrower column.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode">列内の画像スケーリング</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Stretch">セルに合わせて拡大</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_UpToOwnSize">元のサイズまで拡大</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconScaleMode_Help">実績アイコン、カテゴリーおよびゲーム列など、幅を変更できるグリッド列内での画像サイズの調整方法を設定します。&quot;セルに合わせて拡大&quot;はセルいっぱいに画像を拡大し、&quot;元のサイズまで拡大&quot;は画像本来のピクセルサイズを超えない範囲で拡大します。どちらの設定でも、列幅が狭い場合は列に合わせて縮小されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">ピクセル (空欄 = 無制限)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">行 (空欄 = 無制限)</sys:String>
 
@@ -975,20 +975,20 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint">自分が所有していないゲームも含めて、フレンドのゲームをスキャンする「完全更新」を許可します。無効にすると、完全モードは非表示となり、フレンドの更新はライブラリ内のゲームのみが対象となります。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_ManualAdd">フレンドの手動追加</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeInvalid">Select at least two friends from different platforms to merge.</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">Merge Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">Ignore Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">Un-ignore Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">選択したフレンドを統合</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">選択したフレンドを無視</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">選択したフレンドの無視を解除</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">Merged</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">統合済み</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">No auto-discovery platforms are enabled.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">Friends refreshed: {0:N0}.</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_Unmerge">Unmerge</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_Unmerge">統合を解除</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplay">フレンド名の表示</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplayHint">How friend names combine the profile name and the nickname you assigned on the platform. Renames entered in the table below always take priority.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplayHint">プラットフォーム上のプロフィール名と、プラットフォームで設定したニックネームをどのように組み合わせてフレンド名を表示するか設定します。下の表で入力した変更後の名前は常に優先されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplayMode_Persona">プロフィール名</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplayMode_Nickname">ニックネーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplayMode_PersonaAndNickname">プロフィール名 (ニックネーム)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FriendsTableHint">Ignore friends to skip them during refreshes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FriendsTableHint">無視したフレンドは更新時にスキップされます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RefreshFriendsList">フレンドリストを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">Use Data for Azeroth for WoW Rarity</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">Fills global rarity percentages from the Data for Azeroth website while keeping native achievement data.</sys:String>
@@ -1116,8 +1116,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Empty">Empty</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PieCenter_Filled">Filled</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowOverviewPieIcons">Show Pie Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PieLegendPosition">Legend Position</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScoreCardBadgePosition">Badge Position</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieLegendPosition">凡例の位置</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScoreCardBadgePosition">バッジの位置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardUseCustomColors">カスタムレア度色を使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardShowTotal">Show Total Points</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">トップメニューバーボタンを表示する</sys:String>
@@ -1127,7 +1127,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_UseTrophiesForRarity">レア度にトロフィーを使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages">レア度百分率の四捨五入</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">Values under 1% display as &lt;1%.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">Color Completed Progress Bars</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">クリア済みプログレスバーを着色する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SoftGlowTiers">ソフト発光ランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RayGlowTiers">回転レイランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GlowTiers_Help">各エフェクトを適用する項目を選択します。ソフト発光はアイコンの周囲に広がる光彩、回転レイはアイコンの背後に広がる放射状の光線です。&quot;クリア&quot; はクリア済みのゲームやカテゴリーアートを対象とします。</sys:String>
@@ -1524,8 +1524,8 @@
     <sys:String x:Key="LOCPlayAch_Showcase_UnknownProvider">不明な取得元</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableAchievement">獲得不可の実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableGame">利用不可のゲーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MoveEarlier">Move earlier</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MoveLater">Move later</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_MoveEarlier">前へ移動</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_MoveLater">後ろへ移動</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Range">範囲</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Mode">モード</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_TopN">Top entries</sys:String>
@@ -1544,7 +1544,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_PerDay">{0:N1}/日</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCards">スコアカード</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ScoreHistory">Score over time</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ScoreHistory">スコアの推移</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreMode_Collection">収集</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreMode_Prestige">名声</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileMedals">メダル</sys:String>
@@ -1559,17 +1559,17 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ScoreCardArt_GameIcon">ゲームアイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarWidth">アバターの幅</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarHeight">アバターの高さ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">Link icon size</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">リンクアイコンサイズ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">取得元またはサービス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">Unlock next</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">次の解除候補</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Completed">クリアしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_All">すべてのゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_PlayniteFavorites">Playnite favorites</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_FinishNext">Finish next</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion">Hunt for</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_Easiest">Easiest to get</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion">次に狙う実績</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_Easiest">最も解除しやすい実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnlockNextCriterion_ClosestToCompletion">まもなくクリア</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_LastPlayedWindow">Played within</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_LastPlayedWindow">指定期間内にプレイ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MaxPerGame">Most per game</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_IncludeHiddenAchievements">隠し実績を含める</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_FinishNextCriterion_FewestRemaining">Fewest remaining</sys:String>
@@ -1614,7 +1614,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Scores">スコアカード</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Pie">円グラフ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Timeline">タイムライン</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Widget_Statistics">Overall Statistics</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_Statistics">全体の統計</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_NativePoints">Native Points</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_IconMosaic">モザイク</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_ScreenshotSlideshow">スクリーンショットスライドショー</sys:String>
