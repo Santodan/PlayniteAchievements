@@ -1,5 +1,27 @@
 # Fork maintenance bundle
 
+## PS5 detail header correction when reopening hidden panels - 2026-11-15
+
+Preserve the progress adapter's `IsVisibleChanged` subscription alongside its
+context-change subscription. Reused detail panels can restore original header
+bindings while hidden without raising Loaded or changing DataContext. Recheck
+progress when the controls become visible, before rendering, rather than waiting
+for background discovery. Unsubscribe on unload and retain the fallback scan.
+
+Refreshed against the unchanged v4.2.1 baseline
+(`4b2f60f29aaa5a393664245547886262952b85c1`). Clean preflight and actual replay
+passed in a temporary baseline checkout: 230 overlays and three localization
+recipes, with component hashes and protected-file checks passing. All 387 compared
+source/overlay paths matched after text newline normalization where necessary.
+Working protected files and the real Git index remained unchanged.
+
+Implementation validation earlier in this session: the reused-panel regression
+failed before the fix and passed afterward without discovery or context
+replacement. Both PS5 regression scripts and the required Release rebuild passed
+(zero errors, two existing warnings). Confirmation from the affected user remains
+pending; the test establishes a matching failure mode, not a confirmed reproduction
+of their exact session. Historical validation snapshots were not modified.
+
 ## Solaris missing Local preset list - 2026-11-12
 
 Preserve Local provider list migration independently of the preceding theme

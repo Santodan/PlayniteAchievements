@@ -114,5 +114,26 @@ $replacement.Provider = 'Steam'; $replacement.Unlocked = 7
 $discover.Invoke($null,@($detail.PSObject.BaseObject))
 $detail.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ApplicationIdle)
 if ($detail.Children[0].Text -ne '28' -or $detail.Children[1].Text -ne '19') { throw 'Detail header provider label caused inconsistent progress' }
+# Reopening a reused detail panel does not change its DataContext or raise Loaded.
+# The theme can restore its original bindings while that panel is hidden.
+$window = New-Object Windows.Window
+$window.ShowActivated = $false
+$window.ShowInTaskbar = $false
+$window.Width = 200; $window.Height = 100
+$window.Content = $detail
+try {
+    $window.Show()
+    $detail.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::ApplicationIdle)
+    $detail.Visibility = [Windows.Visibility]::Collapsed
+    [Windows.Data.BindingOperations]::SetBinding($detail.Children[0],[Windows.Controls.TextBlock]::TextProperty,[Windows.Data.Binding]::new('AchievementsViewModel.SelectedGame.ProgressPercent')) | Out-Null
+    [Windows.Data.BindingOperations]::SetBinding($detail.Children[1],[Windows.Controls.TextBlock]::TextProperty,[Windows.Data.Binding]::new('AchievementsViewModel.SelectedGame.Unlocked')) | Out-Null
+    [Windows.Data.BindingOperations]::SetBinding($detail.Children[2],[Windows.FrameworkElement]::WidthProperty,[Windows.Data.Binding]::new('AchievementsViewModel.SelectedGame.ProgressPercent')) | Out-Null
+    $replacement.Unlocked = 0
+    $detail.Visibility = [Windows.Visibility]::Visible
+    # Only drain bindings, not the background discovery timer.
+    $detail.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::DataBind)
+    if ($detail.Children[0].Text -ne '28' -or $detail.Children[1].Text -ne '19' -or $detail.Children[2].Width -ne 28) { throw 'Reopened detail header waited for discovery to correct zero values' }
+    'Passed: reused detail panel corrects restored header bindings on visibility change without context replacement or discovery.'
+} finally { $window.Close() }
 $bridge.GetMethod('Stop',[Reflection.BindingFlags]'NonPublic,Static').Invoke($null,@())
 'Passed: selected-game header with PC (Windows) provider (observed in live logs), 11/100 earned, 11% bar/overlay, navigation, and consistent explicit-provider progress.'

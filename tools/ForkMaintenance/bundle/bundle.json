@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-12T10:18:18.8522435Z",
+    "generatedUtc":  "2026-11-15T12:05:53.4115048Z",
     "baselineRef":  "v4.2.1",
     "baselineCommit":  "4b2f60f29aaa5a393664245547886262952b85c1",
     "protectedPaths":  [
@@ -446,7 +446,7 @@
                          },
                          {
                              "path":  "source/Services/ThemeMigration/Ps5TrophyProgressBridge.cs",
-                             "sha256":  "7E67391C780B428956E22C3E73C8C615254BE0341C00AD7423C21030182141FC"
+                             "sha256":  "5ADBB3223F01EC946A7DB5B5F5E97EEB83E9FB2DB98247FE125ACBA6C5747C87"
                          },
                          {
                              "path":  "source/Services/ThemeMigration/StartPageCompatibilityService.cs",
@@ -938,7 +938,7 @@
                          },
                          {
                              "path":  "tools/ThemeMigration/Test-Ps5TrophyProgressBridge.ps1",
-                             "sha256":  "6C8E474D3CEA0A4EEA3146DEA8A4DFD251579D5B206BCB0551C3F25B9E7B29DF"
+                             "sha256":  "A21544017039FA3A88A94D033DDBBDAD6F13C9EC772D543024814DC19B10B020"
                          }
                      ]
 }

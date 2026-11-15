@@ -289,6 +289,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             {
                 control.SetValue(WatchesContextProperty, true);
                 control.DataContextChanged += OnContextChanged;
+                control.IsVisibleChanged += OnControlVisibilityChanged;
                 control.Unloaded += OnControlUnloaded;
             }
             if (_enableNamedList) AdaptDetailHeader(control);
@@ -321,8 +322,20 @@ namespace PlayniteAchievements.Services.ThemeMigration
             var control = (FrameworkElement)sender;
             if ((args.OriginalSource ?? args.Source) != control) return;
             control.DataContextChanged -= OnContextChanged;
+            control.IsVisibleChanged -= OnControlVisibilityChanged;
             control.Unloaded -= OnControlUnloaded;
             control.ClearValue(WatchesContextProperty);
+        }
+
+        private static void OnControlVisibilityChanged(object sender, DependencyPropertyChangedEventArgs args)
+        {
+            if (!_enableNamedList || !Equals(args.NewValue, true)) return;
+            // The theme reuses hidden detail panels. Their bindings/selected game
+            // can change while hidden without another Loaded/DataContextChanged.
+            // Recheck at visibility change, before the next render, not on a timer.
+            SyncedDetailViewModels.Clear();
+            var control = (FrameworkElement)sender;
+            OnLoaded(control, new RoutedEventArgs(FrameworkElement.LoadedEvent, control));
         }
 
         private sealed class ProgressConverter : IMultiValueConverter
