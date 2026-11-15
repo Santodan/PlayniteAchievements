@@ -1041,12 +1041,14 @@ namespace PlayniteAchievements.Providers.BattleNet
             foreach (var achievement in achievements)
             {
                 var apiName = NormalizeApiName(achievement?.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    !rarityPercentByAchievementId.TryGetValue(apiName, out var percent))
+                if (string.IsNullOrWhiteSpace(apiName))
                 {
                     continue;
                 }
 
+                // An achievement the loaded document does not list has no tracked earner, so it
+                // reads as 0% rather than the default Common tier.
+                var percent = rarityPercentByAchievementId.TryGetValue(apiName, out var listed) ? listed : 0d;
                 var normalized = NormalizePercent(percent, valuesAreRatios);
                 if (!normalized.HasValue)
                 {
