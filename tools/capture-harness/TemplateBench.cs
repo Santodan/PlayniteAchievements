@@ -138,7 +138,7 @@ public static class TemplateBench
         DropLayers(svcType, (object)card.Service);
         var build = Stopwatch.StartNew();
         object prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
-            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, true, when == "before" });
+            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, when == "before" });
         if (report) Console.WriteLine("hold layers built {0} the entrance in {1} ms: {2}", when, build.ElapsedMilliseconds, prepared != null);
         return prepared;
     }
@@ -948,7 +948,7 @@ public static class TemplateBench
                     var before = _layersCompare ? Capture(card.Rect) : null;
                     if (_layersCompare && _snapshot != null) SaveCapture(card.Rect, _snapshot + "-one.png");
                     var begun = (Task)svcType.GetMethod("BeginHoldLayersAsync", Flags).Invoke(
-                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, true, prepared });
+                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, prepared });
                     await begun;
                     layers = begun.GetType().GetProperty("Result").GetValue(begun);
                     if (c == 0) Console.WriteLine("hold layers: " + (layers != null ? "shown" : "none"));
