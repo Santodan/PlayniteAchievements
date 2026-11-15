@@ -124,6 +124,12 @@ namespace PlayniteAchievements.Views
                         : null;
                 },
                 friendsOverviewDataCoordinator: friendsOverviewDataCoordinator);
+            _viewModel.PersistAchievementUnlockToggles(
+                Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
+                    GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame),
+                state => Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                    GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame,
+                    state));
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
         }
