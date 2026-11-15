@@ -402,7 +402,7 @@
 手動トラッキングを有効にすると、{0} から取得されたこのゲームの実績データを置き換えることができます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Source">手動ソース</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Unlink">手動トラッキングを解除</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">Drag rows to set the default order. Changes save immediately.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">行をドラッグしてデフォルトの順序を設定してください。変更は即座に保存されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Reset">カスタム順序をリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_Customize">このゲームの通知スタイルを個別に設定する</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_CustomizeBehavior">このゲームの通知動作を個別に設定する</sys:String>
@@ -429,7 +429,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIcons_StatusSettings">設定から有効</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsCheckbox">Always use separate locked icons for this game</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader">個別の未解除アイコン</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint">Download separate locked icons for this game when the platform provides them. Unchecked, the global setting applies.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint">プラットフォームから提供されている場合、このゲームに個別の未解除アイコンをダウンロードします。チェックを外すと、グローバル設定が適用されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHeader">プラットフォームのオーバーライド</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHint">このゲームで使用する実績対応プラットフォームを強制指定するか、オーバーライド設定を解除して自動紐付けを使用します。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalid">対応しているプラットフォームのオーバーライドを選択してください。</sys:String>
@@ -489,9 +489,9 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_FetchedHint">このゲームの実績データから取得された項目です。名前の変更や色の変更は可能ですが、削除はできません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">目標実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Revert">復元</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">選択した実績への変更を破棄し、取得元の値を再表示します。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle">&quot;{0}&quot; を取得元の値に戻しますか?</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected">{0} 件の実績を取得元の値に戻しますか?</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">選択した実績への変更を破棄し、提供元の値を再表示します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle">&quot;{0}&quot; を提供元の値に戻しますか?</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected">{0} 件の実績を提供元の値に戻しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHeader">{0} 実績を編集中</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHint">変更内容は選択したすべての実績に適用されます。空欄の項目は選択項目間で値が異なるため、変更されません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip">Collapse the details pane</sys:String>
@@ -627,7 +627,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">コンパクト未解除リスト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">コンパクト解除済リスト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_AchievementIconsDescription">実績アイコンキャッシュを圧縮します。通常、これが最も大きいグループです。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">取得元から読み込んだデフォルトカテゴリーアートを圧縮します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">提供元から読み込んだデフォルトカテゴリーアートを圧縮します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Confirm">画像キャッシュ {1} 件中 {0} 件が {2} px を超えています。
 
 現在のサイズ: {3}
@@ -661,7 +661,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">バックグラウンドでの定期更新を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsPeriodicUpdates">バックグラウンドでのフレンド更新を有効にする (最近)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling">ゲーム起動中に実績を監視する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling_Description">ローカルファイルの変更やサービスの配信データを参照して実績解除を即座に検知します。検知できない場合は、予備処理として対象を絞った軽量な更新を行います。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling_Description">ローカルファイルの変更や提供元の配信データを参照して実績解除を即座に検出します。検出できない場合は、予備処理として対象を絞った軽量な更新を行います。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration">自動フルコン実績の生成を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description">ゲームの更新後、フルコン実績が未設定の場合にのみ自動で 1 つ作成します。オフにすると新規作成は停止されますが、既存の全解除実績は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">ライブラリに登録済みのゲームにも自動フルコン実績を追加しますか?</sys:String>
@@ -1020,7 +1020,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_RaUsername">ユーザー名</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey">Web API キー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey_Help">RetroAchievements のコントロールパネルでキーを見つけてください:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">Points Display</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">ポイント表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio weights points by rarity, so harder achievements are worth more.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">スタンダードポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (Scaled)</sys:String>
@@ -1119,14 +1119,14 @@
     <sys:String x:Key="LOCPlayAch_Settings_PieLegendPosition">凡例の位置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardBadgePosition">バッジの位置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScoreCardUseCustomColors">カスタムレア度色を使用する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScoreCardShowTotal">Show Total Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScoreCardShowTotal">合計ポイントを表示する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">トップメニューバーボタンを表示する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowAchievementGridColumnHeaders">列ヘッダーを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowGridControlBar">コントロールバーを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseUniformRarityBadges">レア度バッジのデザインを統一する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseTrophiesForRarity">レア度にトロフィーを使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages">レア度百分率の四捨五入</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">Values under 1% display as &lt;1%.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RoundRarityPercentages_Help">1% 未満の値は &lt;1% として表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletedProgressColoring">クリア済みプログレスバーを着色する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SoftGlowTiers">ソフト発光ランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RayGlowTiers">回転レイランク</sys:String>
@@ -1152,10 +1152,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">実績の達成状況に応じてゲームに自動でタグを付与し、ライブラリを絞り込めるようにします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">タグ同期</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">Use Separate Locked Icons When Available</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">Downloads platform-supplied locked icons when they differ from the unlocked icon. Otherwise the unlocked icon is shown in grayscale.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">利用可能な場合は個別の未解除アイコンを使用する</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">解除済みアイコンと異なる場合、プラットフォーム提供の未解除アイコンをダウンロードします。それ以外の場合は、解除済みアイコンがグレースケールで表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">ユーティリティ</sys:String>
-    <sys:String x:Key="LOCPlayAch_UseCoverImages">Use Cover Images Instead of Icons in Games List</sys:String>
+    <sys:String x:Key="LOCPlayAch_UseCoverImages">ゲームリストでアイコンの代わりにカバー画像を使用</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewItemPreview">項目表示</sys:String>
     <!-- Context_Preview / Context_Settings: uppercase panel labels above theme preview and settings columns -->
     <sys:String x:Key="LOCPlayAch_Settings_Context_Preview">プレビュー</sys:String>
@@ -1460,12 +1460,12 @@
     <sys:String x:Key="LOCPlayAch_Showcase_WidgetSettings">ウィジェット設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_WidgetSettingsTitle">{0} 設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeleteWidget">ウィジェットを削除</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_SplitAtFormat">Split {0} / {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_SplitAtFormat">分割 {0} / {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeLeftLabel">左と結合</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeRightLabel">右と結合</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeUpLabel">上と結合</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MergeDownLabel">下と結合</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_MergeDeleteConfirm">Merge these blocks and delete the other widgets?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_MergeDeleteConfirm">これらのブロックを統合して他のウィジェットを削除しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_PasteReplaceConfirm">このブロック内のウィジェットを置き換えますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DragMoving">Moving {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DropMoveHere">Move {0} here</sys:String>
@@ -1496,7 +1496,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPage">ページをリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ResetPageConfirm">このページをリセットしますか? 現在のウィジェットとレイアウトは削除されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeletePage">ページを削除</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_DeletePageConfirm">Delete this page and all widgets on it?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_DeletePageConfirm">このページとページ上のすべてのウィジェットを削除しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_Blank">空白</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_Analytics">分析</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Template_UpNext">次の実績</sys:String>
@@ -1508,20 +1508,20 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ShowBackground">背景を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ImageFiles">画像ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_AllFiles">すべてのファイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_PinCollection">コレクションにピン留め</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_PinCollection">ピン留めコレクション</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenameCollection">コレクション名の変更</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenameCollectionPrompt">新しいコレクション名を入力:</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeleteCollection">コレクションを削除</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ClearCollection">コレクションを消去</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeleteCollectionConfirm">コレクション &quot;{0}&quot; およびその中のすべてのピン留め項目を削除しますか?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_CollectionNameInvalid">Enter a unique, non-empty collection name.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_CollectionNameInvalid">重複しない空欄以外のコレクション名を入力してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RemoveFromCollection">コレクションから削除</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_NoPinnedAchievements">Pin achievements to see them here.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_NoPinnedAchievements">実績をピン留めするとここに表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoFavoriteGames">ゲームをピン留めするか、Playnite のお気に入りを利用してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoImage">ウィジェット設定で画像を選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoText">Add text in the widget settings.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoData">まだデータがありません</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnknownProvider">不明な取得元</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_UnknownProvider">不明な提供元</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableAchievement">獲得不可の実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableGame">利用不可のゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MoveEarlier">前へ移動</sys:String>
@@ -1560,7 +1560,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarWidth">アバターの幅</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarHeight">アバターの高さ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">リンクアイコンサイズ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">取得元またはサービス</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">提供元またはサービス</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">次の解除候補</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Completed">クリアしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_All">すべてのゲーム</sys:String>
@@ -1578,8 +1578,8 @@
 
     <sys:String x:Key="LOCPlayAch_Showcase_SlideshowSource_GameCollection">ゲームコレクション</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_SlideshowSource_AchievementCollection">実績コレクション</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ImageFit_Fit">Fit</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ImageFit_Fill">Fill</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ImageFit_Fit">枠に合わせる</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ImageFit_Fill">枠を埋める</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_TextSize">テキストサイズ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_TextSize_Small">小</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_TextSize_Normal">標準</sys:String>
@@ -1590,8 +1590,8 @@
     <sys:String x:Key="LOCPlayAch_Showcase_VerticalAlignment">垂直配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ActivityTooltipFormat">{0} — {1} 解除</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ShowLegend">凡例を表示</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_Less">Less</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_More">More</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_Less">少ない</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_More">多い</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_TrackedGames">トラッキング中のゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_PlayedGames">プレイ済みのゲーム</sys:String>
@@ -1599,8 +1599,8 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_ActiveDayRate">解除/アクティブ日</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_ThirtyDayRate">過去 30 日間のペース</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Stat_AverageGlobalUnlock">グローバル平均解除率</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Stat_CurrentStreak">Current streak</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Stat_LongestStreak">Longest streak</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Stat_CurrentStreak">現在の連続記録</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Stat_LongestStreak">最長の連続記録</sys:String>
 
 
     <sys:String x:Key="LOCPlayAch_Showcase_NoScreenshots">実績スクリーンショットが見つかりません</sys:String>
@@ -1615,7 +1615,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Pie">円グラフ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Timeline">タイムライン</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Statistics">全体の統計</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Widget_NativePoints">Native Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_NativePoints">ネイティブポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_IconMosaic">モザイク</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_ScreenshotSlideshow">スクリーンショットスライドショー</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_RecentAchievements">実績グリッド</sys:String>
@@ -1686,11 +1686,11 @@
     <sys:String x:Key="LOCPlayAch_Library_Applied">適用済み</sys:String>
     <sys:String x:Key="LOCPlayAch_Library_Edited">編集済み</sys:String>
     <sys:String x:Key="LOCPlayAch_Library_UsedIn">次で使用中</sys:String>
-    <sys:String x:Key="LOCPlayAch_Library_NotApplied">Not applied anywhere.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Library_NotApplied">どこにも適用されていません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Library_Unlink">Unlink: keep everything as it is and stop taking updates from this item</sys:String>
     <sys:String x:Key="LOCPlayAch_Library_UpdatesWhenApplied">Notifications, frames and showcase pages that use it take the new version when you apply it again.</sys:String>
     <sys:String x:Key="LOCPlayAch_Library_ReinstallChoice">&quot;{0}&quot; is used in {1} places. Merge keeps what you changed there and takes the rest from the package; Replace applies the package as published.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Library_DeleteConfirm">Delete &quot;{0}&quot; from your library? Places that use it keep what they have now.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Library_DeleteConfirm">&quot;{0}&quot; をライブラリから削除しますか? この項目が使用されている場所では現在の内容が保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Sounds">効果音</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Bundle">バンドル (配色、効果音、通知、フレーム)</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_ShowcasePage">ショーケースページ: {0}</sys:String>
@@ -1704,14 +1704,14 @@
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Uploading">{0} をアップロード中…</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Submitted">投稿しました。自動チェック通過後、通常数分以内にワークショップが更新されます。進捗状況は {0} で確認できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Mine">自分の投稿</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Preview_Before">Before</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Preview_After">After</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Preview_ShowUnchanged">Show unchanged achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Preview_PackageOnly">This game is not in your library, so the package contents are shown without a comparison.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Preview_Before">適用前</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Preview_After">適用後</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Preview_ShowUnchanged">未変更の実績を表示する</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Preview_PackageOnly">このゲームはライブラリに含まれていないため、比較なしでパッケージ内容を表示しています。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Preview_Summary">アイコン: {0} · オーバーライド: {1} · カテゴリー: {2} · フルコン実績: {3} · カスタム実績: {4}</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Preview_KeptEdits">編集内容は保持されます: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Preview_MoreRows">and {0} more</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Share_RenderingPreview">Rendering preview...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Preview_MoreRows">他 {0} 件</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_Share_RenderingPreview">プレビューを描画中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_Cover">カバー画像</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_CoverHint">Optional, for example the game's banner art</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share_CoverTooLarge">カバー画像は 5MB 以下である必要があります。</sys:String>
