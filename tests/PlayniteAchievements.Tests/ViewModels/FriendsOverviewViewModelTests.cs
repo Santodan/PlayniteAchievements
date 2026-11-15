@@ -459,7 +459,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void UnlockStateTogglesResetWhenLeavingPairState()
+        public void UnlockStateTogglesSurviveLeavingPairState_AndFilterOnlyWhereOffered()
         {
             var data = CreateData();
             var locked = CreateAchievement(
@@ -483,6 +483,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             };
 
             var viewModel = CreateViewModel(cache);
+            var saved = new List<string>();
+            viewModel.PersistAchievementUnlockToggles(null, saved.Add);
             viewModel.LoadAsync().GetAwaiter().GetResult();
 
             viewModel.SelectedFriend = data.Friends[0];
@@ -495,15 +497,24 @@ namespace PlayniteAchievements.Tests.ViewModels
                 new[] { "Alice Locked" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
 
-            // Leaving the pair state resets the toggles so the aggregated friend-only view is
-            // unaffected by stale unlock-state filtering.
+            // Leaving the pair state keeps the toggles as set, and the aggregated friend-only
+            // view, which offers no toggles, is not filtered by them.
             viewModel.ClearGameSelection();
-            Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked);
+            Assert.IsFalse(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Unlocked).IsChecked);
             Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Locked).IsChecked);
-            Assert.IsTrue(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Hidden).IsChecked);
+            Assert.IsFalse(GetUnlockStateToggle(viewModel, GridToggleFilterIcon.Hidden).IsChecked);
             CollectionAssert.AreEquivalent(
                 new[] { "Recent Only", "Alice Game Two" },
                 viewModel.DisplayedAchievements.Select(item => item.DisplayName).ToArray());
+            Assert.AreEqual(2, saved.Count, "each toggle change is handed to the save callback");
+            Assert.IsNotNull(saved[1]);
+
+            // A view model restored from the saved state starts with the same toggles.
+            var restored = CreateViewModel(cache);
+            restored.PersistAchievementUnlockToggles(saved[1], null);
+            Assert.IsFalse(GetUnlockStateToggle(restored, GridToggleFilterIcon.Unlocked).IsChecked);
+            Assert.IsTrue(GetUnlockStateToggle(restored, GridToggleFilterIcon.Locked).IsChecked);
+            Assert.IsFalse(GetUnlockStateToggle(restored, GridToggleFilterIcon.Hidden).IsChecked);
         }
 
         [TestMethod]
