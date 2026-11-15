@@ -98,5 +98,43 @@ namespace PlayniteAchievements.Tests.ViewModels
             adapter.RestoreState(new GridControlBarFilterState());
             Assert.IsFalse(adapter.TierFilters.HasSelection, "a state without tiers clears them");
         }
+
+        [TestMethod]
+        public void Apply_HonorsAnUnlockToggleOnlyWhileItsButtonIsOffered()
+        {
+            var adapter = new AchievementGridControlBarAdapter();
+            var unlocked = new AchievementDisplayItem { Unlocked = true };
+            var locked = new AchievementDisplayItem { Unlocked = false };
+            var hiddenLocked = new AchievementDisplayItem { Unlocked = false, Hidden = true };
+            adapter.ShowUnlocked = false;
+            adapter.ShowHidden = false;
+
+            var allUnlocked = new[] { unlocked };
+            adapter.UpdateOptions(allUnlocked);
+            CollectionAssert.AreEqual(allUnlocked, adapter.Apply(allUnlocked).ToArray(), "no button, no filter");
+            Assert.IsFalse(adapter.HasActiveFilters);
+
+            var mixed = new[] { unlocked, locked, hiddenLocked };
+            adapter.UpdateOptions(mixed);
+            CollectionAssert.AreEqual(new[] { locked }, adapter.Apply(mixed).ToArray());
+            Assert.IsTrue(adapter.HasActiveFilters);
+        }
+
+        [TestMethod]
+        public void ResetSelections_ClearsThePicks_AndKeepsTheUnlockToggles()
+        {
+            var adapter = new AchievementGridControlBarAdapter();
+            var options = adapter.TierFilters.RarityItem.Options.ToList();
+            adapter.TierFilters.SetRaritySelected(options[2], true);
+            adapter.ShowLocked = false;
+
+            adapter.ResetSelections();
+
+            Assert.IsFalse(adapter.TierFilters.HasSelection);
+            Assert.IsFalse(adapter.ShowLocked);
+
+            adapter.ResetFilters();
+            Assert.IsTrue(adapter.ShowLocked);
+        }
     }
 }
