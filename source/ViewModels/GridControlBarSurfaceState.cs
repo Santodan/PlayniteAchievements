@@ -7,9 +7,10 @@ namespace PlayniteAchievements.ViewModels
 {
     /// <summary>
     /// The saved control bar state of a grid outside the showcase, in the same
-    /// <see cref="ControlBarFilterState"/> shape the widgets save. Only the Progress and Activity
-    /// choices are saved so far; everything else on the bar starts fresh each session. Saving more
-    /// means filling more fields here and reading them back where the grid restores.
+    /// <see cref="ControlBarFilterState"/> shape the widgets save. A game summaries grid saves its
+    /// Progress and Activity choices and an achievement grid saves its Unlocked, Locked and Hidden
+    /// toggles; everything else on the bar starts fresh each session. Saving more means filling
+    /// more fields here and reading them back where the grid restores.
     /// </summary>
     public static class GridControlBarSurfaceState
     {
@@ -56,10 +57,26 @@ namespace PlayniteAchievements.ViewModels
                 .ToList();
         }
 
+        /// <summary>An achievement grid's unlock-state toggles; only a toggle that is off is recorded.</summary>
+        public static ControlBarFilterState CaptureUnlockToggles(bool showUnlocked, bool showLocked, bool showHidden)
+        {
+            return new ControlBarFilterState
+            {
+                ShowUnlocked = showUnlocked ? (bool?)null : false,
+                ShowLocked = showLocked ? (bool?)null : false,
+                ShowHidden = showHidden ? (bool?)null : false
+            };
+        }
+
         /// <summary>The state as saved, or null when it holds nothing to restore.</summary>
         public static string Serialize(ControlBarFilterState state)
         {
-            if (state == null || (state.ProgressKeys == null && (state.Activity == null || state.Activity.Count == 0)))
+            if (state == null ||
+                (state.ProgressKeys == null &&
+                 (state.Activity == null || state.Activity.Count == 0) &&
+                 state.ShowUnlocked != false &&
+                 state.ShowLocked != false &&
+                 state.ShowHidden != false))
             {
                 return null;
             }
