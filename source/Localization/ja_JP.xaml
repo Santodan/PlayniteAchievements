@@ -594,7 +594,7 @@
     <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix">一部のプラットフォームは認証が必要です。</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_FriendsRefreshCompleteWithModeAndCount">{0} friends refresh complete: {1} friend game checks refreshed</sys:String>
     <!-- In the two status formats below, {0} is a localized refresh mode name (e.g. "Full", "Custom") -->
-    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} refresh complete: {1} games refreshed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} 更新完了: {1} 件のゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_CombinedRefreshCompleteWithModeAndCounts">{0} complete: {1} games refreshed; {2} friend game checks refreshed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Refreshing">更新中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Starting">開始中...</sys:String>
@@ -666,7 +666,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description">ゲームの更新後、フルコン実績が未設定の場合にのみ自動で 1 つ作成します。オフにすると新規作成は停止されますが、既存の全解除実績は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">ライブラリに登録済みのゲームにも自動フルコン実績を追加しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_Progress">自動フルコン実績を追加中...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">新規の自動フルコン実績に適用されるテキストです。{0} はゲーム名、{1} はカテゴリー名に置き換わります。保存すると、デフォルトテキストのままの既存の自動フルコン実績も更新されます。タイトルまたは説明を編集したものは変更されません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">新規の自動フルコン実績に適用されるテキストです。{0} はゲーム名、{1} はカテゴリー名です。保存すると、デフォルトテキストのままの既存の自動フルコン実績も更新されます。タイトルまたは説明を編集したものは変更されません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Tags_Hint">すべてのゲームの実績に付けられる共通タグです。実績の管理からゲーム固有のタグを追加することもできます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid">無効なテンプレートです。ゲームには {0}、カテゴリーには {1} を使用し、中括弧そのものを表示したい場合は二重中括弧を使用してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsFeatures">フレンド機能を有効にする</sys:String>
@@ -1054,15 +1054,15 @@
     <!-- Provider: Riot -->
     <sys:String x:Key="LOCPlayAch_Settings_Riot_Help">League of Legens チャレンジを取得するには Riot の公式 API を使用するため、Riot アカウントに紐づいた無料の API キーが必要です。Riot は API キーなしで動作するプレイヤー別のエンドポイントを提供していません:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep2">2. ダッシュボードに表示されている開発用 API キーを、下の API キー入力欄にコピーしてください。期限が切れている場合は再生成 (Regenerate) ボタンを使用してください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep3">3. Enter your Riot ID and pick the region your account plays on, then click Check.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Riot_Expiry">A development key stops working after 24 hours and has to be regenerated each time. For a key that does not expire, use Register Product on the portal to apply for a personal key.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Riot_Note">Riot reviews personal and production applications separately; the {0} explains what to expect.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_SetupStep3">3. Riot ID を入力し、アカウントでプレイしている地域を選択して&quot;確認&quot;をクリックします。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_Expiry">開発用キーは 24 時間で無効になり、その都度再生成する必要があります。有効期限のないキーを取得するには、ポータルの製品登録 (Register Product) から個人用キーを申請してください。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Riot_Note">Riot は個人用と製品用の申請を別々に審査します。詳細は {0} で説明されています。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RiotId">Riot ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RiotId_Help">Your in-game name and tag, for example Faker and KR1. The tag is the part after the # on your profile.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RiotId_Help">ゲーム内の名前とタグ (例: Faker と KR1) です。タグはプロフィール上の # 以降の部分です。</sys:String>
 
     <!-- Provider: Steam -->
     <sys:String x:Key="LOCPlayAch_Settings_SteamInstallPathOverride">Steam インストールパスのオーバーライド</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SteamInstallPathOverride_Help">Optional. Leave empty to detect Steam from the current-user registry. Used for instant in-game monitoring and local offline refreshes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamInstallPathOverride_Help">任意設定です。空欄のままにすると、現在のユーザーのレジストリから Steam を自動検出します。ゲーム中のリアルタイム監視やローカルでのオフライン更新に使用されます。</sys:String>
     <!-- Provider: RPCS3 -->
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">実行ファイルパス</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">rpcs3.exe へのパス。</sys:String>
@@ -1070,13 +1070,13 @@
 
     <!-- Provider: ShadPS4 -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">ルートフォルダ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Your ShadPS4 root folder; both legacy and newer layouts are detected. Default: %AppData%\shadPS4.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">ShadPS4 のルートフォルダーです。レガシーと新しいレイアウトを検出します。デフォルト: %Appdata%\shadPS4。</sys:String>
 
     <!-- Provider: Ubisoft -->
     <sys:String x:Key="LOCPlayAch_Settings_Ubisoft_Help">解除済みの実績を取得するには、ブラウザウィンドウで Ubisoft Connet にログインしてください。Ubisoft 実績は、Ubisoft Connect ライブラリ拡張機能で追加したゲーム、または実績の管理で Ubisoft Product ID を手動で設定したゲームを対象に追跡されます。</sys:String>
 
     <!-- Provider: Vita3K -->
-    <sys:String x:Key="LOCPlayAch_Settings_Vita3KExecutablePathHint">Path to Vita3K.exe. Trophies are read from the active Vita3K user.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Vita3KExecutablePathHint">Vita3K.exe へのパスです。トロフィーは Vita3K で現在選択されているユーザーから読み込まれます。</sys:String>
 
     <!-- Provider: Xbox -->
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">小アイコンをダウンロードする</sys:String>
@@ -1084,7 +1084,7 @@
 
     <!-- Provider: Xenia -->
     <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPath">アカウントパス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">Your Xenia account folder: &lt;Xenia Path&gt;\content\&lt;Account ID&gt;\FFFE07D1\00010000\&lt;Account ID&gt;\</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">Xenia アカウントフォルダ: &lt;Xenia Path&gt;\content\&lt;Account ID&gt;\FFFE07D1\00010000\&lt;Account ID&gt;\</sys:String>
     <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">有効な Xenia アカウントパスではありません (アカウントファイルが見つかりません)</sys:String>
 
     <!-- General Settings (continued): display, maintenance, hotkeys, notifications -->
@@ -1102,7 +1102,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">表示条件</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Spoilers">ネタバレ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">並べ替え方向を切り替え</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GameSummariesSort_PinOrder">Pin order</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GameSummariesSort_PinOrder">ピン留め順序</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">並べ替え済みの列ヘッダーを再度クリックするとデフォルトに戻ります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionGlow">クリア発光を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionFrame">クリアフレームを表示</sys:String>
@@ -1194,7 +1194,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">コンソールバージョン</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">When a game is on several PlayStation or Xbox consoles, take its list from the newest or the oldest.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">ソース</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">デフォルトでは先頭行の設定に従います。ゲーム固有のソースやマッチングは実績の管理で設定します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">デフォルトでは先頭行の設定に従います。ゲーム固有のソースや紐付けは実績の管理で設定します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation と Xbox では、公式のトロフィーおよび実績リストを Exophase から読み込みます。TrueGaming のページが既に読み込まれている場合、そちらから取得します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
@@ -1232,10 +1232,10 @@
     <sys:String x:Key="LOCPlayAch_Filter_UntilDate">終了 {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">表示/非表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">フルコン実績</sys:String>
-    <sys:String x:Key="LOCPlayAch_Dynamic_Started">Started</sys:String>
-    <sys:String x:Key="LOCPlayAch_Dynamic_NotStarted">Not Started</sys:String>
-    <sys:String x:Key="LOCPlayAch_Dynamic_HasLastUnlock">Has Last Unlock</sys:String>
-    <sys:String x:Key="LOCPlayAch_Dynamic_NoLastUnlock">No Last Unlock</sys:String>
+    <sys:String x:Key="LOCPlayAch_Dynamic_Started">開始済み</sys:String>
+    <sys:String x:Key="LOCPlayAch_Dynamic_NotStarted">未開始</sys:String>
+    <sys:String x:Key="LOCPlayAch_Dynamic_HasLastUnlock">最終解除記録あり</sys:String>
+    <sys:String x:Key="LOCPlayAch_Dynamic_NoLastUnlock">最終解除記録なし</sys:String>
     <sys:String x:Key="LOCPlayAch_Overview_GameSummaries">ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Overview_Incomplete">未クリア</sys:String>
     <sys:String x:Key="LOCPlayAch_Overview_NoGameSelected">概要でゲームが選択されていません。</sys:String>
