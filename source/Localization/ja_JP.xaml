@@ -4,7 +4,7 @@
     <!-- ================================================================= -->
     <!-- 01 Plugin Titles -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Title_PluginName">Playnite 実績</sys:String>
+    <sys:String x:Key="LOCPlayAch_Title_PluginName">Playnite Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Title_Refresh">Playnite Achievements 更新</sys:String>
 
     <!-- ================================================================= -->
@@ -92,7 +92,7 @@
     <sys:String x:Key="LOCPlayAch_Score_LevelFormat">レベル {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_PointsFormat">{0} ポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Prestige">名声スコア</sys:String>
-    <sys:String x:Key="LOCPlayAch_Score_Gamerscore">Gamerscore</sys:String>
+    <sys:String x:Key="LOCPlayAch_Score_Gamerscore">ゲーマースコア</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_EpicXp">Epic XP</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_RetroPoints">RetroAchievements ポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_ProviderPointsFormat">{0} ポイント</sys:String>
@@ -105,7 +105,7 @@
     <sys:String x:Key="LOCPlayAch_Score_Info_PrestigeBody">名声スコアは、レアな実績の収集を評価するスコアです。レアな実績ほど、一般的な実績よりもはるかに多くのポイントを獲得できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_LevelsTitle">レベルとランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_LevelsBody">収集スコアと名声スコアに応じてランクとレベルが上昇します。最初のランクはブロンズ Vから始まり、ブロンズ IVと続き、シルバー、ゴールド、プラチナを経て、マスター Iまで続きます。10 レベル獲得するごとに次のランクへ昇格します。レベル 250 に達するとマスタリーを獲得し、ランクはブロンズ Vへと戻りますが、レベルと累計スコアはそのままカウントされます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Score_Info_PlatformBody">Points cards add up each platform's own points: Gamerscore (Xbox and Xenia games), Epic XP, RetroAchievements Points (hardcore unlocks), PlayStation Points (PSN, RPCS3, ShadPS4 and Vita3K games) and one card for each other platform. Each card shows the points earned out of the points its games hold, with no tiers or levels. Manage Achievements can send a game's points to another card.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Score_Info_PlatformBody">ポイントカードはプラットフォーム別の独自ポイントを合算します。ゲーマースコア（Xbox、Xenia ゲーム）、Epic XP、RetroAchievements ポイント（ハードコア実績解除）、PlayStation ポイント（PSN、RPCS3、ShadPS4 および Vita3K ゲーム）、およびその他プラットフォーム別の個別カードがあります。各カードは対象ゲームの総ポイント中どれだけのポイントを獲得したかが表示され、ランクとレベルはありません。実績の管理からゲームのポイントを別のカードに移動できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Info_CardHint">クリックしてスコアシステムの詳細を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Score_Tier_Master">マスター</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
@@ -188,7 +188,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Width">幅</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Yesterday">昨日</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_BackToLibrary">ライブラリに戻る</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_MoreCountFormat">{0} more</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_MoreCountFormat">他 {0} 件</sys:String>
 
     <!-- ================================================================= -->
     <!-- 03 Columns -->
@@ -274,9 +274,9 @@
     <!-- ================================================================= -->
     <!-- 06 Menus -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Menu_ChangePlayniteMapping">Change Playnite Mapping</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearPlayniteMapping">Clear Playnite Mapping</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame">Map to Playnite Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ChangePlayniteMapping">Playnite マッピングを変更</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearPlayniteMapping">Playnite マッピングを消去</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame">Playnite ゲームにマッピング</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_MapToPlayniteGame_PlatformMismatch">The selected Playnite game is not on the same platform as the Exophase friend game ({0}).</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">データを消去</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">選択した {0} 件のゲームのデータを消去しますか?
@@ -308,7 +308,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_ClearFriend_Confirm">{0} のキャッシュされた実績データを削除しますか?
 
 次回フレンド情報を更新した際に再取得されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_CloseView">Close View</sys:String>
+    <sys:String x:Key="LOCPlayAch_CloseView">画面を閉じる</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_PsnNpCommId_InvalidId">有効な PSN NP Communication ID (例: NPWR12345_00) を入力してください。コレクション作品の場合は、それぞれのゲームIDを「NPWR12345_00+NPWR67890_00」のように「+」で連結してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshFriend">フレンド情報を更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[更新を実行中]</sys:String>
@@ -517,8 +517,8 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_Header">Check off achievements you've unlocked and set unlock times. Changes are saved when you click OK.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">手動リンク用の Exophase 認証を確認できませんでした。再試行するか、プラグイン設定で Exophase の再認証を行ってください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_SignInRequired">先にプラグイン設定から {0} にサインインしてください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">選択したゲームには実績がありません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">実績のリンク元となるゲームを検索してください。選択したゲームの実績がこの Playnite ゲームにリンクされます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">ゲームが見つかりません。別の検索ワードをお試しください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">{0} ゲームが見つかりました</sys:String>
     <sys:String x:Key="LOCPlayAch_GameSearch_LinkOrId">ページリンクまたはID</sys:String>
@@ -583,7 +583,7 @@
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">不足</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">最近のゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">選択中のゲーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">シングル</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">単一</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_AuthRequired">認証が必要です。更新がキャンセルされました。</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Canceled">更新がキャンセルされました。</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Failed">エラー: {0}</sys:String>
@@ -614,7 +614,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes">非表示ゲームを一括更新に含める</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes_Description">Single-game and other targeted refreshes always include hidden games.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInSummaries">非表示ゲームを統計に含める</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInSummaries_Description">When off, games hidden in Playnite are left out of the Overview window, showcase widgets and theme totals. Their own achievement views still work.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInSummaries_Description">オフにすると、Playnite で非表示のゲームが概要ウィンドウ、ショーケースウィンドウおよびテーマの合計集計から除外されます。ゲームごとの実績画面は通常通り使用できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExclusionFilters_Description">選択した保存済み Playnite フィルターのいずれかに一致するゲームは自動的に除外され、一致しなくなると再び対象に含まれます。手動で対象または除外を設定したゲームは、その設定が優先されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BarChartPreview">棒グラフ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ButtonPreview">ボタン</sys:String>
@@ -648,7 +648,7 @@
 
 削減された容量: {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Title">画像キャッシュの圧縮</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievemen 設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements 設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Alignment">配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Colors">色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_Formatting">書式</sys:String>
@@ -1022,7 +1022,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey_Help">RetroAchievements のコントロールパネルでキーを見つけてください:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">Points Display</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio weights points by rarity, so harder achievements are worth more.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">Standard Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">スタンダードポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (Scaled)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaEnableFuzzyNameMatching">あいまい検索を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_RaEnableSubsetScanning">Fetch RetroAchievements subsets</sys:String>
@@ -1097,7 +1097,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings">表示設定をリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings_Help">Revert Display tab options, grid visibility, column layouts, row sizing, and overview layout to defaults.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">スキャンとハッシュ照合</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">クリアゲームにクリア状態を設定する</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">クリア済みゲームにクリア状態を設定する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">レア度バーを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">表示条件</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Spoilers">ネタバレ</sys:String>
@@ -1308,7 +1308,7 @@
     <sys:String x:Key="LOCPlayAch_Landing_Status_Checking">確認中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Status_ConfigureInSettings">設定画面で設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Status_ReadyToRefresh">更新準備完了</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Title">Playnite 実績へようこそ!</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Title">Playnite Achievements へようこそ!</sys:String>
 
     <!-- ================================================================= -->
     <!-- 15 Tagging -->
@@ -1369,7 +1369,7 @@
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomNotifications">カスタム通知</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomSource">ソースのオーバーライド</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">手動トラッキング</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Playnite 実績タグをすべてのゲームから削除しますか?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Playnite Achievements タグをすべてのゲームから削除しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">タグを削除中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">タグを同期中...</sys:String>
 
@@ -1508,7 +1508,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ShowBackground">背景を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ImageFiles">画像ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_AllFiles">すべてのファイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_PinCollection">Pin collection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_PinCollection">コレクションにピン留め</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenameCollection">コレクション名の変更</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_RenameCollectionPrompt">新しいコレクション名を入力:</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_DeleteCollection">コレクションを削除</sys:String>
@@ -1532,10 +1532,10 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ItemCount">項目の数</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_TileSpacing">タイルの間隔</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Variant">表示</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Interval">Interval</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Interval">間隔</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_FitMode">Fit</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_Shuffle">Shuffle</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_InfoPanel">Info panel</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Shuffle">シャッフル</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_InfoPanel">情報パネル</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_CustomTitle">タイトル</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Day">{0} 日</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Days">{0} 日</sys:String>
@@ -1589,7 +1589,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_HorizontalAlignment">水平配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_VerticalAlignment">垂直配置</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ActivityTooltipFormat">{0} — {1} 解除</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_ShowLegend">Show Legend</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_ShowLegend">凡例を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_Less">Less</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ActivityLegend_More">More</sys:String>
 
