@@ -474,7 +474,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_AchievementOrder">並べ替え</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Category">カテゴリー</sys:String>
     <sys:String x:Key="LOCPlayAch_CategorySummaries_FilterPlaceholder">カテゴリーをフィルター...</sys:String>
-    <sys:String x:Key="LOCPlayAch_CategorySummaries_ToggleToolTip">Group achievements by category</sys:String>
+    <sys:String x:Key="LOCPlayAch_CategorySummaries_ToggleToolTip">カテゴリーで実績をグループ化</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode">カテゴリーモードで開始</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HideCategorySummaryRow">選択後にカテゴリーグリッドを隠す</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGrid">カテゴリーグリッド</sys:String>
@@ -573,7 +573,7 @@
     <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsShared">フレンドの共有ゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Installed">インストール済みを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">不足分を更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">最近のゲームを更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">最近プレイしたゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Selected">選択中のゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Single">単一ゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">お気に入り</sys:String>
@@ -581,7 +581,7 @@
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_FriendsShared">共有</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Installed">インストール済み</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">不足</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">最近のゲーム</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">最近プレイしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">選択中のゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">単一</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_AuthRequired">認証が必要です。更新がキャンセルされました。</sys:String>
@@ -690,7 +690,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockSounds">解除通知時に効果音を再生する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundVolume">音量 (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseThemeUnlockSounds">現在のテーマの解除効果音を使用する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundTheme_Tooltip">Play the unlock sound the active desktop or fullscreen theme provides for this tier.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockSoundTheme_Tooltip">現在使用中のデスクトップテーマまたはフルスクリーンテーマがこのランク用に提供している解除効果音を再生します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseHiddenUnlockSound">レア度効果音の代わりに隠し実績効果音を使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomRight">右下</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_BottomLeft">左下</sys:String>
@@ -820,17 +820,17 @@
     <sys:String x:Key="LOCPlayAch_Settings_ToastPreviewSampleTitle">実績の例</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastPreviewSampleDescription">実績説明の例。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_CapturePrompt">ショートカットを押してください...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_CategoryModeHelp">The category grouping shortcut works when the active window has an achievement grid with a category toggle.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_CategoryModeHelp">カテゴリーのグループ化ショートカットは、アクティブなウィンドウにカテゴリ切り替え機能付きの実績グリッドが表示されている場合に機能します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_Description">実績ウィンドウや概要ウィンドウを開くショートカットを設定します。ゲームに関連したホットキーは、実行中のゲームを優先し、なければ選択中のゲームを対象とします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_DuplicateShortcut">That shortcut is already assigned.</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_Enable">実績ホットキーを有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_EnableGlobal">グローバルホットキーを有効にする</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_FireTestNotification">Retrigger notification</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_FireTestNotificationHelp">Re-fires the notification, screenshot and recording for the running game's most recently earned achievement.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableCaptureTestFolder">Write retriggers to a test folder</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableCaptureTestFolderHelp">Retriggered captures go to a shared &quot;Test&quot; subfolder, so they never appear alongside a game's own captures. Enabling this also lets the retrigger shortcut work when no game is running.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalHelp">Global hotkeys work outside Playnite for function keys and shortcuts with modifiers. Plain letters and digits only work while Playnite is focused.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalRegistrationFailed">Global shortcut unavailable: {0}. Another app may already be using the same key.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_FireTestNotification">通知を再実行</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_FireTestNotificationHelp">実行中のゲームで最後に獲得した実績の通知、スクリーンショット、録画を再度実行します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableCaptureTestFolder">再実行の出力をテストフォルダに保存</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableCaptureTestFolderHelp">再実行によるキャプチャは共通の &quot;Test&quot; サブフォルダに保存されるため、ゲーム本来のキャプチャと混ざることはありません。この設定を有効にすると、ゲームが実行中でない場合でも再実行のショートカットを使用できます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalHelp">ファンクションキーや修飾キーを含むショートカットは、Playnite 以外のウィンドウがアクティブな場合でもグローバルホットキーとして機能します。修飾キーなしの英字や数字は、Playnite にフォーカスがある間のみ機能します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalRegistrationFailed">グローバルショートカットが利用できません: {0}。他のアプリが既に同じキーを使用している可能性があります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_InvalidShortcut">Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_NoTarget">Select one game or start a game before using achievement hotkeys.</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_Title">ホットキー</sys:String>
@@ -964,7 +964,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_StoresLaunchers">ストアとランチャー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ConsoleMobile">コンソールとモバイル</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_EmulatorsRetro">エミュレータとレトロ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Manual &amp; Aggregators</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">手動とアグリゲーター</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">{0} を使用</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Friends">フレンド</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_AutoDiscover">フレンドの自動検出</sys:String>
@@ -1089,8 +1089,8 @@
 
     <!-- General Settings (continued): display, maintenance, hotkeys, notifications -->
     <sys:String x:Key="LOCPlayAch_Settings_RebuildNow">今すぐ再構築</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">Refresh only your most recently played games with achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">Recent Games to Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">最近プレイした実績のあるゲームのみを更新します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">更新する最近プレイしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">すべてのタグを削除</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">次回に概要を開いたときに初回セットアップ画面を再表示します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">初回セットアップ画面をリセット</sys:String>
