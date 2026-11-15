@@ -29,6 +29,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasUnlocked;
         private bool _hasLocked;
         private bool _hasHiddenLocked;
+        private Action<string> _saveUnlockToggles;
         private IGridCompareSource _friendCompare;
         private GridMultiSelectFilter _friendCompareFilter;
         private readonly RarityTrophyControlBarFilters _tierFilters;
@@ -100,6 +101,7 @@ namespace PlayniteAchievements.ViewModels
 
                 _showUnlocked = value;
                 OnPropertyChanged(nameof(ShowUnlocked));
+                SaveUnlockToggles();
                 RaiseFilterChanged();
             }
         }
@@ -116,6 +118,7 @@ namespace PlayniteAchievements.ViewModels
 
                 _showLocked = value;
                 OnPropertyChanged(nameof(ShowLocked));
+                SaveUnlockToggles();
                 RaiseFilterChanged();
             }
         }
@@ -132,8 +135,43 @@ namespace PlayniteAchievements.ViewModels
 
                 _showHidden = value;
                 OnPropertyChanged(nameof(ShowHidden));
+                SaveUnlockToggles();
                 RaiseFilterChanged();
             }
+        }
+
+        // A toggle filters rows only while its button is offered, so a value left off on one
+        // grid does not empty a grid that has no button to turn it back on.
+        private bool UnlockStateTogglesOffered => _hasUnlocked && _hasLocked;
+
+        private bool EffectiveShowUnlocked => _showUnlocked || !UnlockStateTogglesOffered;
+
+        private bool EffectiveShowLocked => _showLocked || !UnlockStateTogglesOffered;
+
+        private bool EffectiveShowHidden => _showHidden || !_hasHiddenLocked;
+
+        /// <summary>
+        /// Restores the Unlocked, Locked and Hidden toggles from <paramref name="saved"/> (a
+        /// <see cref="GridControlBarSurfaceState"/> string, or null) and hands <paramref name="save"/>
+        /// the new state on every later change made through the bar; a null state means every
+        /// toggle is on. Applies silently; the host runs its filter pipeline afterwards.
+        /// </summary>
+        public void PersistUnlockToggles(string saved, Action<string> save)
+        {
+            _saveUnlockToggles = save;
+            var state = GridControlBarSurfaceState.Deserialize(saved);
+            _showUnlocked = state?.ShowUnlocked != false;
+            _showLocked = state?.ShowLocked != false;
+            _showHidden = state?.ShowHidden != false;
+            OnPropertyChanged(nameof(ShowUnlocked));
+            OnPropertyChanged(nameof(ShowLocked));
+            OnPropertyChanged(nameof(ShowHidden));
+        }
+
+        private void SaveUnlockToggles()
+        {
+            _saveUnlockToggles?.Invoke(GridControlBarSurfaceState.Serialize(
+                GridControlBarSurfaceState.CaptureUnlockToggles(_showUnlocked, _showLocked, _showHidden)));
         }
 
         public ObservableCollection<string> CategoryTypeFilterOptions { get; }
@@ -176,12 +214,14 @@ namespace PlayniteAchievements.ViewModels
                 _searchIndex.Rebuild(items);
             }
 
-            if (!ShowHidden)
+            if (!EffectiveShowHidden)
             {
                 filtered = filtered.Where(item => !(item.Hidden && !item.Unlocked));
             }
 
-            filtered = filtered.Where(item => item.Unlocked ? ShowUnlocked : ShowLocked);
+            var showUnlocked = EffectiveShowUnlocked;
+            var showLocked = EffectiveShowLocked;
+            filtered = filtered.Where(item => item.Unlocked ? showUnlocked : showLocked);
 
             if (_selectedCategoryTypeFilters.Count > 0)
             {
@@ -275,9 +315,9 @@ namespace PlayniteAchievements.ViewModels
         // True when any filter deviates from "show everything" (used for header/count logic).
         public bool HasActiveFilters =>
             !string.IsNullOrEmpty(_searchText)
-            || !_showUnlocked
-            || !_showLocked
-            || !_showHidden
+            || !EffectiveShowUnlocked
+            || !EffectiveShowLocked
+            || !EffectiveShowHidden
             || _selectedCategoryTypeFilters.Count > 0
             || _selectedCategoryLabelFilters.Count > 0
             || _tierFilters.HasSelection;
@@ -356,6 +396,13 @@ namespace PlayniteAchievements.ViewModels
             _showUnlocked = true;
             _showLocked = true;
             _showHidden = true;
+            ResetSelections(raiseChanged);
+        }
+
+        // Reset the tag, category, rarity and trophy selections, which belong to the rows of one
+        // game. Leaves the unlocked/locked/hidden toggles and the search text untouched.
+        public void ResetSelections(bool raiseChanged = false)
+        {
             _selectedCategoryTypeFilters.Clear();
             _selectedCategoryLabelFilters.Clear();
             _tierFilters.Restore(null);
