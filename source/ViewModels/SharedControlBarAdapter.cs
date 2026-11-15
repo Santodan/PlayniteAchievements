@@ -440,5 +440,14 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Selected category paths, for achievement control bars showing one game.</summary>
         public List<string> Categories { get; set; }
+
+        /// <summary>False when an achievement grid's Unlocked toggle is off; null while it is on.</summary>
+        public bool? ShowUnlocked { get; set; }
+
+        /// <summary>False when an achievement grid's Locked toggle is off; null while it is on.</summary>
+        public bool? ShowLocked { get; set; }
+
+        /// <summary>False when an achievement grid's Hidden toggle is off; null while it is on.</summary>
+        public bool? ShowHidden { get; set; }
     }
 }
