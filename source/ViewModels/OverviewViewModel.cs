@@ -205,6 +205,12 @@ namespace PlayniteAchievements.ViewModels
             _showUnlockedOnly = true;
             _sortIndex = 2; // Unlock Date
             InitializeGridControlBars();
+            _selectedGameControlBar.PersistUnlockToggles(
+                Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
+                    GridOptionKeys.Achievement.OverviewSelectedGame),
+                state => Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                    GridOptionKeys.Achievement.OverviewSelectedGame,
+                    state));
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
@@ -1151,7 +1157,7 @@ namespace PlayniteAchievements.ViewModels
                         InvalidateLinkedSnapshots();
                     }
 
-                    _selectedGameControlBar.ResetFilters();
+                    _selectedGameControlBar.ResetSelections();
                     RefreshSelectedGameHeaderCounts();
                     (RefreshCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (RefreshOrCancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
