@@ -11,9 +11,9 @@ using PlayniteAchievements.Views.Helpers;
 namespace PlayniteAchievements.Services.UI
 {
     /// <summary>
-    /// Two cloaked windows that each show one layer of a resting wave, for a thumbnail presenter to
-    /// draw over the wave's own window: the cards' backgrounds and the cards' content, both rendered
-    /// in software.
+    /// Cloaked windows that each show one layer of a resting wave, for a thumbnail presenter to
+    /// draw with the wave's own window: the cards' backgrounds and the cards' content over it and,
+    /// when a card shows rays, those rays under it, all rendered in software.
     ///
     /// Measured against a GPU-bound game with an animated background (tools/capture-harness
     /// README.md, "The thumbnail probe"): at normal GPU priority the whole card reached the screen
@@ -23,8 +23,8 @@ namespace PlayniteAchievements.Services.UI
     /// no GPU work from this process, and a window that holds only the content is not redrawn by a
     /// background frame.
     ///
-    /// Both windows build the wave's cards from the same view models and template as the wave's own
-    /// window, with its content scale and margins, so every element lands on the same pixels.
+    /// Every window builds the wave's cards from the same view models and template as the wave's
+    /// own window, with its content scale and margins, so every element lands on the same pixels.
     /// UI thread only.
     /// </summary>
     internal sealed class ToastHoldLayers : IDisposable
@@ -119,13 +119,12 @@ namespace PlayniteAchievements.Services.UI
         public IDisposable MainHold { get; set; }
 
         /// <summary>
-        /// Builds and shows both windows, cloaked, or returns null when they cannot be built to the
+        /// Builds and shows the windows, cloaked, or returns null when they cannot be built to the
         /// main window's exact size.
         /// </summary>
         public static ToastHoldLayers TryCreate(
             IPlayniteAPI api, Window main, ItemsControl mainSurface,
-            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template, bool perMonitorWindow,
-            bool withRays)
+            IReadOnlyList<AchievementToastViewModel> cards, DataTemplate template, bool perMonitorWindow)
         {
             Window rays = null;
             Window background = null;
@@ -141,7 +140,7 @@ namespace PlayniteAchievements.Services.UI
                 background = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
                 content = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);
                 var mainRays = ToastLayer.Find(mainSurface, ToastLayerRole.Rays);
-                var needsRays = withRays && mainRays.Exists(burst => burst.IsVisible);
+                var needsRays = mainRays.Exists(burst => burst.IsVisible);
                 if (needsRays)
                 {
                     rays = Build(api, main, mainSurface, cards, template, perMonitorWindow, mainRect);

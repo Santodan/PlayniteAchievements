@@ -324,15 +324,9 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// A factor on the main thumbnail's opacity alone, 1 by default. The layers over it are
-        /// not dimmed by it.
-        /// </summary>
-        public double MainOpacityScale { get; set; } = 1d;
-
-        /// <summary>
-        /// When set, read for the factor on the main thumbnail's opacity in place of
-        /// <see cref="MainOpacityScale"/>, and <see cref="StepTrack"/> shows its value at every
-        /// call while no track plays. Called under the lock from any thread.
+        /// When set, read for a factor on the main thumbnail's opacity alone; the layers over it
+        /// are not dimmed by it. <see cref="StepTrack"/> shows its value at every call while no
+        /// track plays. Called under the lock from any thread.
         /// </summary>
         public Func<double> MainOpacitySource
         {
@@ -543,7 +537,7 @@ namespace PlayniteAchievements.Services.UI
             _lastOpacity = opacity;
             _hasPushed = true;
             var source = _mainOpacitySource;
-            var scale = source != null ? source() : MainOpacityScale;
+            var scale = source != null ? source() : 1d;
             var mainLevel = scale >= 1d || double.IsNaN(scale)
                 ? level
                 : (byte)Math.Round(level * Math.Max(0d, scale));

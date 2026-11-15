@@ -269,10 +269,10 @@ namespace PlayniteAchievements.Views.Helpers
         /// Leaves only the back elements under <paramref name="root"/> drawn, by hiding their
         /// siblings, and returns what shows those again. For the whole card while its background
         /// and content are shown from layers over it: what is left is redrawn by its own
-        /// animation alone, without the content that was drawn over it. Rays stay unless
-        /// <paramref name="hideRays"/>, for when a layer under the card shows them instead.
+        /// animation alone, without the content that was drawn over it. Rays are hidden too: a
+        /// layer under the card shows them.
         /// </summary>
-        public static Action ShowOnlyBack(DependencyObject root, bool hideRays)
+        public static Action ShowOnlyBack(DependencyObject root)
         {
             var hidden = new List<UIElement>();
             var parents = new HashSet<DependencyObject>();
@@ -289,7 +289,6 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     if (VisualTreeHelper.GetChild(parent, i) is UIElement child &&
                         GetRole(child) != ToastLayerRole.Back &&
-                        (hideRays || GetRole(child) != ToastLayerRole.Rays) &&
                         child.Opacity > 0 && child.Visibility == Visibility.Visible)
                     {
                         child.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
