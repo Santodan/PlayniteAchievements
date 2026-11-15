@@ -266,6 +266,14 @@ namespace PlayniteAchievements.ViewModels
         public GridControlBarViewModel GameSummariesControlBar { get; }
         public GridControlBarViewModel AchievementsControlBar { get; }
 
+        /// <summary>
+        /// Restores the achievement bar's Unlocked, Locked and Hidden toggles from
+        /// <paramref name="saved"/> and hands <paramref name="save"/> each later change. The view
+        /// calls this before the first load.
+        /// </summary>
+        public void PersistAchievementUnlockToggles(string saved, Action<string> save) =>
+            _achievementsBar.PersistUnlockToggles(saved, save);
+
         public PlayniteAchievementsSettings Settings => _settings;
 
         public ObservableCollection<string> OwnershipFilterOptions { get; }
@@ -1694,13 +1702,8 @@ namespace PlayniteAchievements.ViewModels
                 var scopedList = scoped.ToList();
 
                 // Unlock-state toggles only apply in the pair comparison view; every other source
-                // is unlocked rows only, so the toggle values reset to "show everything" and the
-                // buttons auto-hide once UpdateOptions finds no locked rows.
-                if (!HasFriendGameSelection)
-                {
-                    _achievementsBar.ResetVisibilityToggles();
-                }
-
+                // is unlocked rows only, so the buttons auto-hide once UpdateOptions finds no
+                // locked rows and the adapter stops filtering by them.
                 // Type and category options only make sense once a single game is selected
                 // (achievement types/categories are game-specific vocabulary); with no game
                 // selected they're cleared, which auto-hides the dropdowns.
