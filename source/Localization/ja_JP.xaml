@@ -51,7 +51,7 @@
     <sys:String x:Key="LOCPlayAch_Common_NotAuthenticated">未認証</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Preview">プレビュー</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Redo">やり直し</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Reorder">Reorder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Reorder">並べ替え</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_SelectedCountFormat">{0:N0} 選択中</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_Linked">リンク済み</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Both">両方</sys:String>
@@ -205,8 +205,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Game">ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Unlocks">解除数</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Ignore">無視</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">Skip Full Scans</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">Full scans stop discovering new unowned games for this friend. Owned and already-tracked games still update.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScans">フルスキャンをスキップ</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_SkipFullScansHint">このフレンドに対するフルスキャンでの新しい未所有ゲームの検出を停止します。所有済みおよびトラッキング済みのゲームは引き続き更新されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">ポイント</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_PrestigeLevel">名声レベル</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">レア度</sys:String>
@@ -303,14 +303,14 @@
     <sys:String x:Key="LOCPlayAch_Menu_UnignoreFriend">フレンドの無視を解除</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IgnoreFriend_Confirm">{0} を無視しますか?
 
-対象のキャッシュされた実績データは削除され、フレンド情報を更新する際もスキップされます。</sys:String>
+対象のキャッシュされた実績データは削除され、フレンドを更新する際もスキップされます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearFriend">フレンドを消去</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearFriend_Confirm">{0} のキャッシュされた実績データを削除しますか?
 
-次回フレンド情報を更新した際に再取得されます。</sys:String>
+次回フレンドを更新した際に再取得されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_CloseView">画面を閉じる</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_PsnNpCommId_InvalidId">有効な PSN NP Communication ID (例: NPWR12345_00) を入力してください。コレクション作品の場合は、それぞれのゲームIDを「NPWR12345_00+NPWR67890_00」のように「+」で連結してください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RefreshFriend">フレンド情報を更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshFriend">フレンドを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[更新を実行中]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">選択中のゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetGoal">目標実績に設定</sys:String>
@@ -375,8 +375,8 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ImportSummary">Imported {0} rows ({1} added, {2} updated).</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_LockedIcon">未解除アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NewAchievementName">新しい実績 {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoImportRows">No importable achievements were found.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoSelection">Select a custom achievement row.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoImportRows">インポート可能な実績が見つかりませんでした。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoSelection">カスタム実績行を選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProgressDenom">全体進捗</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderEditorTitle">カスタムプラットフォーム</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm">&quot;{0}&quot; を削除しますか? {1} 件の他のゲームがこのプラットフォームを使用しており、削除後は&quot;カスタム&quot;として表示されます。</sys:String>
@@ -396,7 +396,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_WithNotes">メモあり</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_WithoutNotes">メモなし</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary">{0} ({1})</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary_None">No manual link configured.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary_None">手動リンクが設定されていません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning">手動トラッキングを有効にしますか?
 
 手動トラッキングを有効にすると、{0} から取得されたこのゲームの実績データを置き換えることができます。</sys:String>
@@ -431,7 +431,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader">個別の未解除アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint">Download separate locked icons for this game when the platform provides them. Unchecked, the global setting applies.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHeader">プラットフォームのオーバーライド</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHint">このゲームで使用する実績対応プラットフォームを強制的に設定するか、オーバーライド設定を解除して自動マッチングを使用します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHint">このゲームで使用する実績対応プラットフォームを強制指定するか、オーバーライド設定を解除して自動紐付けを使用します。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalid">対応しているプラットフォームのオーバーライドを選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Steam">Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_GameJolt">Game Jolt Game ID</sys:String>
@@ -465,9 +465,9 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_AchievementPageUnavailable">このゲームには利用可能なソースページのリンクがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">ライブラリソース</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">メタデータリンク</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">Which game each source uses. Select picks another game, Reset matches again on the next refresh, or turn a source off for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly">Unmatched only</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">各ソースで使用するゲームを指定します。&quot;選択&quot; で別のゲームを指定、&quot;リセット&quot; で次回更新時に再紐付けできるほか、このゲームでソースをオフにすることもできます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">手動設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly">未紐付けのみ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">除外済み</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes">一括更新から除外済み</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromSummaries">統計から除外済み</sys:String>
@@ -546,7 +546,7 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_InvalidRecentLimit">Recent limit override must be a positive number.</sys:String>
     <!-- CustomRefresh_NoCapableProviderForGames: {0} is a comma-separated list of game names (capped) -->
     <sys:String x:Key="LOCPlayAch_CustomRefresh_NoCapableProviderForGames">次のゲームを更新できる有効かつ認証済みのプラットフォームがありません: {0}。設定で対応するプラットフォームを有効にするか、認証状態を確認してください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingGames">No games match this custom refresh request.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingGames">このカスタム更新リクエストに一致するゲームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">このカスタム更新のリクエストに一致する有効かつ認証済みのプラットフォームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">読み込む</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary">Preset loaded with adjustments: removed {0} unavailable platform(s) and {1} missing game reference(s).</sys:String>
@@ -561,16 +561,16 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_UseIncludeUnplayed">Override include unplayed</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_UseParallelOverride">Override parallel platform execution</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_UseRecentLimit">Override recent limit</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress_RefreshRunningNote">You can still check progress in the overview.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress_RefreshRunningNote">概要から引き続き進捗を確認できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Custom">カスタム更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Favorites">お気に入りを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Full">すべて更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsFull">フレンド情報をすべて更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsCustom">フレンド情報をカスタム更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsInstalled">インストール済みのフレンド情報を更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsRecent">最近のゲームのフレンド情報を更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsSelectedGame">選択中のゲームのフレンド情報を更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsShared">共有ゲームのフレンド情報を更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsFull">フレンドをすべて更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsCustom">フレンドをカスタム更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsInstalled">フレンドのインストール済みゲームを更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsRecent">フレンドが最近プレイしたゲームを更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsSelectedGame">フレンドの選択したゲームを更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_FriendsShared">フレンドの共有ゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Installed">インストール済みを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">不足分を更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">最近のゲームを更新</sys:String>
@@ -677,9 +677,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProgressToastIntervalPercent">通知間隔 (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProgressToastIntervalPercent_Hint">例: 10 を指定すると 10%、20%、30%... のタイミングで通知されます。0 を指定すると更新のたびに通知されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_InGamePollIntervalSeconds">フォールバック間隔 (秒):</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_InGamePollRefreshFriends">Also Refresh Friends Who Own the Running Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_InGameFriendRefreshMultiplier">Friend Refresh Every N Polls:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_InGameFriendBatchSize">Friends per Refresh (0 = all):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_InGamePollRefreshFriends">現在実行中のゲームを所有しているフレンドの情報も同時に更新する</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_InGameFriendRefreshMultiplier">N 回のポーリングごとにフレンドを更新:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_InGameFriendBatchSize">一度に更新するフレンド数 (0 = すべて):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_MaxConcurrentToasts">同時通知:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">通知持続時間 (秒):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">通知遅延 (秒):</sys:String>
@@ -971,16 +971,16 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_AutoDiscoverHint">このリストに自動追加できるプラットフォームを選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnership">Steam フレンドのゲーム所有状況に Exophase を使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnershipHint">Steam のフレンドが所有するゲーム情報を更新する際、統合された Exphase プロフィールから不足している Steam ゲームを追加します。Exophase を有効にする必要があります。</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGames">未所有のゲームを更新に含める</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint">自分が所有していないゲームも含めて、フレンドのゲームをスキャンする「完全更新」を許可します。無効にすると、完全モードは非表示となり、フレンドの更新はライブラリ内のゲームのみが対象となります。</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGames">未所有ゲームを更新に含める</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint">自分が所有していないゲームも含めて、フレンドのゲームをスキャンするフル更新を許可します。無効にすると、フルモードは非表示となり、フレンドの更新はライブラリ内のゲームのみが対象となります。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_ManualAdd">フレンドの手動追加</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeInvalid">Select at least two friends from different platforms to merge.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">選択したフレンドを統合</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">選択したフレンドを無視</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">選択したフレンドの無視を解除</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">Allow Full Scans</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_AllowFullScansSelected">フルスキャンを許可する</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Merged">統合済み</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">No auto-discovery platforms are enabled.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_NoAutoProviders">自動検出が有効なプラットフォームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_RefreshCompleteFormat">Friends refreshed: {0:N0}.</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_Unmerge">統合を解除</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FriendNameDisplay">フレンド名の表示</sys:String>
@@ -1095,7 +1095,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">次回に概要を開いたときに初回セットアップ画面を再表示します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">初回セットアップ画面をリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings">表示設定をリセット</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings_Help">Revert Display tab options, grid visibility, column layouts, row sizing, and overview layout to defaults.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetDisplaySettings_Help">表示タブのオプション、グリッドの表示設定、列のレイアウト、行のサイズおよび概要のレイアウトをデフォルトに戻します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">スキャンとハッシュ照合</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">クリア済みゲームにクリア状態を設定する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">レア度バーを表示</sys:String>
@@ -1243,7 +1243,7 @@
     <sys:String x:Key="LOCPlayAch_FriendsOverview_FriendSummaries">フレンド</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SearchFriends">フレンドを検索</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">すべてのプラットフォーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_ClearSelection">Clear Selection</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_ClearSelection">選択を消去</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectedFriendAchievements">{0} 実績</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectedFriendGameAchievements">{0} - {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectedGameAchievementCount">({0}/{1} {2})</sys:String>
@@ -1252,19 +1252,19 @@
     <sys:String x:Key="LOCPlayAch_FriendsOverview_ClearUnowned_Confirm">フレンドだけが所有するゲームのデータを消去しますか?
 
 フレンドだけが所有する {0} ゲームのキャッシュデータを削除します。あなたが所有するゲームのデータは保持されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_ClearUnowned_Done">Cleared unowned friend data for {0:N0} games.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_ClearUnowned_Done">{0:N0} 件の未所有ゲームのフレンドデータを削除しました。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_NoData">フレンドの実績データがまだありません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_LoadFailed">Failed to load friend achievement data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_LoadFailed">フレンドの実績データの読み込みに失敗しました。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_RefreshFailed">フレンドの更新に失敗しました。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsOverview_NotAvailable">フレンドの概要は利用できません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectTargetForRefresh">Select a friend or game before refreshing selected friend data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsOverview_SelectTargetForRefresh">選択したフレンドのデータを更新する前にフレンドまたはゲームを選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_WindowTitle">{0} - フレンドの実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_TitleFallback">フレンドの実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ViewFriendsAchievements_RefreshSelectedFriend">Refresh Friend for This Game</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_Header">カスタムフレンド更新</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SelectedGameScope">選択中のゲーム: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SummaryFormat">Platforms: {0} | Scope: {1}</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SelectionHint">Leave unselected to include all. Selections narrow the chosen scope.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SummaryFormat">プラットフォーム: {0} | 範囲: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SelectionHint">すべて含める場合は未選択のままにしてください。選択すると、指定した範囲が絞り込まれます。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_NoAuthenticatedProviders">フレンド機能に対応した認証済みのプラットフォームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_Progress_LoadingFriends">フレンドを読み込み中 {1}/{2}: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_Progress_Libraries">フレンドのライブラリを更新中 {0}/{1}</sys:String>
@@ -1401,7 +1401,7 @@
     <sys:String x:Key="LOCPlayAch_Error_Periodic_UpdateFailed">Periodic refresh failed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_RebuildFailed">更新失敗</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">更新失敗: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Could not read {0} Steam unlock time(s). Set the plugin language to match your Steam language, then refresh. See the log for details.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">{0} 件の Steam 実績の解除時間を読み込めませんでした。プラグインの言語を Steam の言語に一致させてから更新してください。詳細はログを確認してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} の認証は有効期限が切れているか、無効です。クリックして設定を開きます。</sys:String>
     <!-- Toast_AchievementUnlocked: unlock toast heading for the current user's own achievements -->
     <sys:String x:Key="LOCPlayAch_Toast_AchievementUnlocked">実績を解除しました</sys:String>
