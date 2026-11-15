@@ -268,6 +268,24 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void UnlockToggles_RoundTripOnlyTheOnesTurnedOff()
+        {
+            var restored = GridControlBarSurfaceState.Deserialize(GridControlBarSurfaceState.Serialize(
+                GridControlBarSurfaceState.CaptureUnlockToggles(showUnlocked: true, showLocked: false, showHidden: true)));
+
+            Assert.IsNull(restored.ShowUnlocked);
+            Assert.AreEqual(false, restored.ShowLocked);
+            Assert.IsNull(restored.ShowHidden);
+        }
+
+        [TestMethod]
+        public void UnlockToggles_AllOn_SaveNothing()
+        {
+            Assert.IsNull(GridControlBarSurfaceState.Serialize(
+                GridControlBarSurfaceState.CaptureUnlockToggles(true, true, true)));
+        }
+
+        [TestMethod]
         public void UnreadableState_RestoresNothing()
         {
             Assert.IsNull(GridControlBarSurfaceState.Deserialize("{not json"));
