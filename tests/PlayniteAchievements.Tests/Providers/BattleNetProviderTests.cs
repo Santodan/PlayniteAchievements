@@ -259,6 +259,12 @@ namespace PlayniteAchievements.Tests.Providers
                     ApiName = "missing",
                     DisplayName = "Missing",
                     Rarity = RarityTier.Common
+                },
+                new AchievementDetail
+                {
+                    ApiName = " ",
+                    DisplayName = "No id",
+                    Rarity = RarityTier.Common
                 }
             };
 
@@ -270,13 +276,30 @@ namespace PlayniteAchievements.Tests.Providers
                     { "6", 100 }
                 });
 
-            Assert.AreEqual(2, updated);
+            Assert.AreEqual(3, updated);
             Assert.AreEqual(4.3049, achievements[0].GlobalPercentUnlocked.Value);
             Assert.AreEqual(RarityTier.UltraRare, achievements[0].Rarity);
             Assert.AreEqual(100d, achievements[1].GlobalPercentUnlocked.Value);
             Assert.AreEqual(RarityTier.Common, achievements[1].Rarity);
-            Assert.IsFalse(achievements[2].GlobalPercentUnlocked.HasValue);
-            Assert.AreEqual(RarityTier.Common, achievements[2].Rarity);
+            Assert.AreEqual(0d, achievements[2].GlobalPercentUnlocked.Value);
+            Assert.AreEqual(RarityTier.UltraRare, achievements[2].Rarity);
+            Assert.IsFalse(achievements[3].GlobalPercentUnlocked.HasValue);
+            Assert.AreEqual(RarityTier.Common, achievements[3].Rarity);
+        }
+
+        [TestMethod]
+        public void WowRarity_EmptyDocumentLeavesAchievementsUntouched()
+        {
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "157", GlobalPercentUnlocked = 12.5, Rarity = RarityTier.Rare }
+            };
+
+            var updated = WowGameStrategy.ApplyDataForAzerothRarity(achievements, new Dictionary<string, double>());
+
+            Assert.AreEqual(0, updated);
+            Assert.AreEqual(12.5, achievements[0].GlobalPercentUnlocked.Value);
+            Assert.AreEqual(RarityTier.Rare, achievements[0].Rarity);
         }
 
         [TestMethod]
