@@ -1751,7 +1751,7 @@
     <sys:String x:Key="LOCPlayniteAchievementsRare">レア</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsRarety">レア度</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsRetroAchievements">RetroAchievements</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">Time to unlock everything</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">全実績解除の所要時間</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">ウルトラレア</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">ユーザー統計</sys:String>
 
