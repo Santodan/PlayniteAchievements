@@ -69,8 +69,8 @@
     <sys:String x:Key="LOCPlayAch_Common_Date_YearsAgo">{0} 年前</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Validation_NonNegativeInteger">0 以上の整数を入力するか、空欄のままにしてください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Validation_InvalidDateTime">有効な日付を入力するか、空欄のままにしてください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Validation_DateRangeOrder">The start date must be on or before the end date.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Validation_InvalidId">Enter a valid {0}, such as {1}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Validation_DateRangeOrder">開始日は終了日以前である必要があります。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Validation_InvalidId">有効な{0}を入力してください (例: {1})。</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_View">表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Manage">管理</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Overview">概要</sys:String>
@@ -118,7 +118,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Add">追加</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">すべて</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ApiKey">API キー</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Author">Author</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Author">作成者</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Automatic">自動</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Cancel">キャンセル</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Category">カテゴリー</sys:String>
@@ -147,9 +147,9 @@
     <sys:String x:Key="LOCPlayAch_Common_General">一般</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Height">高さ</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Import">インポート</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_LastPlayed">Last Played</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_LastPlayed">最後のプレイ</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Library">ライブラリ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_GroupBy">Group By</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_GroupBy">グループ化</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">昇順</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_SortDirection">並べ替え方向</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_SortBy">並べ替え</sys:String>
@@ -379,7 +379,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoSelection">Select a custom achievement row.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProgressDenom">全体進捗</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderEditorTitle">カスタムプラットフォーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm">Delete &quot;{0}&quot;? {1} other game(s) use this platform and will show as Custom.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm">&quot;{0}&quot; を削除しますか? {1} 件の他のゲームがこのプラットフォームを使用しており、削除後は&quot;カスタム&quot;として表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderHint">このプラットフォームへの変更は、割り当てられているすべてのゲームに適用されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderInvalidColor">#FF652C のような有効な色を入力してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderNewName">新しいプラットフォーム</sys:String>
@@ -431,8 +431,8 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader">個別の未解除アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint">Download separate locked icons for this game when the platform provides them. Unchecked, the global setting applies.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHeader">プラットフォームのオーバーライド</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHint">Force this game to use one supported achievement platform, or clear the override to use automatic matching.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalid">Select a supported platform override.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderHint">このゲームで使用する実績対応プラットフォームを強制的に設定するか、オーバーライド設定を解除して自動マッチングを使用します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalid">対応しているプラットフォームのオーバーライドを選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Steam">Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_GameJolt">Game Jolt Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Meta">Meta App ID</sys:String>
@@ -451,8 +451,8 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Ubisoft">Ubisoft Product ID</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Hoyoverse">HoYoverse ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_BattleNet">Battle.net ゲーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueRequired">Enter a value for this override.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice">Select a valid game for this override.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderValueRequired">このオーバーライド設定の値を入力してください。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice">このオーバーライド設定の対象となる有効なゲームを選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentCategory">現在のカテゴリのフルコン実績: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_CurrentGame">現在のゲームのフルコン実績: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_ChooseCategory">このフルコン実績はどのカテゴリーに対応していますか?</sys:String>
@@ -460,7 +460,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Categorized">カテゴリー化</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_Completion">クリア率</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_GameId">Playnite ゲーム ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LastUpdatedLocal">最終更新日 (ローカル)</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LastUpdatedLocal">最終更新 (ローカル)</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_OpenAchievementPage">ソースページ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_AchievementPageUnavailable">このゲームには利用可能なソースページのリンクがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">ライブラリソース</sys:String>
@@ -481,7 +481,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">Use Covers Instead of Icons for Missing Art</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Editor">編集</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">Make Global</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">グローバルにする</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_CombineByName">{0} other games have their own tag named &quot;{1}&quot;. Combine them into this global tag?</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GlobalHeader">グローバルタグ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_GameHeader">ゲームタグ</sys:String>
@@ -489,9 +489,9 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_FetchedHint">From this game's achievement data: it can be renamed and recolored, but not deleted.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Goal">目標実績</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_Revert">復元</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">Discard your changes to the selected achievements and show the provider's values again.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle">Revert &quot;{0}&quot; to the provider's values?</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected">Revert {0} achievements to the provider's values?</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertHint">選択した実績への変更を破棄し、取得元の値を再表示します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle">&quot;{0}&quot; を取得元の値に戻しますか?</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected">{0} 件の実績を取得元の値に戻しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHeader">{0} 実績を編集中</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHint">変更内容は選択したすべての実績に適用されます。空欄の項目は選択項目間で値が異なるため、変更されません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip">Collapse the details pane</sys:String>
@@ -547,7 +547,7 @@
     <!-- CustomRefresh_NoCapableProviderForGames: {0} is a comma-separated list of game names (capped) -->
     <sys:String x:Key="LOCPlayAch_CustomRefresh_NoCapableProviderForGames">次のゲームを更新できる有効かつ認証済みのプラットフォームがありません: {0}。設定で対応するプラットフォームを有効にするか、認証状態を確認してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingGames">No games match this custom refresh request.</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">No enabled and authenticated platforms match this custom refresh request.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">このカスタム更新のリクエストに一致する有効かつ認証済みのプラットフォームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">読み込む</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary">Preset loaded with adjustments: removed {0} unavailable platform(s) and {1} missing game reference(s).</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">名前を付けて保存</sys:String>
@@ -575,7 +575,7 @@
     <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">不足分を更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">最近のゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshMode_Selected">選択中のゲームを更新</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Single">このゲームを更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Single">単一ゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">お気に入り</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Full">すべて</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_FriendsShared">共有</sys:String>
@@ -627,7 +627,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">コンパクト未解除リスト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">コンパクト解除済リスト</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_AchievementIconsDescription">実績アイコンキャッシュを圧縮します。通常、これが最も大きいグループです。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">プロバイダ提供のデフォルトカテゴリーアートを圧縮します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompressImages_CategoryArtDescription">取得元から読み込んだデフォルトカテゴリーアートを圧縮します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CompressImages_Confirm">画像キャッシュ {1} 件中 {0} 件が {2} px を超えています。
 
 現在のサイズ: {3}
@@ -658,8 +658,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_DefaultOverviewRefreshMode">デフォルトの概要更新モード</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">通知を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">バックグラウンドでの定期更新を有効化</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsPeriodicUpdates">バックグラウンドでのフレンド更新を有効化 (最近)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">バックグラウンドでの定期更新を有効にする</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsPeriodicUpdates">バックグラウンドでのフレンド更新を有効にする (最近)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling">ゲーム起動中に実績を監視する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling_Description">ローカルファイルの変更やサービスの配信データを参照して実績解除を即座に検知します。検知できない場合は、予備処理として対象を絞った軽量な更新を行います。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableAutoCapstoneGeneration">自動フルコン実績の生成を有効にする</sys:String>
@@ -699,7 +699,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ToastPosition_TopLeft">左上</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">レンダリング</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">パフォーマンス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">「品質」では、ゲーム側で GPU の負荷が高い状態でも通知を滑らかに表示できますが、通知の表示中はゲームのフレームレートがわずかに低下する場合があります。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">&quot;品質&quot;設定では、ゲーム側で GPU の負荷が高い状態でも通知を滑らかに表示できますが、通知の表示中はゲームのフレームレートがわずかに低下する場合があります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowHeader">ヘッダー行</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastShowRarityGlow">レア度発光</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastRarityColoredName">レア度に応じて名前を着色</sys:String>
@@ -721,7 +721,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_StopSeparateConfirm">これらの通知の個別スタイル設定を解除しますか? 個別のスタイルと画像は削除されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Sounds_Customize">&quot;{0}&quot; に個別の効果音を使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Sounds_StopSeparateConfirm">ここで個別の効果音を使用するのを停止しますか? 実績が解除されると、継承された効果音が再び再生されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">このタブのスタイルをファイルまたは Workshop にエクスポートします。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">このタブのスタイルをファイルまたはワークショップにエクスポートします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportSurfaceMismatch">このファイルには{0}のスタイルが含まれていますが、{1}のタブが開かれています。このままインポートしますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Apply this file's style to the current selection?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeTemplate">Include your custom template in the file?</sys:String>
@@ -864,11 +864,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">代替サインイン</sys:String>
 
     <!-- Provider: Game Jolt -->
-    <sys:String x:Key="LOCPlayAch_Settings_GameJolt_Help">解除済みのトロフィーを読み込むには、ブラウザウィンドウで Game Jolt にログインしてください。Game Jolt 実績は、Game Jolt ライブラリ拡張機能で追加したゲーム、または実績の管理で Game Jolt ゲーム ID を手動で設定したゲームを対象に追跡されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GameJolt_Help">解除済みのトロフィーを取得するには、ブラウザウィンドウで Game Jolt にログインしてください。Game Jolt 実績は、Game Jolt ライブラリ拡張機能で追加したゲーム、または実績の管理で Game Jolt ゲーム ID を手動で設定したゲームを対象に追跡されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GameJolt_Note">Note: Only your own unlocked trophies are read; Game Jolt does not expose achievements without signing in.</sys:String>
 
     <!-- Provider: Meta Quest -->
-    <sys:String x:Key="LOCPlayAch_Settings_Meta_Help">解除済みの実績を読み込むには、ブラウザウィンドウで Meta にログインしてください。Meta Quest の実績は、Meta Quest/Oculus ライブラリ拡張機能で追加したゲーム、または実績の管理で Meta アプリ ID を手動で設定したゲームを対象に追跡されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Meta_Help">解除済みの実績を取得するには、ブラウザウィンドウで Meta にログインしてください。Meta Quest の実績は、Meta Quest/Oculus ライブラリ拡張機能で追加したゲーム、または実績の管理で Meta アプリ ID を手動で設定したゲームを対象に追跡されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Meta_Note">注: Meta は実績を解除した日付のみを記録し、時刻は記録せず、達成率も公開していないため、Meta Quest の実績には解除時刻とレア度が表示されません。</sys:String>
 
     <!-- Provider: Exophase -->
@@ -1101,9 +1101,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">レア度バーを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealWhen">表示条件</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Spoilers">ネタバレ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">Toggle sort direction</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">並べ替え方向を切り替え</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GameSummariesSort_PinOrder">Pin order</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Click the sorted column header again to return to this default.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">並べ替え済みの列ヘッダーを再度クリックするとデフォルトに戻ります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionGlow">クリア発光を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionFrame">クリアフレームを表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowFriendSpoilers">フレンドのネタバレを表示する</sys:String>
@@ -1131,7 +1131,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_SoftGlowTiers">ソフト発光ランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RayGlowTiers">回転レイランク</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GlowTiers_Help">各エフェクトを適用する項目を選択します。ソフト発光はアイコンの周囲に広がる光彩、回転レイはアイコンの背後に広がる放射状の光線です。&quot;クリア&quot; はクリア済みのゲームやカテゴリーアートを対象とします。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder">RetroAchievements のハードコア解除時に枠線を表示する</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder">RetroAchievements ハードコア実績解除枠</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowHardcoreBorder_Help">RetroAchievements のハードコアモードで解除した実績に、発光エフェクトの代わりに光沢のあるメタリックな枠を表示します。オフにすると、他の解除済み実績と同様にレア度に応じた発光エフェクトが適用されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows">レア度発光をアニメーション化する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AnimateRarityGlows_Help">解除済み実績アイコンと解除通知のレア度発光エフェクトを緩やかにフェードイン・アウトさせ、光線をゆっくりと回転させます。</sys:String>
@@ -1161,7 +1161,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Context_Preview">プレビュー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Context_Settings">設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance">外観</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Appearance_PresetNumbered">プリセット{0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Appearance_PresetNumbered">プリセット {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_BadgeColors">バッジの色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_ProviderColors">プラットフォームの色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_ProviderColorsDescription">アイコンやグラフなど、プラットフォーム別の視覚要素に使用する色をカスタマイズします。</sys:String>
@@ -1178,7 +1178,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Panel">パネル背景</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_WindowSurface">ウィンドウ背景</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_GridSurface">グリッド背景</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Border">外枠</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Border">枠</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_ControlBorder">入力枠</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Accent">アクセント</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Selection">Selection</sys:String>
@@ -1265,7 +1265,7 @@
     <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SelectedGameScope">選択中のゲーム: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SummaryFormat">Platforms: {0} | Scope: {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendCustomRefresh_SelectionHint">Leave unselected to include all. Selections narrow the chosen scope.</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsRefresh_NoAuthenticatedProviders">No authenticated friend-capable platforms are available.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsRefresh_NoAuthenticatedProviders">フレンド機能に対応した認証済みのプラットフォームがありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_Progress_LoadingFriends">フレンドを読み込み中 {1}/{2}: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_Progress_Libraries">フレンドのライブラリを更新中 {0}/{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsRefresh_Progress_GameChecks">フレンドのゲームを更新中 {0}/{1}</sys:String>
@@ -1397,12 +1397,12 @@
     <!-- ================================================================= -->
     <!-- 17 Errors and Notifications -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">No platforms are authenticated. Set up at least one platform in settings before refreshing.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">認証済みのプラットフォームがありません。更新する前に、設定で少なくとも 1 つのプラットフォームを設定してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_Periodic_UpdateFailed">Periodic refresh failed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_RebuildFailed">更新失敗</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">更新失敗: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Could not read {0} Steam unlock time(s). Set the plugin language to match your Steam language, then refresh. See the log for details.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} の認証は期限が切れているか無効になっています。クリックして設定画面に移動してください。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} の認証は有効期限が切れているか、無効です。クリックして設定を開きます。</sys:String>
     <!-- Toast_AchievementUnlocked: unlock toast heading for the current user's own achievements -->
     <sys:String x:Key="LOCPlayAch_Toast_AchievementUnlocked">実績を解除しました</sys:String>
     <!-- Toast_AchievementProgress: heading of the incremental-progress toast for a locked achievement -->
@@ -1521,7 +1521,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_NoImage">ウィジェット設定で画像を選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoText">Add text in the widget settings.</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_NoData">まだデータがありません</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_UnknownProvider">不明なプロバイダ</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_UnknownProvider">不明な取得元</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableAchievement">獲得不可の実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_UnavailableGame">利用不可のゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MoveEarlier">Move earlier</sys:String>
@@ -1560,7 +1560,7 @@
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarWidth">アバターの幅</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileAvatarHeight">アバターの高さ</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_ProfileLinkIconSize">Link icon size</sys:String>
-    <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">Provider or service</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_PointsGrouping_Provider">取得元またはサービス</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_MosaicSource_UnlockNext">Unlock next</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_Completed">クリアしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_GameMosaicSource_All">すべてのゲーム</sys:String>
@@ -1661,7 +1661,7 @@
     <sys:String x:Key="LOCPlayAch_Workshop_ResetConfirmGameData">{1} を公開時の &quot;{0}&quot; にリセットしますか? この操作により、適用後に変更した内容を含め、ゲームのカスタムデータはパッケージの内容に置き換えられます。解除の進捗状況は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_PickGame">Choose the games to apply &quot;{0}&quot; to</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_ApplyToGames">ゲームに適用する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_UpdateConfirmGameData">{1} の &quot;{0} を更新しますか? 前回のインストール以降に加えた編集内容は保持されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_UpdateConfirmGameData">{1} の &quot;{0}&quot; を更新しますか? 前回のインストール以降に加えた編集内容は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Share">ワークショップに共有</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Menu_FromFile">ファイルから読み込み...</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Menu_FromWorkshop">ワークショップから読み込み...</sys:String>
