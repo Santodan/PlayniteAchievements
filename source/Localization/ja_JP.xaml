@@ -151,7 +151,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Library">ライブラリ</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_GroupBy">Group By</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">昇順</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_SortDirection">Sort Direction</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SortDirection">並べ替え方向</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_SortBy">並べ替え</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Descending">降順</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Name">名前</sys:String>
@@ -332,7 +332,7 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_FilterScopeTooltip">このカテゴリー内のすべての実績にフィルターを適用します。サブカテゴリーは独自の設定を保持します。設定が異なる場合は空白で表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">選択した実績のカテゴリーラベル</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Indent">上のカテゴリーのサブカテゴリーにする</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Outdent">Move out one level</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Outdent">1つ上の階層に移動</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_PathSeparatorNotAllowed">カテゴリー名に &quot;::&quot; を含めることはできません。カテゴリーを別のカテゴリーのサブカテゴリーにするには、矢印ボタンまたは右クリックメニューを使用してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_ManageHint">カテゴリー名の変更やカテゴリー画像の選択、ドラッグによる並べ替えが行なえます。別のカテゴリーの中央にドロップするとサブカテゴリーになり、行を右クリックするとその他の操作が表示されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Target">次のカテゴリーに統合</sys:String>
