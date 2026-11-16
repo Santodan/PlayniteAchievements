@@ -126,6 +126,9 @@ namespace PlayniteAchievements.ViewModels
         // friend's unlock state. Selection clears whenever the selected game changes.
         public FriendCompareController FriendCompare { get; }
 
+        /// <summary>Compare for the achievements grid shown while no game is selected.</summary>
+        public LibraryFriendCompareController RecentFriendCompare { get; }
+
 
         internal OverviewViewModel(
             RefreshRuntime refreshRuntime,
@@ -144,6 +147,7 @@ namespace PlayniteAchievements.ViewModels
             _widgetCoordinatorAccessor = widgetCoordinatorAccessor;
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _selectedGameControlBar.AttachFriendCompare(FriendCompare);
+            RecentFriendCompare = new LibraryFriendCompareController(friendCache, settings, logger);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
@@ -211,6 +215,9 @@ namespace PlayniteAchievements.ViewModels
             Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
                 FriendCompare.PersistSelection,
                 GridOptionKeys.Achievement.OverviewSelectedGame);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                RecentFriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.OverviewRecent);
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
@@ -375,6 +382,27 @@ namespace PlayniteAchievements.ViewModels
                     LabelKey = "LOCPlayAch_Filter_Achievements"
                 }
             };
+            // Compare: any friend, whose unlock state is drawn on the rows of the games they
+            // have unlocks in.
+            var recentCompareFilter = new GridMultiSelectFilter(
+                this,
+                null,
+                () => RecentFriendCompare.CompareSelectionText,
+                () => RecentFriendCompare.OptionKeys,
+                RecentFriendCompare.IsKeySelected,
+                RecentFriendCompare.SelectKey,
+                RecentFriendCompare.GetDisplayNameForKey,
+                () => RecentFriendCompare.IsCompareAvailable,
+                RecentFriendCompare.IsKeyFavorite)
+            {
+                Id = ShowcaseControlBarItems.Compare,
+                LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
+                Width = 140,
+                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
+                StaysOnBar = true
+            };
+            RecentFriendCompare.PropertyChanged += (_, __) => recentCompareFilter.Refresh();
+            RecentAchievementsControlBar.Items.Add(recentCompareFilter);
             // The unlock date range; a timeline column or calendar day in the mini-showcase sets
             // it too, and the timeline and calendar mark whatever it holds.
             RecentAchievementsControlBar.Items.Add(new GridDateRangeFilter(
@@ -1426,6 +1454,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 AttachSharedSnapshotPublisher();
                 _progressTracker.SyncToCurrentState();
+                RecentFriendCompare.Refresh();
                 // Refresh data when overview becomes active to ensure cached changes are visible
                 _ = RefreshViewAsync();
             }
@@ -3497,6 +3526,7 @@ namespace PlayniteAchievements.ViewModels
                 _settings?.Persisted?.OverviewRecentAchievementsGridMaxRows);
 
             CollectionHelper.Replace(RecentAchievements, displayItems);
+            RecentFriendCompare.SetTargetItems(displayItems);
         }
 
         /// <summary>
@@ -4339,6 +4369,7 @@ namespace PlayniteAchievements.ViewModels
             _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
 
             _latestSnapshot = null;
+            RecentFriendCompare.Release();
 
             _globalAchievementSearchIndex.Clear();
             _gameSummarySearchIndex.Clear();
