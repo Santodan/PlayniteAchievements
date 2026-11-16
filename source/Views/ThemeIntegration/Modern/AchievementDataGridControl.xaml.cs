@@ -174,6 +174,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 PlayniteAchievementsPlugin.Instance?.Settings,
                 Logger);
             _controlBarAdapter.AttachFriendCompare(_friendCompare);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _friendCompare.PersistSelection,
+                PlayniteAchievements.Models.Settings.GridOptionKeys.Achievement.DesktopTheme);
             SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
