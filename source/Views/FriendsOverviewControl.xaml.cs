@@ -130,6 +130,9 @@ namespace PlayniteAchievements.Views
                 state => Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
                     GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame,
                     state));
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _viewModel.PersistCompareSelection,
+                GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame);
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
         }
