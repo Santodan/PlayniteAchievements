@@ -50,21 +50,34 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The last friend list or row load, for callers that wait on it.</summary>
         internal Task LoadTask { get; private set; } = Task.CompletedTask;
 
-        public bool IsCompareAvailable => _friends.Count > 0;
+        // A remembered friend keeps the dropdown shown and selected while they are not listed.
+        public bool IsCompareAvailable => _friends.Count > 0 || RememberedKey != null;
 
         public string CompareSelectionText => _selected?.DisplayName
+            ?? (RememberedKey != null ? RememberedName : null)
             ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
-        public IEnumerable<string> OptionKeys => _friends.Select(FriendOverviewProjection.GetFriendScopeKey);
+        public IEnumerable<string> OptionKeys
+        {
+            get
+            {
+                var keys = _friends.Select(FriendOverviewProjection.GetFriendScopeKey);
+                return RememberedKey != null && FindFriend(RememberedKey) == null
+                    ? keys.Concat(new[] { RememberedKey })
+                    : keys;
+            }
+        }
 
         public bool IsKeySelected(string key)
         {
-            return _selected != null && MatchesKey(_selected, key);
+            return _selected != null ? MatchesKey(_selected, key) : IsRememberedKey(key);
         }
 
         public string GetDisplayNameForKey(string key)
         {
-            return FindFriend(key)?.DisplayName ?? key;
+            return FindFriend(key)?.DisplayName
+                   ?? (IsRememberedKey(key) ? RememberedName : null)
+                   ?? key;
         }
 
         public bool IsKeyFavorite(string key)
@@ -81,14 +94,17 @@ namespace PlayniteAchievements.ViewModels
                 if (IsKeySelected(key))
                 {
                     Select(null);
-                    Remember(null);
+                    Remember(null, null);
+                    NotifyCompareStateChanged();
                 }
 
                 return;
             }
 
             Select(FindFriend(key));
-            Remember(_selected != null ? FriendOverviewProjection.GetFriendScopeKey(_selected) : null);
+            Remember(
+                _selected != null ? FriendOverviewProjection.GetFriendScopeKey(_selected) : null,
+                _selected?.DisplayName);
         }
 
         /// <summary>
