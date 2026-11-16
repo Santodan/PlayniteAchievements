@@ -274,6 +274,13 @@ namespace PlayniteAchievements.ViewModels
         public void PersistAchievementUnlockToggles(string saved, Action<string> save) =>
             _achievementsBar.PersistUnlockToggles(saved, save);
 
+        /// <summary>
+        /// Restores the pair view's Compare pick from <paramref name="saved"/> and hands
+        /// <paramref name="save"/> each pick or clear the user makes later.
+        /// </summary>
+        public void PersistCompareSelection(string saved, Action<string> save) =>
+            _friendCompare.PersistSelection(saved, save);
+
         public PlayniteAchievementsSettings Settings => _settings;
 
         public ObservableCollection<string> OwnershipFilterOptions { get; }
