@@ -140,8 +140,27 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.SetValue(FriendSummaryOptionsPropertyKey, e.NewValue as FriendSummaryGridOptions);
             editor.SetValue(CategorySummaryOptionsPropertyKey, e.NewValue as CategorySummaryGridOptions);
             editor.SetValue(CommonOptionsPropertyKey, e.NewValue as GridCommonOptions);
+            if (e.OldValue is System.ComponentModel.INotifyPropertyChanged oldOptions)
+            {
+                oldOptions.PropertyChanged -= editor.Options_ControlBarOrderChanged;
+            }
+
+            if (e.NewValue is System.ComponentModel.INotifyPropertyChanged newOptions)
+            {
+                newOptions.PropertyChanged += editor.Options_ControlBarOrderChanged;
+            }
+
             editor.RefreshSortChoices();
             editor.RebuildControlBarItemRows();
+        }
+
+        // A moved item relists the rows in the new order.
+        private void Options_ControlBarOrderChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(GridCommonOptions.ControlBarItemOrder))
+            {
+                RebuildControlBarItemRows();
+            }
         }
 
         /// <summary>
@@ -175,14 +194,25 @@ namespace PlayniteAchievements.Views.Settings.Controls
         {
             var options = CommonOptions;
             var entries = ControlBarEntries;
-            SetValue(
-                ControlBarItemRowsPropertyKey,
-                options == null || entries == null
-                    ? null
-                    : entries
-                        .Where(entry => entry != null && !string.IsNullOrWhiteSpace(entry.Id) && !string.IsNullOrWhiteSpace(entry.LabelKey))
-                        .Select(entry => new ControlBarItemRow(options, entry))
-                        .ToList());
+            if (options == null || entries == null)
+            {
+                SetValue(ControlBarItemRowsPropertyKey, null);
+                return;
+            }
+
+            // The search box and any other fixed entry first, then the items in their saved order.
+            var listed = entries
+                .Where(entry => entry != null && !string.IsNullOrWhiteSpace(entry.Id) && !string.IsNullOrWhiteSpace(entry.LabelKey))
+                .ToList();
+            var ordered = listed
+                .Where(entry => !(entry is PlayniteAchievements.ViewModels.Items.GridControlBarItem))
+                .Concat(PlayniteAchievements.ViewModels.Items.GridControlBarOrder.Apply(
+                    listed.Where(entry => entry is PlayniteAchievements.ViewModels.Items.GridControlBarItem),
+                    entry => entry.Id,
+                    options.ControlBarItemOrder));
+            var rows = new System.Collections.Generic.List<ControlBarItemRow>();
+            rows.AddRange(ordered.Select(entry => new ControlBarItemRow(options, entry, () => rows)));
+            SetValue(ControlBarItemRowsPropertyKey, rows);
         }
 
         public static readonly DependencyProperty HeaderProperty = DependencyProperty.Register(
