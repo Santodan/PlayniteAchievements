@@ -268,30 +268,56 @@ namespace PlayniteAchievements.Tests.ViewModels
             var controller = new FriendVsFriendCompareController(
                 () => selectedFriend,
                 () => candidates);
-            var rows = new List<FriendAchievementDisplayItem> { MakeRow("ACH_1", "friend1") };
+            var row = MakeRow("ACH_1", "friend1");
+            var rows = new List<FriendAchievementDisplayItem> { row };
 
-            controller.PersistSelection(candidateKey, saves.Add);
+            // Not on offer for this pair: the dropdown still shows the remembered friend as its
+            // selection, by the saved name, and draws no comparison.
+            controller.PersistSelection(candidateKey + "\tFriend Two", saves.Add);
             controller.UpdateRows(rows, rows);
-            Assert.IsFalse(controller.IsKeySelected(candidateKey), "not on offer for this pair");
+            Assert.IsTrue(controller.IsCompareAvailable);
+            Assert.IsTrue(controller.IsKeySelected(candidateKey));
+            Assert.AreEqual("Friend Two", controller.CompareSelectionText);
+            CollectionAssert.Contains(controller.OptionKeys.ToList(), candidateKey);
+            Assert.IsFalse(row.HasComparison);
 
             candidates.Add(candidate);
             controller.UpdateRows(rows, rows);
-            Assert.IsTrue(controller.IsKeySelected(candidateKey), "restored once on offer");
+            Assert.IsTrue(row.HasComparison, "applied once on offer");
+            Assert.AreEqual(1, controller.OptionKeys.Count(key => key == candidateKey));
 
             // The host clears the selection when the pair changes; the pick stays remembered.
             controller.ClearSelection();
-            Assert.IsFalse(controller.IsKeySelected(candidateKey));
+            Assert.IsFalse(row.HasComparison);
             controller.UpdateRows(rows, rows);
-            Assert.IsTrue(controller.IsKeySelected(candidateKey));
+            Assert.IsTrue(row.HasComparison);
             Assert.AreEqual(0, saves.Count);
 
             controller.SelectKey(candidateKey, false);
             CollectionAssert.AreEqual(new string[] { null }, saves);
             controller.UpdateRows(rows, rows);
             Assert.IsFalse(controller.IsKeySelected(candidateKey), "a cleared pick is forgotten");
+            Assert.IsFalse(row.HasComparison);
 
             controller.SelectKey(candidateKey, true);
-            CollectionAssert.AreEqual(new[] { null, candidateKey }, saves);
+            CollectionAssert.AreEqual(new[] { null, candidateKey + "\tFriend Two" }, saves);
+        }
+
+        [TestMethod]
+        public void RememberedEntryThatIsNotOnOffer_IsForgottenWhenUnchecked()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var saves = new List<string>();
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem>());
+            controller.PersistSelection("steam|friend9\tFriend Nine", saves.Add);
+
+            controller.SelectKey("steam|friend9", false);
+
+            CollectionAssert.AreEqual(new string[] { null }, saves);
+            Assert.IsFalse(controller.IsCompareAvailable);
+            Assert.IsFalse(controller.OptionKeys.Any());
         }
     }
 }
