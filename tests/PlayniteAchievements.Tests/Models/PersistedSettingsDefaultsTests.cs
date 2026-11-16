@@ -2004,6 +2004,8 @@ namespace PlayniteAchievements.Models.Tests
                 ShowSidebarButton = false,
                 ShowCompletedProgressColoring = false,
                 ShowCompactListRarityBar = false,
+                ShowCompactLockedListRarityBar = false,
+                ShowCompactUnlockedListRarityBar = false,
                 ShowCompletionGlow = false,
                 ShowOverviewGameSummariesGridColumnHeaders = false,
                 ShowOverviewRecentAchievementsGridColumnHeaders = false,
@@ -2118,6 +2120,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowSidebarButton, settings.ShowSidebarButton);
             Assert.AreEqual(defaults.ShowCompletedProgressColoring, settings.ShowCompletedProgressColoring);
             Assert.AreEqual(defaults.ShowCompactListRarityBar, settings.ShowCompactListRarityBar);
+            Assert.AreEqual(defaults.ShowCompactLockedListRarityBar, settings.ShowCompactLockedListRarityBar);
+            Assert.AreEqual(defaults.ShowCompactUnlockedListRarityBar, settings.ShowCompactUnlockedListRarityBar);
             Assert.AreEqual(defaults.ShowCompletionGlow, settings.ShowCompletionGlow);
             Assert.AreEqual(defaults.ShowOverviewGameSummariesGridColumnHeaders, settings.ShowOverviewGameSummariesGridColumnHeaders);
             Assert.AreEqual(defaults.ShowOverviewRecentAchievementsGridColumnHeaders, settings.ShowOverviewRecentAchievementsGridColumnHeaders);
