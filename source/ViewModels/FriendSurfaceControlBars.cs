@@ -69,21 +69,18 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The Compare dropdown candidates: every friend other than <paramref name="selectedFriend"/>
-        /// for which <paramref name="hasPairData"/> holds. Empty when no friend is selected.
+        /// for which <paramref name="hasPairData"/> holds. With no friend selected the rows belong
+        /// to every friend, so none is left out.
         /// </summary>
         internal static IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions(
             IEnumerable<FriendSummaryItem> friends,
             FriendSummaryItem selectedFriend,
             Func<FriendSummaryItem, bool> hasPairData)
         {
-            if (selectedFriend == null)
-            {
-                return Array.Empty<FriendSummaryItem>();
-            }
-
             return friends
                 .Where(friend => friend != null &&
-                    !FriendOverviewProjection.IsSameFriend(friend, selectedFriend) &&
+                    (selectedFriend == null ||
+                     !FriendOverviewProjection.IsSameFriend(friend, selectedFriend)) &&
                     hasPairData(friend))
                 .ToList();
         }
