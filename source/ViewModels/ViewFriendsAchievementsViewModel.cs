@@ -98,6 +98,9 @@ namespace PlayniteAchievements.ViewModels
                 loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
                 logger: logger);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _friendCompare.PersistSelection,
+                GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend);
 
             RefreshCommand = new RelayCommand(async _ => await RefreshAllFriendsForGameAsync(), _ => !IsRefreshing);
             RefreshSelectedFriendCommand = new RelayCommand(
