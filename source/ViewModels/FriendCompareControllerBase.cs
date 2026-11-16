@@ -85,11 +85,13 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Indexes the compare side's rows by ApiName. A friend can carry more than one row per
         /// achievement (merged accounts); an unlocked row wins so the comparison reflects their
-        /// best state. Rows without an ApiName are skipped.
+        /// best state. Rows without an ApiName are skipped. <paramref name="keyOf"/> replaces the
+        /// ApiName as the index key for rows that span more than one game.
         /// </summary>
         private protected static Dictionary<string, FriendAchievementDisplayItem> BuildBestRowsByApiName(
             IEnumerable<FriendAchievementDisplayItem> rows,
-            Func<FriendAchievementDisplayItem, bool> isCompareSideRow)
+            Func<FriendAchievementDisplayItem, bool> isCompareSideRow,
+            Func<FriendAchievementDisplayItem, string> keyOf = null)
         {
             var compareRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in rows)
@@ -101,10 +103,11 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                if (!compareRows.TryGetValue(row.ApiName, out var existing) ||
+                var key = keyOf != null ? keyOf(row) : row.ApiName;
+                if (!compareRows.TryGetValue(key, out var existing) ||
                     (row.Unlocked && !existing.Unlocked))
                 {
-                    compareRows[row.ApiName] = row;
+                    compareRows[key] = row;
                 }
             }
 
