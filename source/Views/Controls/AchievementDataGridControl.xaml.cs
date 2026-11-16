@@ -1409,11 +1409,19 @@ namespace PlayniteAchievements.Views.Controls
                 _expandAllButton = new GridActionButton(
                     CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"),
                     ExpandAllCategories,
-                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"));
+                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"))
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.ExpandAll,
+                    LabelKey = "LOCPlayAch_Common_ExpandAll"
+                };
                 _collapseAllButton = new GridActionButton(
                     CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"),
                     CollapseAllCategories,
-                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"));
+                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"))
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.CollapseAll,
+                    LabelKey = "LOCPlayAch_Common_CollapseAll"
+                };
             }
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
@@ -1427,12 +1435,12 @@ namespace PlayniteAchievements.Views.Controls
                 _controlBarWithToggle = ControlBar;
             }
 
-            // The leading zone is empty in the category list, so the pair reads beside the search
-            // box there; visibility is managed by UpdateCollapseControlBarButtons.
-            if (!_controlBarWithToggle.LeadingItems.Contains(_expandAllButton))
+            // The pair leads the bar's items by default, so it reads just after the search box in
+            // the category list; visibility is managed by UpdateCollapseControlBarButtons.
+            if (!_controlBarWithToggle.Items.Contains(_expandAllButton))
             {
-                _controlBarWithToggle.LeadingItems.Add(_expandAllButton);
-                _controlBarWithToggle.LeadingItems.Add(_collapseAllButton);
+                _controlBarWithToggle.Items.Insert(0, _expandAllButton);
+                _controlBarWithToggle.Items.Insert(1, _collapseAllButton);
             }
 
             // Recompute the toggle's auto-hide; ApplyControlBarModeState positions Back/toggle.
@@ -1508,12 +1516,11 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // Positions the category-mode Back and toggle controls. The toggle stays in the trailing
-        // (right-side) items but changes slot with the mode: directly after the category dropdown
-        // while the flat grid shows it, forming the segmented unit, and directly ahead of the
-        // unlock-state toggles once grouping hides the category dropdowns, so the visible row reads
-        // [Compare] [Mode] [Unlocked] [Locked] [Hidden]. Only the Back button moves to the leading
-        // zone, left of the search box, while in category mode.
+        // Sets the category-mode toggle's default slot among the bar's items; a saved item order
+        // overrides it. The toggle sits directly after the category dropdown while the flat grid
+        // shows that dropdown on the bar, forming the segmented unit. Otherwise (grouping hides the
+        // category dropdowns, or they sit in the Filters panel) it sits directly ahead of the
+        // unlock-state toggles, so the row reads [Compare] [Mode] [Unlocked] [Locked] [Hidden].
         private void UpdateModeControlPlacement(bool grouping)
         {
             var bar = _controlBarWithToggle;
@@ -1538,10 +1545,10 @@ namespace PlayniteAchievements.Views.Controls
             var end = sortIndex >= 0 ? sortIndex : others.Count;
 
             int target;
-            if (grouping)
+            if (grouping || ControlBarHost.IsInFilterPanel(_connectedCategoryFilter))
             {
-                // The category dropdowns are hidden, so the toggle sits just ahead of the
-                // unlock-state toggles, leaving Compare on its left.
+                // The category dropdowns are hidden or in the Filters panel, so the toggle sits
+                // just ahead of the unlock-state toggles, leaving Compare on its left.
                 var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
                 target = firstToggleFilter >= 0 ? firstToggleFilter : end;
             }
@@ -1597,8 +1604,8 @@ namespace PlayniteAchievements.Views.Controls
 
             bar.Items.Remove(_modeToggle);
             bar.LeadingItems.Remove(_modeToggle);
-            bar.LeadingItems.Remove(_expandAllButton);
-            bar.LeadingItems.Remove(_collapseAllButton);
+            bar.Items.Remove(_expandAllButton);
+            bar.Items.Remove(_collapseAllButton);
             foreach (var item in bar.Items)
             {
                 if (item is GridMultiSelectFilter filter)
@@ -1759,7 +1766,43 @@ namespace PlayniteAchievements.Views.Controls
                     .OfType<CategorySummaryItem>()
                     .Any(c => c.HasChildCategories);
 
+            SeedCollapsedCategories();
             ApplyCategoryNameFilter();
+        }
+
+        // Parent categories already met, so a rebuild never re-collapses one the user expanded.
+        private readonly HashSet<string> _seededCategoryPaths =
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
+
+        private string CategoriesCollapsedStateKey => ResolveStartInCategoryModeOptionsId() + ".CategoriesCollapsed";
+
+        // Whether this surface's last Expand All / Collapse All was Collapse All.
+        private bool CategoriesStartCollapsed() =>
+            !string.IsNullOrEmpty(
+                PlayniteAchievements.Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
+                    CategoriesCollapsedStateKey));
+
+        private void SaveCategoriesStartCollapsed(bool collapsed) =>
+            PlayniteAchievements.Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                CategoriesCollapsedStateKey,
+                collapsed ? "1" : null);
+
+        // A parent category met for the first time starts collapsed when the surface last chose
+        // Collapse All. Rows the user toggles afterwards keep their own state.
+        private void SeedCollapsedCategories()
+        {
+            var collapse = CategoriesStartCollapsed();
+            foreach (var category in
+                (_allCategorySummaries ?? Enumerable.Empty<GameSummaryItem>()).OfType<CategorySummaryItem>())
+            {
+                if (category.HasChildCategories &&
+                    !string.IsNullOrEmpty(category.CategoryPath) &&
+                    _seededCategoryPaths.Add(category.CategoryPath) &&
+                    collapse)
+                {
+                    _collapsedCategoryPaths.Add(category.CategoryPath);
+                }
+            }
         }
 
         /// <summary>
@@ -2007,12 +2050,14 @@ namespace PlayniteAchievements.Views.Controls
                 }
             }
 
+            SaveCategoriesStartCollapsed(true);
             ApplyCategoryNameFilter();
         }
 
         private void ExpandAllCategories()
         {
             _collapsedCategoryPaths.Clear();
+            SaveCategoriesStartCollapsed(false);
             ApplyCategoryNameFilter();
         }
 
@@ -2897,7 +2942,13 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e) => SyncSegmentedUnit();
+        // Showing or hiding the Filters button moves the category dropdown between the panel and
+        // the bar, which moves the toggle's default slot with it.
+        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e)
+        {
+            UpdateModeControlPlacement(IsCategoryGroupingEffective());
+            SyncSegmentedUnit();
+        }
 
         // The bar leaves out the items this grid's Display Settings hide.
         private void UpdateControlBarOptions()
