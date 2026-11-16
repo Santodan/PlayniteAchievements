@@ -1,0 +1,341 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Playnite.SDK;
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Services.Friends;
+using PlayniteAchievements.ViewModels.Items;
+
+namespace PlayniteAchievements.ViewModels
+{
+    /// <summary>
+    /// Compare-friend selection for a grid of the user's own achievements across games (the
+    /// Overview achievements grid). The dropdown lists every friend; picking one loads that
+    /// friend's unlocked rows for all their games and applies their unlock state onto the listed
+    /// items. A game the friend has no unlock in stays without a comparison. Only the picked
+    /// friend's rows are held, never the whole friends data set.
+    /// </summary>
+    public sealed class LibraryFriendCompareController :
+        FriendCompareControllerBase<AchievementDisplayItem>, IGridCompareSource
+    {
+        private readonly IFriendCacheManager _friendCache;
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly ILogger _logger;
+
+        private List<FriendSummaryItem> _friends = new List<FriendSummaryItem>();
+        private FriendSummaryItem _selected;
+        private Dictionary<string, FriendAchievementDisplayItem> _selectedRows =
+            new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
+        private HashSet<Guid> _selectedGames = new HashSet<Guid>();
+        private Dictionary<string, FriendIdentity> _currentUsersByProvider =
+            new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
+        private IReadOnlyList<AchievementDisplayItem> _targetItems;
+        private int _friendsLoadVersion;
+        private int _rowsLoadVersion;
+
+        internal LibraryFriendCompareController(
+            IFriendCacheManager friendCache,
+            PlayniteAchievementsSettings settings,
+            ILogger logger)
+        {
+            _friendCache = friendCache;
+            _settings = settings;
+            _logger = logger;
+        }
+
+        /// <summary>The last friend list or row load, for callers that wait on it.</summary>
+        internal Task LoadTask { get; private set; } = Task.CompletedTask;
+
+        public bool IsCompareAvailable => _friends.Count > 0;
+
+        public string CompareSelectionText => _selected?.DisplayName
+            ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
+
+        public IEnumerable<string> OptionKeys => _friends.Select(FriendOverviewProjection.GetFriendScopeKey);
+
+        public bool IsKeySelected(string key)
+        {
+            return _selected != null && MatchesKey(_selected, key);
+        }
+
+        public string GetDisplayNameForKey(string key)
+        {
+            return FindFriend(key)?.DisplayName ?? key;
+        }
+
+        public bool IsKeyFavorite(string key)
+        {
+            return FindFriend(key)?.IsFavorite == true;
+        }
+
+        // Single-select semantics over checkable menu items: checking a friend replaces any
+        // other selection; unchecking the selected friend clears the comparison.
+        public void SelectKey(string key, bool isSelected)
+        {
+            if (!isSelected)
+            {
+                if (IsKeySelected(key))
+                {
+                    Select(null);
+                    Remember(null);
+                }
+
+                return;
+            }
+
+            Select(FindFriend(key));
+            Remember(_selected != null ? FriendOverviewProjection.GetFriendScopeKey(_selected) : null);
+        }
+
+        /// <summary>
+        /// Loads the friend list off-thread, and with it the remembered friend's rows. Call when
+        /// the grid's data loads, so a friend refresh since the last load is picked up.
+        /// </summary>
+        public void Refresh()
+        {
+            var version = Interlocked.Increment(ref _friendsLoadVersion);
+            if (_friendCache == null || _settings?.Persisted?.EnableFriendsFeatures != true)
+            {
+                ApplyFriends(version, new List<FriendSummaryItem>(), _currentUsersByProvider);
+                return;
+            }
+
+            LoadTask = Task.Run(() =>
+            {
+                var friends = new List<FriendSummaryItem>();
+                try
+                {
+                    // No scopes: the friend list alone, without any achievement rows.
+                    var data = _friendCache.LoadFriendsOverviewPatchData(null);
+                    friends = new FriendOverviewProjection(data, _settings?.Persisted).Friends
+                        .Where(friend => friend != null &&
+                                         !FriendOverviewProjection.IsAllScope(
+                                             FriendOverviewProjection.GetFriendScopeKey(friend)))
+                        .OrderByDescending(friend => friend.IsFavorite)
+                        .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                        .ToList();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to load friends for the library compare.");
+                }
+
+                var currentUsers = LoadIdentitiesByProvider(
+                    () => _friendCache.LoadCurrentUserIdentities(),
+                    _logger);
+                RunOnUi(() => ApplyFriends(version, friends, currentUsers));
+            });
+        }
+
+        /// <summary>Sets the items the comparison is drawn on and applies the current pick.</summary>
+        public void SetTargetItems(IReadOnlyList<AchievementDisplayItem> targetItems)
+        {
+            _targetItems = targetItems;
+            ApplySelection();
+        }
+
+        /// <summary>
+        /// Drops the picked friend's rows and the comparison on the listed items. The remembered
+        /// pick stays, and the next <see cref="Refresh"/> loads it again.
+        /// </summary>
+        public void Release()
+        {
+            Interlocked.Increment(ref _friendsLoadVersion);
+            Interlocked.Increment(ref _rowsLoadVersion);
+            ClearApplied();
+            _targetItems = null;
+            _selected = null;
+            _selectedRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
+            _selectedGames = new HashSet<Guid>();
+            NotifyCompareStateChanged();
+        }
+
+        private protected override bool TryRestoreRememberedSelection()
+        {
+            var key = RememberedKey;
+            if (key == null || _selected != null)
+            {
+                return false;
+            }
+
+            var friend = FindFriend(key);
+            if (friend == null)
+            {
+                return false;
+            }
+
+            Select(friend);
+            return true;
+        }
+
+        private void ApplyFriends(
+            int version,
+            List<FriendSummaryItem> friends,
+            Dictionary<string, FriendIdentity> currentUsers)
+        {
+            if (version != Volatile.Read(ref _friendsLoadVersion))
+            {
+                return;
+            }
+
+            _friends = friends;
+            _currentUsersByProvider = currentUsers;
+
+            // The friend rows are new instances; keep the pick when the friend is still listed,
+            // and load their rows again so a refresh of that friend shows.
+            var selectedKey = _selected != null ? FriendOverviewProjection.GetFriendScopeKey(_selected) : null;
+            _selected = null;
+            OnPropertyChanged(nameof(OptionKeys));
+            NotifyCompareStateChanged();
+
+            var friend = selectedKey != null ? FindFriend(selectedKey) : null;
+            if (friend != null)
+            {
+                Select(friend);
+            }
+            else if (!TryRestoreRememberedSelection())
+            {
+                Select(null);
+            }
+        }
+
+        private void Select(FriendSummaryItem friend)
+        {
+            var next = friend != null && _friends.Contains(friend) ? friend : null;
+            var version = Interlocked.Increment(ref _rowsLoadVersion);
+            _selected = next;
+            _selectedRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
+            _selectedGames = new HashSet<Guid>();
+            NotifyCompareStateChanged();
+            ApplySelection();
+            if (next == null)
+            {
+                return;
+            }
+
+            // One scope per account: a merged friend's rows come from each of its accounts.
+            var accounts = next.MemberAccounts != null && next.MemberAccounts.Count > 0
+                ? next.MemberAccounts
+                    .Where(account => account != null)
+                    .Select(account => FriendCacheChange.ForFriendOwnership(account.ProviderKey, account.ExternalUserId))
+                    .ToList()
+                : new List<FriendCacheChange>
+                {
+                    FriendCacheChange.ForFriendOwnership(next.ProviderKey, next.ExternalUserId)
+                };
+
+            LoadTask = Task.Run(() =>
+            {
+                var rows = new List<FriendAchievementDisplayItem>();
+                try
+                {
+                    rows = _friendCache.LoadFriendsOverviewPatchData(accounts)?.AllAchievements
+                           ?? new List<FriendAchievementDisplayItem>();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to load a friend's rows for the library compare.");
+                }
+
+                // The index is built here, off the UI thread; a row with no library game cannot
+                // match a listed item.
+                var index = BuildBestRowsByApiName(
+                    rows,
+                    row => row.PlayniteGameId.HasValue && row.PlayniteGameId.Value != Guid.Empty,
+                    row => BuildKey(row.PlayniteGameId.Value, row.ApiName));
+                var games = new HashSet<Guid>(index.Values.Select(row => row.PlayniteGameId.Value));
+
+                RunOnUi(() =>
+                {
+                    if (version != Volatile.Read(ref _rowsLoadVersion))
+                    {
+                        return;
+                    }
+
+                    _selectedRows = index;
+                    _selectedGames = games;
+                    ApplySelection();
+                });
+            });
+        }
+
+        private void ApplySelection()
+        {
+            ClearApplied();
+            var items = _targetItems;
+            if (_selected == null || items == null || items.Count == 0 || _selectedGames.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                // A game the friend has no unlock in stays without a comparison; it would
+                // otherwise read as every achievement locked.
+                if (item == null ||
+                    !item.PlayniteGameId.HasValue ||
+                    !_selectedGames.Contains(item.PlayniteGameId.Value))
+                {
+                    continue;
+                }
+
+                FriendAchievementDisplayItem compareRow = null;
+                if (!string.IsNullOrWhiteSpace(item.ApiName))
+                {
+                    _selectedRows.TryGetValue(BuildKey(item.PlayniteGameId.Value, item.ApiName), out compareRow);
+                }
+
+                // The own-row identity follows the achievement's provider.
+                FriendIdentity self = null;
+                if (!string.IsNullOrWhiteSpace(item.ProviderKey))
+                {
+                    _currentUsersByProvider.TryGetValue(item.ProviderKey, out self);
+                }
+
+                item.ApplyComparison(
+                    _selected.DisplayName,
+                    _selected.AvatarPath ?? compareRow?.FriendAvatarPath,
+                    compareRow?.UnlockTimeUtc,
+                    compareRow?.Unlocked == true,
+                    self?.DisplayName,
+                    self?.AvatarPath);
+                AppliedItems.Add(item);
+            }
+        }
+
+        private static string BuildKey(Guid gameId, string apiName)
+        {
+            return gameId.ToString("N") + "|" + apiName;
+        }
+
+        private FriendSummaryItem FindFriend(string key)
+        {
+            return _friends.FirstOrDefault(friend => MatchesKey(friend, key));
+        }
+
+        private static bool MatchesKey(FriendSummaryItem friend, string key)
+        {
+            return friend != null && string.Equals(
+                FriendOverviewProjection.GetFriendScopeKey(friend),
+                key,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void RunOnUi(Action action)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null)
+            {
+                dispatcher.InvokeIfNeeded(action, System.Windows.Threading.DispatcherPriority.DataBind);
+            }
+            else
+            {
+                action();
+            }
+        }
+    }
+}
