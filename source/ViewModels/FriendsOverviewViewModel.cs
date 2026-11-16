@@ -85,11 +85,15 @@ namespace PlayniteAchievements.ViewModels
         // and ordering, the compare slot, and the unlock-state toggles all live here. Only the
         // search slot is swapped for the overview's own prebuilt multi-field pipeline.
         private readonly AchievementGridControlBarAdapter _achievementsBar = new AchievementGridControlBarAdapter();
-        // Compare-friend selection for the pair view: session-only, dropped whenever the
-        // friend+game pair changes.
+        // Compare selection for the achievement grid in each of its four views. It is dropped
+        // whenever the selected friend or game changes, and the pick remembered for the view the
+        // grid is in is selected again when it is on offer.
         private readonly FriendVsFriendCompareController _friendCompare;
-        private FriendSummaryItem _comparePairFriend;
-        private FriendGameSummaryItem _comparePairGame;
+        private FriendSummaryItem _compareScopeFriend;
+        private FriendGameSummaryItem _compareScopeGame;
+        private Func<string, string> _loadCompareSelection;
+        private Action<string, string> _saveCompareSelection;
+        private string _compareSurfaceKey;
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Session-only, like every other filter on these bars: off each time the window opens.
@@ -179,7 +183,7 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                row => IsSameGame(row, SelectedGame),
+                row => SelectedGame == null || IsSameGame(row, SelectedGame),
                 () => _friendCache?.LoadCurrentUserIdentities(),
                 logger);
             _achievementsBar.FilterChanged += (_, __) => ApplyFilters();
@@ -275,11 +279,24 @@ namespace PlayniteAchievements.ViewModels
             _achievementsBar.PersistUnlockToggles(saved, save);
 
         /// <summary>
-        /// Restores the pair view's Compare pick from <paramref name="saved"/> and hands
-        /// <paramref name="save"/> each pick or clear the user makes later.
+        /// Remembers the achievement grid's Compare pick per view. <paramref name="load"/> returns
+        /// the pick saved for a grid surface key and <paramref name="save"/> stores one; the view
+        /// calls this before the first load.
         /// </summary>
-        public void PersistCompareSelection(string saved, Action<string> save) =>
-            _friendCompare.PersistSelection(saved, save);
+        public void PersistCompareSelections(Func<string, string> load, Action<string, string> save)
+        {
+            _loadCompareSelection = load;
+            _saveCompareSelection = save;
+            _compareSurfaceKey = null;
+        }
+
+        private string CompareSurfaceKey => HasFriendGameSelection
+            ? GridOptionKeys.Achievement.FriendsOverviewSelectedFriendGame
+            : HasFriendSelection
+                ? GridOptionKeys.Achievement.FriendsOverviewSelectedFriend
+                : HasGameSelection
+                    ? GridOptionKeys.Achievement.FriendsOverviewSelectedGame
+                    : GridOptionKeys.Achievement.FriendsOverviewRecent;
 
         public PlayniteAchievementsSettings Settings => _settings;
 
@@ -343,19 +360,15 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
 
-        // Friends other than the selected one that have cached data for the selected game.
-        // The controller caches this, so it is walked once per selection or row rebuild.
+        // Friends other than the selected one, narrowed to those with cached data for the
+        // selected game when there is one. The controller caches this, so it is walked once per
+        // selection or row rebuild.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
-            if (!HasFriendGameSelection)
-            {
-                return Array.Empty<FriendSummaryItem>();
-            }
-
             return FriendSurfaceControlBars.GetCompareFriendOptions(
                 _allFriends,
                 SelectedFriend,
-                friend => HasFriendGamePairData(friend, SelectedGame));
+                friend => SelectedGame == null || HasFriendGamePairData(friend, SelectedGame));
         }
         public string AchievementColumnSettingsKey
         {
@@ -1812,7 +1825,11 @@ namespace PlayniteAchievements.ViewModels
                 CollectionHelper.Replace(DisplayedAchievements, DisplayGridRowLimitHelper.Limit(
                     _filteredAchievementsList,
                     persisted?.FriendsOverviewAchievementsGridMaxRows));
-                UpdateCompareState(achievementSource);
+                // The pair rows hold every friend's state for the game; the other views list
+                // unlocked rows only, and the compare side is read from all of them.
+                UpdateCompareState(
+                    HasFriendGameSelection ? achievementSource : _allUnlockedAchievements,
+                    scopedList);
                 OnPropertyChanged(nameof(AchievementCountText));
                 OnPropertyChanged(nameof(HasData));
             }
@@ -2230,32 +2247,41 @@ namespace PlayniteAchievements.ViewModels
             GameSummariesControlBar?.Refresh();
         }
 
-        // Keeps the compare-friend enrichment in sync with the pair rows: drops the compare
-        // selection when the friend+game pair changes, then hands the rows to the shared
-        // controller, which clears the previous comparison and applies the current one.
-        private void UpdateCompareState(IReadOnlyList<FriendAchievementDisplayItem> achievementSource)
+        // Keeps the compare enrichment in sync with the listed rows: drops the compare selection
+        // when the selected friend or game changes, switches to the pick remembered for the view
+        // the grid is now in, then hands the rows to the shared controller, which clears the
+        // previous comparison and applies the current one. The compare side is read from
+        // rowPool and drawn onto targetRows.
+        private void UpdateCompareState(
+            IReadOnlyList<FriendAchievementDisplayItem> rowPool,
+            IReadOnlyList<FriendAchievementDisplayItem> targetRows)
         {
-            if (!HasFriendGameSelection)
-            {
-                _comparePairFriend = null;
-                _comparePairGame = null;
-                _friendCompare.ClearSelection();
-                _friendCompare.UpdateRows(null, null);
-                return;
-            }
-
-            var pairChanged = !IsSameFriend(_comparePairFriend, SelectedFriend) ||
-                              !IsSameGame(_comparePairGame, SelectedGame);
-            _comparePairFriend = SelectedFriend;
-            _comparePairGame = SelectedGame;
-            if (pairChanged)
+            var scopeChanged =
+                (SelectedFriend == null
+                    ? _compareScopeFriend != null
+                    : !IsSameFriend(_compareScopeFriend, SelectedFriend)) ||
+                (SelectedGame == null
+                    ? _compareScopeGame != null
+                    : !IsSameGame(_compareScopeGame, SelectedGame));
+            _compareScopeFriend = SelectedFriend;
+            _compareScopeGame = SelectedGame;
+            if (scopeChanged)
             {
                 _friendCompare.ClearSelection();
             }
 
-            // One list serves as both pool and target: the compare friend's rows and the selected
-            // friend's rows live side by side in it, filtered apart by the controller.
-            _friendCompare.UpdateRows(achievementSource, achievementSource);
+            var surfaceKey = CompareSurfaceKey;
+            if (_loadCompareSelection != null &&
+                !string.Equals(_compareSurfaceKey, surfaceKey, StringComparison.Ordinal))
+            {
+                _compareSurfaceKey = surfaceKey;
+                _friendCompare.ClearSelection();
+                _friendCompare.PersistSelection(
+                    _loadCompareSelection(surfaceKey),
+                    state => _saveCompareSelection?.Invoke(surfaceKey, state));
+            }
+
+            _friendCompare.UpdateRows(rowPool, targetRows);
         }
 
         private static void ReplaceOptions(ObservableCollection<string> target, IEnumerable<string> values)
