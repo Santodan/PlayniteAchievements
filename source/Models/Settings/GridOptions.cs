@@ -302,6 +302,23 @@ namespace PlayniteAchievements.Models.Settings
             HiddenControlBarItems = items;
         }
 
+        private IReadOnlyList<string> _controlBarItemOrder;
+
+        /// <summary>
+        /// The order of this grid's control bar items (by id, earliest first), on the bar and in
+        /// its Filters panel; null or empty keeps the default order, and an item it does not name
+        /// keeps its default neighbour. Always replaced, never edited in place, so a settings
+        /// snapshot can restore it.
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+        public IReadOnlyList<string> ControlBarItemOrder
+        {
+            get => _controlBarItemOrder;
+            set => SetValue(
+                ref _controlBarItemOrder,
+                value == null || value.Count == 0 ? null : (IReadOnlyList<string>)value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        }
+
         public double? RowHeight
         {
             get => _rowHeight;
@@ -325,6 +342,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
             target.HiddenControlBarItems = HiddenControlBarItems?.ToList();
+            target.ControlBarItemOrder = ControlBarItemOrder?.ToList();
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
             target.Columns = Columns?.Clone() ?? new GridColumnLayoutOptions();
