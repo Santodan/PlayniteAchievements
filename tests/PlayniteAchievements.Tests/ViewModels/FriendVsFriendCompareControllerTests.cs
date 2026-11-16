@@ -214,6 +214,50 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void NoSelectedFriend_ComparesEveryOtherFriendsRows_PerGame()
+        {
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var controller = new FriendVsFriendCompareController(
+                () => null,
+                () => new List<FriendSummaryItem> { candidate });
+
+            FriendAchievementDisplayItem Row(string apiName, string friend, int appId)
+            {
+                var row = MakeRow(apiName, friend, unlocked: true);
+                row.AppId = appId;
+                row.FriendName = friend;
+                return row;
+            }
+
+            // The same ApiName in two games: the candidate has it in game 1 only, and has no row
+            // at all for game 3.
+            var sharedGame = Row("ACH_1", "friend1", 1);
+            var otherGame = Row("ACH_1", "friend1", 2);
+            var lockedForCandidate = Row("ACH_2", "friend1", 1);
+            var gameWithoutCandidate = Row("ACH_1", "friend1", 3);
+            var candidateRow = Row("ACH_1", "friend2", 1);
+            var candidateOtherGame = Row("ACH_9", "friend2", 2);
+            var rows = new List<FriendAchievementDisplayItem>
+            {
+                sharedGame, otherGame, lockedForCandidate, gameWithoutCandidate, candidateRow, candidateOtherGame
+            };
+            controller.UpdateRows(rows, rows);
+
+            Assert.IsTrue(controller.IsCompareAvailable);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(sharedGame.ComparisonUnlocked);
+            Assert.AreEqual("friend1", sharedGame.ComparisonOwnerName);
+            Assert.IsTrue(otherGame.HasComparison);
+            Assert.IsFalse(otherGame.ComparisonUnlocked, "the same ApiName in another game is not theirs");
+            Assert.IsTrue(lockedForCandidate.HasComparison);
+            Assert.IsFalse(lockedForCandidate.ComparisonUnlocked);
+            Assert.IsFalse(gameWithoutCandidate.HasComparison, "no data for the game, no comparison");
+            Assert.IsFalse(candidateRow.HasComparison, "their own rows are not compared with themselves");
+        }
+
+        [TestMethod]
         public void PersistSelection_RestoresTheRememberedFriend_AndSavesOnlyTheUsersPicks()
         {
             var selectedFriend = MakeFriend("friend1", "Friend One");
