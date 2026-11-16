@@ -29,6 +29,29 @@ namespace PlayniteAchievements.ViewModels.Items
         // in category mode). Empty on most surfaces, so the leading zone collapses to nothing.
         public ObservableCollection<GridControlBarItem> LeadingItems { get; }
 
+        private IReadOnlyList<string> _itemOrder;
+        private bool _filtersInline;
+
+        /// <summary>
+        /// The saved order of the bar's items (ids, earliest first), for a bar whose host has no
+        /// grid options to hold it, such as a showcase widget's; null keeps the default order.
+        /// </summary>
+        public IReadOnlyList<string> ItemOrder
+        {
+            get => _itemOrder;
+            set => SetValue(ref _itemOrder, value);
+        }
+
+        /// <summary>
+        /// Whether the dropdown filters show on the bar itself rather than in the Filters panel,
+        /// for a bar whose host has no grid options to hide the Filters button with.
+        /// </summary>
+        public bool FiltersInline
+        {
+            get => _filtersInline;
+            set => SetValue(ref _filtersInline, value);
+        }
+
         public void Refresh()
         {
             Search?.Refresh();
@@ -340,7 +363,13 @@ namespace PlayniteAchievements.ViewModels.Items
         protected override bool HasAvailableAction =>
             _hasAvailableAction?.Invoke() ?? (CountUsableOptions() > 1 || HasSelectedOption());
 
-        public override bool IsPanelFilter => true;
+        /// <summary>
+        /// Whether the dropdown stays on the bar itself instead of joining the Filters panel, as
+        /// the Compare dropdown does.
+        /// </summary>
+        public bool StaysOnBar { get; set; }
+
+        public override bool IsPanelFilter => !StaysOnBar;
 
         /// <summary>
         /// Whether the filter narrows the rows, for a filter whose resting state has picks (the
@@ -852,11 +881,18 @@ namespace PlayniteAchievements.ViewModels.Items
     /// The bar's Filters button, which opens the panel holding the bar's dropdown filters. It
     /// reads "Filters", or "Filters (n)" while n of them narrow the rows, and shows while any
     /// filter in the panel shows. The bar control owns it; it is not one of the bar's items.
+    /// Hiding it shows the dropdown filters on the bar itself.
     /// </summary>
     public sealed class GridFiltersButton : GridControlBarItem
     {
         private int _count;
         private bool _available;
+
+        public GridFiltersButton()
+        {
+            Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Filters;
+            LabelKey = "LOCPlayAch_Menu_Filters";
+        }
 
         public int Count
         {
