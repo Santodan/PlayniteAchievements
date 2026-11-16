@@ -98,9 +98,7 @@ namespace PlayniteAchievements.ViewModels
                 loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
                 logger: logger);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
-            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
-                _friendCompare.PersistSelection,
-                GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend);
+            PersistCompareSelection();
 
             RefreshCommand = new RelayCommand(async _ => await RefreshAllFriendsForGameAsync(), _ => !IsRefreshing);
             RefreshSelectedFriendCommand = new RelayCommand(
@@ -173,10 +171,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
-                    // The comparison is scoped to one friend+game pair, so a different friend
-                    // starts over; the option list changes with the selection either way.
+                    // A different friend starts the comparison over, from the pick remembered
+                    // for the view the grid is now in; the option list changes with the selection
+                    // either way.
                     _friendCompare.ClearSelection();
                     _friendCompare.Refresh();
+                    PersistCompareSelection();
 
                     OnPropertyChanged(nameof(HasFriendSelection));
                     OnPropertyChanged(nameof(AchievementColumnSettingsKey));
@@ -526,6 +526,16 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare.Refresh();
             OnPropertyChanged(nameof(HasAchievements));
             ApplyFilters();
+        }
+
+        // The all-friends view and the selected-friend view each remember their own Compare pick.
+        private void PersistCompareSelection()
+        {
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _friendCompare.PersistSelection,
+                SelectedFriend != null
+                    ? GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend
+                    : GridOptionKeys.Achievement.ViewFriendsAchievements);
         }
 
         // Friends other than the selected one that have cached rows for this window's game.
