@@ -98,6 +98,9 @@ namespace PlayniteAchievements.ViewModels
             _summaryBuilder = new GameSummaryItemBuilder(_playniteApi, _logger);
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _controlBar.AttachFriendCompare(FriendCompare);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                FriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.SingleGame);
             FriendCompare.SetGame(gameId, null);
 
             Timeline = new TimelineViewModel();
