@@ -973,8 +973,105 @@ namespace PlayniteAchievements.Views.Showcase
                 AddControlBarHeader(panel);
             }
 
-            foreach (var entry in entries)
+            // An Overview header card shows no bar, so its rows have no order to set.
+            var reorders = !_overviewHeaderCard;
+            var list = new StackPanel();
+            panel.Children.Add(list);
+
+            // The Filters button has a row of its own when the bar has a dropdown filter: its
+            // checkbox shows the button, and unchecked the filters show on the bar itself.
+            var filtersButton = reorders && entries.OfType<GridControlBarItem>().Any(item => item.IsPanelFilter)
+                ? new GridFiltersButton()
+                : null;
+            var inPanel = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            bool FiltersShown() => ShowcaseWidgetOptions.GetControlBarItemChecked(_settings, ShowcaseControlBarItems.Filters);
+            bool InPanel(string id) => inPanel.TryGetValue(id, out var filter) && filter && FiltersShown();
+
+            // The rows that move, in the order shown; the search box keeps its place above them.
+            var order = new List<string>();
+            var movable = new Dictionary<string, FrameworkElement>(StringComparer.OrdinalIgnoreCase);
+
+            void Arrange()
             {
+                foreach (var id in order)
+                {
+                    list.Children.Remove(movable[id]);
+                    list.Children.Add(movable[id]);
+                }
+
+                foreach (var id in order)
+                {
+                    var mine = InPanel(id);
+                    var buttons = ((movable[id] as Grid)?.Children.OfType<Grid>().FirstOrDefault())?
+                        .Children.OfType<Button>()
+                        .ToList() ?? new List<Button>();
+                    foreach (var button in buttons)
+                    {
+                        var direction = Grid.GetColumn(button) == MoveEarlierColumn ? -1
+                            : Grid.GetColumn(button) == MoveLaterColumn ? 1
+                            : 0;
+                        if (direction != 0)
+                        {
+                            button.IsEnabled = GridControlBarOrder.Move(order, id, direction, other => InPanel(other) == mine) != null;
+                        }
+                    }
+                }
+            }
+
+            void Move(string id, int direction)
+            {
+                var mine = InPanel(id);
+                var moved = GridControlBarOrder.Move(order, id, direction, other => InPanel(other) == mine);
+                if (moved == null)
+                {
+                    return;
+                }
+
+                order.Clear();
+                order.AddRange(moved);
+                ShowcaseWidgetOptions.SetControlBarItemOrder(_settings, adapter.StateKey, order);
+                _persist?.Invoke();
+                if (_publishChanges)
+                {
+                    ShowcaseConfigurationEvents.RaiseChanged();
+                }
+
+                Arrange();
+            }
+
+            var items = entries.OfType<GridControlBarItem>().ToList();
+            if (filtersButton != null)
+            {
+                items.Add(filtersButton);
+            }
+
+            var ordered = entries
+                .Where(entry => !(entry is GridControlBarItem))
+                .Concat(GridControlBarOrder.Apply(
+                    items,
+                    item => item.Id,
+                    ShowcaseWidgetOptions.GetControlBarItemOrder(_settings, adapter.StateKey)));
+            foreach (var entry in ordered)
+            {
+                var id = entry.Id;
+                var moves = reorders && entry is GridControlBarItem && !movable.ContainsKey(id);
+                if (ReferenceEquals(entry, filtersButton))
+                {
+                    var filtersRow = AddControlBarItemRow(
+                        list,
+                        id,
+                        Localize(entry.LabelKey),
+                        editor: null,
+                        entry: null,
+                        moveEarlier: () => Move(id, -1),
+                        moveLater: () => Move(id, 1),
+                        changed: Arrange);
+                    inPanel[id] = false;
+                    order.Add(id);
+                    movable[id] = filtersRow;
+                    continue;
+                }
+
                 var bar = new GridControlBarViewModel();
                 if (entry is GridSearchControl search)
                 {
@@ -992,11 +1089,31 @@ namespace PlayniteAchievements.Views.Showcase
                     FillsWidth = true,
                     CollapsesFilters = false
                 };
-                rows[entry.Id] = AddControlBarItemRow(panel, entry.Id, Localize(entry.LabelKey), editor, entry);
+                var row = AddControlBarItemRow(
+                    list,
+                    id,
+                    Localize(entry.LabelKey),
+                    editor,
+                    entry,
+                    moveEarlier: moves ? () => Move(id, -1) : (Action)null,
+                    moveLater: moves ? () => Move(id, 1) : (Action)null);
+                rows[id] = row;
+                if (moves)
+                {
+                    inPanel[id] = ((GridControlBarItem)entry).IsPanelFilter;
+                    order.Add(id);
+                    movable[id] = row;
+                }
             }
 
+            Arrange();
             return rows;
         }
+
+        // The move buttons' columns in a control bar item row, after the show checkbox, the
+        // editor and the clear button.
+        private const int MoveEarlierColumn = 3;
+        private const int MoveLaterColumn = 4;
 
         // The widget's Show Control Bar switch, heading the item rows like any other toggle: off
         // shows no bar, on shows the items checked below it.
@@ -1029,7 +1146,10 @@ namespace PlayniteAchievements.Views.Showcase
             string itemId,
             string label,
             FrameworkElement editor,
-            IGridControlBarEntry entry = null)
+            IGridControlBarEntry entry = null,
+            Action moveEarlier = null,
+            Action moveLater = null,
+            Action changed = null)
         {
             var row = new Grid();
             OptionRowLayout.Apply(row);
@@ -1072,6 +1192,8 @@ namespace PlayniteAchievements.Views.Showcase
                 {
                     ShowcaseConfigurationEvents.RaiseChanged();
                 }
+
+                changed?.Invoke();
             }
 
             checkBox.Checked += (_, __) => Commit();
@@ -1109,6 +1231,17 @@ namespace PlayniteAchievements.Views.Showcase
                 clear.Click += (_, __) => entry.ClearSelection();
                 Grid.SetColumn(clear, 2);
                 controls.Children.Add(clear);
+            }
+
+            if (moveEarlier != null && moveLater != null)
+            {
+                // IcoFont arrow-up and arrow-down, as the profile medal rows use.
+                controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                controls.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                ShowcaseProfileSettingsEditor.AddListRowButton(
+                    controls, MoveEarlierColumn, "", "LOCPlayAch_Showcase_MoveEarlier", true, moveEarlier);
+                ShowcaseProfileSettingsEditor.AddListRowButton(
+                    controls, MoveLaterColumn, "", "LOCPlayAch_Showcase_MoveLater", true, moveLater);
             }
 
             panel.Children.Add(row);
