@@ -212,5 +212,42 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "Me",
                 rawId.GetDisplayNameForKey(FriendVsFriendCompareController.SelfOptionKey));
         }
+
+        [TestMethod]
+        public void PersistSelection_RestoresTheRememberedFriend_AndSavesOnlyTheUsersPicks()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var candidates = new List<FriendSummaryItem>();
+            var saves = new List<string>();
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => candidates);
+            var rows = new List<FriendAchievementDisplayItem> { MakeRow("ACH_1", "friend1") };
+
+            controller.PersistSelection(candidateKey, saves.Add);
+            controller.UpdateRows(rows, rows);
+            Assert.IsFalse(controller.IsKeySelected(candidateKey), "not on offer for this pair");
+
+            candidates.Add(candidate);
+            controller.UpdateRows(rows, rows);
+            Assert.IsTrue(controller.IsKeySelected(candidateKey), "restored once on offer");
+
+            // The host clears the selection when the pair changes; the pick stays remembered.
+            controller.ClearSelection();
+            Assert.IsFalse(controller.IsKeySelected(candidateKey));
+            controller.UpdateRows(rows, rows);
+            Assert.IsTrue(controller.IsKeySelected(candidateKey));
+            Assert.AreEqual(0, saves.Count);
+
+            controller.SelectKey(candidateKey, false);
+            CollectionAssert.AreEqual(new string[] { null }, saves);
+            controller.UpdateRows(rows, rows);
+            Assert.IsFalse(controller.IsKeySelected(candidateKey), "a cleared pick is forgotten");
+
+            controller.SelectKey(candidateKey, true);
+            CollectionAssert.AreEqual(new[] { null, candidateKey }, saves);
+        }
     }
 }
