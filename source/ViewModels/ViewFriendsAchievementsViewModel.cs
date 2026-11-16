@@ -85,6 +85,9 @@ namespace PlayniteAchievements.ViewModels
 
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             AchievementsControlBar = _achievementControlBar.ControlBar;
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
+                _achievementControlBar,
+                GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend);
             _achievementControlBar.FilterChanged += (_, __) => ApplyFilters();
             // The game is fixed here, so a selected friend forms a pair the same way the Friends
             // Overview pair view does: compare them against another friend with data for it.
@@ -167,13 +170,6 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
-                    if (value == null)
-                    {
-                        // The aggregated all-friends view shows unlocked rows only; a stale
-                        // unchecked Unlocked toggle would empty it, so restore the defaults.
-                        _achievementControlBar.ResetVisibilityToggles();
-                    }
-
                     // The comparison is scoped to one friend+game pair, so a different friend
                     // starts over; the option list changes with the selection either way.
                     _friendCompare.ClearSelection();
