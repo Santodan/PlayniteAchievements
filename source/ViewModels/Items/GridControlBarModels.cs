@@ -540,7 +540,9 @@ namespace PlayniteAchievements.ViewModels.Items
         // of the text Content; Content is surfaced as the tooltip. None keeps text rendering.
         public GridToggleFilterIcon Icon { get; }
 
-        protected override bool HasAvailableAction => (_getIsAvailable?.Invoke() ?? true) || !IsChecked;
+        // An unavailable toggle is hidden in either state: its owner stops filtering by it, and
+        // the value is remembered across grids, so an off toggle is not a reason to keep it shown.
+        protected override bool HasAvailableAction => _getIsAvailable?.Invoke() ?? true;
 
         /// <summary>The state that filters nothing, which clearing the toggle restores; null leaves it as is.</summary>
         public bool? ClearedValue { get; set; }
