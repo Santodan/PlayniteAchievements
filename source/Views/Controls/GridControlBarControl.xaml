@@ -715,14 +715,23 @@
             <!-- The Filters button: opens the panel holding the bar's dropdown filters. While any of
                  them narrows the rows it reads "Filters (n)" and takes the selected look. -->
             <DataTemplate DataType="{x:Type vm:GridFiltersButton}">
-                <Button x:Name="FiltersButton"
-                        Style="{StaticResource AchievementSelectorButtonStyle}"
-                        Content="{Binding Text}"
-                        Click="FiltersButton_Click"
-                        Height="{StaticResource PlayAch.Size.Control.Height}"
-                        Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
-                        VerticalAlignment="Center"
-                        Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}"/>
+                <Grid Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding EffectiveIsVisible, Converter={StaticResource GridControlBarBoolToVis}}">
+                    <!-- Sizer: a hidden copy holding the text with a count, so the button keeps one
+                         width and the items beside it stay put when the count appears. -->
+                    <Button Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding ReservedText}"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"
+                            Visibility="Hidden"
+                            IsTabStop="False"
+                            Focusable="False"/>
+                    <Button x:Name="FiltersButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding Text}"
+                            Click="FiltersButton_Click"
+                            Height="{StaticResource PlayAch.Size.Control.Height}"/>
+                </Grid>
                 <DataTemplate.Triggers>
                     <DataTrigger Binding="{Binding IsFiltering}" Value="True">
                         <Setter TargetName="FiltersButton" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
