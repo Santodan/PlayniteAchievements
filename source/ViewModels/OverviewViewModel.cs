@@ -205,12 +205,9 @@ namespace PlayniteAchievements.ViewModels
             _showUnlockedOnly = true;
             _sortIndex = 2; // Unlock Date
             InitializeGridControlBars();
-            _selectedGameControlBar.PersistUnlockToggles(
-                Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
-                    GridOptionKeys.Achievement.OverviewSelectedGame),
-                state => Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
-                    GridOptionKeys.Achievement.OverviewSelectedGame,
-                    state));
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
+                _selectedGameControlBar,
+                GridOptionKeys.Achievement.OverviewSelectedGame);
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
