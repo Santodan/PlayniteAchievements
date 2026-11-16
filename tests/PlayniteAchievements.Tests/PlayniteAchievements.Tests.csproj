@@ -182,6 +182,7 @@
     <Compile Include="..\..\source\Services\Images\Relocation\IconCacheRelocationJournal.cs" Link="Source\Services\Images\Relocation\IconCacheRelocationJournal.cs" />
     <Compile Include="..\..\source\Services\Images\Relocation\IconCacheRelocationService.cs" Link="Source\Services\Images\Relocation\IconCacheRelocationService.cs" />
     <Compile Include="..\..\source\Services\Database\StoredPathMapping.cs" Link="Source\Services\Database\StoredPathMapping.cs" />
+    <Compile Include="..\..\source\Services\Database\DatabaseFileCachePrimer.cs" Link="Source\Services\Database\DatabaseFileCachePrimer.cs" />
     <Compile Include="..\..\source\Services\Images\ImageCompressionPlan.cs" Link="Source\Services\Images\ImageCompressionPlan.cs" />
     <Compile Include="..\..\source\Services\Images\ImageHeaderDimensions.cs" Link="Source\Services\Images\ImageHeaderDimensions.cs" />
     <Compile Include="..\..\source\Services\Images\ImageFormats.cs" Link="Source\Services\Images\ImageFormats.cs" />
