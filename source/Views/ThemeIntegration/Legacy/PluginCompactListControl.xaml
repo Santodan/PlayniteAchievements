@@ -111,7 +111,7 @@
                                 EnableRaretyIndicator="True"
                                 ShowRarityGlow="{Binding Persisted.ModernCompactListShowRarityGlow, FallbackValue=True}"
                                 IsHardcore="{Binding IsHardcore}"
-                                DisplayRaretyValue="True">
+                                DisplayRaretyValue="{Binding DataContext.Persisted.ShowCompactListRarityBar, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=True}">
                                 <localControls:AchievementImage.Icon>
                                     <MultiBinding Converter="{StaticResource HiddenIconConverter}">
                                         <Binding Path="UnlockedIconDisplay" IsAsync="True" />
