@@ -8,7 +8,8 @@
                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    mc:Ignorable="d"
                    d:DesignHeight="82" d:DesignWidth="600"
-                   ShowRarityGlow="{Binding Persisted.ModernCompactListShowRarityGlow}">
+                   ShowRarityGlow="{Binding Persisted.ModernCompactListShowRarityGlow}"
+                   ShowRarityBar="{Binding Persisted.ShowCompactListRarityBar}">
 
     <modern:AchievementCompactListControlBase.Resources>
         <ResourceDictionary>
@@ -68,6 +69,7 @@
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     ShowRarityGlow="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                    ShowRarityBarOverride="{Binding ShowRarityBar, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     AnimateRarityGlows="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     Margin="4"/>
             </DataTemplate>
