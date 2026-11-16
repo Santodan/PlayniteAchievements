@@ -12,6 +12,9 @@
       "ColorNamesByRarity": "value",
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "ControlBarItemOrder": {
+        "list": "value"
+      },
       "HiddenControlBarItems": {
         "list": "value"
       },
@@ -217,6 +220,9 @@
     "GameSummaryGridOptions": {
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "ControlBarItemOrder": {
+        "list": "value"
+      },
       "HiddenControlBarItems": {
         "list": "value"
       },
