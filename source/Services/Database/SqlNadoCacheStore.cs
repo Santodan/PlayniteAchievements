@@ -5179,7 +5179,8 @@ namespace PlayniteAchievements.Services.Database
             if (reloadScopes != null && reloadScopes.Count > 0)
             {
                 // Restrict rows to the changed (provider [, friend], game) scopes. A scope
-                // without a friend covers every friend of that game (definition-level changes).
+                // without a friend covers every friend of that game (definition-level changes),
+                // and a scope with a friend and no game covers every game of that friend.
                 var scopeSql = new List<string>();
                 foreach (var scope in reloadScopes)
                 {
@@ -5205,8 +5206,16 @@ namespace PlayniteAchievements.Services.Database
 
                     if (gameConditions.Count == 0)
                     {
-                        // Not translatable to a game filter; callers exclude such kinds before
-                        // requesting a patch load.
+                        if (string.IsNullOrWhiteSpace(scope.ExternalUserId))
+                        {
+                            // Neither a game nor a friend: not translatable to a filter.
+                            continue;
+                        }
+
+                        // One friend's rows across all their games.
+                        scopeSql.Add("(g.ProviderKey = ? AND u.ExternalUserId = ?)");
+                        args.Add(scope.ProviderKey ?? string.Empty);
+                        args.Add(scope.ExternalUserId);
                         continue;
                     }
 
