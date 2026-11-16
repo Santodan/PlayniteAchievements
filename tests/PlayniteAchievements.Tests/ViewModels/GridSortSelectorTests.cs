@@ -201,6 +201,18 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             Assert.IsTrue(button.EffectiveIsVisible);
         }
+
+        [TestMethod]
+        public void FiltersButton_ReservesRoomForTheCount()
+        {
+            var button = new GridFiltersButton();
+
+            Assert.IsTrue(button.ReservedText.Length > button.Text.Length, "no count shown, room kept");
+
+            button.Count = 2;
+
+            Assert.AreEqual(button.Text, button.ReservedText);
+        }
     }
 
     [TestClass]
