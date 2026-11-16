@@ -904,6 +904,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _count, value))
                 {
                     OnPropertyChanged(nameof(Text));
+                    OnPropertyChanged(nameof(ReservedText));
                     OnPropertyChanged(nameof(IsFiltering));
                 }
             }
@@ -911,15 +912,17 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public bool IsFiltering => _count > 0;
 
-        public string Text
+        public string Text => _count > 0 ? FormatText(_count) : FormatText(null);
+
+        /// <summary>The widest text the button shows, which its layout reserves room for.</summary>
+        public string ReservedText => FormatText(Math.Max(_count, 0));
+
+        private static string FormatText(int? count)
         {
-            get
-            {
-                var label = GridControlBarText.Get("LOCPlayAch_Menu_Filters", "Filters");
-                return _count > 0
-                    ? string.Format(PlayniteAchievements.Common.FormattingCulture.Current, "{0} ({1})", label, _count)
-                    : label;
-            }
+            var label = GridControlBarText.Get("LOCPlayAch_Menu_Filters", "Filters");
+            return count.HasValue
+                ? string.Format(PlayniteAchievements.Common.FormattingCulture.Current, "{0} ({1})", label, count.Value)
+                : label;
         }
 
         /// <summary>Whether any filter in the panel shows.</summary>
