@@ -19,8 +19,9 @@ namespace PlayniteAchievements.ViewModels
     /// Compare-friend selection for the self achievement surfaces (Overview selected game and
     /// the single-game achievements window): loads every friend's cached rows for one game,
     /// exposes the friends that have data as dropdown options, and applies the selected
-    /// friend's unlock state onto the self display items' comparison fields. Selection is
-    /// session-only and clears whenever the game changes.
+    /// friend's unlock state onto the self display items' comparison fields. The selection
+    /// clears whenever the game changes, and a remembered friend is selected again on each game
+    /// they have data for.
     /// </summary>
     public sealed class FriendCompareController :
         FriendCompareControllerBase<AchievementDisplayItem>, IGridCompareSource
@@ -98,6 +99,7 @@ namespace PlayniteAchievements.ViewModels
                 if (IsKeySelected(key))
                 {
                     Select(null);
+                    Remember(null);
                 }
 
                 return;
@@ -105,6 +107,28 @@ namespace PlayniteAchievements.ViewModels
 
             Select(_options.FirstOrDefault(option =>
                 string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase)));
+            Remember(_selected?.Key);
+        }
+
+        private protected override bool TryRestoreRememberedSelection()
+        {
+            var key = RememberedKey;
+            if (key == null || _selected != null)
+            {
+                return false;
+            }
+
+            var option = _options.FirstOrDefault(candidate =>
+                string.Equals(candidate.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (option == null)
+            {
+                return false;
+            }
+
+            _selected = option;
+            NotifyCompareStateChanged();
+            ApplySelection();
+            return true;
         }
 
         /// <summary>
@@ -193,7 +217,10 @@ namespace PlayniteAchievements.ViewModels
                     _availabilityPending = false;
                     OnPropertyChanged(nameof(OptionKeys));
                     OnPropertyChanged(nameof(IsCompareAvailable));
-                    ApplySelection();
+                    if (!TryRestoreRememberedSelection())
+                    {
+                        ApplySelection();
+                    }
                 }
 
                 var dispatcher = System.Windows.Application.Current?.Dispatcher;
