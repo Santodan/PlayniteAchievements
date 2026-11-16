@@ -213,6 +213,28 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
+        public void SyncGame_ReportsNoChange_WhenTheListAlreadyMatches()
+        {
+            var field = new FakeField();
+            var foreign = field.Add("User's own");
+            var configs = Configs(
+                (TagType.HasAchievements, "Platform", true),
+                (TagType.Completed, "Done", true));
+            var target = Target(field, configs);
+            var game = new Game { TagIds = null };
+
+            Assert.IsTrue(target.SyncGame(game, new[] { TagType.HasAchievements, TagType.Completed }));
+            game.TagIds.Add(foreign);
+            var before = game.TagIds.ToList();
+
+            Assert.IsFalse(target.SyncGame(game, new[] { TagType.HasAchievements, TagType.Completed }));
+            CollectionAssert.AreEqual(before, game.TagIds);
+
+            Assert.IsTrue(target.SyncGame(game, new[] { TagType.HasAchievements }));
+            CollectionAssert.AreEqual(new[] { configs[TagType.HasAchievements].TagId.Value, foreign }, game.TagIds);
+        }
+
+        [TestMethod]
         public void SyncGame_IgnoresKindsOutsideTheTargetsKinds_EvenWhenConfigured()
         {
             var field = new FakeField();
