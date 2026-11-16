@@ -484,7 +484,8 @@ namespace PlayniteAchievements.ViewModels
                 Id = ShowcaseControlBarItems.Compare,
                 LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
                 Width = 140,
-                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder")
+                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
+                StaysOnBar = true
             };
             controlBar.Items.Add(_friendCompareFilter);
             controlBar.Items.Add(new GridToggleFilter(
