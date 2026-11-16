@@ -9,7 +9,8 @@
                    d:DesignHeight="56" d:DesignWidth="56"
                    UseLayoutRounding="True"
                    SnapsToDevicePixels="True"
-                   ShowRarityGlow="{Binding Persisted.ModernUnlockedListShowRarityGlow}">
+                   ShowRarityGlow="{Binding Persisted.ModernUnlockedListShowRarityGlow}"
+                   ShowRarityBar="{Binding Persisted.ShowCompactUnlockedListRarityBar}">
 
     <modern:AchievementCompactListControlBase.Resources>
         <ResourceDictionary>
@@ -44,6 +45,7 @@
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     ShowRarityGlow="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                    ShowRarityBarOverride="{Binding ShowRarityBar, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     AnimateRarityGlows="{Binding AnimateRarityGlows, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                     Margin="4"/>
             </DataTemplate>
