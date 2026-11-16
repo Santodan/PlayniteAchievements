@@ -452,6 +452,13 @@ namespace PlayniteAchievements.Models
         /// <summary>The grids' and mosaics' Sort By dropdown and direction button.</summary>
         public const string Sort = "Sort";
 
+        /// <summary>The Filters button; hidden, the dropdown filters show on the bar itself.</summary>
+        public const string Filters = "Filters";
+
+        /// <summary>The category list's Expand All and Collapse All buttons.</summary>
+        public const string ExpandAll = "ExpandAll";
+        public const string CollapseAll = "CollapseAll";
+
         /// <summary>Every item a Timeline's control bar offers.</summary>
         public static readonly IReadOnlyList<string> TimelineItems = new[]
         {
@@ -487,6 +494,7 @@ namespace PlayniteAchievements.Models
         // The whole-bar option per-item visibility replaced; read only as the per-item fallback.
         private const string ShowControlBar = "ShowControlBar";
         private const string ControlBarItemPrefix = "ShowControlBarItem.";
+        private const string ControlBarItemOrderPrefix = "ControlBarItemOrder.";
         private const string UseCoverImages = "UseCoverImages";
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCompletionFrame = "ShowCompletionFrame";
@@ -1105,6 +1113,35 @@ namespace PlayniteAchievements.Models
             {
                 settings?.SetOption(ControlBarItemPrefix + itemId, value);
             }
+        }
+
+        /// <summary>
+        /// The saved order of a control bar's items (ids, earliest first) for the adapter saving
+        /// its state under <paramref name="stateKey"/>; null keeps the default order.
+        /// </summary>
+        public static IReadOnlyList<string> GetControlBarItemOrder(
+            ShowcaseWidgetInstanceSettings settings,
+            string stateKey)
+        {
+            if (settings?.Options == null ||
+                !settings.Options.TryGetValue(ControlBarItemOrderPrefix + stateKey, out var raw) ||
+                string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            var ids = raw.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            return ids.Length == 0 ? null : ids;
+        }
+
+        public static void SetControlBarItemOrder(
+            ShowcaseWidgetInstanceSettings settings,
+            string stateKey,
+            IEnumerable<string> order)
+        {
+            settings?.SetOption(
+                ControlBarItemOrderPrefix + stateKey,
+                string.Join("|", (order ?? Enumerable.Empty<string>()).Where(id => !string.IsNullOrWhiteSpace(id))));
         }
 
         /// <summary>
