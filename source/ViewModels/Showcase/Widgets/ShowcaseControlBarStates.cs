@@ -160,7 +160,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var shown = (Adapter?.Entries ?? Array.Empty<IGridControlBarEntry>())
                 .Where(entry => ShowcaseWidgetOptions.GetControlBarItemVisible(instance, entry.Id, legacyVisible))
                 .ToList();
-            var ids = string.Join("|", shown.Select(entry => entry.Id));
+            var order = ShowcaseWidgetOptions.GetControlBarItemOrder(instance, Adapter?.StateKey);
+            var filtersInline = !ShowcaseWidgetOptions.GetControlBarItemChecked(instance, ShowcaseControlBarItems.Filters);
+            var ids = string.Join("|", shown.Select(entry => entry.Id)) +
+                "/" + string.Join("|", order ?? Array.Empty<string>()) +
+                "/" + filtersInline;
             if (ReferenceEquals(_shownAdapter, Adapter) && string.Equals(_shownIds, ids, StringComparison.Ordinal))
             {
                 return false;
@@ -176,7 +180,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
             var bar = new GridControlBarViewModel
             {
-                Search = shown.OfType<GridSearchControl>().FirstOrDefault()
+                Search = shown.OfType<GridSearchControl>().FirstOrDefault(),
+                ItemOrder = order,
+                FiltersInline = filtersInline
             };
             foreach (var item in shown.OfType<GridControlBarItem>())
             {
