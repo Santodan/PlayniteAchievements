@@ -113,9 +113,12 @@ namespace PlayniteAchievements.Tests.ViewModels
             adapter.UpdateOptions(allUnlocked);
             CollectionAssert.AreEqual(allUnlocked, adapter.Apply(allUnlocked).ToArray(), "no button, no filter");
             Assert.IsFalse(adapter.HasActiveFilters);
+            var toggles = adapter.ControlBar.Items.OfType<GridToggleFilter>().ToList();
+            Assert.IsFalse(toggles.Any(toggle => toggle.EffectiveIsVisible), "an off toggle is hidden too");
 
             var mixed = new[] { unlocked, locked, hiddenLocked };
             adapter.UpdateOptions(mixed);
+            Assert.IsTrue(toggles.All(toggle => toggle.EffectiveIsVisible));
             CollectionAssert.AreEqual(new[] { locked }, adapter.Apply(mixed).ToArray());
             Assert.IsTrue(adapter.HasActiveFilters);
         }
