@@ -49,8 +49,9 @@ namespace PlayniteAchievements.Views.Controls
                 new PropertyMetadata(null));
 
         /// <summary>
-        /// What the bar itself shows, less what its grid options hide: the toggle buttons, then
-        /// Sort By, then the Filters button standing in for the dropdown filters.
+        /// What the bar itself shows, less what its grid options hide: by default the buttons and
+        /// toggles, then Sort By, then the Filters button standing in for the dropdown filters,
+        /// rearranged by the saved item order.
         /// </summary>
         public System.ComponentModel.ICollectionView ShownItems => (System.ComponentModel.ICollectionView)GetValue(ShownItemsPropertyKey.DependencyProperty);
 
@@ -104,7 +105,15 @@ namespace PlayniteAchievements.Views.Controls
             element.SetValue(PanelItemWidthProperty, value);
 
         /// <summary>Whether <paramref name="item"/> sits in the Filters panel rather than on the bar.</summary>
-        public bool IsInFilterPanel(GridControlBarItem item) => CollapsesFilters && item?.IsPanelFilter == true;
+        public bool IsInFilterPanel(GridControlBarItem item) => UsesFilterPanel && item?.IsPanelFilter == true;
+
+        // Hiding the Filters button shows the dropdown filters on the bar itself.
+        private bool UsesFilterPanel =>
+            CollapsesFilters &&
+            ControlBar?.FiltersInline != true &&
+            GridOptions?.IsControlBarItemHidden(FiltersButton.Id) != true;
+
+        private IReadOnlyList<string> ItemOrder => GridOptions?.ControlBarItemOrder ?? ControlBar?.ItemOrder;
 
         private static readonly DependencyPropertyKey ShownSearchPropertyKey =
             DependencyProperty.RegisterReadOnly(
@@ -126,8 +135,9 @@ namespace PlayniteAchievements.Views.Controls
         public GridSearchControl BaseSearch { get; set; }
 
         /// <summary>
-        /// The items a grid's Display Settings list under Show Control Bar: the search box and
-        /// every item with an id, in bar order.
+        /// The items a grid's Display Settings list under Show Control Bar: the search box, then
+        /// every item with an id in the order the bar and then its Filters panel show them. The
+        /// Filters button is listed whenever the bar has a dropdown filter, shown or not.
         /// </summary>
         public IReadOnlyList<IGridControlBarEntry> GetSettingsEntries()
         {
@@ -144,7 +154,15 @@ namespace PlayniteAchievements.Views.Controls
                 entries.Add(search);
             }
 
-            foreach (var item in bar.LeadingItems.Concat(bar.Items))
+            GridControlBarOrder.Arrange(bar.Items, FiltersButton, UsesFilterPanel, ItemOrder, out var onBar, out var inPanel);
+            var ordered = onBar.Concat(inPanel).ToList();
+            if (CollapsesFilters && !ordered.Contains(FiltersButton) && bar.Items.Any(item => item?.IsPanelFilter == true))
+            {
+                ordered.Add(FiltersButton);
+                ordered = GridControlBarOrder.Apply(ordered, item => item.Id, ItemOrder);
+            }
+
+            foreach (var item in bar.LeadingItems.Concat(ordered))
             {
                 if (!string.IsNullOrWhiteSpace(item?.Id) && !entries.Contains(item))
                 {
@@ -331,7 +349,8 @@ namespace PlayniteAchievements.Views.Controls
         private void GridOptions_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PlayniteAchievements.Models.Settings.GridCommonOptions.HiddenControlBarItems))
+                e.PropertyName == nameof(PlayniteAchievements.Models.Settings.GridCommonOptions.HiddenControlBarItems) ||
+                e.PropertyName == nameof(PlayniteAchievements.Models.Settings.GridCommonOptions.ControlBarItemOrder))
             {
                 ApplyHiddenItems();
             }
@@ -343,6 +362,12 @@ namespace PlayniteAchievements.Views.Controls
             if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(GridControlBarViewModel.Search))
             {
                 UpdateShownSearch();
+            }
+
+            if (e.PropertyName == nameof(GridControlBarViewModel.ItemOrder) ||
+                e.PropertyName == nameof(GridControlBarViewModel.FiltersInline))
+            {
+                ApplyHiddenItems();
             }
         }
 
@@ -368,15 +393,7 @@ namespace PlayniteAchievements.Views.Controls
             var shown = (ControlBar?.Items ?? Enumerable.Empty<GridControlBarItem>())
                 .Where(item => item != null && IsShown(item))
                 .ToList();
-            var panel = shown.Where(IsInFilterPanel).ToList();
-            var onBar = shown.Where(item => !IsInFilterPanel(item)).ToList();
-            var bar = new List<GridControlBarItem>();
-            bar.AddRange(onBar.Where(item => !(item is GridSortSelector)));
-            bar.AddRange(onBar.OfType<GridSortSelector>());
-            if (panel.Count > 0)
-            {
-                bar.Add(FiltersButton);
-            }
+            GridControlBarOrder.Arrange(shown, FiltersButton, UsesFilterPanel, ItemOrder, out var bar, out var panel);
             Replace(_barItems, bar);
             Replace(_panelItems, panel);
 
