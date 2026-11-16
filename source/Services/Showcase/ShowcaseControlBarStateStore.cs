@@ -113,6 +113,17 @@ namespace PlayniteAchievements.Services.Showcase
             adapter?.PersistUnlockToggles(LoadSurface(surfaceKey), state => SaveSurface(surfaceKey, state));
         }
 
+        /// <summary>
+        /// Restores a grid's Compare pick from the state saved for <paramref name="surfaceKey"/>
+        /// and saves it there each time the user picks or clears one. <paramref name="persist"/>
+        /// is the compare controller's PersistSelection.
+        /// </summary>
+        public void PersistCompareSelection(Action<string, Action<string>> persist, string surfaceKey)
+        {
+            var key = surfaceKey + ".Compare";
+            persist?.Invoke(LoadSurface(key), state => SaveSurface(key, state));
+        }
+
         /// <summary>Writes any batched change now.</summary>
         public void Flush()
         {
