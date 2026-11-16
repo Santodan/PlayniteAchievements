@@ -214,6 +214,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showSidebarButton = true;
         private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
+        private bool _showCompactLockedListRarityBar = true;
+        private bool _showCompactUnlockedListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
         private bool _commonGlowTierCleared = true;
@@ -2501,6 +2503,25 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, shows the rarity bar at the bottom of compact locked list achievement items.
+        /// </summary>
+        public bool ShowCompactLockedListRarityBar
+        {
+            get => _showCompactLockedListRarityBar;
+            set => SetValue(ref _showCompactLockedListRarityBar, value);
+        }
+
+        /// <summary>
+        /// When true, shows the rarity bar at the bottom of compact unlocked list and compact
+        /// latest achievement items.
+        /// </summary>
+        public bool ShowCompactUnlockedListRarityBar
+        {
+            get => _showCompactUnlockedListRarityBar;
+            set => SetValue(ref _showCompactUnlockedListRarityBar, value);
+        }
+
+        /// <summary>
         /// One-time bookkeeping flag: true once the Progress summary column has been seeded to Right
         /// alignment. Defaults to false everywhere (like <see cref="FirstTimeSetupCompleted"/>) with
         /// no fresh-install special-casing: the seeding migration is the sole thing that flips it
@@ -3457,6 +3478,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
+                ShowCompactLockedListRarityBar = this.ShowCompactLockedListRarityBar,
+                ShowCompactUnlockedListRarityBar = this.ShowCompactUnlockedListRarityBar,
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
                 CommonGlowTierCleared = this.CommonGlowTierCleared,
@@ -3593,6 +3616,8 @@ namespace PlayniteAchievements.Models.Settings
             ShowSidebarButton = defaults.ShowSidebarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
+            ShowCompactLockedListRarityBar = defaults.ShowCompactLockedListRarityBar;
+            ShowCompactUnlockedListRarityBar = defaults.ShowCompactUnlockedListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;
             GridCellAlignment = defaults.GridCellAlignment;
