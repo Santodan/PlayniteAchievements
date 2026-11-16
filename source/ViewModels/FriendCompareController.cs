@@ -62,26 +62,41 @@ namespace PlayniteAchievements.ViewModels
 
         // Stay visible while the cheap shared availability index is warming. Once warm, the
         // index answers immediately while the heavier per-game option rows continue loading.
+        // A remembered friend keeps the dropdown shown and selected on a game they have no data
+        // for; no comparison is drawn there.
         public bool IsCompareAvailable =>
-            _availabilityPending || _indexedAvailability || _options.Count > 0;
+            _availabilityPending || _indexedAvailability || _options.Count > 0 || RememberedKey != null;
 
         public string CompareSelectionText => _selected?.DisplayName
+            ?? (RememberedKey != null ? RememberedName : null)
             ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
         // Key-based accessors for the control-bar dropdown (its options are plain strings).
 
-        public IEnumerable<string> OptionKeys => _options.Select(option => option.Key);
+        public IEnumerable<string> OptionKeys
+        {
+            get
+            {
+                var keys = _options.Select(option => option.Key);
+                return RememberedKey != null && !_options.Any(option => IsRememberedKey(option.Key))
+                    ? keys.Concat(new[] { RememberedKey })
+                    : keys;
+            }
+        }
 
         public bool IsKeySelected(string key)
         {
-            return _selected != null &&
-                   string.Equals(_selected.Key, key, StringComparison.OrdinalIgnoreCase);
+            return _selected != null
+                ? string.Equals(_selected.Key, key, StringComparison.OrdinalIgnoreCase)
+                : IsRememberedKey(key);
         }
 
         public string GetDisplayNameForKey(string key)
         {
             return _options.FirstOrDefault(option =>
-                string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? key;
+                       string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.DisplayName
+                   ?? (IsRememberedKey(key) ? RememberedName : null)
+                   ?? key;
         }
 
         public bool IsKeyFavorite(string key)
@@ -99,7 +114,8 @@ namespace PlayniteAchievements.ViewModels
                 if (IsKeySelected(key))
                 {
                     Select(null);
-                    Remember(null);
+                    Remember(null, null);
+                    NotifyCompareStateChanged();
                 }
 
                 return;
@@ -107,7 +123,7 @@ namespace PlayniteAchievements.ViewModels
 
             Select(_options.FirstOrDefault(option =>
                 string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase)));
-            Remember(_selected?.Key);
+            Remember(_selected?.Key, _selected?.DisplayName);
         }
 
         private protected override bool TryRestoreRememberedSelection()
