@@ -164,7 +164,15 @@ namespace PlayniteAchievements.Providers.BattleNet
                 case nameof(BattleNetSettings.BattleNetAccountId):
                 case nameof(BattleNetSettings.BattleNetAccessToken):
                 case nameof(BattleNetSettings.BattleNetBattleTag):
-                    UpdateWowStatus();
+                    // Sign-in writes the session from the OAuth callback thread.
+                    if (Dispatcher.CheckAccess())
+                    {
+                        UpdateWowStatus();
+                    }
+                    else
+                    {
+                        Dispatcher.BeginInvoke(new Action(UpdateWowStatus));
+                    }
                     break;
             }
         }
