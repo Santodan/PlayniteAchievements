@@ -120,9 +120,17 @@ namespace PlayniteAchievements.Services.Showcase
         /// </summary>
         public void PersistCompareSelection(Action<string, Action<string>> persist, string surfaceKey)
         {
-            var key = surfaceKey + ".Compare";
-            persist?.Invoke(LoadSurface(key), state => SaveSurface(key, state));
+            persist?.Invoke(
+                LoadCompareSelection(surfaceKey),
+                state => SaveCompareSelection(surfaceKey, state));
         }
+
+        /// <summary>The Compare pick saved for a grid surface, or null.</summary>
+        public string LoadCompareSelection(string surfaceKey) => LoadSurface(surfaceKey + ".Compare");
+
+        /// <summary>Saves a grid surface's Compare pick; null removes it.</summary>
+        public void SaveCompareSelection(string surfaceKey, string state) =>
+            SaveSurface(surfaceKey + ".Compare", state);
 
         /// <summary>Writes any batched change now.</summary>
         public void Flush()
