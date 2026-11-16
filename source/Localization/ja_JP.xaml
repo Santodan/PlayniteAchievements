@@ -540,7 +540,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ExcludeHeader">除外するゲーム ID</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ExecutionHeader">実行</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ForceIncludeBypass">明示的に含めたゲームはユーザー除外設定をバイパス</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ForceIncludeBypass">明示的に含めたゲームはユーザー除外設定をバイパスする</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Header">1 回限りのカスタム更新を作成</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_IncludeHeader">含めるゲーム ID</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_InvalidRecentLimit">最近プレイしたゲーム上限のオーバーライドは正の数である必要があります。</sys:String>
@@ -612,7 +612,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Title">実績アイコンキャッシュ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ApplyAndSync">適用と同期</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes">非表示ゲームを一括更新に含める</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes_Description">Single-game and other targeted refreshes always include hidden games.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes_Description">単一ゲームやその他の対象指定の更新では非表示のゲームも常に含まれます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInSummaries">非表示ゲームを統計に含める</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInSummaries_Description">オフにすると、Playnite で非表示のゲームが概要ウィンドウ、ショーケースウィンドウおよびテーマの合計値から除外されます。ゲームごとの実績画面は通常通り使用できます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExclusionFilters_Description">選択した保存済み Playnite フィルターのいずれかに一致するゲームは自動的に除外され、一致しなくなると再び対象に含まれます。手動で対象または除外を設定したゲームは、その設定が優先されます。</sys:String>
@@ -832,7 +832,7 @@
     <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalHelp">ファンクションキーや修飾キーを含むショートカットは、Playnite 以外のウィンドウがアクティブな場合でもグローバルホットキーとして機能します。修飾キーなしの英字や数字は、Playnite にフォーカスがある間のみ機能します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalRegistrationFailed">グローバルショートカットが利用できません: {0}。他のアプリが既に同じキーを使用している可能性があります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_InvalidShortcut">非対応のショートカットです。英字、数字、ファンクションキーまたは修飾キーを組み合わせたショートカットを押してください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Hotkeys_NoTarget">Select one game or start a game before using achievement hotkeys.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_NoTarget">実績ホットキーを使用する前にゲームを1件選択するか起動してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Hotkeys_Title">ホットキー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableTagging">タグ同期を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">未プレイのゲームを含める</sys:String>
@@ -857,7 +857,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_MissingOAuthSetup">Battle.net のクライアント認証情報またはリダイレクト URI が設定されていません</sys:String>
 
     <!-- Provider: Epic -->
-    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">Paste the &quot;authorizationCode&quot; value from the page here:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">ページに表示されている &quot;authorizationCode&quot; の値をここに貼り付けてください:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 規定のブラウザが開いたら、Epic Games にサインインしてください。
 2. サインイン後、ページ上に表示される「authorizationCode」の値をコピーします。
 3. 次のダイアログ画面で、その値を貼り付けてください。</sys:String>
@@ -914,7 +914,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Language">言語</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_LanguageHint">プラットフォームが対応している場合に実績テキストに使用する言語です。未対応の場合は英語になります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Title">メンテナンス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">Open extension data folder (contains logs and cache)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">拡張機能のデータフォルダを開く (ログとキャッシュが含まれます)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">フォルダを開く</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsUnit">ピクセル (空欄 = 無制限)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_GridRowHeight">行の高さ</sys:String>
@@ -953,7 +953,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">行 (空欄 = 無制限)</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Settings_ProgressBarPreview">プログレスバー</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SelectedGameGridSort">Selected Game Grid</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SelectedGameGridSort">選択ゲームグリッド</sys:String>
 
     <!-- Provider: Shared -->
     <sys:String x:Key="LOCPlayAch_Settings_ProviderAuth">{0} 認証</sys:String>
@@ -974,7 +974,7 @@
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGames">未所有ゲームを更新に含める</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint">自分が所有していないゲームも含めて、フレンドのゲームをスキャンするフル更新を許可します。無効にすると、フルモードは非表示となり、フレンドの更新はライブラリ内のゲームのみが対象となります。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_ManualAdd">フレンドの手動追加</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeInvalid">Select at least two friends from different platforms to merge.</sys:String>
+    <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeInvalid">異なるプラットフォームから2人以上のフレンドを選択して統合してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_MergeSelected">選択したフレンドを統合</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_IgnoreSelected">選択したフレンドを無視</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_UnignoreSelected">選択したフレンドの無視を解除</sys:String>
@@ -1006,12 +1006,12 @@
     <!-- Provider: FFXIV -->
     <!-- FFXIV_Profile: leave "Lodestone" and "FFXIV Collect" untranslated. -->
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Profile">Lodestone or FFXIV Collect character profile URL</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_PublicNote">Achievements must be set to public on the Lodestone to be tracked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_PublicNote">実績をトラッキングするには Lodestone でアチーブメントを公開設定にする必要があります。</sys:String>
     <!-- FFXIV_CollectNote: {0} is a link whose text is the site name "FFXIV Collect". "Add" is that
          site's English-only button label; leave it, "FFXIV Collect", and "Lodestone" untranslated. -->
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CollectNote">Unlock data comes from {0}, which indexes characters on demand. Search for your character there and select Add if it is not listed yet.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Verifying">キャラクターを確認中...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_InvalidProfile">No character id found in the profile URL.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_InvalidProfile">プロフィール URL にキャラクター ID が見つかりません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_AchievementsPrivate">キャラクターは見つかりましたが、Lodestone 側で実績がプライベートに設定されています。</sys:String>
     <!-- FFXIV_NotOnCollect: "Add" is the English-only button label on ffxivcollect.com; leave it,
          the domain, "FFXIV Collect", and "Lodestone" untranslated. -->
@@ -1021,9 +1021,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey">Web API キー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey_Help">RetroAchievements のコントロールパネルでキーを見つけてください:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">ポイント表示</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio weights points by rarity, so harder achievements are worth more.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio はレア度に応じてポイントに重み付けを行うため、難しい実績ほど高いポイントになります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">スタンダードポイント</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (Scaled)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (加重)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaEnableFuzzyNameMatching">あいまい検索を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_RaEnableSubsetScanning">RetroAchievements サブセットを取得する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats">レア度統計</sys:String>
@@ -1041,10 +1041,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_GW2_MissingProgression">キーは有効ですが、Progression の権限が不足しています。Progression にチェックを入れた新しいキーを作成してください。</sys:String>
 
     <!-- Provider: Hypixel -->
-    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_NoDatesNote">Achievements are read from your public Hypixel profile. Hypixel does not record when an achievement was earned, so Hypixel achievements show no unlock date.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_PlayerNotFound">No Hypixel player found with that username.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_NoDatesNote">実績は公開されている Hypixel プロフィールから取得されます。Hypixel はいつ実績を獲得したかを記録しないため、Hypixel の実績には解除日が表示されません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_PlayerNotFound">指定したユーザー名の Hypixel プレイヤーが見つかりません。</sys:String>
     <!-- Hypixel_Unavailable: leave the domain "hypixel.net" untranslated. -->
-    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_Unavailable">hypixel.net could not be reached to look up the player. Try again later.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hypixel_Unavailable">プレイヤー情報を検索するために hypixel.net に接続できませんでした。時間をおいて再度お試しください。</sys:String>
 
     <!-- Provider: Minecraft -->
     <sys:String x:Key="LOCPlayAch_Settings_MinecraftGameFoldersHint">Add a launcher folder such as %AppData%\PrismLauncher to read all of its instances, or a single instance or .minecraft folder. Empty reads %AppData%\.minecraft.</sys:String>
@@ -1192,7 +1192,7 @@
 
     <!-- Metadata tab (tab title reuses Playnite's LOCSettingsMetadataLabel) -->
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersion">コンソールバージョン</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">When a game is on several PlayStation or Xbox consoles, take its list from the newest or the oldest.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">ゲームが複数の世代の PlayStation または Xbox に対応している場合、最新または最古の機種からリストを取得します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">ソース</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">デフォルトでは先頭行の設定に従います。ゲーム固有のソースや紐付けは実績の管理で設定します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation と Xbox では、公式のトロフィーおよび実績リストを Exophase から読み込みます。TrueGaming のページが既に読み込まれている場合、そちらから取得します。</sys:String>
