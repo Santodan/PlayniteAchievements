@@ -23,36 +23,77 @@ namespace PlayniteAchievements.ViewModels
         {
         }
 
+        // Separates the option key from the display name in a saved pick; neither holds a tab.
+        private const char SavedNameSeparator = '\t';
+
         private string _rememberedKey;
+        private string _rememberedName;
         private Action<string> _saveSelection;
 
         /// <summary>
-        /// Remembers the entry picked in the dropdown: restores <paramref name="savedKey"/> (an
-        /// option key, or null) whenever that entry is on offer, and hands <paramref name="save"/>
-        /// the key each time the user picks or clears an entry. A game or friend change that
-        /// drops the selection leaves the remembered entry in place.
+        /// Remembers the entry picked in the dropdown: restores <paramref name="saved"/> (a state
+        /// string from an earlier <paramref name="save"/>, or null) whenever that entry is on
+        /// offer, and hands <paramref name="save"/> the new state each time the user picks or
+        /// clears an entry. A game or friend change that drops the selection leaves the
+        /// remembered entry in place, and while it is not on offer the dropdown still shows it
+        /// as its selection, by the name saved with it.
         /// </summary>
-        public void PersistSelection(string savedKey, Action<string> save)
+        public void PersistSelection(string saved, Action<string> save)
         {
-            _rememberedKey = string.IsNullOrWhiteSpace(savedKey) ? null : savedKey;
+            _rememberedKey = null;
+            _rememberedName = null;
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                var split = saved.IndexOf(SavedNameSeparator);
+                _rememberedKey = split < 0 ? saved : saved.Substring(0, split);
+                _rememberedName = split < 0 ? null : saved.Substring(split + 1);
+                if (string.IsNullOrWhiteSpace(_rememberedKey))
+                {
+                    _rememberedKey = null;
+                    _rememberedName = null;
+                }
+            }
+
             _saveSelection = save;
-            TryRestoreRememberedSelection();
+            if (!TryRestoreRememberedSelection())
+            {
+                NotifyCompareStateChanged();
+            }
         }
 
         /// <summary>The entry to select again once it is offered, or null.</summary>
         private protected string RememberedKey => _rememberedKey;
 
-        /// <summary>Records the user's own pick; null records that they cleared it.</summary>
-        private protected void Remember(string key)
+        /// <summary>The name the remembered entry was saved with, or null.</summary>
+        private protected string RememberedName =>
+            string.IsNullOrWhiteSpace(_rememberedName) ? null : _rememberedName;
+
+        private protected bool IsRememberedKey(string key)
+        {
+            return _rememberedKey != null &&
+                   string.Equals(_rememberedKey, key, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Records the user's own pick with the name it shows under; a null key records that
+        /// they cleared it.
+        /// </summary>
+        private protected void Remember(string key, string displayName)
         {
             if (_saveSelection == null ||
-                string.Equals(_rememberedKey, key, StringComparison.OrdinalIgnoreCase))
+                (string.Equals(_rememberedKey, key, StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(_rememberedName, displayName, StringComparison.Ordinal)))
             {
                 return;
             }
 
             _rememberedKey = key;
-            _saveSelection(key);
+            _rememberedName = key == null ? null : displayName;
+            _saveSelection(key == null
+                ? null
+                : string.IsNullOrWhiteSpace(displayName)
+                    ? key
+                    : key + SavedNameSeparator + displayName.Replace(SavedNameSeparator, ' '));
         }
 
         /// <summary>
