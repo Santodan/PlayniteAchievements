@@ -513,7 +513,8 @@
                     <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
                               IsChecked="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"/>
                 </HeaderedContentControl>
-                <!-- One row per bar item: unchecked leaves it out of the bar and clears its filter. -->
+                <!-- One row per bar item: unchecked leaves it out of the bar and clears its filter,
+                     and the arrows move it among the bar's items or the Filters panel's rows. -->
                 <ItemsControl ItemsSource="{Binding ControlBarItemRows, ElementName=EditorRoot}"
                               IsEnabled="{Binding CommonOptions.ShowControlBar, ElementName=EditorRoot}"
                               Visibility="{Binding ShowControlBarRow, ElementName=EditorRoot, Converter={StaticResource BoolToVis}}">
@@ -521,8 +522,33 @@
                         <DataTemplate>
                             <HeaderedContentControl Header="{Binding Label}"
                                                     Style="{StaticResource OptionRowStyle}">
-                                <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
-                                          IsChecked="{Binding IsShown, Mode=TwoWay}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox Style="{StaticResource OptionCheckBoxStyle}"
+                                              IsChecked="{Binding IsShown, Mode=TwoWay}"/>
+                                    <!-- IcoFont arrow-up and arrow-down, as the showcase lists use. -->
+                                    <Button Content="&#xEA5E;"
+                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                            MinWidth="30"
+                                            MinHeight="0"
+                                            Padding="6,2"
+                                            Margin="{DynamicResource PlayAch.Thickness.Left.Sm}"
+                                            VerticalAlignment="Center"
+                                            ToolTip="{DynamicResource LOCPlayAch_Showcase_MoveEarlier}"
+                                            Command="{Binding MoveEarlierCommand}"
+                                            IsEnabled="{Binding CanMoveEarlier}"
+                                            Visibility="{Binding CanReorder, Converter={StaticResource BoolToVis}}"/>
+                                    <Button Content="&#xEA5B;"
+                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                            MinWidth="30"
+                                            MinHeight="0"
+                                            Padding="6,2"
+                                            Margin="{DynamicResource PlayAch.Thickness.Left.Sm}"
+                                            VerticalAlignment="Center"
+                                            ToolTip="{DynamicResource LOCPlayAch_Showcase_MoveLater}"
+                                            Command="{Binding MoveLaterCommand}"
+                                            IsEnabled="{Binding CanMoveLater}"
+                                            Visibility="{Binding CanReorder, Converter={StaticResource BoolToVis}}"/>
+                                </StackPanel>
                             </HeaderedContentControl>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
