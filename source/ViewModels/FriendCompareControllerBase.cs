@@ -23,6 +23,44 @@ namespace PlayniteAchievements.ViewModels
         {
         }
 
+        private string _rememberedKey;
+        private Action<string> _saveSelection;
+
+        /// <summary>
+        /// Remembers the entry picked in the dropdown: restores <paramref name="savedKey"/> (an
+        /// option key, or null) whenever that entry is on offer, and hands <paramref name="save"/>
+        /// the key each time the user picks or clears an entry. A game or friend change that
+        /// drops the selection leaves the remembered entry in place.
+        /// </summary>
+        public void PersistSelection(string savedKey, Action<string> save)
+        {
+            _rememberedKey = string.IsNullOrWhiteSpace(savedKey) ? null : savedKey;
+            _saveSelection = save;
+            TryRestoreRememberedSelection();
+        }
+
+        /// <summary>The entry to select again once it is offered, or null.</summary>
+        private protected string RememberedKey => _rememberedKey;
+
+        /// <summary>Records the user's own pick; null records that they cleared it.</summary>
+        private protected void Remember(string key)
+        {
+            if (_saveSelection == null ||
+                string.Equals(_rememberedKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _rememberedKey = key;
+            _saveSelection(key);
+        }
+
+        /// <summary>
+        /// Selects and applies the remembered entry when nothing is selected and it is on offer.
+        /// Returns whether it did.
+        /// </summary>
+        private protected abstract bool TryRestoreRememberedSelection();
+
         private protected void ClearApplied()
         {
             if (AppliedItems.Count == 0)
