@@ -208,6 +208,9 @@ namespace PlayniteAchievements.ViewModels
             Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
                 _selectedGameControlBar,
                 GridOptionKeys.Achievement.OverviewSelectedGame);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                FriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.OverviewSelectedGame);
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
