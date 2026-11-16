@@ -443,7 +443,8 @@ namespace PlayniteAchievements.Services.Friends
         /// <summary>
         /// Loads the friends/games/links lists in full plus achievement rows for only the given
         /// scopes, for incremental snapshot patching. Derived lists stay empty; the caller
-        /// splices and re-derives. See SqlNadoCacheStore.LoadFriendsOverviewPatchData.
+        /// splices and re-derives. A scope naming a friend and no game loads that friend's
+        /// unlocked rows for all their games. See SqlNadoCacheStore.LoadFriendsOverviewPatchData.
         /// </summary>
         FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes);
 
