@@ -267,6 +267,11 @@ namespace PlayniteAchievements.Services.Database
             int recentAchievementDetailLimit = 0,
             Guid? scopeGameId = null)
         {
+            if (!scopeGameId.HasValue)
+            {
+                _store.PrimeFileCache();
+            }
+
             return _store.WithReadDb(db =>
             {
                 // One scope per query. This read is five whole-library queries and only its
