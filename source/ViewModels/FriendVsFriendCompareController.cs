@@ -77,16 +77,31 @@ namespace PlayniteAchievements.ViewModels
 
         // With no selected friend the rows belong to many friends; the candidate list and the
         // rows the caller hands over decide whether there is anything to compare.
-        public bool IsCompareAvailable => Candidates.Count > 0 || _selfOptionAvailable;
+        // A remembered entry keeps the dropdown shown and selected where it is not on offer;
+        // no comparison is drawn there.
+        public bool IsCompareAvailable =>
+            Candidates.Count > 0 || _selfOptionAvailable || RememberedKey != null;
 
         public string CompareSelectionText => _selfSelected
             ? GetSelfLabel()
             : _compareFriend?.DisplayName
+              ?? (RememberedKey != null ? GetDisplayNameForKey(RememberedKey) : null)
               ?? ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelectorPlaceholder");
 
-        public IEnumerable<string> OptionKeys => _selfOptionAvailable
-            ? new[] { SelfOptionKey }.Concat(Candidates.Select(FriendOverviewProjection.GetFriendScopeKey))
-            : Candidates.Select(FriendOverviewProjection.GetFriendScopeKey);
+        public IEnumerable<string> OptionKeys
+        {
+            get
+            {
+                var keys = _selfOptionAvailable
+                    ? new[] { SelfOptionKey }.Concat(Candidates.Select(FriendOverviewProjection.GetFriendScopeKey))
+                    : Candidates.Select(FriendOverviewProjection.GetFriendScopeKey);
+                var remembered = RememberedKey;
+                return remembered != null &&
+                       !(IsSelfKey(remembered) ? _selfOptionAvailable : FindCandidate(remembered) != null)
+                    ? keys.Concat(new[] { remembered })
+                    : keys;
+            }
+        }
 
         // The dropdown reads availability on every control-bar refresh, and building the candidate
         // list walks every friend, so it is cached until Refresh or a row rebuild invalidates it.
@@ -95,6 +110,12 @@ namespace PlayniteAchievements.ViewModels
 
         public bool IsKeySelected(string key)
         {
+            if (!_selfSelected && _compareFriend == null)
+            {
+                // Nothing is applied; the remembered entry still reads as the selection.
+                return IsRememberedKey(key);
+            }
+
             if (IsSelfKey(key))
             {
                 return _selfSelected;
@@ -110,7 +131,9 @@ namespace PlayniteAchievements.ViewModels
                 return GetSelfLabel();
             }
 
-            return FindCandidate(key)?.DisplayName ?? key;
+            return FindCandidate(key)?.DisplayName
+                   ?? (IsRememberedKey(key) ? RememberedName : null)
+                   ?? key;
         }
 
         public bool IsKeyFavorite(string key)
@@ -123,11 +146,14 @@ namespace PlayniteAchievements.ViewModels
         public void SelectKey(string key, bool isSelected)
         {
             SelectKeyCore(key, isSelected);
-            Remember(_selfSelected
-                ? SelfOptionKey
-                : _compareFriend != null
-                    ? FriendOverviewProjection.GetFriendScopeKey(_compareFriend)
-                    : null);
+            Remember(
+                _selfSelected
+                    ? SelfOptionKey
+                    : _compareFriend != null
+                        ? FriendOverviewProjection.GetFriendScopeKey(_compareFriend)
+                        : null,
+                _selfSelected ? null : _compareFriend?.DisplayName);
+            NotifyCompareStateChanged();
         }
 
         private protected override bool TryRestoreRememberedSelection()
