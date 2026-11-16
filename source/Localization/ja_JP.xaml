@@ -494,13 +494,13 @@
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected">{0} 件の実績を提供元の値に戻しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHeader">{0} 実績を編集中</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_BulkHint">変更内容は選択したすべての実績に適用されます。空欄の項目は選択項目間で値が異なるため、変更されません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip">Collapse the details pane</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_ExpandDetailsTooltip">Expand the details pane</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_CollapseDetailsTooltip">詳細パネルを折りたたむ</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_ExpandDetailsTooltip">詳細パネルを展開</sys:String>
     <!-- Editor_UndoFormat / Editor_RedoFormat: {0} is the name of the edit that would be undone or redone -->
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_UndoFormat">元に戻す: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Editor_RedoFormat">やり直す: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_ManualTracking">手動トラッキング</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Value_NotAvailable">N/A</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Value_NotAvailable">利用不可</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_WindowTitle">実績の管理 - {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_Bold">太字</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_CharacterCountFormat">{0} / {1} 文字</sys:String>
@@ -556,7 +556,7 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Explicit">Explicit only</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_LibrarySelected">Library selected</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ScopeHeader">Game Scope</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_SummaryFormat">Platforms: {0} | Estimated targets: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_SummaryFormat">プラットフォーム: {0} | 推定対象数: {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_TargetingHeader">含める / 除外するゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_UseIncludeUnplayed">Override include unplayed</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_UseParallelOverride">Override parallel platform execution</sys:String>
@@ -657,7 +657,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">ディスクのハッシュ照合を有効にする (ディスク媒体のゲーム機用)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DefaultOverviewRefreshMode">デフォルトの概要更新モード</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">通知を有効にする</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">プラットフォームの並列更新を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">バックグラウンドでの定期更新を有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsPeriodicUpdates">バックグラウンドでのフレンド更新を有効にする (最近)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableInGamePolling">ゲーム起動中に実績を監視する</sys:String>
@@ -717,16 +717,16 @@
     <sys:String x:Key="LOCPlayAch_Settings_FrameHeader">フレーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ToastTab">通知</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_Customize">&quot;{0}&quot; の通知スタイルを個別に設定する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_ResetToBase">Reset to shared style</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_Kind_ResetToBase">共有スタイルにリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_StopSeparateConfirm">これらの通知の個別スタイル設定を解除しますか? 個別のスタイルと画像は削除されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Sounds_Customize">&quot;{0}&quot; に個別の効果音を使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Sounds_StopSeparateConfirm">ここで個別の効果音を使用するのを停止しますか? 実績が解除されると、継承された効果音が再び再生されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ShareHint">このタブのスタイルをファイルまたはワークショップにエクスポートします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportSurfaceMismatch">このファイルには{0}のスタイルが含まれていますが、{1}のタブが開かれています。このままインポートしますか?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">Apply this file's style to the current selection?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeTemplate">Include your custom template in the file?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportConfirm">このファイルのスタイルを現在の選択項目に適用しますか?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ExportIncludeTemplate">カスタムテンプレートをこのファイルに含めますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportUnsupportedFile">対応しているのは .panotif および .paframe ファイルのみです。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportMissingManifest">The package does not contain a notification style manifest.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_ImportMissingManifest">パッケージに通知スタイルのマニフェストが含まれていません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ImportNotPackage">このファイルはスタイルパッケージではありません。展開したファイルではなく、エクスポートした元の .panotif または .paframe をインポートしてください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetToDefault">デフォルトにリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_ResetConfirm">このタブをデフォルトのスタイルにリセットしますか? 変更内容はすべて消去され、カスタムテンプレートも削除されます。</sys:String>
@@ -847,11 +847,11 @@
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_RedirectUri">リダイレクト URI</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">アカウント内のすべてのキャラクターの実績を統合する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_OAuthHelp">WoW の実績を取得するには Blizzard の公式 API を使用するため、Battle.net アカウントに紐づいた無料の API クライアントが必要です。設定は初回のみ必要です:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. {0} を開き、新規クライアントを作成してください（名前や詳細は任意で構いません）。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. Set the client's Redirect URI to exactly the value shown below (default http://127.0.0.1:55431/).</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep3">3. Copy the client's Client ID and Client Secret into the fields below.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. Click Sign in below and approve access when your browser opens.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupSample">Need a walkthrough? See the {0}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. {0} を開き、新規クライアントを作成してください (名前や詳細は任意で構いません)。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. クライアントのリダイレクト URI に下に表示されている値を精確に設定します (デフォルト: http://127.0.0.1:55431/)。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep3">3. クライアントのクライアント ID とクライアントシークレットを下の欄んにコピーします。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. 下のサインインをクリックし、開いたブラウザでアクセスを承認します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupSample">詳しい手順が必要な場合は、{0} を参照してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowReady">キャラクター準備完了</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">キャラクター設定が未完了です</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_MissingOAuthSetup">Battle.net のクライアント認証情報またはリダイレクト URI が設定されていません</sys:String>
@@ -991,8 +991,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_FriendsTableHint">無視したフレンドは更新時にスキップされます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RefreshFriendsList">フレンドリストを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity">Use Data for Azeroth for WoW Rarity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">Fills global rarity percentages from the Data for Azeroth website while keeping native achievement data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">Sign in to Data for Azeroth to read WoW rarity percentages. Until you do, achievements still sync without them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_UseDataForAzerothForWowRarity_Help">ネイティブの実績データを保持したまま、Data for Azeroth ウェブサイトからグローバルレア度百分率を補完します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_DataForAzerothSignInHint">WoW のグローバルレア度百分率を読み込むには、Data for Azeroth にサインインしてください。未サインインの状態でも、レア度なしで実績の同期が行われます。</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">PlayStation.com でサインイン</sys:String>
