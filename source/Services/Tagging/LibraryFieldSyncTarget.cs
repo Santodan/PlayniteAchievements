@@ -203,8 +203,10 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Rewrites a game's id list for this field: strips <paramref name="idsToRemove"/> (every
-        /// tracked id when null), then adds the item of each applicable enabled kind. Returns
+        /// Brings a game's id list for this field to the item of each applicable enabled kind:
+        /// strips the ids in <paramref name="idsToRemove"/> (every tracked id when null) that are
+        /// not wanted, then adds the wanted ones that are missing. Ids already in place are left
+        /// where they are, so a game whose list is already right reports no change. Returns
         /// whether the list moved; the caller writes the game.
         /// </summary>
         public bool SyncGame(Game game, IReadOnlyCollection<TagType> applicable, HashSet<Guid> idsToRemove = null)
@@ -214,25 +216,36 @@ namespace PlayniteAchievements.Services.Tagging
                 return false;
             }
 
-            var changed = RemoveManaged(game, idsToRemove);
+            var desired = new List<Guid>();
             var configs = Configs;
-            if (configs == null || applicable == null)
+            if (configs != null && applicable != null)
             {
-                return changed;
+                foreach (var kind in applicable)
+                {
+                    if (!Manages(kind) || !configs.TryGetValue(kind, out var config) || config?.IsEnabled != true)
+                    {
+                        continue;
+                    }
+
+                    var id = ResolveConfiguredId(kind, config);
+                    if (id.HasValue && !desired.Contains(id.Value))
+                    {
+                        desired.Add(id.Value);
+                    }
+                }
             }
 
-            foreach (var kind in applicable)
+            var changed = false;
+            var ids = Field.GetIds(game);
+            if (ids != null && ids.Count > 0)
             {
-                if (!Manages(kind) || !configs.TryGetValue(kind, out var config) || config?.IsEnabled != true)
-                {
-                    continue;
-                }
+                var toRemove = idsToRemove ?? GetAllTrackedIds();
+                changed = ids.RemoveAll(id => toRemove.Contains(id) && !desired.Contains(id)) > 0;
+            }
 
-                var id = ResolveConfiguredId(kind, config);
-                if (id.HasValue)
-                {
-                    changed |= AddId(game, id.Value);
-                }
+            foreach (var id in desired)
+            {
+                changed |= AddId(game, id);
             }
 
             return changed;
