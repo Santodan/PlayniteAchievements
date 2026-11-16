@@ -149,6 +149,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected virtual string RarityGlowSettingPath => "Settings.Persisted.ModernUnlockedListShowRarityGlow";
 
         /// <summary>
+        /// Binding path (relative to the plugin instance) for the rarity bar setting, which shows
+        /// or hides the bar together with its percent text.
+        /// </summary>
+        protected virtual string RarityBarSettingPath => "Settings.Persisted.ShowCompactUnlockedListRarityBar";
+
+        /// <summary>
         /// Whether hidden locked achievements are obscured with click-to-reveal support.
         /// </summary>
         protected virtual bool SupportsHiddenReveal => false;
@@ -164,7 +170,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 IsLocked = ImagesAreLocked,
                 EnableRaretyIndicator = true,
-                DisplayRaretyValue = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 // Clicking any achievement icon opens the achievements window
@@ -179,6 +184,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 FallbackValue = true
             };
             image.SetBinding(AchievementImage.ShowRarityGlowProperty, glowBinding);
+
+            var barBinding = new Binding(RarityBarSettingPath)
+            {
+                Source = Plugin,
+                Mode = BindingMode.OneWay,
+                FallbackValue = true
+            };
+            image.SetBinding(AchievementImage.DisplayRaretyValueProperty, barBinding);
 
             // The handler gates on the achievement stored in Tag, so it is safe to
             // attach once at creation regardless of which achievement is displayed.
