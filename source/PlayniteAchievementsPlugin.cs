@@ -3065,7 +3065,9 @@ namespace PlayniteAchievements
 
         private void OnAchievementGameRefreshed(Guid gameId)
         {
-            if (_tagSyncService?.AnySyncEnabled == true)
+            // The in-game monitor's periodic refresh is a poll, not a change: it reports what it
+            // finds through ProgressApplied, which lands here again once the refresh is over.
+            if (_tagSyncService?.AnySyncEnabled == true && _inGameMonitor?.IsFallbackRefreshing(gameId) != true)
             {
                 // Queued off-thread into the batched tag-sync drainer so the Playnite DB
                 // write (and its ItemUpdated fan-out) does not run inside the provider's
