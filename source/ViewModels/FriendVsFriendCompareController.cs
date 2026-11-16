@@ -17,8 +17,8 @@ namespace PlayniteAchievements.ViewModels
     /// Compare-friend selection for the friends surfaces: the dropdown lists the other friends
     /// with cached rows for the same game, plus the current user when they have cached progress
     /// for that game, and the chosen side's unlock state is applied onto the selected friend's
-    /// rows. Selection is session-only; the caller clears it whenever the friend (or game) being
-    /// viewed changes.
+    /// rows. The caller clears the selection whenever the friend (or game) being viewed changes,
+    /// and a remembered entry is selected again on each pair it is offered for.
     /// </summary>
     public sealed class FriendVsFriendCompareController :
         FriendCompareControllerBase<FriendAchievementDisplayItem>, IGridCompareSource
@@ -119,6 +119,49 @@ namespace PlayniteAchievements.ViewModels
         // replaces any other selection; unchecking the selected entry clears the comparison.
         public void SelectKey(string key, bool isSelected)
         {
+            SelectKeyCore(key, isSelected);
+            Remember(_selfSelected
+                ? SelfOptionKey
+                : _compareFriend != null
+                    ? FriendOverviewProjection.GetFriendScopeKey(_compareFriend)
+                    : null);
+        }
+
+        private protected override bool TryRestoreRememberedSelection()
+        {
+            var key = RememberedKey;
+            if (key == null || _selfSelected || _compareFriend != null || _getSelectedFriend() == null)
+            {
+                return false;
+            }
+
+            if (IsSelfKey(key))
+            {
+                if (!_selfOptionAvailable)
+                {
+                    return false;
+                }
+
+                _selfSelected = true;
+            }
+            else
+            {
+                var candidate = FindCandidate(key);
+                if (candidate == null)
+                {
+                    return false;
+                }
+
+                _compareFriend = candidate;
+            }
+
+            NotifyCompareStateChanged();
+            ApplySelection();
+            return true;
+        }
+
+        private void SelectKeyCore(string key, bool isSelected)
+        {
             if (IsSelfKey(key))
             {
                 SelectSelf(isSelected);
@@ -157,7 +200,10 @@ namespace PlayniteAchievements.ViewModels
             _targetRows = targetRows;
             _candidates = null;
             UpdateSelfAvailability();
-            ApplySelection();
+            if (!TryRestoreRememberedSelection())
+            {
+                ApplySelection();
+            }
         }
 
         // Re-applies the current selection to the rows last handed to UpdateRows, so picking a
