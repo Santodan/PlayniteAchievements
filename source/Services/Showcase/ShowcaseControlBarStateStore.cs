@@ -102,6 +102,17 @@ namespace PlayniteAchievements.Services.Showcase
             ScheduleSave();
         }
 
+        /// <summary>
+        /// Restores an achievement grid's Unlocked, Locked and Hidden toggles from the state saved
+        /// under <paramref name="surfaceKey"/> and saves them there on every later change.
+        /// </summary>
+        public void PersistUnlockToggles(
+            PlayniteAchievements.ViewModels.AchievementGridControlBarAdapter adapter,
+            string surfaceKey)
+        {
+            adapter?.PersistUnlockToggles(LoadSurface(surfaceKey), state => SaveSurface(surfaceKey, state));
+        }
+
         /// <summary>Writes any batched change now.</summary>
         public void Flush()
         {
