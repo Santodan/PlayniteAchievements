@@ -417,6 +417,7 @@ namespace PlayniteAchievements.Services.Database
         private SQLiteDatabase _readDb;
         private bool _readInitialized;
         private const int ConnectionBusyTimeoutMs = 5000;
+        private readonly DatabaseFileCachePrimer _fileCachePrimer;
 
         public string DatabasePath { get; }
 
@@ -427,6 +428,7 @@ namespace PlayniteAchievements.Services.Database
             _pluginUserDataPath = baseDir ?? string.Empty;
             DatabasePath = Path.Combine(_pluginUserDataPath, SqlNadoSchemaManager.DatabaseFileName);
             _schemaManager = new SqlNadoSchemaManager(logger, DatabasePath, baseDir);
+            _fileCachePrimer = new DatabaseFileCachePrimer(logger, new[] { DatabasePath, DatabasePath + "-wal" });
             _csvExporter = new CacheCsvExporter(this);
             _summaryReader = new SummaryCacheReader(this);
         }
@@ -2947,6 +2949,7 @@ namespace PlayniteAchievements.Services.Database
 
         public FriendsOverviewData LoadFriendsOverviewData(int recentLimit)
         {
+            PrimeFileCache();
             return WithReadDb(db =>
             {
                 var data = new FriendsOverviewData();
@@ -6779,6 +6782,13 @@ namespace PlayniteAchievements.Services.Database
         // back to default(T) if the connection cannot be opened or the query fails (e.g. the
         // database file is being cleared concurrently) so read callers degrade to empty results
         // rather than throwing.
+        // Called ahead of a whole-library read, outside _readSync, so the read finds the
+        // database pages in the Windows file cache. See DatabaseFileCachePrimer.
+        internal void PrimeFileCache()
+        {
+            _fileCachePrimer.PrimeIfDue();
+        }
+
         internal T WithReadDb<T>(Func<SQLiteDatabase, T> action)
         {
             if (action == null)
