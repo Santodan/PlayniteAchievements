@@ -236,6 +236,8 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
             target.FriendsOverviewRecentUnlockLimit = source.FriendsOverviewRecentUnlockLimit;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
+            target.ShowCompactLockedListRarityBar = source.ShowCompactLockedListRarityBar;
+            target.ShowCompactUnlockedListRarityBar = source.ShowCompactUnlockedListRarityBar;
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
             target.CommonGlowTierCleared = source.CommonGlowTierCleared;
