@@ -128,6 +128,9 @@ namespace PlayniteAchievements.Services
         private Task _loopTask;
         private int _fallbackInFlight;
 
+        /// <summary>Games whose fallback provider refresh is running right now.</summary>
+        private readonly HashSet<Guid> _fallbackRefreshGameIds = new HashSet<Guid>();
+
         public event Action<Guid> ProgressApplied;
 
         /// <summary>
@@ -157,6 +160,19 @@ namespace PlayniteAchievements.Services
 
         /// <summary>True while the monitor is tracking a running game.</summary>
         public bool IsMonitoring(Guid gameId) => gameId != Guid.Empty && IsTracked(gameId);
+
+        /// <summary>
+        /// True while the periodic fallback refresh is running for the game. A refresh event
+        /// raised then comes from the poll rather than from a change; a change the poll finds
+        /// is reported through <see cref="ProgressApplied"/>.
+        /// </summary>
+        public bool IsFallbackRefreshing(Guid gameId)
+        {
+            lock (_fallbackRefreshGameIds)
+            {
+                return _fallbackRefreshGameIds.Contains(gameId);
+            }
+        }
 
         public InGameAchievementMonitor(
             IPlayniteAPI api,
@@ -1384,28 +1400,44 @@ namespace PlayniteAchievements.Services
                         state => _cacheManager?.LoadGameData(state.Game.Id.ToString()));
                     var gameIds = batch.Select(state => state.Game.Id).ToList();
                     var timer = Stopwatch.StartNew();
-                    await _executeRefreshAsync(
-                        new RefreshRequest
-                        {
-                            GameIds = gameIds,
-                            Options = new RefreshOptions
+                    lock (_fallbackRefreshGameIds)
+                    {
+                        _fallbackRefreshGameIds.UnionWith(gameIds);
+                    }
+
+                    try
+                    {
+                        await _executeRefreshAsync(
+                            new RefreshRequest
                             {
-                                Subjects = RefreshSubjects.CurrentUser,
-                                Scope = RefreshGameScope.Explicit,
-                                ProviderKeys = new[] { providerGroup.Key },
-                                PlayniteGameIds = gameIds,
-                                PreferCachedDefinitions = true,
-                                RespectUserExclusions = true
-                            }
-                        },
-                        new RefreshExecutionPolicy
+                                GameIds = gameIds,
+                                Options = new RefreshOptions
+                                {
+                                    Subjects = RefreshSubjects.CurrentUser,
+                                    Scope = RefreshGameScope.Explicit,
+                                    ProviderKeys = new[] { providerGroup.Key },
+                                    PlayniteGameIds = gameIds,
+                                    PreferCachedDefinitions = true,
+                                    RespectUserExclusions = true
+                                }
+                            },
+                            new RefreshExecutionPolicy
+                            {
+                                ValidateAuthentication = false,
+                                UseProgressWindow = false,
+                                SwallowExceptions = true,
+                                ExternalCancellationToken = token,
+                                ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
+                            }).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        lock (_fallbackRefreshGameIds)
                         {
-                            ValidateAuthentication = false,
-                            UseProgressWindow = false,
-                            SwallowExceptions = true,
-                            ExternalCancellationToken = token,
-                            ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
-                        }).ConfigureAwait(false);
+                            _fallbackRefreshGameIds.ExceptWith(gameIds);
+                        }
+                    }
+
                     timer.Stop();
 
                     foreach (var state in batch)
@@ -1419,7 +1451,13 @@ namespace PlayniteAchievements.Services
                         var after = _cacheManager?.LoadGameData(state.Game.Id.ToString());
                         // Read the baseline flag before MarkPrimed below sets it.
                         var primed = state.Schedule.ShouldEmitUnlocks();
-                        var keys = _differ.DiffUserUnlocks(before, after)
+                        var unlocked = _differ.DiffUserUnlocks(before, after).ToList();
+                        if (unlocked.Count > 0)
+                        {
+                            ProgressApplied?.Invoke(state.Game.Id);
+                        }
+
+                        var keys = unlocked
                             .Where(achievement =>
                                 achievement != null &&
                                 !string.IsNullOrWhiteSpace(achievement.ApiName) &&
