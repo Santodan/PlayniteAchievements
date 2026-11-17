@@ -351,7 +351,12 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                withData.Add(key);
+                // Scraped rows alone do not put a friend among those with the game.
+                if (row.Unlocked || row.FriendOwnsGame)
+                {
+                    withData.Add(key);
+                }
+
                 if (byKey.ContainsKey(key))
                 {
                     continue;
@@ -421,8 +426,9 @@ namespace PlayniteAchievements.ViewModels
                     selectedKey,
                     StringComparison.OrdinalIgnoreCase));
 
-            // A friend with no row for this game has no data for it, and reads N/A on every row.
-            var applicable = compareRows.Count > 0;
+            // A friend with no unlock in this game and no known ownership of it reads N/A on every
+            // row; rows scraped for a game they may not own list every achievement locked.
+            var applicable = compareRows.Values.Any(row => row.Unlocked || row.FriendOwnsGame);
             foreach (var item in items)
             {
                 if (item == null)
