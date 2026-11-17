@@ -882,10 +882,35 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task Categories_UnmatchedAchievements_GoUnderTheBaseGame_NotThePlatformsCategory()
+        public async Task Categories_UnmatchedAchievements_LoseThePlatformsCategory()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Categories);
             playstation.Rows.Add(Row("t1", "One", category: "Story"));
+            playstation.Rows.Add(Row("t2", "Two", category: "Side"));
+            var one = Row("s1", "One", category: "Chapter 1");
+            var two = Row("s2", "Two", category: "Chapter 1");
+            var unmatched = Row("s3", "Only on this platform", category: "The Expansion");
+            unmatched.CategoryKind = "DLC";
+            var data = Game("Steam", one, two, unmatched);
+
+            using (var run = Overlay(new[] { playstation }, Choices(categories: playstation.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", one.Category);
+            Assert.AreEqual("Side", two.Category);
+            Assert.IsNull(unmatched.Category);
+            Assert.IsNull(unmatched.CategoryKind);
+        }
+
+        [TestMethod]
+        public async Task Categories_UnmatchedAchievements_JoinTheSourcesOnlyCategory()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Categories);
+            var source = Row("t1", "One", category: "The game");
+            source.CategoryKind = "Base";
+            playstation.Rows.Add(source);
             var matched = Row("s1", "One", category: "Chapter 1");
             var unmatched = Row("s2", "Only on this platform", category: "The Expansion");
             unmatched.CategoryKind = "DLC";
@@ -896,8 +921,8 @@ namespace PlayniteAchievements.Tests.Services
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
 
-            Assert.AreEqual("Story", matched.Category);
-            Assert.AreEqual(new MetadataLinkRequest(data.Game, data).BaseCategoryLabel, unmatched.Category);
+            Assert.AreEqual("The game", matched.Category);
+            Assert.AreEqual("The game", unmatched.Category);
             Assert.AreEqual("Base", unmatched.CategoryKind);
         }
 
@@ -1221,7 +1246,7 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual("Story", dragon.Category);
             Assert.AreEqual("Collectibles", coins.Category);
-            Assert.AreEqual("Test game", unknown.Category, "unmatched achievements go under the base game");
+            Assert.IsNull(unknown.Category);
             var coverage = overlay.Links.GetCoverage(data.PlayniteGameId.Value, "SteamHunters");
             Assert.AreEqual(2, coverage.Matched);
             Assert.AreEqual(3, coverage.Total);
@@ -1246,7 +1271,7 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("Story", one.Category);
-            Assert.AreEqual("Test game", two.Category, "unmatched achievements go under the base game");
+            Assert.IsNull(two.Category);
             Assert.AreEqual("Side", three.Category);
         }
 
