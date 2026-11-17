@@ -306,8 +306,8 @@ namespace PlayniteAchievements.ViewModels.Items
 
         // The identity of the row's own side of the comparison: the signed-in user on the self
         // achievement grids, and the selected friend in the friends-overview pair view. Null when
-        // the row's provider has no cached avatar, which renders as an empty circle so both sides
-        // stay aligned.
+        // the row's provider has no cached avatar, which renders as a placeholder glyph in the
+        // avatar circle so both sides stay aligned.
         [DontSerialize]
         [IgnoreDataMember]
         public string ComparisonOwnerName
@@ -340,6 +340,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _comparisonUnlockTimeUtc, value))
                 {
                     OnPropertyChanged(nameof(ComparisonUnlockTimeLocal));
+                    OnPropertyChanged(nameof(ComparisonUnlockedWithoutDate));
                     OnPropertyChanged(nameof(ComparisonToolTip));
                 }
             }
@@ -354,10 +355,18 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _comparisonUnlocked, value))
                 {
+                    OnPropertyChanged(nameof(ComparisonUnlockedWithoutDate));
                     OnPropertyChanged(nameof(ComparisonToolTip));
                 }
             }
         }
+
+        // The compare side has the achievement with no unlock time on record (a manual unlock
+        // without a date); the cell then reads Unlocked where the date would be.
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool ComparisonUnlockedWithoutDate =>
+            _comparisonUnlocked && !_comparisonUnlockTimeUtc.HasValue;
 
         [DontSerialize]
         [IgnoreDataMember]
@@ -403,7 +412,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
             return unlockTimeLocal.HasValue
                 ? $"{name} · {unlockTimeLocal.Value.ToString("G", FormattingCulture.Current)}"
-                : name;
+                : $"{name} · {ResourceProvider.GetString("LOCPlayAch_Common_Unlocked")}";
         }
 
         public void ApplyComparison(
@@ -603,12 +612,17 @@ namespace PlayniteAchievements.ViewModels.Items
                     NotifyMaskStateChanged();
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
+                    OnPropertyChanged(nameof(UnlockedWithoutDate));
                     OnPropertyChanged(nameof(IsUnlock));
                 }
             }
         }
 
         public virtual bool ShowUnlockDate => Unlocked;
+
+        // Unlocked with no unlock time on record (a manual unlock without a date). In compare
+        // mode the cell reads Unlocked where the date would be.
+        public bool UnlockedWithoutDate => Unlocked && !UnlockTimeUtc.HasValue;
 
         public virtual bool ShowLockedProgress => !ShowUnlockDate;
 
@@ -2052,6 +2066,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Rarity));
             OnPropertyChanged(nameof(GamerScore));
             OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(UnlockedWithoutDate));
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
@@ -2088,6 +2103,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(UnlockTime));
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
+            OnPropertyChanged(nameof(UnlockedWithoutDate));
         }
 
         /// <summary>
