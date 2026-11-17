@@ -87,6 +87,12 @@ namespace PlayniteAchievements.ViewModels
             return FindFriend(key)?.IsFavorite == true;
         }
 
+        // The grid spans games, so no friend is without data for the game being compared.
+        public bool IsKeyMuted(string key)
+        {
+            return false;
+        }
+
         // Single-select semantics over checkable menu items: checking a friend replaces any
         // other selection; unchecking the selected friend clears the comparison.
         public void SelectKey(string key, bool isSelected)
@@ -189,6 +195,14 @@ namespace PlayniteAchievements.ViewModels
 
             Select(friend);
             return true;
+        }
+
+        private protected override void DropSelection()
+        {
+            if (_selected != null)
+            {
+                Select(null);
+            }
         }
 
         private void ApplyFriends(
@@ -343,7 +357,7 @@ namespace PlayniteAchievements.ViewModels
                     _selected.AvatarPath ?? compareRow?.FriendAvatarPath,
                     compareRow?.UnlockTimeUtc,
                     compareRow?.Unlocked == true,
-                    self?.DisplayName,
+                    GetSelfName(self),
                     self?.AvatarPath,
                     applicable);
                 AppliedItems.Add(item);
