@@ -25,6 +25,7 @@ namespace PlayniteAchievements.Services.Friends
         private readonly Dictionary<string, List<FriendGameSummaryItem>> _selectedFriendGamesByFriendKey;
         private readonly HashSet<string> _friendGameUnlockKeys;
         private readonly HashSet<string> _friendGameOwnershipKeys;
+        private readonly HashSet<string> _friendGameConfirmedOwnershipKeys;
 
         public FriendOverviewProjection(FriendsOverviewData data, PersistedSettings settings = null)
         {
@@ -39,6 +40,9 @@ namespace PlayniteAchievements.Services.Friends
             _selectedFriendGamesByFriendKey = BuildSelectedFriendGameSummaries(linksByFriendGameKey);
             _friendGameUnlockKeys = BuildFriendGameUnlockKeys();
             _friendGameOwnershipKeys = new HashSet<string>(linksByFriendGameKey.Keys, StringComparer.OrdinalIgnoreCase);
+            _friendGameConfirmedOwnershipKeys = new HashSet<string>(
+                linksByFriendGameKey.Where(pair => pair.Value?.OwnershipConfirmed == true).Select(pair => pair.Key),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         public IReadOnlyList<FriendSummaryItem> Friends => _friends;
@@ -220,9 +224,9 @@ namespace PlayniteAchievements.Services.Friends
         }
 
         /// <summary>
-        /// Whether <paramref name="friend"/> has anything for the game <paramref name="row"/>
-        /// belongs to: unlocked rows or an ownership link, as in
-        /// <see cref="HasFriendGamePairData"/>.
+        /// Whether <paramref name="friend"/> is known to have the game <paramref name="row"/>
+        /// belongs to: an unlock in it, or an ownership link from their game list or with
+        /// playtime. A link made only by scraping their achievements does not count.
         /// </summary>
         public bool HasFriendGameData(FriendSummaryItem friend, FriendAchievementDisplayItem row)
         {
@@ -238,7 +242,7 @@ namespace PlayniteAchievements.Services.Friends
                 row.AppId,
                 row.PlayniteGameId);
             return !string.IsNullOrWhiteSpace(key) &&
-                   (_friendGameUnlockKeys.Contains(key) || _friendGameOwnershipKeys.Contains(key));
+                   (_friendGameUnlockKeys.Contains(key) || _friendGameConfirmedOwnershipKeys.Contains(key));
         }
 
         public static bool IsAllScope(string scopeKey)
