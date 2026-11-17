@@ -2,6 +2,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata.Exophase;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
@@ -29,7 +30,7 @@ namespace PlayniteAchievements.Providers.Metadata
     internal static class MetadataSourceProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe collections (TrueGaming, SteamHunters)" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = false;
+        internal static readonly bool Enabled = true;
 
         private const int CategoryMinimum = 5;
 
@@ -77,7 +78,9 @@ namespace PlayniteAchievements.Providers.Metadata
 
             // A Steam game with achievement sets to PlayStation: what the Steam scan hands the
             // overlay, sets included, and the categories the PlayStation list gives in their place.
-            ("Pillars of Eternity", "steamsets:291650", "Steam", new[] { "PlayStation" })
+            ("Pillars of Eternity", "steamsets:291650", "Steam", new[] { "PlayStation", "Xbox" }),
+            ("Portal 2", "steamsets:620", "Steam", new[] { "PlayStation", "Xbox" }),
+            ("Left 4 Dead 2", "steamsets:550", "Steam", new[] { "Xbox" })
         };
 
         public static async Task RunAsync(
@@ -161,6 +164,11 @@ namespace PlayniteAchievements.Providers.Metadata
                             {
                                 // Each source's found names go to the sources after it, as the overlay shares them.
                                 var found = await ProbeSourceAsync(provider, name, servicing, rows, sharedLabel, report, ct).ConfigureAwait(false);
+                                if (from.StartsWith("steamsets:", StringComparison.Ordinal))
+                                {
+                                    await ReportOverlayAsync(provider, name, servicing, rows, report, logger, ct).ConfigureAwait(false);
+                                }
+
                                 sharedLabel = MetadataFoundNames.Format(MetadataFoundNames.Parse(sharedLabel).Concat(MetadataFoundNames.Parse(found)));
                             }
                         }
@@ -365,6 +373,82 @@ namespace PlayniteAchievements.Providers.Metadata
 
             ReportCategories(rows, sources, set, link.Label, report);
             return link.Label;
+        }
+
+        /// <summary>
+        /// The categories a refresh gives the game with <paramref name="provider"/> chosen as its
+        /// category source: the real overlay, run on copies of the rows for a made-up game with no
+        /// link store, so nothing is saved.
+        /// </summary>
+        private static async Task ReportOverlayAsync(
+            IMetadataProvider provider,
+            string name,
+            string servicing,
+            List<AchievementDetail> rows,
+            StringBuilder report,
+            ILogger logger,
+            CancellationToken ct)
+        {
+            var copies = rows
+                .Select(row => new AchievementDetail
+                {
+                    ApiName = row.ApiName,
+                    DisplayName = row.DisplayName,
+                    Description = row.Description,
+                    Hidden = row.Hidden,
+                    Category = row.Category,
+                    CategoryKind = row.CategoryKind,
+                    Tags = row.Tags
+                })
+                .ToList();
+            var own = copies.ToDictionary(row => row, row => $"{row.Category ?? "none"} [{row.CategoryKind ?? "no kind"}]");
+            var choices = new MetadataChoices
+            {
+                Icons = string.Empty,
+                Categories = provider.Key,
+                Tags = string.Empty,
+                Rarity = string.Empty,
+                CapstoneArt = string.Empty,
+                TrophyTypes = string.Empty,
+                Points = string.Empty,
+                Text = string.Empty,
+                Order = string.Empty
+            };
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = choices,
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
+            };
+            var game = new Game(name) { Id = Guid.NewGuid() };
+            var data = new GameAchievementData
+            {
+                GameName = name,
+                ProviderKey = servicing,
+                PlayniteGameId = game.Id,
+                Achievements = copies
+            };
+
+            report.AppendLine($"== the overlay, categories from {provider.Key} ==");
+            try
+            {
+                var overlay = new MetadataOverlay(() => new[] { provider }, () => settings, null, logger);
+                using (var run = overlay.BeginRun())
+                {
+                    await run.ApplyAsync(game, data, ct).ConfigureAwait(false);
+                }
+
+                foreach (var group in copies.GroupBy(row => own[row]))
+                {
+                    var after = group
+                        .GroupBy(row => $"{row.Category ?? "none"} [{row.CategoryKind ?? "no kind"}]" + (row.MetadataLayer == null ? " (no metadata layer)" : string.Empty))
+                        .Select(result => $"{result.Key} {result.Count()}");
+                    report.AppendLine($"  own category {group.Key} ({group.Count()}) -> {string.Join("; ", after)}");
+                }
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                report.AppendLine($"  overlay failed: {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         /// <summary>
