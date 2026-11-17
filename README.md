@@ -115,6 +115,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-11-17 - v4.2.1.2
+
 - Fixed Capstone not been generated automatically when the setting was enabled
 - Fixed the `Local` provider taking a different ID from the game's description
 - Fixed the compatibility with the new `PS5-Experience` v0.9.9
@@ -166,13 +168,13 @@ The entries below are fork-side changes, grouped by date. When a date includes a
   - Option present in `Achievement Notifications` --> `General` --> `Use a Single custom notification`
 - Added the option to use the upstream notification template instead
 
+## Old Changelogs
+<details>
+
 ## 2026-10-18 - v4.1.0.1
 
 - v4.1.0 merge
 - Fixed `PS5-Experience` theme not showing the trophy for 100% games
-
-## Old Changelogs
-<details>
 
 ## 2026-10-14 - v4.0.1.2
 

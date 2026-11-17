@@ -1,8 +1,22 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 4.2.1.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-11-17
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.2.1.2/PlayniteAchievementsSantodan_4_2_1_2.pext
+    Changelog:
+    - "Fixed Capstone not been generated automatically when the setting was enabled"
+    - "Fixed the `Local` provider taking a different ID from the game's description"
+    - "Fixed the compatibility with the new `PS5-Experience` v0.9.9"
+    - "Fix delayed PS5-Experience achievement progress updates"
+    - "Fixed the compatibility with the `Solaris` theme"
+    - "Fixed empty theme achievement data caused by missing SQL join"
+    - "Fixed missing update notification for new extension's version"
+    - "Added a `Offline Cache` in the `Local` platform to use the achievements cache when offline"
+
   - Version: 4.2.1.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-11-07
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.2.1.1/PlayniteAchievementsSantodan_4_2_1_1.pext
     Changelog:
     - "v4.2.1 merge"
@@ -14,7 +28,7 @@ Packages:
 
   - Version: 4.1.1.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-10-25
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.1.1.1/PlayniteAchievementsSantodan_4_1_1_1.pext
     Changelog:
     - "v4.1.1 merge"
@@ -50,7 +64,7 @@ Packages:
 
   - Version: 4.1.0.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-10-18
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.1.0.1/PlayniteAchievementsSantodan_4_1_0_1.pext
     Changelog:
     - "v4.1.0 merge"
@@ -58,7 +72,7 @@ Packages:
 
   - Version: 4.0.1.2
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-10-14
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.0.1.2/PlayniteAchievementsSantodan_4_0_1_2.pext
     Changelog:
     - "`PS5-Experience` theme now available in the `Theme Migration`"
@@ -69,7 +83,7 @@ Packages:
 
   - Version: 4.0.1.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-10-05
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v4.0.1.1/PlayniteAchievementsSantodan_4_0_1_1.pext
     Changelog:
     - "v4.0.1 merge"
@@ -111,7 +125,7 @@ Packages:
 
   - Version: 3.2.1.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-09-09
+    ReleaseDate: 2026-09-14
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.2.1.1/PlayniteAchievementsSantodan_3_2_1_1.pext
     Changelog:
     - "v3.2.1 merge"
@@ -170,7 +184,7 @@ Packages:
 
   - Version: 3.1.1.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-08-06
+    ReleaseDate: 2026-08-08
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v3.1.1.1/PlayniteAchievementsSantodan_3_1_1_1.pext
     Changelog:
     - "v3.1.1 merge"
@@ -422,7 +436,7 @@ Packages:
 
   - Version: 2.1.3.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-04-30
+    ReleaseDate: 2026-05-01
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.1.3.1/PlayniteAchievementsSantodan_2_1_3_1.pext
     Changelog:
     - "Merge from original v2.1.3 - https://github.com/justin-delano/PlayniteAchievements/releases/tag/v2.1.3"
