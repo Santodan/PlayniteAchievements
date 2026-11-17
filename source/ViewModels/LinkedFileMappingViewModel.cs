@@ -80,6 +80,7 @@ namespace PlayniteAchievements.ViewModels
         private LinkedFileOption<LinkedFileTimeFormat> _selectedTimeFormat;
         private string _customTimeFormat;
         private bool _timesAreLocal = true;
+        private bool _orderStartsAtZero;
         private string _unlockedValues;
         private string _mappingName;
         private string _selectedSavedName;
@@ -126,6 +127,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.Ignore, L("LOCPlayAch_Column_Ignore")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.ApiName, L("LOCPlayAch_Column_ApiName")),
+                new LinkedFileOption<LinkedFileField>(LinkedFileField.Order, L("LOCPlayAch_ManageAchievements_Tab_AchievementOrder")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.DisplayName, L("LOCPlayAch_Common_Name")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.Description, L("LOCPlayAch_Common_Description")),
                 new LinkedFileOption<LinkedFileField>(LinkedFileField.Unlocked, L("LOCPlayAch_Common_Unlocked")),
@@ -438,6 +440,15 @@ namespace PlayniteAchievements.ViewModels
             set => SetSetting(ref _unlockedValues, value, reread: false);
         }
 
+        /// <summary>The numbering option matters only while a column feeds the order.</summary>
+        public bool UsesOrderOptions => Columns.Any(column => column.Field == LinkedFileField.Order);
+
+        public bool OrderStartsAtZero
+        {
+            get => _orderStartsAtZero;
+            set => SetSetting(ref _orderStartsAtZero, value, reread: false);
+        }
+
         // ---------------------------------------------------------------- saved mappings
 
         public string SelectedSavedName
@@ -566,7 +577,8 @@ namespace PlayniteAchievements.ViewModels
                     .ToList(),
                 TimeFormat = _selectedTimeFormat?.Value ?? LinkedFileTimeFormat.Auto,
                 CustomTimeFormat = _customTimeFormat,
-                AssumeLocalTime = _timesAreLocal
+                AssumeLocalTime = _timesAreLocal,
+                OrderStartsAtZero = _orderStartsAtZero
             };
 
             return LinkedFileSchema.Normalize(schema);
@@ -640,6 +652,7 @@ namespace PlayniteAchievements.ViewModels
                 _selectedTimeFormat = TimeFormatOptions.FirstOrDefault(option => option.Value == (schema?.TimeFormat ?? LinkedFileTimeFormat.Auto)) ?? TimeFormatOptions[0];
                 _customTimeFormat = schema?.CustomTimeFormat;
                 _timesAreLocal = schema?.AssumeLocalTime ?? true;
+                _orderStartsAtZero = schema?.OrderStartsAtZero ?? false;
                 _unlockedValues = schema?.UnlockedTrueValues != null ? string.Join(", ", schema.UnlockedTrueValues) : null;
                 _pendingMappings = schema?.Columns?.Select(mapping => mapping.Clone()).ToList();
             }
@@ -652,7 +665,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 nameof(DelimiterText), nameof(HasHeader), nameof(RootPath), nameof(SheetName), nameof(RowElementPath),
                 nameof(CreateUnmatched), nameof(SelectedTimeFormat),
-                nameof(IsCustomTimeFormat), nameof(CustomTimeFormat), nameof(TimesAreLocal), nameof(UnlockedValues)
+                nameof(IsCustomTimeFormat), nameof(CustomTimeFormat), nameof(TimesAreLocal), nameof(UnlockedValues),
+                nameof(OrderStartsAtZero)
             })
             {
                 OnPropertyChanged(name);
@@ -696,6 +710,7 @@ namespace PlayniteAchievements.ViewModels
         {
             OnPropertyChanged(nameof(UsesTimeOptions));
             OnPropertyChanged(nameof(UsesUnlockedValues));
+            OnPropertyChanged(nameof(UsesOrderOptions));
         }
 
         private void ApplyRead(int generation, LinkedFileReadResult read)
