@@ -16,7 +16,7 @@ namespace PlayniteAchievements.ViewModels
     /// Compare-friend selection for a grid of the user's own achievements across games (the
     /// Overview achievements grid). The dropdown lists every friend; picking one loads that
     /// friend's unlocked rows for all their games and applies their unlock state onto the listed
-    /// items. A game the friend has no unlock in stays without a comparison. Only the picked
+    /// items. A game the friend neither owns nor has an unlock in reads N/A. Only the picked
     /// friend's rows are held, never the whole friends data set.
     /// </summary>
     public sealed class LibraryFriendCompareController :
@@ -30,7 +30,9 @@ namespace PlayniteAchievements.ViewModels
         private FriendSummaryItem _selected;
         private Dictionary<string, FriendAchievementDisplayItem> _selectedRows =
             new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
+        // The games the picked friend has anything for: an unlock or an ownership link.
         private HashSet<Guid> _selectedGames = new HashSet<Guid>();
+        private bool _selectedRowsLoaded;
         private Dictionary<string, FriendIdentity> _currentUsersByProvider =
             new Dictionary<string, FriendIdentity>(StringComparer.OrdinalIgnoreCase);
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
@@ -167,6 +169,7 @@ namespace PlayniteAchievements.ViewModels
             _selected = null;
             _selectedRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
             _selectedGames = new HashSet<Guid>();
+            _selectedRowsLoaded = false;
             NotifyCompareStateChanged();
         }
 
@@ -226,6 +229,7 @@ namespace PlayniteAchievements.ViewModels
             _selected = next;
             _selectedRows = new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
             _selectedGames = new HashSet<Guid>();
+            _selectedRowsLoaded = false;
             NotifyCompareStateChanged();
             ApplySelection();
             if (next == null)
@@ -247,10 +251,12 @@ namespace PlayniteAchievements.ViewModels
             LoadTask = Task.Run(() =>
             {
                 var rows = new List<FriendAchievementDisplayItem>();
+                var links = new List<FriendGameLinkItem>();
                 try
                 {
-                    rows = _friendCache.LoadFriendsOverviewPatchData(accounts)?.AllAchievements
-                           ?? new List<FriendAchievementDisplayItem>();
+                    var data = _friendCache.LoadFriendsOverviewPatchData(accounts);
+                    rows = data?.AllAchievements ?? rows;
+                    links = data?.FriendGameLinks ?? links;
                 }
                 catch (Exception ex)
                 {
@@ -265,6 +271,24 @@ namespace PlayniteAchievements.ViewModels
                     row => BuildKey(row.PlayniteGameId.Value, row.ApiName));
                 var games = new HashSet<Guid>(index.Values.Select(row => row.PlayniteGameId.Value));
 
+                // A game the friend owns with nothing unlocked reads Locked rather than N/A.
+                var accountKeys = new HashSet<string>(
+                    accounts.Select(account => FriendOverviewProjection.BuildFriendKey(
+                        account.ProviderKey,
+                        account.ExternalUserId)),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var link in links)
+                {
+                    if (link?.PlayniteGameId != null &&
+                        link.PlayniteGameId.Value != Guid.Empty &&
+                        accountKeys.Contains(FriendOverviewProjection.BuildFriendKey(
+                            link.ProviderKey,
+                            link.ExternalUserId) ?? string.Empty))
+                    {
+                        games.Add(link.PlayniteGameId.Value);
+                    }
+                }
+
                 RunOnUi(() =>
                 {
                     if (version != Volatile.Read(ref _rowsLoadVersion))
@@ -274,6 +298,7 @@ namespace PlayniteAchievements.ViewModels
 
                     _selectedRows = index;
                     _selectedGames = games;
+                    _selectedRowsLoaded = true;
                     ApplySelection();
                 });
             });
@@ -283,26 +308,26 @@ namespace PlayniteAchievements.ViewModels
         {
             ClearApplied();
             var items = _targetItems;
-            if (_selected == null || items == null || items.Count == 0 || _selectedGames.Count == 0)
+            // Nothing is drawn while the friend's rows load; every row would read N/A until then.
+            if (_selected == null || items == null || items.Count == 0 || !_selectedRowsLoaded)
             {
                 return;
             }
 
             foreach (var item in items)
             {
-                // A game the friend has no unlock in stays without a comparison; it would
-                // otherwise read as every achievement locked.
-                if (item == null ||
-                    !item.PlayniteGameId.HasValue ||
-                    !_selectedGames.Contains(item.PlayniteGameId.Value))
+                if (item == null)
                 {
                     continue;
                 }
 
+                // A game the friend has nothing for reads N/A, not Locked.
+                var gameId = item.PlayniteGameId ?? Guid.Empty;
+                var applicable = _selectedGames.Contains(gameId);
                 FriendAchievementDisplayItem compareRow = null;
-                if (!string.IsNullOrWhiteSpace(item.ApiName))
+                if (applicable && !string.IsNullOrWhiteSpace(item.ApiName))
                 {
-                    _selectedRows.TryGetValue(BuildKey(item.PlayniteGameId.Value, item.ApiName), out compareRow);
+                    _selectedRows.TryGetValue(BuildKey(gameId, item.ApiName), out compareRow);
                 }
 
                 // The own-row identity follows the achievement's provider.
@@ -318,7 +343,8 @@ namespace PlayniteAchievements.ViewModels
                     compareRow?.UnlockTimeUtc,
                     compareRow?.Unlocked == true,
                     self?.DisplayName,
-                    self?.AvatarPath);
+                    self?.AvatarPath,
+                    applicable);
                 AppliedItems.Add(item);
             }
         }
