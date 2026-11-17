@@ -510,6 +510,11 @@
                                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValuesHint}"
                                              KeyDown="CommitOnEnter_KeyDown" />
                                 </StackPanel>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_OrderStartsAtZero}"
+                                          IsChecked="{Binding OrderStartsAtZero, Mode=TwoWay}"
+                                          Style="{StaticResource OptionCheckBoxStyle}"
+                                          Margin="0,0,0,12"
+                                          Visibility="{Binding UsesOrderOptions, Converter={StaticResource BoolToVis}}" />
                                 <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatched}"
                                           IsChecked="{Binding CreateUnmatched, Mode=TwoWay}"
                                           ToolTip="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatchedHint}"
