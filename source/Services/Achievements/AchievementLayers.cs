@@ -61,6 +61,28 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Puts the rows in the order the cache store reads them in (its LayerOrderSql): the ones
+        /// a metadata source placed, by <see cref="AchievementDetail.MetadataOrderIndex"/>, then
+        /// the rest in the order they already have. A payload kept in memory after a save reads
+        /// the same as one loaded from the store.
+        /// </summary>
+        public static void SortByMetadataOrder(List<AchievementDetail> rows)
+        {
+            if (rows == null || !rows.Any(row => row?.MetadataOrderIndex != null))
+            {
+                return;
+            }
+
+            // OrderBy is stable, so rows with equal keys keep their places.
+            var ordered = rows
+                .OrderBy(row => row?.MetadataOrderIndex == null)
+                .ThenBy(row => row?.MetadataOrderIndex ?? 0)
+                .ToList();
+            rows.Clear();
+            rows.AddRange(ordered);
+        }
+
+        /// <summary>
         /// The row as its platform gave it, for storing in the definitions table: the row itself
         /// when it has no platform layer yet, else a copy carrying the layer's values.
         /// </summary>
