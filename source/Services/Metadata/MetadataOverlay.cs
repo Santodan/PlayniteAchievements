@@ -298,7 +298,7 @@ namespace PlayniteAchievements.Services.Metadata
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
             _timings.Add("icons", step);
             step = Stopwatch.GetTimestamp();
-            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, request.BaseCategoryLabel, ct).ConfigureAwait(false);
+            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, ct).ConfigureAwait(false);
             _timings.Add("apply", step);
             _timings.Add("total", started);
         }
@@ -369,7 +369,6 @@ namespace PlayniteAchievements.Services.Metadata
             OverlayPlan plan,
             Dictionary<string, MatchedSet> sets,
             HashSet<string> failed,
-            string baseLabel,
             CancellationToken ct)
         {
             // A source that could not answer, wholly or for a field, leaves the game as its last
@@ -404,7 +403,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             Replace(plan.CategoryKeys, sets, drafts, ApplyCategory, MetadataField.Categories);
-            FileUnmatchedUnderBase(plan.CategoryKeys, sets, drafts, baseLabel);
+            FileUnmatched(plan.CategoryKeys, sets, drafts);
             KeepStored(Failed(plan.CategoryKeys, MetadataField.Categories), AchievementField.Categories);
             Replace(plan.TagKeys, sets, drafts, ApplyTags, MetadataField.Tags);
             KeepStored(Failed(plan.TagKeys, MetadataField.Tags), AchievementField.Tags);
@@ -1341,15 +1340,15 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Files the achievements no category source matched under the base game, when a category
-        /// source answered: its categories replace the platform's for the whole game, so none of
-        /// the platform's own stay beside them.
+        /// Takes the platform's category off the achievements no category source matched, when a
+        /// category source answered: its categories replace the platform's for the whole game, so
+        /// none of the platform's own stay beside them. A source that gave the matched achievements
+        /// one category gives it to the rest as well, so the game stays one base category.
         /// </summary>
-        private static void FileUnmatchedUnderBase(
+        private static void FileUnmatched(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts,
-            string baseLabel)
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts)
         {
             var answered = keys
                 .Select(key => sets.TryGetValue(key, out var set) ? set : null)
@@ -1366,12 +1365,16 @@ namespace PlayniteAchievements.Services.Metadata
                 return;
             }
 
-            var category = DataLayers.NamedCategory(AchievementCategoryHelper.NormalizeCategory(baseLabel));
+            var given = drafts
+                .Where(pair => matched.Contains(pair.Key))
+                .GroupBy(pair => pair.Value.Category ?? string.Empty, CategoryPathHelper.LabelComparer)
+                .ToList();
+            var only = given.Count == 1 ? given[0].First().Value : null;
             foreach (var pair in drafts.Where(pair => !matched.Contains(pair.Key)))
             {
-                pair.Value.Category = category;
-                pair.Value.CategoryKind = category == null ? null : CategoryKindHelper.Base;
-                pair.Value.Cleared |= category == null ? AchievementField.Categories : AchievementField.None;
+                pair.Value.Category = only?.Category;
+                pair.Value.CategoryKind = only?.Category == null ? null : only.CategoryKind;
+                pair.Value.Cleared |= only?.Category == null ? AchievementField.Categories : AchievementField.None;
             }
         }
 
