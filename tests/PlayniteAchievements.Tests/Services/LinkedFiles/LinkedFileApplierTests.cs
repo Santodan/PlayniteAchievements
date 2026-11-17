@@ -336,6 +336,36 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void PlatformRowsOnlyAddUnlocksAndProgress()
+        {
+            var table = Table(
+                new[] { "id", "done", "num" },
+                new[] { "ach_one", "0", "" },
+                new[] { "ach_two", "1", "3" },
+                new[] { "c2", "0", "" });
+            var schema = Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked), ("num", LinkedFileField.ProgressNum));
+
+            var plan = LinkedFileApplier.Build(table, schema, null, Achievements(), null, Definitions(), Now);
+
+            var update = plan.PlatformUpdates.Single();
+            Assert.AreEqual("ach_two", update.ApiName, "A row that says locked leaves the platform's unlock alone.");
+            Assert.IsTrue(update.Unlocked);
+            Assert.AreEqual(Now, update.UnlockTimeUtc);
+            Assert.AreEqual(3, update.ProgressNum);
+            Assert.AreEqual(1, plan.Report.Unlocked);
+            Assert.AreEqual(1, plan.Report.Relocked, "Only the custom achievement is locked by its row.");
+            Assert.IsFalse(plan.ManualChanged);
+            Assert.IsFalse(plan.Report.Messages.Any(message => message.Contains("not tracked")));
+
+            var again = LinkedFileApplier.Build(
+                Table(new[] { "id", "done" }, new[] { "ach_one", "1" }),
+                Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked)),
+                null, Achievements(), null, Definitions(), Now);
+            Assert.AreEqual(0, again.PlatformUpdates.Count, "An achievement already unlocked keeps its state and time.");
+            Assert.AreEqual(0, again.Report.Unlocked);
+        }
+
+        [TestMethod]
         public void ProgressOnLinkedDefinitionRowsGoesToTheCachePlan()
         {
             var table = Table(new[] { "id", "num", "den" }, new[] { "ach_two", "2", "5" }, new[] { "c1", "1", "4" });
