@@ -102,13 +102,11 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public async Task SelfKey_Absent_WhenNoSelfGameDataOrNoIdentityLoader()
+        public async Task SelfKey_ReadsNotApplicableWithoutSelfGameData_AndIsAbsentWithoutIdentityLoader()
         {
             var selectedFriend = MakeFriend("friend1", "Friend One");
-            var rowsWithoutSelfData = new List<FriendAchievementDisplayItem>
-            {
-                MakeRow("ACH_1", "friend1", selfHasGameData: false)
-            };
+            var rowWithoutSelfData = MakeRow("ACH_1", "friend1", selfHasGameData: false);
+            var rowsWithoutSelfData = new List<FriendAchievementDisplayItem> { rowWithoutSelfData };
 
             var withLoader = new FriendVsFriendCompareController(
                 () => selectedFriend,
@@ -117,8 +115,13 @@ namespace PlayniteAchievements.Tests.ViewModels
             await withLoader.SelfIdentityLoadTask;
             withLoader.UpdateRows(rowsWithoutSelfData, rowsWithoutSelfData);
 
-            Assert.IsFalse(withLoader.OptionKeys.Any());
-            Assert.IsFalse(withLoader.IsCompareAvailable);
+            // The entry does not depend on the game: it is listed, and the rows read N/A.
+            CollectionAssert.AreEqual(
+                new[] { FriendVsFriendCompareController.SelfOptionKey },
+                withLoader.OptionKeys.ToList());
+            withLoader.SelectKey(FriendVsFriendCompareController.SelfOptionKey, true);
+            Assert.IsTrue(rowWithoutSelfData.HasComparison);
+            Assert.IsFalse(rowWithoutSelfData.ComparisonApplicable);
 
             var withoutLoader = new FriendVsFriendCompareController(
                 () => selectedFriend,
@@ -253,8 +256,42 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(otherGame.ComparisonUnlocked, "the same ApiName in another game is not theirs");
             Assert.IsTrue(lockedForCandidate.HasComparison);
             Assert.IsFalse(lockedForCandidate.ComparisonUnlocked);
-            Assert.IsFalse(gameWithoutCandidate.HasComparison, "no data for the game, no comparison");
+            Assert.IsTrue(gameWithoutCandidate.HasComparison);
+            Assert.IsFalse(gameWithoutCandidate.ComparisonApplicable, "no data for the game reads N/A");
+            Assert.IsTrue(lockedForCandidate.ComparisonApplicable, "locked in a game they have");
             Assert.IsFalse(candidateRow.HasComparison, "their own rows are not compared with themselves");
+        }
+
+        [TestMethod]
+        public void CandidateWithoutDataForTheGame_ReadsNotApplicable_UnlessTheHostKnowsTheyHaveIt()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var row = MakeRow("ACH_1", "friend1", unlocked: true);
+            var rows = new List<FriendAchievementDisplayItem> { row };
+
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate });
+            controller.UpdateRows(rows, rows);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.HasComparison);
+            Assert.AreEqual("Friend Two", row.ComparisonFriendName);
+            Assert.IsFalse(row.ComparisonApplicable);
+            Assert.IsFalse(row.ComparisonUnlocked);
+
+            // The host knows the friend owns the game with nothing unlocked: Locked, not N/A.
+            var owning = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate },
+                hasGameData: (friend, item) => true);
+            owning.UpdateRows(rows, rows);
+            owning.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.ComparisonApplicable);
+            Assert.IsFalse(row.ComparisonUnlocked);
         }
 
         [TestMethod]
