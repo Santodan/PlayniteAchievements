@@ -542,7 +542,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">公式実績に対応しているゲームでもカスタムトラッキングを許可します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">カスタムトラッキングオーバーライドを有効にする</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Title">リンク済みファイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">リンクファイル</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">ファイルをリンク</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_EditButton">リンク済みファイルを編集</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">Read unlock status for this game's achievements from a file on this PC.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Mapping">マッピング</sys:String>
@@ -553,7 +553,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_FileMissing">ファイルが見つかりません</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_Unstable">The file was changing while it was read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">The mapping is incomplete.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">This game has no achievements to match.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">このゲームには一致する実績がありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">このファイルを読み込めませんでした。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">Unlock status is read from the linked file on refresh and while the game runs; edits made here are replaced by the next read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_File">ファイル</sys:String>
@@ -570,8 +570,8 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">No match</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">New</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">一致なし</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">新規</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">新しい実績を追加</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatchedHint">Rows that match no achievement become new custom achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat">Time format</sys:String>
@@ -729,7 +729,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_ApplyToExisting">ライブラリに登録済みのゲームにも自動フルコン実績を追加しますか?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneGeneration_Progress">自動フルコン実績を追加中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_Hint">新しい自動フルコン実績に適用されるテキストです。{0} はゲーム名、{1} はカテゴリー名です。保存すると、デフォルトテキストのままの既存の自動フルコン実績も更新されます。タイトルまたは説明を編集したものは変更されません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneTags_Hint">Tags every auto capstone gets, besides the tags of the achievements it stands for. Saving also updates existing auto capstones; tags you set on a capstone yourself still take precedence.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneTags_Hint">対象となる実績郡のタグに加えて、すべての自動フルコン実績に付与されるタグを指定します。保存すると既存の自動フルコン実績も更新されますが、手動でフルコン実績に設定したタグは引き続き優先されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Tags_Hint">すべてのゲームの実績に付けられる共通タグです。実績の管理からゲーム固有のタグを追加することもできます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AutoCapstoneText_TemplateInvalid">無効なテンプレートです。ゲームには {0}、カテゴリーには {1} を使用し、中括弧そのものを表示したい場合は二重中括弧を使用してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableFriendsFeatures">フレンド機能を有効にする</sys:String>
@@ -908,9 +908,9 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientId">クライアント ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientSecret">クライアントシークレット</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_RedirectUri">リダイレクト URI</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSourceAccount">Signed-in account</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSourceCharacter">One character</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint">サインイン済みのアカウントに存在するすべてのキャラクターから実績が取得されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSourceAccount">サインイン中のアカウント</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSourceCharacter">1 キャラクター</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint">サインイン中のアカウントに存在するすべてのキャラクターから実績が取得されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_OAuthHelp">WoW の実績を取得するには Blizzard の公式 API を使用するため、Battle.net アカウントに紐づいた無料の API クライアントが必要です。設定は初回のみ必要です:</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. {0} を開き、新規クライアントを作成します (名前や詳細は任意で構いません)。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. クライアントのリダイレクト URI に下に表示されている値を精確に設定します (デフォルト: http://127.0.0.1:55431/)。</sys:String>
@@ -918,7 +918,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. 下のサインインをクリックし、開いたブラウザでアクセスを承認します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupSample">詳しい手順が必要な場合は、{0} を参照してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowReady">キャラクター準備完了</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">Sign in, or choose a realm and character</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">サインインするか、レルムとキャラクターを選択</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_MissingOAuthSetup">Battle.net のクライアント認証情報またはリダイレクト URI が設定されていません</sys:String>
 
     <!-- Provider: Epic -->
@@ -1226,7 +1226,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_PlayniteLibraryHeader">Playnite ライブラリ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">実績の達成状況に応じてゲームに自動でタグを付与し、ライブラリを絞り込めるようにします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">タグ同期</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_FeatureSyncDescription">Marks games with Playnite features by where their achievements come from.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FeatureSyncDescription">実績の取得元に応じてゲームに Playnite 特徴を設定します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FeatureSyncHeader">特徴同期</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">利用可能な場合は個別の未解除アイコンを使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">解除済みアイコンと異なる場合、プラットフォーム提供の未解除アイコンをダウンロードします。それ以外の場合は、解除済みアイコンがグレースケールで表示されます。</sys:String>
