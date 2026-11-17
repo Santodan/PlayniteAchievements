@@ -1184,7 +1184,8 @@
                         Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
             </Grid>
 
-            <!-- Comparison row: the compare friend's avatar + unlock date (or Locked). The avatar
+            <!-- Comparison row: the compare friend's avatar + unlock date, Locked, or N/A when
+                 they have no data for the row's game. The avatar
                  sits in the same Auto column as the owner's above it, so the two line up by
                  construction instead of each row aligning itself independently. -->
             <Border Grid.Row="1"
@@ -1222,15 +1223,24 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Locked}"
-                        VerticalAlignment="Center"
-                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                        Opacity="{StaticResource PlayAch.Opacity.Placeholder}">
-                    <TextBlock.Visibility>
-                        <Binding Path="ComparisonUnlocked" Converter="{StaticResource InverseBoolToVis}"/>
-                    </TextBlock.Visibility>
-                </TextBlock>
+                <!-- The outer panel shows Locked for every row that is not unlocked; the text
+                     inside reads N/A instead when the comparison does not apply. -->
+                <StackPanel Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding ComparisonUnlocked, Converter={StaticResource InverseBoolToVis}}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_Locked}"
+                            VerticalAlignment="Center"
+                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                            Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                            Visibility="{Binding ComparisonApplicable, Converter={StaticResource BoolToVis}}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Value_NotAvailable}"
+                            VerticalAlignment="Center"
+                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                            Foreground="{DynamicResource PlayAch.Brush.Text}"
+                            Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                            Visibility="{Binding ComparisonApplicable, Converter={StaticResource InverseBoolToVis}}"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </DataTemplate>
