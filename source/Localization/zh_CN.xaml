@@ -747,6 +747,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">通知持续时间（秒）：</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">通知延迟（秒）：</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureDelaySeconds">捕获延迟（秒）：</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay">Also capture at the moment of unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">显示通知时振动手柄</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">振动强度（%）：</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">振动持续时间（毫秒）：</sys:String>
@@ -1832,47 +1833,5 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">解锁全部所需时间</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">极其稀有</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">用户统计</sys:String>
-
-    <!-- Main-only keys: still used by the released build, removed at the next release -->
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">用于游戏摘要</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">已完成</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">所有平台</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">清除自定义数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">要清除“{0}”的所有自定义数据吗？
-
-这将删除此游戏的手动链接、压轴成就、自定义图标、排序、分类、排除项和平台覆盖设置，但会保留缓存的成就数据。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">清除“{0}”的全部自定义数据？
-
-此操作也会删除手动关联及其生成的成就。此操作无法撤销。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData">清除数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">要清除所选 {0} 款游戏的数据吗？
-
-这将删除这些游戏缓存的成就、图标、手动链接和解锁时间。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">清除“{0}”的数据吗？
-
-这将删除其缓存的成就、图标以及任何手动链接和解锁时间。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">不包含在刷新中并清除数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">要排除所选 {0} 款游戏并清除其数据吗？
-
-这些游戏将从成就视图中隐藏，其缓存数据和手动链接也会被删除。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">排除“{0}”并清除其数据？
-
-这将从成就视图中隐藏游戏并删除其缓存数据和手动链接。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">包含在刷新中并刷新已选游戏</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">合并帐户中每个角色的成就</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">正在清除缓存的成就数据...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">清除缓存的成就数据。下一次刷新会重建它。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">从各平台缓存的成就数据。清除这些数据不会影响图标文件。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">缓存成就数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">渲染方式</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">选择画质优先时，即使游戏占用较高的 GPU 资源，通知仍能流畅显示，但显示通知期间可能会略微降低游戏帧率。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">性能优先</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource">进度条徽章</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">选择进度条下方显示的徽章。“有奖杯时显示奖杯”会在可用时显示游戏奖杯，其他情况下显示稀有度分布；“稀有度”则始终显示稀有度分布。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable">奖杯（如有）</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">正在同步标签...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Likes">点赞数</sys:String>
 
 </ResourceDictionary>
