@@ -485,7 +485,8 @@ namespace PlayniteAchievements.ViewModels
                 LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
                 Width = 140,
                 ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
-                StaysOnBar = true
+                StaysOnBar = true,
+                IsMutedOption = key => _friendCompare?.IsKeyMuted(key) == true
             };
             controlBar.Items.Add(_friendCompareFilter);
             controlBar.Items.Add(new GridToggleFilter(
