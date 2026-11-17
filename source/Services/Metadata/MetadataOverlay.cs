@@ -298,7 +298,7 @@ namespace PlayniteAchievements.Services.Metadata
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
             _timings.Add("icons", step);
             step = Stopwatch.GetTimestamp();
-            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, ct).ConfigureAwait(false);
+            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, request.BaseCategoryLabel, ct).ConfigureAwait(false);
             _timings.Add("apply", step);
             _timings.Add("total", started);
         }
@@ -369,6 +369,7 @@ namespace PlayniteAchievements.Services.Metadata
             OverlayPlan plan,
             Dictionary<string, MatchedSet> sets,
             HashSet<string> failed,
+            string baseLabel,
             CancellationToken ct)
         {
             // A source that could not answer, wholly or for a field, leaves the game as its last
@@ -403,6 +404,7 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             Replace(plan.CategoryKeys, sets, drafts, ApplyCategory, MetadataField.Categories);
+            FileUnmatchedUnderBase(plan.CategoryKeys, sets, drafts, baseLabel);
             KeepStored(Failed(plan.CategoryKeys, MetadataField.Categories), AchievementField.Categories);
             Replace(plan.TagKeys, sets, drafts, ApplyTags, MetadataField.Tags);
             KeepStored(Failed(plan.TagKeys, MetadataField.Tags), AchievementField.Tags);
@@ -1335,6 +1337,41 @@ namespace PlayniteAchievements.Services.Metadata
                         copy(draft, match.Source);
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Files the achievements no category source matched under the base game, when a category
+        /// source answered: its categories replace the platform's for the whole game, so none of
+        /// the platform's own stay beside them.
+        /// </summary>
+        private static void FileUnmatchedUnderBase(
+            IReadOnlyList<string> keys,
+            IReadOnlyDictionary<string, MatchedSet> sets,
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts,
+            string baseLabel)
+        {
+            var answered = keys
+                .Select(key => sets.TryGetValue(key, out var set) ? set : null)
+                .Where(set => set != null && (set.Set.UnavailableFields & MetadataField.Categories) == 0)
+                .ToList();
+            if (answered.Count == 0)
+            {
+                return;
+            }
+
+            var matched = new HashSet<AchievementDetail>(answered.SelectMany(set => set.Matches).Select(match => match.Target));
+            if (matched.Count == 0)
+            {
+                return;
+            }
+
+            var category = DataLayers.NamedCategory(AchievementCategoryHelper.NormalizeCategory(baseLabel));
+            foreach (var pair in drafts.Where(pair => !matched.Contains(pair.Key)))
+            {
+                pair.Value.Category = category;
+                pair.Value.CategoryKind = category == null ? null : CategoryKindHelper.Base;
+                pair.Value.Cleared |= category == null ? AchievementField.Categories : AchievementField.None;
             }
         }
 
