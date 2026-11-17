@@ -181,7 +181,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Settings">設定</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Layout">レイアウト</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Appearance">外観</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Content">Content</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Content">コンテンツ</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ControlBar">コントロールバー</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Sorting">並べ替え</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Metadata">メタデータ</sys:String>
@@ -360,7 +360,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_AchievementTag_Difficulty">難易度指定</sys:String>
     <sys:String x:Key="LOCPlayAch_CategoryKind_DLC">DLC</sys:String>
     <sys:String x:Key="LOCPlayAch_AchievementTag_Hardcore">ハードコア</sys:String>
-    <sys:String x:Key="LOCPlayAch_AchievementTag_Miscellaneous">その他・特殊</sys:String>
+    <sys:String x:Key="LOCPlayAch_AchievementTag_Miscellaneous">その他</sys:String>
     <sys:String x:Key="LOCPlayAch_AchievementTag_Missable">取り逃し注意</sys:String>
     <sys:String x:Key="LOCPlayAch_AchievementTag_Multiplayer">マルチプレイヤー</sys:String>
     <sys:String x:Key="LOCPlayAch_AchievementTag_PostGame">クリア後要素</sys:String>
@@ -392,7 +392,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_NoSelection">カスタム実績行を選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProgressDenom">全体進捗</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderEditorTitle">カスタムプラットフォーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm">&quot;{0}&quot; を削除しますか? {1} 件の他のゲームがこのプラットフォームを使用しており、削除後は&quot;カスタム&quot;として表示されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderDeleteConfirm">&quot;{0}&quot; を削除しますか? このプラットフォームを使用している他 {1} 件のゲームはカスタムと表示されるようになります。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderHint">このプラットフォームへの変更は、割り当てられているすべてのゲームに適用されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderInvalidColor">#FF652C のような有効な色を入力してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Custom_ProviderNewName">新しいプラットフォーム</sys:String>
@@ -410,9 +410,9 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notes_WithoutNotes">メモなし</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary">{0} ({1})</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_LinkSummary_None">リストが選択されていません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning">Enable custom tracking?
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning">カスタムトラッキングを有効にしますか?
 
-Custom tracking can replace this game's cached achievement data from {0}.</sys:String>
+カスタムトラッキングを有効にすると、{0} から取得したこのゲームの実績データを置換することができます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Source">ソース</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Unlink">リストを削除</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">行をドラッグしてデフォルトの順序を設定してください。変更は即座に保存されます。</sys:String>
@@ -424,7 +424,7 @@ Custom tracking can replace this game's cached achievement data from {0}.</sys:S
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_CaptureFolder">キャプチャフォルダ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_CaptureFolderHint">このゲームのスクリーンショットとクリップは、このフォルダに直接保存されます。共有フォルダを使用する場合は空欄のままにしてください。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHeader">カスタムデータ</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">カスタム画像を含むこのゲームのカスタムデータを、.PA ファイルとしてエクスポートまたはインポートしたり、消去したりします。更新や要約の除外設定は含まれません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_CustomDataHint">カスタム画像を含むこのゲームのカスタムデータを、.PA ファイルとしてエクスポートまたはインポートしたり、消去したりします。更新や統計の除外設定は含まれません。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader">ゲームの除外</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Exclusion_SetByFilter">保存済みのフィルターから設定</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Exclusion_FollowFilters">保存済みのフィルターに従う</sys:String>
@@ -472,7 +472,7 @@ Custom tracking can replace this game's cached achievement data from {0}.</sys:S
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_LibrarySource">ライブラリソース</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks">メタデータリンク</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLinks_Help">各ソースで使用するゲームを指定します。&quot;選択&quot; で別のゲームを指定、&quot;リセット&quot; で次回更新時に再紐付けできるほか、このゲームでソースをオフにすることもできます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_UseMetadata">Use metadata for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_UseMetadata">このゲームでメタデータを使用する</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataMatches_UnmatchedOnly">未紐付けのみ</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_Excluded">除外済み</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Status_ExcludedFromRefreshes">一括更新から除外済み</sys:String>
@@ -539,11 +539,11 @@ Custom tracking can replace this game's cached achievement data from {0}.</sys:S
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">解析失敗: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">スキャン済み: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipped">スキップ済み: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow custom tracking for games which already have official achievement support.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Custom Tracking Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Title">Linked file</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">Link File</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_EditButton">Edit Linked File</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">公式実績に対応しているゲームでもカスタムトラッキングを許可します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">カスタムトラッキングオーバーライドを有効にする</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Title">リンク済みファイル</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">リンクファイル</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_EditButton">リンク済みファイルを編集</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">Read unlock status for this game's achievements from a file on this PC.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Mapping">マッピング</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_AttachFile">Attach file</sys:String>
@@ -557,12 +557,12 @@ Custom tracking can replace this game's cached achievement data from {0}.</sys:S
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">The file could not be read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">Unlock status is read from the linked file on refresh and while the game runs; edits made here are replaced by the next read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_File">ファイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Format">Format</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format">形式</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Delimited">Delimited text</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Xlsx">Excel workbook</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Binary">Binary save</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Xlsx">Excel ワークブック</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Binary">バイナリセーブ</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_SupportedFiles">対応ファイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Delimiter">Delimiter</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Delimiter">区切り文字</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">First row is a header</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">Rows path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
@@ -642,12 +642,12 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_RefreshMode_Single">単一ゲームを更新</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">お気に入り</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Full">すべて</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_FriendsShared">共有</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_FriendsShared">共有ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Installed">インストール済み</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">不足</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">最近プレイしたゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">選択中のゲーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">単一</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">単一ゲーム</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_AuthRequired">認証が必要です。更新がキャンセルされました。</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Canceled">更新がキャンセルされました。</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Failed">エラー: {0}</sys:String>
@@ -973,7 +973,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_Folder">アイコンキャッシュフォルダ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FolderMissing">The icon cache folder {0} is not available. Icons are not saved until it is back and Playnite restarts.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_MoveError">Choose an empty folder outside the current icon cache, on a drive with enough free space.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_MoveInProgress">Moving the icon cache...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_MoveInProgress">アイコンキャッシュを移動中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">キャッシュされた {0} ファイルを削除中... {1}/{2}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">キャッシュされた {0} ファイルが見つかりませんでした。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">未解除アイコンキャッシュの参照は見つかりませんでした。</sys:String>
@@ -1032,7 +1032,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_StoresLaunchers">ストアとランチャー</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ConsoleMobile">コンソールとモバイル</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_EmulatorsRetro">エミュレータとレトロ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Custom &amp; Aggregators</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">カスタムとアグリゲーター</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">{0} を使用</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Friends">フレンド</sys:String>
     <sys:String x:Key="LOCPlayAch_FriendsSettings_AutoDiscover">フレンドの自動検出</sys:String>
@@ -1391,7 +1391,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">実績あり</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_PlatformAchievements">プラットフォーム実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_CustomAchievements">カスタム実績</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_ManualAchievements">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_ManualAchievements">手動トラッキング</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_LinkedFile">Linked File</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Row_Tracking">トラッキング</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">実績なし</sys:String>
@@ -1736,7 +1736,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Workshop_Downloading">{0} をダウンロード中…</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_Installing">インストール中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_InstallChoiceGameData">{1} には既にカスタムデータがあります。&quot;統合&quot;は既存の設定をすべて保持したままパッケージの追加分のみを補完し、&quot;置換&quot;は既存のデータはパッケージの内容で上書きします。&quot;{0}&quot;をどのようにインストールしますか?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_ResetConfirmGameData">{1} を公開時の &quot;{0}&quot; にリセットしますか? この操作により、適用後に変更した内容を含め、ゲームのカスタムデータはパッケージの内容に置き換えられます。解除の進捗は保持されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_ResetConfirmGameData">{1} を公開時の &quot;{0}&quot; にリセットしますか? この操作により、適用後に変更した内容を含め、ゲームのカスタムデータはパッケージの内容に置換されます。解除の進捗は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_PickGame">&quot;{0}&quot;を適用するゲームを選択</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_ApplyToGames">ゲームに適用する</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_UpdateConfirmGameData">{1} の &quot;{0}&quot; を更新しますか? 前回のインストール以降に加えた編集内容は保持されます。</sys:String>
@@ -1751,7 +1751,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Workshop_Account">アカウント</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_SubmitterKey">投稿者キー</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_SubmitterKeyHint">あなたが投稿したデータを識別するためのキーで、後から更新や削除を行えるようにします。別の Playnite 環境で同じ識別情報を使用したい場合はこのキーをコピーし、別環境のキーを使用する場合はここに貼り付けてください。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_ReplaceKeyConfirm">投稿者キーをクリップボードの内容で置き換えますか? 現在のキーで投稿したデータは、元のキーを貼り付け直さない限りこの環境から更新できなくなります。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Workshop_ReplaceKeyConfirm">投稿者キーをクリップボードの内容で置換しますか? 現在のキーで投稿したデータは、元のキーを貼り付け直さない限りこの環境から更新できなくなります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_InvalidKey">クリップボードに投稿者キーが含まれていません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_ExportBundle">バンドルをエクスポート...</sys:String>
     <sys:String x:Key="LOCPlayAch_Workshop_ImportBundle">バンドルをインポート...</sys:String>
