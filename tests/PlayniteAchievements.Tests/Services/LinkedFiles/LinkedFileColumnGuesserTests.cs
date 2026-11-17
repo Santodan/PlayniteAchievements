@@ -113,6 +113,21 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void APositionColumnIsGuessedOnlyWhenNoColumnNamesTheAchievements()
+        {
+            var alone = Guess(new[] { "Index", "Done" }, new[] { "0", "true" }, new[] { "1", "false" });
+            Assert.AreEqual(LinkedFileField.Order, alone["Index"]);
+            Assert.AreEqual(LinkedFileField.Unlocked, alone["Done"]);
+
+            var named = Guess(new[] { "Index", "Name" }, new[] { "0", "First Steps" }, new[] { "1", "Second Wind" });
+            Assert.IsFalse(named.ContainsKey("Index"), "A name column matches rows, so the position is left unmapped.");
+            Assert.AreEqual(LinkedFileField.DisplayName, named["Name"]);
+
+            var words = Guess(new[] { "Order" }, new[] { "first" }, new[] { "second" });
+            Assert.IsFalse(words.TryGetValue("Order", out var field) && field == LinkedFileField.Order);
+        }
+
+        [TestMethod]
         public void CsvImportRecognizesOnlyItsOwnHeaders()
         {
             Assert.AreEqual(LinkedFileField.ApiName, LinkedFileColumnGuesser.ResolveCsvHeader("ID"));
