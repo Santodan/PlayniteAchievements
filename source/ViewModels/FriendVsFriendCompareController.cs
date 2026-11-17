@@ -31,6 +31,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Func<IReadOnlyList<FriendSummaryItem>> _getCandidates;
         private readonly Func<FriendAchievementDisplayItem, bool> _isRowInScope;
         private readonly Func<IReadOnlyList<FriendIdentity>> _loadCurrentUserIdentities;
+        private readonly Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> _hasGameData;
         private readonly ILogger _logger;
 
         private FriendSummaryItem _compareFriend;
@@ -49,8 +50,8 @@ namespace PlayniteAchievements.ViewModels
         /// The friend whose rows the comparison is applied to; null applies it to every friend's rows.
         /// </param>
         /// <param name="getCandidates">
-        /// The friends offered as comparison targets. Callers exclude the selected friend and any
-        /// friend without cached rows for the game in scope.
+        /// The friends offered as comparison targets: every friend but the selected one, whether
+        /// or not they have data for the game in scope.
         /// </param>
         /// <param name="isRowInScope">
         /// Optional filter for callers whose row pool spans more than the game being compared.
@@ -60,25 +61,31 @@ namespace PlayniteAchievements.ViewModels
         /// The signed-in account per provider, used to label the current user's side of a self
         /// comparison. Omit to leave the self option out of the dropdown.
         /// </param>
+        /// <param name="hasGameData">
+        /// Whether a friend has anything for a row's game, for callers that know of games a friend
+        /// owns without a row in the pool. A friend with a pool row for the game always counts.
+        /// </param>
         public FriendVsFriendCompareController(
             Func<FriendSummaryItem> getSelectedFriend,
             Func<IReadOnlyList<FriendSummaryItem>> getCandidates,
             Func<FriendAchievementDisplayItem, bool> isRowInScope = null,
             Func<IReadOnlyList<FriendIdentity>> loadCurrentUserIdentities = null,
-            ILogger logger = null)
+            ILogger logger = null,
+            Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> hasGameData = null)
         {
             _getSelectedFriend = getSelectedFriend ?? throw new ArgumentNullException(nameof(getSelectedFriend));
             _getCandidates = getCandidates ?? throw new ArgumentNullException(nameof(getCandidates));
             _isRowInScope = isRowInScope;
             _loadCurrentUserIdentities = loadCurrentUserIdentities;
+            _hasGameData = hasGameData;
             _logger = logger;
+            _selfOptionAvailable = loadCurrentUserIdentities != null;
             BeginIdentityLoad();
         }
 
-        // With no selected friend the rows belong to many friends; the candidate list and the
-        // rows the caller hands over decide whether there is anything to compare.
-        // A remembered entry keeps the dropdown shown and selected where it is not on offer;
-        // no comparison is drawn there.
+        // The list does not depend on the game: every candidate is offered, and one with no data
+        // for a row's game reads N/A there. A remembered entry that is no longer a candidate
+        // keeps the dropdown shown and selected, and no comparison is drawn.
         public bool IsCompareAvailable =>
             Candidates.Count > 0 || _selfOptionAvailable || RememberedKey != null;
 
@@ -218,7 +225,8 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// (Re)applies the comparison to <paramref name="targetRows"/>, reading the compare
         /// friend's unlock state from <paramref name="rowPool"/>. Achievements the compare friend
-        /// has no row for (or has locked) render as locked. Call after every rebuild of the rows,
+        /// has no row for (or has locked) render as locked, and as N/A when they have nothing for
+        /// the game. Call after every rebuild of the rows,
         /// since the display items are replaced rather than mutated in place.
         /// </summary>
         public void UpdateRows(
@@ -228,7 +236,6 @@ namespace PlayniteAchievements.ViewModels
             _rowPool = rowPool;
             _targetRows = targetRows;
             _candidates = null;
-            UpdateSelfAvailability();
             if (!TryRestoreRememberedSelection())
             {
                 ApplySelection();
@@ -255,34 +262,29 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (_compareFriend == null || rowPool == null)
+            if (_compareFriend == null)
             {
                 return;
             }
 
-            // With a selected friend every row belongs to one game, so the ApiName identifies the
-            // achievement. Without one the rows span games and the game joins the key.
-            var spansFriends = selectedFriend == null;
+            // The rows can span games, so the game joins the ApiName in the key.
             var compareFriend = _compareFriend;
             var compareRows = BuildBestRowsByApiName(
-                rowPool,
+                rowPool ?? Array.Empty<FriendAchievementDisplayItem>(),
                 row => FriendOverviewProjection.IsSameFriend(row, compareFriend) && IsInScope(row),
-                spansFriends ? (Func<FriendAchievementDisplayItem, string>)GetGameAchievementKey : null);
-
-            // Across friends, a game the compare friend has no row for stays without a comparison;
-            // it would otherwise read as every achievement locked.
-            var compareGames = spansFriends
-                ? new HashSet<string>(compareRows.Values.Select(GetGameKey), StringComparer.OrdinalIgnoreCase)
-                : null;
+                GetGameAchievementKey);
+            var compareGames = new HashSet<string>(
+                compareRows.Values.Select(GetGameKey),
+                StringComparer.OrdinalIgnoreCase);
 
             var compareName = _compareFriend.DisplayName;
             var compareAvatar = _compareFriend.AvatarPath;
             foreach (var item in targetRows)
             {
+                // A friend is not compared with themself: with no friend selected the compare
+                // friend's own rows are listed too, and stay as they are.
                 if (!IsTargetRow(item, selectedFriend) ||
-                    (spansFriends &&
-                     (FriendOverviewProjection.IsSameFriend(item, compareFriend) ||
-                      !compareGames.Contains(GetGameKey(item)))))
+                    FriendOverviewProjection.IsSameFriend(item, compareFriend))
                 {
                     continue;
                 }
@@ -290,10 +292,12 @@ namespace PlayniteAchievements.ViewModels
                 FriendAchievementDisplayItem compareRow = null;
                 if (!string.IsNullOrWhiteSpace(item.ApiName))
                 {
-                    compareRows.TryGetValue(
-                        spansFriends ? GetGameAchievementKey(item) : item.ApiName,
-                        out compareRow);
+                    compareRows.TryGetValue(GetGameAchievementKey(item), out compareRow);
                 }
+
+                // A game the compare friend has nothing for reads N/A, not Locked.
+                var applicable = compareGames.Contains(GetGameKey(item)) ||
+                                 _hasGameData?.Invoke(compareFriend, item) == true;
 
                 // The row's own friend owns the comparison's own side rather than the current user.
                 item.ApplyComparison(
@@ -302,7 +306,8 @@ namespace PlayniteAchievements.ViewModels
                     compareRow?.UnlockTimeUtc,
                     compareRow?.Unlocked == true,
                     selectedFriend?.DisplayName ?? item.FriendName,
-                    selectedFriend?.AvatarPath ?? item.FriendAvatarPath);
+                    selectedFriend?.AvatarPath ?? item.FriendAvatarPath,
+                    applicable);
                 AppliedItems.Add(item);
             }
         }
@@ -315,16 +320,14 @@ namespace PlayniteAchievements.ViewModels
         {
             foreach (var item in targetRows)
             {
-                // Across friends the rows span games, and a game the user has no cached progress
-                // for stays without a comparison.
-                if (!IsTargetRow(item, selectedFriend) ||
-                    (selectedFriend == null && !item.SelfHasGameData))
+                if (!IsTargetRow(item, selectedFriend))
                 {
                     continue;
                 }
 
                 // The self identity follows each row's provider, so a merged friend spanning
-                // providers compares against the matching account per row.
+                // providers compares against the matching account per row. A game the user has
+                // no cached progress for reads N/A, not Locked.
                 var self = ResolveSelfIdentity(item.ProviderKey);
                 item.ApplyComparison(
                     GetSelfLabel(item.ProviderKey),
@@ -332,7 +335,8 @@ namespace PlayniteAchievements.ViewModels
                     item.SelfUnlockTimeUtc,
                     item.UnlockedBySelf,
                     selectedFriend?.DisplayName ?? item.FriendName,
-                    selectedFriend?.AvatarPath ?? item.FriendAvatarPath);
+                    selectedFriend?.AvatarPath ?? item.FriendAvatarPath,
+                    item.SelfHasGameData);
                 AppliedItems.Add(item);
             }
         }
@@ -368,7 +372,6 @@ namespace PlayniteAchievements.ViewModels
         public void Refresh()
         {
             _candidates = null;
-            UpdateSelfAvailability();
             NotifyCompareStateChanged();
             BeginIdentityLoad();
         }
@@ -413,45 +416,6 @@ namespace PlayniteAchievements.ViewModels
             _compareFriend = null;
             NotifyCompareStateChanged();
             ApplySelection();
-        }
-
-        // The self entry is offered only when the selected friend's in-scope rows belong to a
-        // game the current user has cached progress for, so the comparison never renders a
-        // misleading all-locked column for a game the user simply has not refreshed.
-        private void UpdateSelfAvailability()
-        {
-            var available = ComputeSelfAvailability();
-            if (available == _selfOptionAvailable)
-            {
-                return;
-            }
-
-            _selfOptionAvailable = available;
-            if (!available && _selfSelected)
-            {
-                _selfSelected = false;
-            }
-
-            NotifyCompareStateChanged();
-        }
-
-        private bool ComputeSelfAvailability()
-        {
-            if (_loadCurrentUserIdentities == null)
-            {
-                return false;
-            }
-
-            var targetRows = _targetRows;
-            var selectedFriend = _getSelectedFriend();
-            if (targetRows == null)
-            {
-                return false;
-            }
-
-            return targetRows.Any(row => row != null &&
-                row.SelfHasGameData &&
-                IsTargetRow(row, selectedFriend));
         }
 
         private void BeginIdentityLoad()
