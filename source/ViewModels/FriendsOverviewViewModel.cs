@@ -186,7 +186,8 @@ namespace PlayniteAchievements.ViewModels
                 row => SelectedGame == null || IsSameGame(row, SelectedGame),
                 () => _friendCache?.LoadCurrentUserIdentities(),
                 logger,
-                (friend, row) => _projection?.HasFriendGameData(friend, row) == true);
+                (friend, row) => _projection?.HasFriendGameData(friend, row) == true,
+                HasCompareGameData);
             _achievementsBar.FilterChanged += (_, __) => ApplyFilters();
             _achievementsBar.AttachFriendCompare(_friendCompare);
             // The overview keeps its own achievement search: the shared index spans
@@ -369,8 +370,15 @@ namespace PlayniteAchievements.ViewModels
             return FriendSurfaceControlBars.GetCompareFriendOptions(
                 _allFriends,
                 SelectedFriend,
-                friend => SelectedGame == null || HasFriendGamePairData(friend, SelectedGame));
+                HasCompareGameData);
         }
+
+        // With no game selected the rows span every game, so every friend counts.
+        private bool HasCompareGameData(FriendSummaryItem friend)
+        {
+            return SelectedGame == null || HasFriendGamePairData(friend, SelectedGame);
+        }
+
         public string AchievementColumnSettingsKey
         {
             get
