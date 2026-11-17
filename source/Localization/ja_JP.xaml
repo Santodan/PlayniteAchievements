@@ -484,7 +484,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_Settings_StartInCategoryMode">カテゴリーモードで開始</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HideCategorySummaryRow">選択後にカテゴリーグリッドを隠す</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryGrid">カテゴリーグリッド</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">カテゴリー画像がない場合はアイコンの代わりにカバー画像を使用</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CategoryGridUseCoverImages">カテゴリーアート不足時はアイコンの代わりにカバー画像を使用</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_CustomIcons">アイコン</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Editor">編集</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tags_MakeGlobal">グローバルにする</sys:String>
@@ -558,7 +558,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">解除状況は更新時およびゲーム実行中にリンク済みのファイルから読み込まれます。ここで行った編集内容は次回の読み込み時に置換されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_File">ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format">形式</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Delimited">Delimited text</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Delimited">区切りテキスト</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Xlsx">Excel ワークブック</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Binary">バイナリセーブ</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_SupportedFiles">対応ファイル</sys:String>
@@ -566,7 +566,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">First row is a header</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">Rows path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Sheet">Sheet</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Sheet">シート</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
@@ -670,7 +670,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <!-- ================================================================= -->
     <!-- 10 Settings -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">最大高</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">最大の高さ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridPreview">実績グリッド</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Description">実績アイコンのディスクへの保存方法を制御します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Title">実績アイコンキャッシュ</sys:String>
@@ -1212,8 +1212,8 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_StatusColor">状態の色</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_StatusColor_MissableUnobtainable">取り逃し注意と獲得不可</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ColorRarityTextByRarity">レア度に応じてレア度テキストを着色</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_InlineDetailBeforeName">Detail Before Name</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_InlineDetailBeforeDescription">Detail Before Description</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_InlineDetailBeforeName">詳細を名前の前に表示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_InlineDetailBeforeDescription">詳細を説明の前に表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowNameAboveProgress">プログレスバーの上に名前を表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityBadgesBelowProgress">レア度バッジをプログレスバーの下に表示</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTreeOnly">ツリーのみを表示</sys:String>
