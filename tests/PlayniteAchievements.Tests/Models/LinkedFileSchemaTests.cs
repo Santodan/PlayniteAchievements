@@ -93,6 +93,10 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsTrue(With(LinkedFileField.Unlocked).MatchesByRowOrder, "Without a name column rows pair by order.");
             Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.Unlocked).MatchesByRowOrder);
             Assert.IsFalse(With(LinkedFileField.DisplayName).MatchesByRowOrder);
+
+            Assert.IsTrue(With(LinkedFileField.Order).RowPresenceMeansUnlocked, "A list of positions means each listed one is unlocked.");
+            Assert.IsFalse(With(LinkedFileField.Order, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.Order, LinkedFileField.Unlocked).MatchesByRowOrder, "An Order column replaces row order.");
         }
 
         [TestMethod]
