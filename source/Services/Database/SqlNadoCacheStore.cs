@@ -41,6 +41,12 @@ namespace PlayniteAchievements.Services.Database
         private const string ActiveFriendPredicateSql =
             "u.IsCurrentUser = 0 AND u.IsActiveFriend = 1 AND u.FriendSource IS NOT NULL";
 
+        // Whether a FriendOwnership row (aliased "fo") came from the friend's own game list or
+        // carries playtime. A row made only by scraping the friend's achievements for a game has
+        // neither, and says nothing about whether they own it.
+        private const string FriendOwnershipConfirmedSql =
+            "CASE WHEN fo.LastOwnershipRefreshUtc IS NOT NULL OR fo.PlaytimeForeverMinutes > 0 THEN 1 ELSE 0 END";
+
         /// <summary>
         /// Shared column list for achievement-detail join queries; requires PlatformDefinitions
         /// aliased as "ad" and UserAchievements aliased as "ua".
@@ -309,6 +315,7 @@ namespace PlayniteAchievements.Services.Database
             public string PlayniteGameId { get; set; }
             public long PlaytimeForeverMinutes { get; set; }
             public string LastPlayedUtc { get; set; }
+            public long? OwnershipConfirmed { get; set; }
         }
 
         private sealed class ProviderGameDefinitionStateRow
@@ -356,6 +363,7 @@ namespace PlayniteAchievements.Services.Database
             public long? MyUnlocked { get; set; }
             public string MyUnlockTimeUtc { get; set; }
             public long? MyHasGameData { get; set; }
+            public long? FriendOwnsGame { get; set; }
             public int? ProgressNum { get; set; }
             public int? ProgressDenom { get; set; }
             public string IconPath { get; set; }
@@ -4820,7 +4828,8 @@ namespace PlayniteAchievements.Services.Database
                     ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
                     PlayniteGameId = ResolveCachedPlayniteGameId(null, row.PlayniteGameId),
                     PlaytimeForeverMinutes = Math.Max(0, row.PlaytimeForeverMinutes),
-                    LastPlayedUtc = ParseUtc(row.LastPlayedUtc)
+                    LastPlayedUtc = ParseUtc(row.LastPlayedUtc),
+                    OwnershipConfirmed = row.OwnershipConfirmed.GetValueOrDefault() != 0
                 })
                 .ToList();
         }
@@ -5051,7 +5060,8 @@ namespace PlayniteAchievements.Services.Database
                     g.ProviderGameKey AS ProviderGameKey,
                     g.PlayniteGameId AS PlayniteGameId,
                     fo.PlaytimeForeverMinutes AS PlaytimeForeverMinutes,
-                    fo.LastPlayedUtc AS LastPlayedUtc
+                    fo.LastPlayedUtc AS LastPlayedUtc,
+                    " + FriendOwnershipConfirmedSql + @" AS OwnershipConfirmed
                   FROM Users u
                   INNER JOIN FriendOwnership fo ON fo.UserId = u.Id
                   INNER JOIN Games g ON g.Id = fo.GameId
@@ -5147,6 +5157,7 @@ namespace PlayniteAchievements.Services.Database
                     COALESCE(cu.Unlocked, 0) AS MyUnlocked,
                     cu.UnlockTimeUtc AS MyUnlockTimeUtc,
                     CASE WHEN cug.PlayniteGameId IS NULL THEN 0 ELSE 1 END AS MyHasGameData,
+                    " + FriendOwnershipConfirmedSql + @" AS FriendOwnsGame,
                     ua.ProgressNum AS ProgressNum,
                     ua.ProgressDenom AS ProgressDenom,
                     g.IconPath AS IconPath,
@@ -5316,6 +5327,7 @@ namespace PlayniteAchievements.Services.Database
                     UnlockedBySelf = row.MyUnlocked.GetValueOrDefault() != 0,
                     SelfUnlockTimeUtc = ParseUtc(row.MyUnlockTimeUtc),
                     SelfHasGameData = row.MyHasGameData.GetValueOrDefault() != 0,
+                    FriendOwnsGame = row.FriendOwnsGame.GetValueOrDefault() != 0,
                     ProgressNum = row.ProgressNum,
                     ProgressDenom = row.ProgressDenom,
                     ProviderKey = row.ProviderKey,
