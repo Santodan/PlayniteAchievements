@@ -882,6 +882,26 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Categories_UnmatchedAchievements_GoUnderTheBaseGame_NotThePlatformsCategory()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Categories);
+            playstation.Rows.Add(Row("t1", "One", category: "Story"));
+            var matched = Row("s1", "One", category: "Chapter 1");
+            var unmatched = Row("s2", "Only on this platform", category: "The Expansion");
+            unmatched.CategoryKind = "DLC";
+            var data = Game("Steam", matched, unmatched);
+
+            using (var run = Overlay(new[] { playstation }, Choices(categories: playstation.Key)).BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("Story", matched.Category);
+            Assert.AreEqual(new MetadataLinkRequest(data.Game, data).BaseCategoryLabel, unmatched.Category);
+            Assert.AreEqual("Base", unmatched.CategoryKind);
+        }
+
+        [TestMethod]
         public async Task Tags_ReplaceProviderTags_AndKeepItsCategory()
         {
             var hunters = new FakeSource("SteamHunters", MetadataField.Categories | MetadataField.Tags);
@@ -1201,7 +1221,7 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual("Story", dragon.Category);
             Assert.AreEqual("Collectibles", coins.Category);
-            Assert.IsNull(unknown.Category);
+            Assert.AreEqual("Test game", unknown.Category, "unmatched achievements go under the base game");
             var coverage = overlay.Links.GetCoverage(data.PlayniteGameId.Value, "SteamHunters");
             Assert.AreEqual(2, coverage.Matched);
             Assert.AreEqual(3, coverage.Total);
@@ -1226,7 +1246,7 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("Story", one.Category);
-            Assert.IsNull(two.Category);
+            Assert.AreEqual("Test game", two.Category, "unmatched achievements go under the base game");
             Assert.AreEqual("Side", three.Category);
         }
 
