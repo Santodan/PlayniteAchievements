@@ -35,7 +35,8 @@ namespace PlayniteAchievements.Models.Settings
         Points,
         TrophyType,
         Rarity,
-        Category
+        Category,
+        Order
     }
 
     /// <summary>How a file row was matched to an achievement.</summary>
@@ -44,7 +45,8 @@ namespace PlayniteAchievements.Models.Settings
         ApiName,
         DisplayName,
         RowOrder,
-        Paired
+        Paired,
+        Order
     }
 
     /// <summary>How unlock time cells are read.</summary>
@@ -132,6 +134,12 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>Times without a zone are local; otherwise they are UTC.</summary>
         public bool AssumeLocalTime { get; set; } = true;
 
+        /// <summary>
+        /// The Order column numbers the game's first achievement 0 rather than 1. A file with a
+        /// 0 in that column is read as starting at 0 either way.
+        /// </summary>
+        public bool OrderStartsAtZero { get; set; }
+
         public static string SanitizeName(string name)
         {
             var trimmed = (name ?? string.Empty).Trim();
@@ -173,7 +181,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? LinkedFileTimeFormat.Auto
                     : schema.TimeFormat,
                 CustomTimeFormat = customTimeFormat,
-                AssumeLocalTime = schema.AssumeLocalTime
+                AssumeLocalTime = schema.AssumeLocalTime,
+                OrderStartsAtZero = schema.OrderStartsAtZero
             };
 
             return normalized;
@@ -195,7 +204,8 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockedTrueValues = UnlockedTrueValues?.ToList(),
                 TimeFormat = TimeFormat,
                 CustomTimeFormat = CustomTimeFormat,
-                AssumeLocalTime = AssumeLocalTime
+                AssumeLocalTime = AssumeLocalTime,
+                OrderStartsAtZero = OrderStartsAtZero
             };
         }
 
@@ -214,26 +224,31 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// A listed row means unlocked when the mapping names achievements and nothing else, as
-        /// in files that list only earned achievements. Any other mapped column, such as an
+        /// A listed row means unlocked when the mapping identifies achievements and nothing else,
+        /// as in files that list only earned achievements. Any other mapped column, such as an
         /// unlock state, a time, progress or a description, leaves unlock state to the columns.
         /// </summary>
         [JsonIgnore]
         public bool RowPresenceMeansUnlocked =>
             Columns != null &&
-            Columns.Any(mapping => mapping != null && (mapping.Field == LinkedFileField.ApiName || mapping.Field == LinkedFileField.DisplayName)) &&
+            Columns.Any(mapping => mapping != null && IdentifiesAchievement(mapping.Field)) &&
             Columns.All(mapping => mapping == null ||
                                    mapping.Field == LinkedFileField.Ignore ||
-                                   mapping.Field == LinkedFileField.ApiName ||
-                                   mapping.Field == LinkedFileField.DisplayName);
+                                   IdentifiesAchievement(mapping.Field));
 
         /// <summary>
-        /// Rows pair with achievements by row order only when no column is mapped to API Name or
-        /// Name to match them by.
+        /// Rows pair with achievements by row order only when no column is mapped to API Name,
+        /// Order or Name to match them by.
         /// </summary>
         [JsonIgnore]
         public bool MatchesByRowOrder =>
-            !HasColumn(LinkedFileField.ApiName) && !HasColumn(LinkedFileField.DisplayName);
+            !HasColumn(LinkedFileField.ApiName) && !HasColumn(LinkedFileField.Order) && !HasColumn(LinkedFileField.DisplayName);
+
+        /// <summary>Whether a column of <paramref name="field"/> says which achievement a row is.</summary>
+        private static bool IdentifiesAchievement(LinkedFileField field)
+        {
+            return field == LinkedFileField.ApiName || field == LinkedFileField.Order || field == LinkedFileField.DisplayName;
+        }
 
         /// <summary>The values that read as unlocked, lowercased, falling back to the defaults.</summary>
         [JsonIgnore]
