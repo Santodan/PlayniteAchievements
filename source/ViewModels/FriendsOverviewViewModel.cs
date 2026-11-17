@@ -185,7 +185,8 @@ namespace PlayniteAchievements.ViewModels
                 GetCompareFriendOptions,
                 row => SelectedGame == null || IsSameGame(row, SelectedGame),
                 () => _friendCache?.LoadCurrentUserIdentities(),
-                logger);
+                logger,
+                (friend, row) => _projection?.HasFriendGameData(friend, row) == true);
             _achievementsBar.FilterChanged += (_, __) => ApplyFilters();
             _achievementsBar.AttachFriendCompare(_friendCompare);
             // The overview keeps its own achievement search: the shared index spans
@@ -360,8 +361,8 @@ namespace PlayniteAchievements.ViewModels
         public bool HasAnySelection => SelectedFriend != null || SelectedGame != null;
         public bool HasFriendGameSelection => SelectedFriend != null && SelectedGame != null;
 
-        // Friends other than the selected one, narrowed to those with cached data for the
-        // selected game when there is one. The controller caches this, so it is walked once per
+        // Friends other than the selected one, those with cached data for the selected game
+        // first when there is one. The controller caches this, so it is walked once per
         // selection or row rebuild.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
