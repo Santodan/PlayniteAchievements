@@ -1342,8 +1342,8 @@ namespace PlayniteAchievements.Services.Metadata
         /// <summary>
         /// Takes the platform's category off the achievements no category source matched, when a
         /// category source answered: its categories replace the platform's for the whole game, so
-        /// none of the platform's own stay beside them. A source that gave the matched achievements
-        /// one category gives it to the rest as well, so the game stays one base category.
+        /// none of the platform's own stay beside them. The achievements the source does not have
+        /// are left with no category.
         /// </summary>
         private static void FileUnmatched(
             IReadOnlyList<string> keys,
@@ -1365,16 +1365,11 @@ namespace PlayniteAchievements.Services.Metadata
                 return;
             }
 
-            var given = drafts
-                .Where(pair => matched.Contains(pair.Key))
-                .GroupBy(pair => pair.Value.Category ?? string.Empty, CategoryPathHelper.LabelComparer)
-                .ToList();
-            var only = given.Count == 1 ? given[0].First().Value : null;
             foreach (var pair in drafts.Where(pair => !matched.Contains(pair.Key)))
             {
-                pair.Value.Category = only?.Category;
-                pair.Value.CategoryKind = only?.Category == null ? null : only.CategoryKind;
-                pair.Value.Cleared |= only?.Category == null ? AchievementField.Categories : AchievementField.None;
+                pair.Value.Category = null;
+                pair.Value.CategoryKind = null;
+                pair.Value.Cleared |= AchievementField.Categories;
             }
         }
 
