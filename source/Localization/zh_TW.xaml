@@ -747,6 +747,7 @@ Reclaimed {1}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">通知持續時間（秒）：</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">Notification delay (seconds):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureDelaySeconds">Capture delay (seconds):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay">Also capture at the moment of unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Vibrate controller on notification</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Vibration strength (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Vibration duration (ms):</sys:String>
@@ -1832,47 +1833,5 @@ Continue?</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">解鎖全部所需時間</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">極其稀有</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">使用者統計</sys:String>
-
-    <!-- Main-only keys: still used by the released build, removed at the next release -->
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">Use for Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">已完成</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">所有平台</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">清除自訂資料</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?
-
-Cached achievement data is kept.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?
-
-This also deletes the manual link and the achievements it produced. This cannot be undone.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData">清除資料</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">要清除所選 {0} 款遊戲的資料嗎？
-
-這將刪除這些遊戲快取的成就、圖示、手動連結和解鎖時間。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">清除「{0}」的資料嗎？
-
-這將刪除其快取的成就、圖示以及任何手動連結和解鎖時間。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">不包含在重新整理中並清除資料</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">要排除所選 {0} 款遊戲並清除其資料嗎？
-
-這些遊戲將從成就檢視中隱藏，其快取資料和手動連結也會被刪除。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">排除「{0}」並清除其資料？
-
-這將從成就視圖中隱藏遊戲並刪除其快取資料和手動連結。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">包含在重新整理中並重新整理已選遊戲</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">合併帳戶中每個角色的成就</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">正在清除快取的成就資料...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">清除快取的成就資料。下一次重新整理會重建它。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">從各平台快取的成就資料。清除這些資料不會影響圖示檔案。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">快取成就資料</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">Rendering</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">Quality keeps notifications smooth while a game keeps the GPU busy, at some cost to the game's frame rate while a notification is shown.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">Performance</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource">Progress bar badges</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">Which badges show under the progress bar. Trophy when available uses a game's trophies where it has them and its rarity spread everywhere else; Rarity always shows the rarity spread.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable">Trophy when available</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">正在同步標籤...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Likes">Likes</sys:String>
 
 </ResourceDictionary>
