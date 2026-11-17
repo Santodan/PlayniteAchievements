@@ -7,6 +7,7 @@ Packages:
     PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.3.0/PlayniteAchievements_4_3_0.pext
     Changelog:
     - "[New] Linked files: track a game's achievements from a CSV, JSON, INI, XML, TOML, Excel or save file, with unlocks while you play."
+    - "[New] Achievement styles: turn on Trophy and Points alongside Rarity in General settings and drag them into the order you prefer. Progress bars, badges and the Completions pie chart show the first one each game or achievement has."
     - "[New] World of Warcraft Forever and Classic support."
     - "[New] Option to show rarity, trophy or points next to achievement names or descriptions."
     - "[New] Progress bars and completion badges can show points, with a Mythic badge for games where you've earned all of them."
@@ -18,7 +19,6 @@ Packages:
     - "[New] Option to take captures both at the unlock and after the capture delay."
     - "[Adjusted] Lists have a Sort By dropdown and a Filters panel, and can be sorted by any column by default."
     - "[Adjusted] The compare dropdown is available on every achievement list and remembers your choice."
-    - "[Adjusted] Choose whether rarity, trophies or points come first on progress bars and badges."
     - "[Adjusted] The Completions pie chart and the Progress filter group games by completion badge."
     - "[Adjusted] Profile medals can show points and total unlocks, and can be reordered."
     - "[Adjusted] Platform data, metadata and custom data can each be cleared separately."
