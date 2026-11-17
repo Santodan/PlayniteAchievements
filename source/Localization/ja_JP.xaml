@@ -544,7 +544,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_Title">リンク済みファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_LinkButton">ファイルをリンク</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_EditButton">リンク済みファイルを編集</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">Read unlock status for this game's achievements from a file on this PC.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_LinkHint">PC 上のファイルからこのゲームの実績の解除状況を読み込みます。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Mapping">マッピング</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_AttachFile">Attach file</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_MappingOnly">Mapping only, no file attached</sys:String>
@@ -555,7 +555,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">The mapping is incomplete.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">このゲームには一致する実績がありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">このファイルを読み込めませんでした。</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">Unlock status is read from the linked file on refresh and while the game runs; edits made here are replaced by the next read.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">解除状況は更新時およびゲーム実行中にリンク済みのファイルから読み込まれます。ここで行った編集内容は次回の読み込み時に置換されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_File">ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format">形式</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Delimited">Delimited text</sys:String>
@@ -574,10 +574,10 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">新規</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">新しい実績を追加</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatchedHint">Rows that match no achievement become new custom achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat">Time format</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixSeconds">Unix seconds</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixMilliseconds">Unix milliseconds</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows file time</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat">時刻の形式</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixSeconds">Unix 秒</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixMilliseconds">Unix ミリ秒</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows ファイル時刻</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">Times are local</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValues">Values meaning unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">Separated by commas; any other value means locked. Empty uses true, yes, 1, unlocked, earned and achieved.</sys:String>
@@ -1393,7 +1393,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Tagging_PlatformAchievements">プラットフォーム実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_CustomAchievements">カスタム実績</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_ManualAchievements">手動トラッキング</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_LinkedFile">Linked File</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_LinkedFile">リンク済みファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Row_Tracking">トラッキング</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">実績なし</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_Customized">カスタマイズ済み</sys:String>
