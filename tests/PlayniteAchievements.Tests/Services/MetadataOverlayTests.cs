@@ -905,7 +905,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task Categories_UnmatchedAchievements_JoinTheSourcesOnlyCategory()
+        public async Task Categories_UnmatchedAchievements_StayOutOfTheSourcesOnlyCategory()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Categories);
             var source = Row("t1", "One", category: "The game");
@@ -922,8 +922,8 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             Assert.AreEqual("The game", matched.Category);
-            Assert.AreEqual("The game", unmatched.Category);
-            Assert.AreEqual("Base", unmatched.CategoryKind);
+            Assert.IsNull(unmatched.Category);
+            Assert.IsNull(unmatched.CategoryKind);
         }
 
         [TestMethod]
