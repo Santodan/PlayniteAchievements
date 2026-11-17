@@ -538,7 +538,7 @@ namespace PlayniteAchievements.ViewModels
                     : GridOptionKeys.Achievement.ViewFriendsAchievements);
         }
 
-        // Friends other than the selected one that have cached rows for this window's game.
+        // Friends other than the selected one, those with cached rows for this window's game first.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
             return FriendSurfaceControlBars.GetCompareFriendOptions(
