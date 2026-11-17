@@ -295,6 +295,34 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void ScrapedAllLockedRows_ReadNotApplicable_UntilOwnershipIsKnown()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var row = MakeRow("ACH_1", "friend1", unlocked: true);
+
+            // The candidate's achievements were scraped for the game: every row locked, and
+            // nothing says they own it.
+            var scraped = MakeRow("ACH_1", "friend2");
+            var rows = new List<FriendAchievementDisplayItem> { row, scraped };
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate });
+            controller.UpdateRows(rows, rows);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.HasComparison);
+            Assert.IsFalse(row.ComparisonApplicable);
+
+            scraped.FriendOwnsGame = true;
+            controller.UpdateRows(rows, rows);
+
+            Assert.IsTrue(row.ComparisonApplicable, "a game they own reads Locked");
+            Assert.IsFalse(row.ComparisonUnlocked);
+        }
+
+        [TestMethod]
         public void PersistSelection_RestoresTheRememberedFriend_AndSavesOnlyTheUsersPicks()
         {
             var selectedFriend = MakeFriend("friend1", "Friend One");
