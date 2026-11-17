@@ -280,6 +280,7 @@ namespace PlayniteAchievements.ViewModels
                 foreach (var link in links)
                 {
                     if (link?.PlayniteGameId != null &&
+                        link.OwnershipConfirmed &&
                         link.PlayniteGameId.Value != Guid.Empty &&
                         accountKeys.Contains(FriendOverviewProjection.BuildFriendKey(
                             link.ProviderKey,
