@@ -29,7 +29,7 @@ namespace PlayniteAchievements.Providers.Metadata
     internal static class MetadataSourceProbe
     {
         /// <summary>Hardcoded gate for the hidden "Probe collections (TrueGaming, SteamHunters)" menu item. Off in shipped builds.</summary>
-        internal static readonly bool Enabled = true;
+        internal static readonly bool Enabled = false;
 
         private const int CategoryMinimum = 5;
 
