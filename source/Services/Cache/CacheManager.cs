@@ -6,6 +6,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
@@ -1241,6 +1242,9 @@ namespace PlayniteAchievements.Services.Cache
                         renamedPlayniteGameId = toWrite.PlayniteGameId;
 
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                        // The payload arrives in the provider's order; the store reads in the
+                        // metadata order, and so must the copy served from memory.
+                        AchievementLayers.SortByMetadataOrder(toWrite.Achievements);
                         SetMemoryGameData_Locked(normalizedKey, toWrite);
                     }
                 }
