@@ -18,11 +18,11 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// Compare-friend selection for the self achievement surfaces (Overview selected game and
     /// the single-game achievements window): loads every friend's cached rows for one game,
-    /// exposes every friend as a dropdown option, those with data for the game first, and
-    /// applies the selected friend's unlock state onto the self display items' comparison
-    /// fields. A friend with no data for the game reads N/A on every row. The selection
-    /// clears whenever the game changes, and a remembered friend is selected again on each game
-    /// they have data for.
+    /// exposes every friend as a dropdown option, favorites first and then those with data for
+    /// the game, and applies the selected friend's unlock state onto the self display items'
+    /// comparison fields. A friend with no data for the game is listed dimmed and reads N/A on
+    /// every row. The selection clears whenever the game changes, and a remembered friend is
+    /// selected again on each game.
     /// </summary>
     public sealed class FriendCompareController :
         FriendCompareControllerBase<AchievementDisplayItem>, IGridCompareSource
@@ -33,6 +33,8 @@ namespace PlayniteAchievements.ViewModels
             public string DisplayName { get; set; }
             public string AvatarPath { get; set; }
             public bool IsFavorite { get; set; }
+            // An unlock in the game or known ownership of it.
+            public bool HasGameData { get; set; }
         }
 
         private readonly IFriendCacheManager _friendCache;
@@ -105,6 +107,12 @@ namespace PlayniteAchievements.ViewModels
                 string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.IsFavorite == true;
         }
 
+        public bool IsKeyMuted(string key)
+        {
+            return _options.FirstOrDefault(option =>
+                string.Equals(option.Key, key, StringComparison.OrdinalIgnoreCase))?.HasGameData == false;
+        }
+
         // Single-select semantics over checkable menu items: checking a friend replaces any
         // other selection; unchecking the selected friend clears the comparison.
         public void SelectKey(string key, bool isSelected)
@@ -145,6 +153,11 @@ namespace PlayniteAchievements.ViewModels
             NotifyCompareStateChanged();
             ApplySelection();
             return true;
+        }
+
+        private protected override void DropSelection()
+        {
+            Select(null);
         }
 
         /// <summary>
@@ -299,7 +312,7 @@ namespace PlayniteAchievements.ViewModels
             return rows.Any(row => row != null && !listed.Contains(FriendOverviewProjection.GetFriendScopeKey(row)));
         }
 
-        // Every friend, those with rows for the game first, then favorites, then by name. A friend
+        // Every friend: favorites first, then those with data for the game, then by name. A friend
         // found only in the rows (the list failed to load) is listed from the row.
         private static List<Option> BuildOptions(
             List<FriendAchievementDisplayItem> rows,
@@ -371,9 +384,14 @@ namespace PlayniteAchievements.ViewModels
                 };
             }
 
+            foreach (var option in byKey.Values)
+            {
+                option.HasGameData = withData.Contains(option.Key);
+            }
+
             return byKey.Values
-                .OrderByDescending(option => withData.Contains(option.Key))
-                .ThenByDescending(option => option.IsFavorite)
+                .OrderByDescending(option => option.IsFavorite)
+                .ThenByDescending(option => option.HasGameData)
                 .ThenBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
@@ -455,7 +473,7 @@ namespace PlayniteAchievements.ViewModels
                     _selected.AvatarPath ?? compareRow?.FriendAvatarPath,
                     compareRow?.UnlockTimeUtc,
                     compareRow?.Unlocked == true,
-                    self?.DisplayName,
+                    GetSelfName(self),
                     self?.AvatarPath,
                     applicable);
                 AppliedItems.Add(item);
