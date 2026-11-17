@@ -273,8 +273,10 @@ namespace PlayniteAchievements.ViewModels
                 rowPool ?? Array.Empty<FriendAchievementDisplayItem>(),
                 row => FriendOverviewProjection.IsSameFriend(row, compareFriend) && IsInScope(row),
                 GetGameAchievementKey);
+            // A game counts as theirs with an unlock in it or known ownership; rows scraped for a
+            // game they may not own list every achievement locked.
             var compareGames = new HashSet<string>(
-                compareRows.Values.Select(GetGameKey),
+                compareRows.Values.Where(row => row.Unlocked || row.FriendOwnsGame).Select(GetGameKey),
                 StringComparer.OrdinalIgnoreCase);
 
             var compareName = _compareFriend.DisplayName;
