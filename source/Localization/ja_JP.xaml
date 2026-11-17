@@ -554,7 +554,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_Unstable">The file was changing while it was read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">The mapping is incomplete.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">This game has no achievements to match.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">The file could not be read.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">このファイルを読み込めませんでした。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">Unlock status is read from the linked file on refresh and while the game runs; edits made here are replaced by the next read.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_File">ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format">形式</sys:String>
@@ -747,6 +747,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">通知持続時間 (秒):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">通知遅延 (秒):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureDelaySeconds">キャプチャ遅延 (秒):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay">Also capture at the moment of unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">通知時にコントローラーを振動させる</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">振動の強さ (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">振動の長さ (ms):</sys:String>
@@ -911,7 +912,7 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSourceCharacter">One character</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint">Achievements come from every character on the signed-in account.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_OAuthHelp">WoW の実績を取得するには Blizzard の公式 API を使用するため、Battle.net アカウントに紐づいた無料の API クライアントが必要です。設定は初回のみ必要です:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. {0} を開き、新規クライアントを作成してください (名前や詳細は任意で構いません)。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep1">1. {0} を開き、新規クライアントを作成します(名前や詳細は任意で構いません)。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep2">2. クライアントのリダイレクト URI に下に表示されている値を精確に設定します (デフォルト: http://127.0.0.1:55431/)。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep3">3. クライアントのクライアント ID とクライアントシークレットを下の欄んにコピーします。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_BattleNet_SetupStep4">4. 下のサインインをクリックし、開いたブラウザでアクセスを承認します。</sys:String>
@@ -922,8 +923,8 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
 
     <!-- Provider: Epic -->
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">ページに表示されている &quot;authorizationCode&quot; の値をここに貼り付けてください:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 規定のブラウザが開いたら、Epic Games にサインインしてください。
-2. サインイン後、ページ上に表示される「authorizationCode」の値をコピーします。
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 規定のブラウザが開いたら、Epic Games にサインインします。
+2. サインイン後、ページ上に表示される &quot;authorizationCode&quot; の値をコピーします。
 3. 次のダイアログ画面で、その値を貼り付けてください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">代替サインイン</sys:String>
 
@@ -1832,47 +1833,5 @@ The mapping is removed from this game. Saved mappings and recorded unlocks are k
     <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">全実績解除の所要時間</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">ウルトラレア</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">ユーザー統計</sys:String>
-
-    <!-- Main-only keys: still used by the released build, removed at the next release -->
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">ゲームに使用</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">クリア</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">すべてのプラットフォーム</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">カスタムデータを消去</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">&quot;{0}&quot; のすべてのカスタムデータを消去しますか?
-
-キャッシュされた実績データは保持されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">&quot;{0}&quot; のすべてのカスタムデータを消去しますか?
-
-手動リンクおよびそれによって取得された実績も削除されます。この操作は元に戻せません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">手動設定</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData">データを消去</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">選択した {0} 件のゲームのデータを消去しますか?
-
-キャッシュされた実績やアイコン、設定した手動リンクおよび解除時間がすべて削除されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">&quot;{0}&quot; のデータを削除しますか?
-
-キャッシュされた実績やアイコン、設定した手動リンクおよび解除時間が削除されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">更新とデータの消去から除外</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">選択した &quot;{0}&quot; 件のゲームを除外してデータを消去しますか?
-
-これらのゲームは実績画面から非表示になり、キャッシュされたデータおよび手動リンクが削除されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">&quot;{0}&quot; を除外してデータを消去しますか?
-
-このゲームは実績画面から非表示になり、キャッシュされたデータおよび手動リンクが削除されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">選択したゲームを更新して今後の更新に含める</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">アカウント内のすべてのキャラクターの実績を統合する</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">実績データキャッシュを削除中...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">実績データキャッシュを消去します。次回更新時に再構築されます。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">プラットフォームからキャッシュされた実績データです。これを削除してもアイコンファイルには影響しません。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">実績データキャッシュ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">レンダリング</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">&quot;品質&quot;設定では、ゲーム側で GPU の負荷が高い状態でも通知を滑らかに表示できますが、通知の表示中はゲームのフレームレートがわずかに低下する場合があります。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">パフォーマンス</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource">プログレスバーバッジ</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">プログレスバーの下に表示するバッジを選択します。&quot;トロフィー&quot; は、トロフィーデータがあるゲームにはトロフィーを表示し、それ以外のゲームではレア度分布を表示します。&quot;レア度&quot; は常にレア度分布を表示します。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable">トロフィー (利用可能な場合)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">タグを同期中...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">手動トラッキング</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Likes">評価</sys:String>
 
 </ResourceDictionary>
