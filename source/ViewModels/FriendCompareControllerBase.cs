@@ -40,24 +40,45 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public void PersistSelection(string saved, Action<string> save)
         {
-            _rememberedKey = null;
-            _rememberedName = null;
-            if (!string.IsNullOrWhiteSpace(saved))
-            {
-                var split = saved.IndexOf(SavedNameSeparator);
-                _rememberedKey = split < 0 ? saved : saved.Substring(0, split);
-                _rememberedName = split < 0 ? null : saved.Substring(split + 1);
-                if (string.IsNullOrWhiteSpace(_rememberedKey))
-                {
-                    _rememberedKey = null;
-                    _rememberedName = null;
-                }
-            }
-
+            ReadSavedSelection(saved);
             _saveSelection = save;
             if (!TryRestoreRememberedSelection())
             {
                 NotifyCompareStateChanged();
+            }
+        }
+
+        /// <summary>
+        /// Takes over a pick made on another grid that shares this one's saved state:
+        /// <paramref name="saved"/> (the state string that grid saved, or null for a cleared
+        /// pick) replaces the remembered entry and the selection, and nothing is saved back.
+        /// </summary>
+        public void AdoptSelection(string saved)
+        {
+            ReadSavedSelection(saved);
+            DropSelection();
+            if (!TryRestoreRememberedSelection())
+            {
+                NotifyCompareStateChanged();
+            }
+        }
+
+        private void ReadSavedSelection(string saved)
+        {
+            _rememberedKey = null;
+            _rememberedName = null;
+            if (string.IsNullOrWhiteSpace(saved))
+            {
+                return;
+            }
+
+            var split = saved.IndexOf(SavedNameSeparator);
+            _rememberedKey = split < 0 ? saved : saved.Substring(0, split);
+            _rememberedName = split < 0 ? null : saved.Substring(split + 1);
+            if (string.IsNullOrWhiteSpace(_rememberedKey))
+            {
+                _rememberedKey = null;
+                _rememberedName = null;
             }
         }
 
@@ -101,6 +122,12 @@ namespace PlayniteAchievements.ViewModels
         /// Returns whether it did.
         /// </summary>
         private protected abstract bool TryRestoreRememberedSelection();
+
+        /// <summary>
+        /// Clears the selection and the comparison drawn for it, leaving the remembered entry
+        /// and the saved state as they are.
+        /// </summary>
+        private protected abstract void DropSelection();
 
         private protected void ClearApplied()
         {
@@ -180,6 +207,36 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return map;
+        }
+
+        /// <summary>
+        /// The name the current user's side of a comparison shows under: the account's username
+        /// for the provider, or the localized "Me" when the provider has no stored account name.
+        /// </summary>
+        private protected static string GetSelfName(FriendIdentity identity)
+        {
+            return identity != null && IsRealIdentityName(identity)
+                ? identity.DisplayName.Trim()
+                : ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelfOption");
+        }
+
+        // "unmapped" is the store's placeholder for providers with no stored account, and a
+        // display name equal to the external id is a raw account id (e.g. a SteamID64 before the
+        // persona is fetched); neither reads as a username.
+        private static bool IsRealIdentityName(FriendIdentity identity)
+        {
+            var name = identity.DisplayName?.Trim();
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            if (string.Equals(name, "unmapped", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return !string.Equals(name, identity.ExternalUserId?.Trim(), StringComparison.OrdinalIgnoreCase);
         }
     }
 }
