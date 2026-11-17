@@ -212,12 +212,23 @@ namespace PlayniteAchievements.ViewModels
             Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
                 _selectedGameControlBar,
                 GridOptionKeys.Achievement.OverviewSelectedGame);
-            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
-                FriendCompare.PersistSelection,
-                GridOptionKeys.Achievement.OverviewSelectedGame);
-            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
-                RecentFriendCompare.PersistSelection,
-                GridOptionKeys.Achievement.OverviewRecent);
+            // The achievements grid and the selected game's grid share one Compare pick: each
+            // saves it to the same entry and hands it to the other.
+            var stateStore = Services.Showcase.ShowcaseControlBarStateStore.Instance;
+            FriendCompare.PersistSelection(
+                stateStore.LoadCompareSelection(GridOptionKeys.Achievement.OverviewSelectedGame),
+                state =>
+                {
+                    stateStore.SaveCompareSelection(GridOptionKeys.Achievement.OverviewSelectedGame, state);
+                    RecentFriendCompare.AdoptSelection(state);
+                });
+            RecentFriendCompare.PersistSelection(
+                stateStore.LoadCompareSelection(GridOptionKeys.Achievement.OverviewRecent),
+                state =>
+                {
+                    stateStore.SaveCompareSelection(GridOptionKeys.Achievement.OverviewRecent, state);
+                    FriendCompare.AdoptSelection(state);
+                });
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
