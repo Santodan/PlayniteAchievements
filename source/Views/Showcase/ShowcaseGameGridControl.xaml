@@ -17,6 +17,7 @@
                                        DisableRowSelection="True"
                                        ControlBar="{Binding ControlBar, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
                                        ShowControlBar="{Binding ShowControlBar, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseGridHostBase}}"
+                                       ProvidesSortSelector="False"
                                        DelayInitialRenderUntilNormalized="True"
                                        RowPreviewMouseRightButtonDown="GridRow_PreviewMouseRightButtonDown"
                                        RowPreviewMouseRightButtonUp="GridRow_PreviewMouseRightButtonUp"/>

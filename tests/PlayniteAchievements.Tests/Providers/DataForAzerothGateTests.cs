@@ -184,6 +184,67 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public async Task LoadRarity_Forever_ReadsTheForeverIndexAtItsOwnScale()
+        {
+            const string foreverIndexUrl = "https://www.dataforazeroth.com/forever/dynamic/index.json";
+            const string foreverRarityUrl = "https://www.dataforazeroth.com/forever/dynamic/achievementsrarity.hash.json";
+            var entries = string.Join(",", Enumerable.Range(0, 30).Select(i => $@"""{61990 + i}"":{i + 0.5}"));
+            var handler = ScriptedHandler.Serving(
+                (foreverIndexUrl, HttpStatusCode.OK, "application/json",
+                    @"{""achievements"":""/forever/dynamic/achievements.a.json"",""achievementsrarity"":""/forever/dynamic/achievementsrarity.hash.json""}"),
+                (foreverRarityUrl, HttpStatusCode.OK, "application/json", @"{""achievements"":{" + entries + "}}"));
+
+            using (var client = NewClient(handler))
+            {
+                // The version's own floor: Forever's catalog holds under 200 achievements, so a
+                // 30-entry map is complete there though retail would refuse it.
+                client.MinimumPlausibleRarityEntries = null;
+
+                var result = await client.LoadRarityAsync(WowVersion.Forever, CancellationToken.None);
+
+                Assert.AreEqual(DataForAzerothStatus.Ok, result.Status);
+                Assert.AreEqual(30, result.Rarity.Count);
+                Assert.AreEqual(0.5, result.Rarity["61990"]);
+            }
+
+            Assert.AreEqual(foreverIndexUrl, handler.Requests[0].Url);
+            Assert.AreEqual(foreverRarityUrl, handler.Requests[1].Url);
+        }
+
+        [TestMethod]
+        public async Task LoadRarity_Forever_RefusesAMapBelowItsFloor()
+        {
+            var handler = ScriptedHandler.Serving(
+                ("https://www.dataforazeroth.com/forever/dynamic/index.json", HttpStatusCode.OK, "application/json",
+                    @"{""achievementsrarity"":""/forever/dynamic/achievementsrarity.hash.json""}"),
+                ("https://www.dataforazeroth.com/forever/dynamic/achievementsrarity.hash.json", HttpStatusCode.OK, "application/json", RarityJson));
+
+            using (var client = NewClient(handler))
+            {
+                client.MinimumPlausibleRarityEntries = null;
+
+                var result = await client.LoadRarityAsync(WowVersion.Forever, CancellationToken.None);
+
+                Assert.AreEqual(DataForAzerothStatus.Failed, result.Status);
+            }
+        }
+
+        [TestMethod]
+        public async Task LoadRarity_Classic_RequestsNothing()
+        {
+            var handler = ScriptedHandler.Serving();
+
+            using (var client = NewClient(handler))
+            {
+                var result = await client.LoadRarityAsync(WowVersion.Classic, CancellationToken.None);
+
+                Assert.AreEqual(DataForAzerothStatus.Failed, result.Status);
+            }
+
+            Assert.AreEqual(0, handler.Requests.Count);
+        }
+
+        [TestMethod]
         public async Task LoadRarity_SkipsTheNetworkWhileTheGateBackoffStands()
         {
             var handler = ScriptedHandler.Serving(

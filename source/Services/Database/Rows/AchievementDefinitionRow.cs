@@ -20,6 +20,7 @@ namespace PlayniteAchievements.Services.Database.Rows
         public double? GlobalPercentUnlocked { get; set; }
         public string Rarity { get; set; }
         public int? ProgressMax { get; set; }
+        public int? MetadataOrder { get; set; }
         public string CreatedUtc { get; set; }
         public string UpdatedUtc { get; set; }
     }

@@ -46,11 +46,16 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             AssertOnly(CustomizationArea.Icons, new GameCustomDataFile { UseSeparateLockedIconsOverride = true });
             AssertOnly(CustomizationArea.Order, new GameCustomDataFile { AchievementOrder = new List<string> { "a" } });
             AssertOnly(CustomizationArea.Goals, new GameCustomDataFile { GoalAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.Filters, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.Filters, new GameCustomDataFile { SummaryFilteredAchievementApiNames = new List<string> { "a" } });
+            AssertOnly(CustomizationArea.None, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { " " } });
             AssertOnly(CustomizationArea.Capstones, new GameCustomDataFile { ManualCapstoneApiName = "a" });
             AssertOnly(CustomizationArea.Capstones, new GameCustomDataFile { CapstonesMaterialized = true });
             AssertOnly(CustomizationArea.Source, new GameCustomDataFile { ExophaseSlugOverride = "slug" });
             AssertOnly(CustomizationArea.Source, new GameCustomDataFile { RetroAchievementsGameIdOverride = 12 });
-            AssertOnly(CustomizationArea.ManualTracking, new GameCustomDataFile { CustomProviderId = "p" });
+            AssertOnly(CustomizationArea.None, new GameCustomDataFile { CustomProviderId = "p" });
+            AssertOnly(CustomizationArea.None, new GameCustomDataFile { ManualLink = new ManualAchievementLink() });
+            AssertOnly(CustomizationArea.None, new GameCustomDataFile { LinkedFile = new LinkedFileLink() });
             AssertOnly(CustomizationArea.Notifications, new GameCustomDataFile { CaptureOverride = new GameCaptureOverride() });
             AssertOnly(CustomizationArea.Categories, new GameCustomDataFile { AchievementCategoryOrder = new List<string> { "Story" } });
             AssertOnly(CustomizationArea.Tags, new GameCustomDataFile
@@ -60,7 +65,6 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
                     new PlayniteAchievements.Models.Achievements.AchievementTagDefinition()
                 }
             });
-            AssertOnly(CustomizationArea.None, new GameCustomDataFile { FilteredAchievementApiNames = new List<string> { "a" } });
         }
 
         [TestMethod]
@@ -101,7 +105,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
         }
 
         [TestMethod]
-        public void Classify_UserCustomAchievement_IsManualTracking()
+        public void Classify_UserCustomAchievement_IsTextOnly()
         {
             var data = new GameCustomDataFile
             {
@@ -111,7 +115,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
                 }
             };
 
-            AssertOnly(CustomizationArea.ManualTracking | CustomizationArea.Text, data);
+            AssertOnly(CustomizationArea.Text, data);
         }
 
         [TestMethod]
@@ -145,7 +149,7 @@ namespace PlayniteAchievements.Services.GameCustomData.Tests
             };
 
             Assert.AreEqual(
-                CustomizationArea.ManualTracking | CustomizationArea.TrophyTypes | CustomizationArea.Points |
+                CustomizationArea.TrophyTypes | CustomizationArea.Points |
                 CustomizationArea.Tags | CustomizationArea.Icons | CustomizationArea.Capstones | CustomizationArea.Text,
                 CustomizationAreaClassifier.Classify(data));
         }

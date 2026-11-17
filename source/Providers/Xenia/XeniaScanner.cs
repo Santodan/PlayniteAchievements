@@ -18,6 +18,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
@@ -131,19 +132,30 @@ namespace PlayniteAchievements.Providers.Xenia
                     .FirstOrDefault(title => !string.IsNullOrEmpty(title));
 
                 // Write icon data to icon cache; the first file carrying an icon id wins
-                var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{game.Id}\\";
-                Directory.CreateDirectory(iconDirectory);
-                var writtenIconIds = new HashSet<int>();
-                foreach (var icon in gpdFiles.SelectMany(file => file.IconData))
+                var iconDirectory = Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), game.Id.ToString()) + Path.DirectorySeparatorChar;
+                if (IconCacheLocation.CurrentAcceptsWrites)
                 {
-                    if (!writtenIconIds.Add(icon.Key))
+                    try
                     {
-                        continue;
-                    }
+                        Directory.CreateDirectory(iconDirectory);
+                        var writtenIconIds = new HashSet<int>();
+                        foreach (var icon in gpdFiles.SelectMany(file => file.IconData))
+                        {
+                            if (!writtenIconIds.Add(icon.Key))
+                            {
+                                continue;
+                            }
 
-                    using (var fs = new FileStream($"{iconDirectory}{icon.Key}.png", FileMode.Create, FileAccess.Write))
+                            using (var fs = new FileStream($"{iconDirectory}{icon.Key}.png", FileMode.Create, FileAccess.Write))
+                            {
+                                fs.Write(icon.Value, 0, icon.Value.Length);
+                            }
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
                     {
-                        fs.Write(icon.Value, 0, icon.Value.Length);
+                        // The achievements still load; their icons fall back to the default art.
+                        _logger.Warn(ex, $"[Xenia] Failed to write icons for {game.Name} to '{iconDirectory}'.");
                     }
                 }
 

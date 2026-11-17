@@ -85,6 +85,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override void RefreshTiles()
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            MosaicSortChoices.BindGameSelector(
+                _controlBarSlot.Adapter.EnableSort(),
+                ShowcaseWidgetOptions.GetGameMosaicSort(Projection?.Instance),
+                ShowcaseWidgetOptions.GetMosaicSortDescending(Projection?.Instance),
+                RefreshTiles);
             _controlBarSlot.UpdateShownBar(Projection?.Instance);
             ControlBar = _controlBarSlot.ShownBar;
 
@@ -186,18 +191,20 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>
-        /// Applies the widget's configured sort over the projected tiles. PinOrder carries no
-        /// sort member path, so it leaves the order the mosaic's Source produced in place.
+        /// Applies the control bar's Sort By, which starts at the widget's configured sort, over
+        /// the projected tiles. Unsorted keeps the order the mosaic's Source produced.
         /// </summary>
         private IEnumerable<GameSummaryItem> OrderGames(IEnumerable<GameSummaryItem> games)
         {
             var list = games.Where(game => game != null).ToList();
-            GameSummariesSortHelper.Sort(
-                list,
-                ShowcaseWidgetOptions.GetGameMosaicSort(Projection?.Instance),
-                ShowcaseWidgetOptions.GetMosaicSortDescending(Projection?.Instance)
-                    ? ListSortDirection.Descending
-                    : ListSortDirection.Ascending);
+            if (MosaicSortChoices.TryGetBarSort(
+                    _controlBarSlot.Adapter?.SortSelector,
+                    out GameSummariesSortMode mode,
+                    out var direction))
+            {
+                GameSummariesSortHelper.Sort(list, mode, direction);
+            }
+
             return list;
         }
     }

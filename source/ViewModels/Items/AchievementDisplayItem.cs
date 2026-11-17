@@ -38,7 +38,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
             public bool ShowLockedIcon { get; set; }
 
-            // These six default to "reveal", matching their persisted defaults, so a
+            // These eight default to "reveal", matching their persisted defaults, so a
             // default-constructed snapshot never masks a field that the settings leave visible.
             public bool ShowLockedTitle { get; set; } = true;
 
@@ -51,6 +51,10 @@ namespace PlayniteAchievements.ViewModels.Items
             public bool ShowLockedTrophy { get; set; } = true;
 
             public bool ShowLockedPoints { get; set; } = true;
+
+            public bool ShowHiddenRarity { get; set; } = true;
+
+            public bool ShowLockedRarity { get; set; } = true;
 
             public bool UseSeparateLockedIconsWhenAvailable { get; set; }
 
@@ -83,6 +87,8 @@ namespace PlayniteAchievements.ViewModels.Items
                     ShowHiddenPoints = ShowHiddenPoints,
                     ShowLockedTrophy = ShowLockedTrophy,
                     ShowLockedPoints = ShowLockedPoints,
+                    ShowHiddenRarity = ShowHiddenRarity,
+                    ShowLockedRarity = ShowLockedRarity,
                     UseSeparateLockedIconsWhenAvailable = useSeparateLockedIcons,
                     ShowRarityBar = ShowRarityBar,
                     ShowFriendSpoilers = ShowFriendSpoilers
@@ -139,7 +145,18 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
-        public Guid? PlayniteGameId { get => _playniteGameId; set => SetValue(ref _playniteGameId, value); }
+        // Tag names and colors resolve per game, so a row reused for another game re-reads them.
+        public Guid? PlayniteGameId
+        {
+            get => _playniteGameId;
+            set
+            {
+                if (SetValueAndReturn(ref _playniteGameId, value))
+                {
+                    NotifyTagsChanged();
+                }
+            }
+        }
 
         public string ProviderKey
         {
@@ -239,6 +256,23 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _comparisonOwnerAvatarPath;
         private DateTime? _comparisonUnlockTimeUtc;
         private bool _comparisonUnlocked;
+        private bool _comparisonApplicable;
+
+        // Whether the compare side has data for this row's game. False renders "N/A" beside
+        // their avatar instead of an unlock date or Locked.
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool ComparisonApplicable
+        {
+            get => _comparisonApplicable;
+            private set
+            {
+                if (SetValueAndReturn(ref _comparisonApplicable, value))
+                {
+                    OnPropertyChanged(nameof(ComparisonToolTip));
+                }
+            }
+        }
 
         [DontSerialize]
         [IgnoreDataMember]
@@ -343,10 +377,12 @@ namespace PlayniteAchievements.ViewModels.Items
                     return null;
                 }
 
-                var friendLine = FormatComparisonLine(
-                    _comparisonFriendName,
-                    _comparisonUnlocked,
-                    ComparisonUnlockTimeLocal);
+                var friendLine = _comparisonApplicable
+                    ? FormatComparisonLine(
+                        _comparisonFriendName,
+                        _comparisonUnlocked,
+                        ComparisonUnlockTimeLocal)
+                    : $"{_comparisonFriendName} · {ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Value_NotAvailable")}";
                 if (string.IsNullOrWhiteSpace(_comparisonOwnerName))
                 {
                     return friendLine;
@@ -376,12 +412,14 @@ namespace PlayniteAchievements.ViewModels.Items
             DateTime? unlockTimeUtc,
             bool unlocked,
             string ownerName = null,
-            string ownerAvatarPath = null)
+            string ownerAvatarPath = null,
+            bool applicable = true)
         {
             ComparisonFriendName = friendName;
             ComparisonFriendAvatarPath = friendAvatarPath;
-            ComparisonUnlockTimeUtc = unlockTimeUtc;
-            ComparisonUnlocked = unlocked;
+            ComparisonUnlockTimeUtc = applicable ? unlockTimeUtc : null;
+            ComparisonUnlocked = applicable && unlocked;
+            ComparisonApplicable = applicable;
             ComparisonOwnerName = ownerName;
             ComparisonOwnerAvatarPath = ownerAvatarPath;
             HasComparison = true;
@@ -394,6 +432,7 @@ namespace PlayniteAchievements.ViewModels.Items
             ComparisonFriendAvatarPath = null;
             ComparisonUnlockTimeUtc = null;
             ComparisonUnlocked = false;
+            ComparisonApplicable = false;
             ComparisonOwnerName = null;
             ComparisonOwnerAvatarPath = null;
         }
@@ -480,13 +519,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(UnlockTimeUtc)))
                 {
-                    OnPropertyChanged(nameof(UnlockTimeText));
-                    OnPropertyChanged(nameof(UnlockTimeOfDayText));
-                    OnPropertyChanged(nameof(UnlockTimeLocal));
-                    OnPropertyChanged(nameof(DateUnlocked));
-                    OnPropertyChanged(nameof(UnlockTime));
-                    OnPropertyChanged(nameof(ShowUnlockDate));
-                    OnPropertyChanged(nameof(ShowLockedProgress));
+                    NotifyUnlockTimeChanged();
                 }
             }
         }
@@ -505,6 +538,8 @@ namespace PlayniteAchievements.ViewModels.Items
                     OnPropertyChanged(nameof(HasRarityPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(RarityDetailText));
+                    NotifyRevealStateChanged();
+                    NotifyRarityDisplayChanged();
                     OnPropertyChanged(nameof(GlobalPercent));
                     OnPropertyChanged(nameof(RarityPercentValue));
                     OnPropertyChanged(nameof(Percent));
@@ -543,6 +578,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 {
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(RarityDetailText));
+                    NotifyRarityDisplayChanged();
                     OnPropertyChanged(nameof(GamerScore));
                     OnPropertyChanged(nameof(RaritySortValue));
                     OnPropertyChanged(nameof(CollectionScore));
@@ -564,14 +600,10 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(Unlocked)))
                 {
-                    NotifyRevealStateChanged();
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
+                    NotifyMaskStateChanged();
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
                     OnPropertyChanged(nameof(IsUnlock));
-                    OnPropertyChanged(nameof(UnlockedForVisibility));
                 }
             }
         }
@@ -646,10 +678,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     value,
                     nameof(Hidden)))
                 {
-                    NotifyRevealStateChanged();
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -849,6 +878,34 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
+        private bool _showHiddenRarity = true;
+        public bool ShowHiddenRarity
+        {
+            get => _showHiddenRarity;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenRarity, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyRarityDisplayChanged();
+                }
+            }
+        }
+
+        private bool _showLockedRarity = true;
+        public bool ShowLockedRarity
+        {
+            get => _showLockedRarity;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedRarity, value))
+                {
+                    NotifyRevealStateChanged();
+                    NotifyRarityDisplayChanged();
+                }
+            }
+        }
+
         private bool _showFriendSpoilers;
         public bool ShowFriendSpoilers
         {
@@ -857,16 +914,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _showFriendSpoilers, value))
                 {
-                    NotifyRevealStateChanged();
-                    OnPropertyChanged(nameof(IsIconHidden));
-                    OnPropertyChanged(nameof(IsLockedIconHidden));
-                    OnPropertyChanged(nameof(IsTitleHidden));
-                    OnPropertyChanged(nameof(IsDescriptionHidden));
-                    NotifyIconDisplayChanged();
-                    NotifyTitleDisplayChanged();
-                    NotifyDescriptionDisplayChanged();
-                    NotifyTrophyDisplayChanged();
-                    NotifyPointsDisplayChanged();
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -900,31 +948,7 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _isRevealed, value))
                 {
-                    NotifyRevealStateChanged();
-                    OnPropertyChanged(nameof(IsIconHidden));
-                    OnPropertyChanged(nameof(IsLockedIconHidden));
-                    OnPropertyChanged(nameof(IsTitleHidden));
-                    OnPropertyChanged(nameof(IsDescriptionHidden));
-                    if (!ShowHiddenIcon || !ShowLockedIcon)
-                    {
-                        NotifyIconDisplayChanged();
-                    }
-                    if (!ShowHiddenTitle || !ShowLockedTitle)
-                    {
-                        NotifyTitleDisplayChanged();
-                    }
-                    if (!ShowHiddenDescription || !ShowLockedDescription)
-                    {
-                        NotifyDescriptionDisplayChanged();
-                    }
-                    if (!ShowHiddenTrophy || !ShowLockedTrophy)
-                    {
-                        NotifyTrophyDisplayChanged();
-                    }
-                    if (!ShowHiddenPoints || !ShowLockedPoints)
-                    {
-                        NotifyPointsDisplayChanged();
-                    }
+                    NotifyMaskStateChanged();
                 }
             }
         }
@@ -1103,6 +1127,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _categoryLabel, value))
                 {
                     OnPropertyChanged(nameof(CategoryLabelDisplay));
+                    OnPropertyChanged(nameof(CategoryLabelPathDisplay));
                 }
             }
         }
@@ -1240,6 +1265,7 @@ namespace PlayniteAchievements.ViewModels.Items
             || DescriptionMaskApplies
             || TrophyMaskApplies
             || PointsMaskApplies
+            || RarityMaskApplies
             || (Hidden && !ShowHiddenIcon));
 
         /// <summary>
@@ -1262,6 +1288,13 @@ namespace PlayniteAchievements.ViewModels.Items
 
         private bool PointsMaskApplies =>
             HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));
+
+        /// <summary>
+        /// Rarity masks only when the row has a real percentage, for the same reason: a row
+        /// without rarity data has nothing to give away.
+        /// </summary>
+        private bool RarityMaskApplies =>
+            HasRarityPercent && (!ShowLockedRarity || (Hidden && !ShowHiddenRarity));
 
         /// <summary>
         /// True if the achievement details are currently hidden (can reveal and not yet revealed).
@@ -1297,6 +1330,18 @@ namespace PlayniteAchievements.ViewModels.Items
         /// True if the point value is currently being hidden (for XAML styling triggers).
         /// </summary>
         public bool IsPointsHidden => IsHidden && PointsMaskApplies;
+
+        /// <summary>
+        /// True if the rarity is currently being hidden (for XAML styling triggers): the tier
+        /// badge shows the unknown-rarity badge and the percentage the placeholder.
+        /// </summary>
+        public bool IsRarityHidden => IsHidden && RarityMaskApplies;
+
+        /// <summary>
+        /// Rarity percentage for display, replaced by <see cref="MaskedValuePlaceholder"/> while
+        /// the rarity mask applies.
+        /// </summary>
+        public string GlobalPercentTextResolved => IsRarityHidden ? MaskedValuePlaceholder : GlobalPercentText;
 
         public string DisplayNameResolved
         {
@@ -1499,6 +1544,8 @@ namespace PlayniteAchievements.ViewModels.Items
             ShowHiddenPoints = resolved.ShowHiddenPoints;
             ShowLockedTrophy = resolved.ShowLockedTrophy;
             ShowLockedPoints = resolved.ShowLockedPoints;
+            ShowHiddenRarity = resolved.ShowHiddenRarity;
+            ShowLockedRarity = resolved.ShowLockedRarity;
             UseSeparateLockedIconsWhenAvailable = resolved.UseSeparateLockedIconsWhenAvailable;
             ShowRarityBar = resolved.ShowRarityBar;
             ShowFriendSpoilers = resolved.ShowFriendSpoilers;
@@ -1525,6 +1572,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 ShowHiddenPoints = ShowHiddenPoints,
                 ShowLockedTrophy = ShowLockedTrophy,
                 ShowLockedPoints = ShowLockedPoints,
+                ShowHiddenRarity = ShowHiddenRarity,
+                ShowLockedRarity = ShowLockedRarity,
                 UseSeparateLockedIconsWhenAvailable = UseSeparateLockedIconsWhenAvailable,
                 ShowRarityBar = ShowRarityBar,
                 ShowFriendSpoilers = ShowFriendSpoilers
@@ -1562,6 +1611,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 ShowHiddenPoints = persisted?.ShowHiddenPoints ?? true,
                 ShowLockedTrophy = persisted?.ShowLockedTrophy ?? true,
                 ShowLockedPoints = persisted?.ShowLockedPoints ?? true,
+                ShowHiddenRarity = persisted?.ShowHiddenRarity ?? true,
+                ShowLockedRarity = persisted?.ShowLockedRarity ?? true,
                 UseSeparateLockedIconsWhenAvailable = resolvedUseSeparateLockedIcons ??
                     GameCustomDataLookup.ShouldUseSeparateLockedIcons(resolvedGameId, persisted),
                 ShowRarityBar = persisted?.ShowCompactListRarityBar ?? true,
@@ -1856,7 +1907,6 @@ namespace PlayniteAchievements.ViewModels.Items
                 case nameof(PersistedSettings.ShowLockedIcon):
                 case nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable):
                 case nameof(PersistedSettings.ShowFriendSpoilers):
-                case nameof(PersistedSettings.SeparateLockedIconEnabledGameIds):
                 case nameof(PersistedSettings.UseUniformRarityBadges):
                 case nameof(PersistedSettings.RarityColors):
                 case nameof(PersistedSettings.LockedFallbackIconPath):
@@ -1988,12 +2038,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(LockedIconPath));
             OnPropertyChanged(nameof(IconPath));
             OnPropertyChanged(nameof(UnlockTimeUtc));
-            OnPropertyChanged(nameof(UnlockTimeText));
-            OnPropertyChanged(nameof(UnlockTimeOfDayText));
-            OnPropertyChanged(nameof(DateUnlocked));
-            OnPropertyChanged(nameof(UnlockTime));
-            OnPropertyChanged(nameof(ShowUnlockDate));
-            OnPropertyChanged(nameof(ShowLockedProgress));
+            NotifyUnlockTimeChanged();
             OnPropertyChanged(nameof(GlobalPercentUnlocked));
             OnPropertyChanged(nameof(HasRarityPercent));
             OnPropertyChanged(nameof(GlobalPercentText));
@@ -2007,8 +2052,6 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Rarity));
             OnPropertyChanged(nameof(GamerScore));
             OnPropertyChanged(nameof(Unlocked));
-            OnPropertyChanged(nameof(ShowUnlockDate));
-            OnPropertyChanged(nameof(ShowLockedProgress));
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
@@ -2028,15 +2071,44 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(ProgressPercent));
             OnPropertyChanged(nameof(TrophyType));
             OnPropertyChanged(nameof(HasTrophyType));
-            NotifyTrophyDisplayChanged();
+            NotifyMaskStateChanged();
+            NotifyIconPathChanged();
+        }
+
+        /// <summary>
+        /// Raises every property derived from the unlock time. Shared by the setter and the
+        /// source swap so a reused row cannot keep the previous achievement's date.
+        /// </summary>
+        private void NotifyUnlockTimeChanged()
+        {
+            OnPropertyChanged(nameof(UnlockTimeText));
+            OnPropertyChanged(nameof(UnlockTimeOfDayText));
+            OnPropertyChanged(nameof(UnlockTimeLocal));
+            OnPropertyChanged(nameof(DateUnlocked));
+            OnPropertyChanged(nameof(UnlockTime));
+            OnPropertyChanged(nameof(ShowUnlockDate));
+            OnPropertyChanged(nameof(ShowLockedProgress));
+        }
+
+        /// <summary>
+        /// Raises every property that depends on whether the row is masked. Called by each input
+        /// that can change the mask for all fields at once: unlock state, hidden flag, reveal,
+        /// friend spoilers, and a source swap.
+        /// </summary>
+        private void NotifyMaskStateChanged()
+        {
+            OnPropertyChanged(nameof(UnlockedForVisibility));
             NotifyRevealStateChanged();
             OnPropertyChanged(nameof(IsIconHidden));
             OnPropertyChanged(nameof(IsLockedIconHidden));
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
+            NotifyIconDisplayChanged();
             NotifyTitleDisplayChanged();
             NotifyDescriptionDisplayChanged();
-            NotifyIconPathChanged();
+            NotifyTrophyDisplayChanged();
+            NotifyPointsDisplayChanged();
+            NotifyRarityDisplayChanged();
         }
 
         private void NotifyIconPathChanged()
@@ -2083,6 +2155,12 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(PointsTextResolved));
         }
 
+        private void NotifyRarityDisplayChanged()
+        {
+            OnPropertyChanged(nameof(IsRarityHidden));
+            OnPropertyChanged(nameof(GlobalPercentTextResolved));
+        }
+
         private string GetLockedDisplayIcon()
         {
             return AchievementIconResolver.GetLockedDisplayIcon(
@@ -2106,7 +2184,8 @@ namespace PlayniteAchievements.ViewModels.Items
                 return effectiveGameKey;
             }
 
-            return achievement.ProviderKey ?? effectiveGameKey ?? gameData?.ProviderKey;
+            return Services.CustomProviders.CustomProviderKeys.ToDisplayKey(
+                achievement.ProviderKey ?? effectiveGameKey ?? gameData?.ProviderKey);
         }
 
         private static AchievementDisplayItem CreateBaseItem(

@@ -41,6 +41,28 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ItemOrder_SurvivesCloneAndJson_AndEmptyMeansDefault()
+        {
+            var options = new AchievementGridOptions
+            {
+                ControlBarItemOrder = new[] { ShowcaseControlBarItems.Sort, ShowcaseControlBarItems.Compare }
+            };
+
+            var clone = options.Clone();
+            Assert.AreNotSame(options.ControlBarItemOrder, clone.ControlBarItemOrder);
+            CollectionAssert.AreEqual(options.ControlBarItemOrder.ToArray(), clone.ControlBarItemOrder.ToArray());
+
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(options);
+            var read = Newtonsoft.Json.JsonConvert.DeserializeObject<AchievementGridOptions>(json);
+            CollectionAssert.AreEqual(
+                new[] { ShowcaseControlBarItems.Sort, ShowcaseControlBarItems.Compare },
+                read.ControlBarItemOrder.ToArray());
+
+            options.ControlBarItemOrder = new string[0];
+            Assert.IsNull(options.ControlBarItemOrder);
+        }
+
+        [TestMethod]
         public void SingleGameBar_ItemsHaveIds_AndTogglesClearToShowingEverything()
         {
             var adapter = new AchievementGridControlBarAdapter();
@@ -50,6 +72,8 @@ namespace PlayniteAchievements.Tests.Models
                 {
                     ShowcaseControlBarItems.Tag,
                     ShowcaseControlBarItems.Category,
+                    ShowcaseControlBarItems.Rarity,
+                    ShowcaseControlBarItems.Trophy,
                     ShowcaseControlBarItems.Compare,
                     ShowcaseControlBarItems.Unlocked,
                     ShowcaseControlBarItems.Locked,

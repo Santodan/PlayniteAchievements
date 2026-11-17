@@ -25,7 +25,7 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class ViewFriendsAchievementsViewModel : ObservableObject, IDisposable
+    public sealed class ViewFriendsAchievementsViewModel : ObservableObject, IDisposable, IFriendSummariesFilterSource
     {
         private readonly Guid _gameId;
         private readonly FriendGameAchievementsDataCoordinator _dataCoordinator;
@@ -85,6 +85,9 @@ namespace PlayniteAchievements.ViewModels
 
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             AchievementsControlBar = _achievementControlBar.ControlBar;
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
+                _achievementControlBar,
+                GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend);
             _achievementControlBar.FilterChanged += (_, __) => ApplyFilters();
             // The game is fixed here, so a selected friend forms a pair the same way the Friends
             // Overview pair view does: compare them against another friend with data for it.
@@ -95,6 +98,7 @@ namespace PlayniteAchievements.ViewModels
                 loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
                 logger: logger);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
+            PersistCompareSelection();
 
             RefreshCommand = new RelayCommand(async _ => await RefreshAllFriendsForGameAsync(), _ => !IsRefreshing);
             RefreshSelectedFriendCommand = new RelayCommand(
@@ -167,17 +171,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
-                    if (value == null)
-                    {
-                        // The aggregated all-friends view shows unlocked rows only; a stale
-                        // unchecked Unlocked toggle would empty it, so restore the defaults.
-                        _achievementControlBar.ResetVisibilityToggles();
-                    }
-
-                    // The comparison is scoped to one friend+game pair, so a different friend
-                    // starts over; the option list changes with the selection either way.
+                    // A different friend starts the comparison over, from the pick remembered
+                    // for the view the grid is now in; the option list changes with the selection
+                    // either way.
                     _friendCompare.ClearSelection();
                     _friendCompare.Refresh();
+                    PersistCompareSelection();
 
                     OnPropertyChanged(nameof(HasFriendSelection));
                     OnPropertyChanged(nameof(AchievementColumnSettingsKey));
@@ -484,33 +483,7 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
         {
-            var controlBar = new GridControlBarViewModel
-            {
-                Search = new GridSearchControl(
-                    this,
-                    nameof(FriendSearchText),
-                    () => FriendSearchText,
-                    value => FriendSearchText = value,
-                    GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
-                    ClearFriendSearch)
-                {
-                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Search,
-                    LabelKey = "LOCPlayAch_FriendsOverview_SearchFriends"
-                }
-            };
-            controlBar.Items.Add(new GridToggleFilter(
-                this,
-                nameof(FavoritesOnly),
-                L("LOCPlayAch_RefreshModeShort_Favorites"),
-                () => FavoritesOnly,
-                value => FavoritesOnly = value,
-                GridToggleFilterIcon.Favorite)
-            {
-                Id = PlayniteAchievements.Models.ShowcaseControlBarItems.Favorites,
-                LabelKey = "LOCPlayAch_RefreshModeShort_Favorites",
-                ClearedValue = false
-            });
-            return controlBar;
+            return FriendSurfaceControlBars.CreateFriendSummariesControlBar(this);
         }
 
         private void ApplySnapshot(FriendsOverviewSnapshot snapshot)
@@ -555,19 +528,23 @@ namespace PlayniteAchievements.ViewModels
             ApplyFilters();
         }
 
-        // Friends other than the selected one that have cached rows for this window's game.
+        // The all-friends view and the selected-friend view each remember their own Compare pick.
+        private void PersistCompareSelection()
+        {
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _friendCompare.PersistSelection,
+                SelectedFriend != null
+                    ? GridOptionKeys.Achievement.ViewFriendsAchievementsSelectedFriend
+                    : GridOptionKeys.Achievement.ViewFriendsAchievements);
+        }
+
+        // Friends other than the selected one, those with cached rows for this window's game first.
         private IReadOnlyList<FriendSummaryItem> GetCompareFriendOptions()
         {
-            if (SelectedFriend == null)
-            {
-                return Array.Empty<FriendSummaryItem>();
-            }
-
-            return _allFriends
-                .Where(friend => friend != null &&
-                    !FriendOverviewProjection.IsSameFriend(friend, SelectedFriend) &&
-                    _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)))
-                .ToList();
+            return FriendSurfaceControlBars.GetCompareFriendOptions(
+                _allFriends,
+                SelectedFriend,
+                friend => _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)));
         }
 
         // Mirrors the Friends Overview game-summary pair: the aggregate all-friends row when no
@@ -655,7 +632,7 @@ namespace PlayniteAchievements.ViewModels
 
             var options = AchievementGridOptions;
             var sort = new AchievementSortSpec(
-                options?.SortMode ?? CompactListSortMode.UnlockTime,
+                options?.SortColumn ?? GridSortColumns.FromAchievementMode(CompactListSortMode.UnlockTime),
                 (options?.SortDescending ?? true)
                     ? ListSortDirection.Descending
                     : ListSortDirection.Ascending);

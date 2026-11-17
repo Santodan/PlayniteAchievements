@@ -10,7 +10,9 @@ namespace PlayniteAchievements.Providers.BattleNet
     {
         None = 0,
         Wow = 1,
-        Sc2 = 2
+        Sc2 = 2,
+        WowClassic = 3,
+        WowForever = 4
     }
 
     internal static class BattleNetGameSupport
@@ -38,7 +40,31 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return false;
             }
 
-            return IsWowGame(game) || (IsSc2Enabled && IsSc2Game(game) && HasSc2Prerequisites(settings));
+            return IsTitleScannable(ResolveTitleByName(game), settings);
+        }
+
+        /// <summary>
+        /// Maps a Battle.net library name to its title. Classic and Forever are checked before
+        /// retail because their names also contain "World of Warcraft".
+        /// </summary>
+        public static BattleNetGameTitle ResolveTitleByName(Game game)
+        {
+            if (IsWowClassicGame(game))
+            {
+                return BattleNetGameTitle.WowClassic;
+            }
+
+            if (IsWowForeverGame(game))
+            {
+                return BattleNetGameTitle.WowForever;
+            }
+
+            if (IsWowGame(game))
+            {
+                return BattleNetGameTitle.Wow;
+            }
+
+            return IsSc2Game(game) ? BattleNetGameTitle.Sc2 : BattleNetGameTitle.None;
         }
 
         public static bool TryGetForcedTitle(Game game, out BattleNetGameTitle title)
@@ -57,14 +83,20 @@ namespace PlayniteAchievements.Providers.BattleNet
                 title != BattleNetGameTitle.None;
         }
 
-        // A forced title is scannable when its account-level prerequisites are met; WoW relies on the
-        // global region/realm/character, SC2 on credentials plus a profile or OAuth session.
+        // A title is scannable when its account-level prerequisites are met. Retail WoW relies on the
+        // global region/realm/character; Classic reads the official API only, so it needs credentials
+        // or a signed-in account; Forever has no named realms, so its characters come only from a
+        // signed-in account; SC2 needs credentials plus a profile or OAuth session.
         private static bool IsTitleScannable(BattleNetGameTitle title, BattleNetSettings settings)
         {
             switch (title)
             {
                 case BattleNetGameTitle.Wow:
                     return true;
+                case BattleNetGameTitle.WowClassic:
+                    return HasApiCredentials(settings) || HasOAuthSession(settings);
+                case BattleNetGameTitle.WowForever:
+                    return HasOAuthSession(settings);
                 case BattleNetGameTitle.Sc2:
                     return IsSc2Enabled && HasSc2Prerequisites(settings);
                 default:
@@ -77,7 +109,28 @@ namespace PlayniteAchievements.Providers.BattleNet
             var name = game?.Name;
             return !string.IsNullOrWhiteSpace(name) &&
                 (name.Equals("wow", StringComparison.OrdinalIgnoreCase) ||
-                 name.IndexOf("world of warcraft", StringComparison.OrdinalIgnoreCase) >= 0);
+                 name.IndexOf("world of warcraft", StringComparison.OrdinalIgnoreCase) >= 0) &&
+                !IsWowClassicGame(game) &&
+                !IsWowForeverGame(game);
+        }
+
+        public static bool IsWowClassicGame(Game game)
+        {
+            return NameHasWowAnd(game?.Name, "classic");
+        }
+
+        public static bool IsWowForeverGame(Game game)
+        {
+            return NameHasWowAnd(game?.Name, "forever");
+        }
+
+        private static bool NameHasWowAnd(string name, string version)
+        {
+            return !string.IsNullOrWhiteSpace(name) &&
+                name.IndexOf(version, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                (name.IndexOf("warcraft", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 name.StartsWith("wow ", StringComparison.OrdinalIgnoreCase) ||
+                 name.StartsWith("wow:", StringComparison.OrdinalIgnoreCase));
         }
 
         public static bool IsSc2Game(Game game)

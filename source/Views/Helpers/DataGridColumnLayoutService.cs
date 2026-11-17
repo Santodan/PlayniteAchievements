@@ -2866,6 +2866,23 @@ namespace PlayniteAchievements.Views.Helpers
             return null;
         }
 
+        /// <summary>
+        /// Whether the column menu lists <paramref name="column"/>: every named column but the
+        /// ones this surface keeps out (friend-only columns on the user's own grids, and the like).
+        /// Sort By offers the same columns.
+        /// </summary>
+        public bool IsListedInColumnMenu(DataGridColumn column)
+        {
+            if (column == null)
+            {
+                return false;
+            }
+
+            var key = GetColumnKey(column);
+            return (string.IsNullOrWhiteSpace(key) || !ExcludedVisibilityKeys.Contains(key)) &&
+                   !string.IsNullOrWhiteSpace(ResolveColumnDisplayName(column));
+        }
+
         private bool AddVisibilitySection(ContextMenu menu)
         {
             if (menu == null)
@@ -2888,20 +2905,10 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             foreach (var column in _grid.Columns
-                         .Where(c => c != null)
+                         .Where(IsListedInColumnMenu)
                          .OrderBy(c => c.DisplayIndex))
             {
-                var key = GetColumnKey(column);
-                if (!string.IsNullOrWhiteSpace(key) && ExcludedVisibilityKeys.Contains(key))
-                {
-                    continue;
-                }
-
                 var headerText = ResolveColumnDisplayName(column);
-                if (string.IsNullOrWhiteSpace(headerText))
-                {
-                    continue;
-                }
 
                 var targetColumn = column;
                 var item = new MenuItem
@@ -3525,7 +3532,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private static string ResolveColumnDisplayName(DataGridColumn column)
+        internal static string ResolveColumnDisplayName(DataGridColumn column)
         {
             // A declared name wins: resolving a Header that is a control falls through to
             // ToString(), which reads as the control's type name.

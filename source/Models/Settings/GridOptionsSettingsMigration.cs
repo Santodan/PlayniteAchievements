@@ -106,7 +106,7 @@ namespace PlayniteAchievements.Models.Settings
                 gridOptions,
                 nameof(GridOptionsCatalog.Achievement),
                 GridOptionKeys.Achievement.Default,
-                ("AchievementDataGridSortMode", nameof(AchievementGridOptions.SortMode)),
+                ("AchievementDataGridSortMode", GridSortColumns.LegacySortModeName),
                 ("AchievementDataGridSortDescending", nameof(AchievementGridOptions.SortDescending)),
                 ("AchievementDataGridMaxHeight", nameof(AchievementGridOptions.MaxHeight)));
 
@@ -117,7 +117,7 @@ namespace PlayniteAchievements.Models.Settings
                 GridOptionKeys.Achievement.SingleGame,
                 ("SingleGameGridRowHeight", nameof(AchievementGridOptions.RowHeight)),
                 ("SingleGameGridMaxRows", nameof(AchievementGridOptions.MaxRows)),
-                ("SingleGameGridSortMode", nameof(AchievementGridOptions.SortMode)),
+                ("SingleGameGridSortMode", GridSortColumns.LegacySortModeName),
                 ("SingleGameGridSortDescending", nameof(AchievementGridOptions.SortDescending)),
                 ("ViewAchievementsAchievementsUnlockDateMode", nameof(AchievementGridOptions.UnlockDateMode)),
                 ("ShowViewAchievementsAchievementGridControlBar", nameof(AchievementGridOptions.ShowControlBar)));
@@ -148,7 +148,7 @@ namespace PlayniteAchievements.Models.Settings
                 ("OverviewSelectedGameShowRarityGlow", nameof(AchievementGridOptions.ShowRarityGlow)),
                 ("OverviewSelectedGameColorNamesByRarity", nameof(AchievementGridOptions.ColorNamesByRarity)),
                 ("OverviewSelectedGameAchievementsUnlockDateMode", nameof(AchievementGridOptions.UnlockDateMode)),
-                ("OverviewSelectedGameGridSortMode", nameof(AchievementGridOptions.SortMode)),
+                ("OverviewSelectedGameGridSortMode", GridSortColumns.LegacySortModeName),
                 ("OverviewSelectedGameGridSortDescending", nameof(AchievementGridOptions.SortDescending)));
 
             changed |= CopyScalars(
@@ -177,7 +177,7 @@ namespace PlayniteAchievements.Models.Settings
                 (nameof(StartPageRecentUnlocksGridSettings.UseCoverImages), nameof(AchievementGridOptions.UseCoverImages)),
                 (nameof(StartPageRecentUnlocksGridSettings.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
                 (nameof(StartPageRecentUnlocksGridSettings.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)),
-                (nameof(StartPageRecentUnlocksGridSettings.SortMode), nameof(AchievementGridOptions.SortMode)),
+                (GridSortColumns.LegacySortModeName, GridSortColumns.LegacySortModeName),
                 (nameof(StartPageRecentUnlocksGridSettings.SortDescending), nameof(AchievementGridOptions.SortDescending)));
 
             changed |= CopyScalars(
@@ -201,7 +201,7 @@ namespace PlayniteAchievements.Models.Settings
                 (nameof(StartPageRecentUnlocksGridSettings.UseCoverImages), nameof(AchievementGridOptions.UseCoverImages)),
                 (nameof(StartPageRecentUnlocksGridSettings.ShowRarityGlow), nameof(AchievementGridOptions.ShowRarityGlow)),
                 (nameof(StartPageRecentUnlocksGridSettings.ColorNamesByRarity), nameof(AchievementGridOptions.ColorNamesByRarity)),
-                (nameof(StartPageRecentUnlocksGridSettings.SortMode), nameof(AchievementGridOptions.SortMode)),
+                (GridSortColumns.LegacySortModeName, GridSortColumns.LegacySortModeName),
                 (nameof(StartPageRecentUnlocksGridSettings.SortDescending), nameof(AchievementGridOptions.SortDescending)));
 
             changed |= CopyScalars(
@@ -251,7 +251,7 @@ namespace PlayniteAchievements.Models.Settings
                 ("ShowOverviewGameMetadataPlaytime", nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 ("ShowOverviewGameMetadataRegion", nameof(GameSummaryGridOptions.ShowMetadataRegion)),
                 ("OverviewGameSummariesLastPlayedDateMode", nameof(GameSummaryGridOptions.LastPlayedDateMode)),
-                ("OverviewGameSummariesGridSortMode", nameof(GameSummaryGridOptions.SortMode)),
+                ("OverviewGameSummariesGridSortMode", GridSortColumns.LegacySortModeName),
                 ("OverviewGameSummariesGridSortDescending", nameof(GameSummaryGridOptions.SortDescending)));
 
             changed |= CopyScalars(
@@ -267,7 +267,7 @@ namespace PlayniteAchievements.Models.Settings
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataPlatform), nameof(GameSummaryGridOptions.ShowMetadataPlatform)),
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataPlaytime), nameof(GameSummaryGridOptions.ShowMetadataPlaytime)),
                 (nameof(StartPageGameSummariesGridSettings.ShowMetadataRegion), nameof(GameSummaryGridOptions.ShowMetadataRegion)),
-                (nameof(StartPageGameSummariesGridSettings.SortMode), nameof(GameSummaryGridOptions.SortMode)),
+                (GridSortColumns.LegacySortModeName, GridSortColumns.LegacySortModeName),
                 (nameof(StartPageGameSummariesGridSettings.SortDescending), nameof(GameSummaryGridOptions.SortDescending)));
 
             changed |= CopyScalars(
@@ -643,6 +643,14 @@ namespace PlayniteAchievements.Models.Settings
             string targetName)
         {
             if (source == null || target == null || source[sourceName] == null || target[targetName] != null)
+            {
+                return false;
+            }
+
+            // A record that already holds a column-keyed sort must not take an older enum sort,
+            // which it would read after the column key and so overwrite it.
+            if (string.Equals(targetName, GridSortColumns.LegacySortModeName, StringComparison.Ordinal) &&
+                target[nameof(AchievementGridOptions.SortColumn)] != null)
             {
                 return false;
             }

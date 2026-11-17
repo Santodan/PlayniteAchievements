@@ -184,6 +184,63 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
+        /// Creates <paramref name="linkPath"/> as another name for <paramref name="existingPath"/>'s
+        /// file. False when the volume has no hard links, the file has too many, or the call fails.
+        /// </summary>
+        internal static bool TryCreateLink(string linkPath, string existingPath)
+        {
+            return CreateHardLink(linkPath, existingPath, IntPtr.Zero);
+        }
+
+        /// <summary>
+        /// The folder a junction or symbolic link finally points at, or the folder itself when it
+        /// is not a link. Null when the folder cannot be opened.
+        /// </summary>
+        internal static string TryResolveFinalFolder(string folder)
+        {
+            using (var handle = CreateFile(folder, FileReadAttributes, FileShareAll, IntPtr.Zero, OpenExisting, FileFlagBackupSemantics, IntPtr.Zero))
+            {
+                if (handle.IsInvalid)
+                {
+                    return null;
+                }
+
+                var buffer = new System.Text.StringBuilder(1024);
+                var length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+                if (length == 0)
+                {
+                    return null;
+                }
+
+                if (length >= buffer.Capacity)
+                {
+                    buffer = new System.Text.StringBuilder((int)length + 1);
+                    length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+                    if (length == 0 || length >= buffer.Capacity)
+                    {
+                        return null;
+                    }
+                }
+
+                return StripExtendedPrefix(buffer.ToString());
+            }
+        }
+
+        internal static string StripExtendedPrefix(string path)
+        {
+            const string uncPrefix = @"\\?\UNC\";
+            const string localPrefix = @"\\?\";
+            if (path.StartsWith(uncPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return @"\\" + path.Substring(uncPrefix.Length);
+            }
+
+            return path.StartsWith(localPrefix, StringComparison.Ordinal)
+                ? path.Substring(localPrefix.Length)
+                : path;
+        }
+
+        /// <summary>
         /// Groups the files under <paramref name="folders"/> that hold the same bytes but are not
         /// yet one file. Only files sharing a length are hashed, and names already linked are hashed
         /// once. Leftover link temp files are deleted on the way.
@@ -316,6 +373,9 @@ namespace PlayniteAchievements.Services.Images
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, System.Text.StringBuilder path, uint length, uint flags);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]

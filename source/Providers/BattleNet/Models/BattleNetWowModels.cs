@@ -29,6 +29,13 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
     }
 
     [DataContract]
+    public sealed class WowRealmIndexResponse
+    {
+        [DataMember(Name = "realms")]
+        public List<WowRealm> Realms { get; set; }
+    }
+
+    [DataContract]
     public sealed class WowAchievementsData
     {
         [DataMember(Name = "name")]
@@ -106,19 +113,19 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
         public List<WowAccountProfileCharacterEntry> Characters { get; set; }
     }
 
+    /// <summary>
+    /// One character on the account. Name, realm and level sit on the entry itself; "character" is
+    /// only a link to the character's profile resource.
+    /// </summary>
     [DataContract]
     public sealed class WowAccountProfileCharacterEntry
     {
         [DataMember(Name = "character")]
-        public WowAccountProfileCharacter Character { get; set; }
+        public WowApiKey Character { get; set; }
 
         [DataMember(Name = "protected_character")]
         public WowApiKey ProtectedCharacter { get; set; }
-    }
 
-    [DataContract]
-    public sealed class WowAccountProfileCharacter
-    {
         [DataMember(Name = "id")]
         public long Id { get; set; }
 
@@ -284,6 +291,12 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
     [DataContract]
     public sealed class WowAchievementCategoryIndexResponse
     {
+        [DataMember(Name = "categories")]
+        public List<WowAchievementCategoryReference> Categories { get; set; }
+
+        [DataMember(Name = "root_categories")]
+        public List<WowAchievementCategoryReference> RootCategories { get; set; }
+
         [DataMember(Name = "guild_categories")]
         public List<WowAchievementCategoryReference> GuildCategories { get; set; }
     }
@@ -294,8 +307,20 @@ namespace PlayniteAchievements.Providers.BattleNet.Models
         [DataMember(Name = "id")]
         public int Id { get; set; }
 
+        [DataMember(Name = "name")]
+        public string Name { get; set; }
+
+        [DataMember(Name = "achievements")]
+        public List<WowOfficialAchievementReference> Achievements { get; set; }
+
         [DataMember(Name = "subcategories")]
         public List<WowAchievementCategoryReference> Subcategories { get; set; }
+
+        [DataMember(Name = "parent_category")]
+        public WowAchievementCategoryReference ParentCategory { get; set; }
+
+        [DataMember(Name = "is_guild_category")]
+        public bool IsGuildCategory { get; set; }
     }
 
     [DataContract]

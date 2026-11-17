@@ -44,7 +44,9 @@ namespace PlayniteAchievements.Services.Tests
         /// </summary>
         private static readonly (Type Owner, string Field, string Since)[] RetiredFields =
         {
-            (typeof(ManualAchievementLink), "AllowUnauthenticatedSchemaFetch", "4.1.1")
+            (typeof(ManualAchievementLink), "AllowUnauthenticatedSchemaFetch", "4.1.1"),
+            (typeof(AchievementGridOptions), "SortMode", "4.2.1"),
+            (typeof(GameSummaryGridOptions), "SortMode", "4.2.1")
         };
 
         [TestMethod]

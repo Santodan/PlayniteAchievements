@@ -129,7 +129,7 @@ namespace PlayniteAchievements.Services.Summaries
         private (string providerName, string providerKey, (string iconKey, string colorHex) metadata) ResolveProvider(
             GameAchievementData gameData)
         {
-            var providerKey = gameData.EffectiveProviderKey;
+            var providerKey = Services.CustomProviders.CustomProviderKeys.ToDisplayKey(gameData.EffectiveProviderKey);
             providerKey = string.IsNullOrWhiteSpace(providerKey) ? "Unknown" : providerKey;
 
             var providerName = ProviderRegistry.GetLocalizedName(providerKey);

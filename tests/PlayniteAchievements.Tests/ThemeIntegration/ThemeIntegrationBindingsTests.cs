@@ -3460,9 +3460,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
                 Array.Empty<Guid>();
 
-            public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
-                Data;
-
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() =>
                 new List<CurrentUserGameLabel>();
         }

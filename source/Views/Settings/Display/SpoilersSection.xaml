@@ -109,6 +109,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
@@ -171,6 +172,16 @@
                                 <CheckBox Grid.Row="6" Grid.Column="2"
                                           Style="{StaticResource RevealMatrixCheckBoxStyle}"
                                           IsChecked="{Binding Persisted.ShowLockedPoints}"/>
+
+                                <TextBlock Grid.Row="7" Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                                           Style="{StaticResource RevealMatrixRowLabelStyle}"/>
+                                <CheckBox Grid.Row="7" Grid.Column="1"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenRarity}"/>
+                                <CheckBox Grid.Row="7" Grid.Column="2"
+                                          Style="{StaticResource RevealMatrixCheckBoxStyle}"
+                                          IsChecked="{Binding Persisted.ShowLockedRarity}"/>
                             </Grid>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}">

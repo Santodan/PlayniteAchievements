@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
@@ -31,6 +32,12 @@ namespace PlayniteAchievements.Views.Helpers
     /// element unloads, and resumes on reload, so virtualized grid rows keep pulsing after
     /// scrolling off and back. Replaces static XAML storyboards, whose From/To/Duration cannot be
     /// bound.
+    ///
+    /// Phase-locked element pulses (every library surface) are not WPF animations: the shared glow
+    /// tick (<see cref="RayAnimationDriver"/>, 30 per second) writes the epoch's current value to
+    /// each of them, so the pulse neither composes at the display's refresh rate nor runs while
+    /// <see cref="GlowAnimationGate"/> is suspended. Phase-lock opt-outs (the unlock notification
+    /// card) keep their own clocks.
     /// </summary>
     public static class RarityGlowPulse
     {
@@ -115,55 +122,102 @@ namespace PlayniteAchievements.Views.Helpers
             DependencyProperty.RegisterAttached(
                 "HasPresetOpacity", typeof(bool), typeof(RarityGlowPulse), new PropertyMetadata(false));
 
+        // An opt-out element pulse's own clock, so a slide can pause and resume it.
         private sealed class ElementPulse
         {
             internal AnimationClock Clock;
-            internal bool Shared;
-            internal double? BaseOpacity;
 
-            internal void Pause(FrameworkElement element)
-            {
-                if (!Shared)
-                {
-                    Clock.Controller?.Pause();
-                    return;
-                }
+            internal void Pause() => Clock.Controller?.Pause();
 
-                // A shared clock may also drive library icons outside this toast. Freeze this
-                // consumer only, preserving its base value and the other consumers' phase.
-                if (BaseOpacity.HasValue) return;
-                var opacity = element.Opacity;
-                BaseOpacity = (double)element.GetAnimationBaseValue(UIElement.OpacityProperty);
-                element.ApplyAnimationClock(UIElement.OpacityProperty, null);
-                element.SetCurrentValue(UIElement.OpacityProperty, opacity);
-            }
-
-            internal void Resume(FrameworkElement element)
-            {
-                if (!Shared)
-                {
-                    Clock.Controller?.Resume();
-                    return;
-                }
-
-                if (!BaseOpacity.HasValue) return;
-                element.SetCurrentValue(UIElement.OpacityProperty, BaseOpacity.Value);
-                BaseOpacity = null;
-                element.ApplyAnimationClock(UIElement.OpacityProperty, Clock);
-            }
+            internal void Resume() => Clock.Controller?.Resume();
         }
 
-        private static void ApplyElementClock(FrameworkElement element, AnimationClock clock, bool shared)
+        private static void ApplyElementClock(FrameworkElement element, AnimationClock clock)
         {
-            // Settings can retune an already-paused pulse. Restore the saved base before
-            // replacing its clock, then keep the replacement paused until the slide finishes.
-            var previous = element.GetValue(ElementPulseProperty) as ElementPulse;
-            if (previous?.BaseOpacity != null)
-                element.SetCurrentValue(UIElement.OpacityProperty, previous.BaseOpacity.Value);
-            var pulse = new ElementPulse { Clock = clock, Shared = shared };
+            var pulse = new ElementPulse { Clock = clock };
             element.SetValue(ElementPulseProperty, pulse);
             element.ApplyAnimationClock(UIElement.OpacityProperty, clock);
-            if ((bool)element.GetValue(IsPausedProperty)) pulse.Pause(element);
+            if ((bool)element.GetValue(IsPausedProperty)) pulse.Pause();
+        }
+
+        /// <summary>
+        /// Writes the shared epoch's pulse value to every phase-locked element pulse once per glow
+        /// tick. Elements are held weakly: recycled item containers do not reliably raise Unloaded
+        /// (see <see cref="RayAnimationDriver"/>), and a strong list would root every dead tile.
+        /// </summary>
+        private sealed class PhaseLockedTicker : IRayAnimationTarget
+        {
+            internal static readonly PhaseLockedTicker Instance = new PhaseLockedTicker();
+
+            private readonly List<WeakReference<FrameworkElement>> _elements =
+                new List<WeakReference<FrameworkElement>>();
+
+            // The settings the newest activation resolved. Every caller passes the plugin's live
+            // instance, so this follows retuning without a subscription of its own.
+            internal PersistedSettings Settings;
+
+            internal void Add(FrameworkElement element)
+            {
+                if (IndexOf(element) < 0)
+                {
+                    _elements.Add(new WeakReference<FrameworkElement>(element));
+                }
+
+                RayAnimationDriver.Subscribe(this);
+            }
+
+            internal void Remove(FrameworkElement element)
+            {
+                var index = IndexOf(element);
+                if (index >= 0)
+                {
+                    _elements.RemoveAt(index);
+                }
+
+                if (_elements.Count == 0)
+                {
+                    RayAnimationDriver.Unsubscribe(this);
+                }
+            }
+
+            private int IndexOf(FrameworkElement element)
+            {
+                for (var i = 0; i < _elements.Count; i++)
+                {
+                    if (_elements[i].TryGetTarget(out var existing) && ReferenceEquals(existing, element))
+                    {
+                        return i;
+                    }
+                }
+
+                return -1;
+            }
+
+            public bool WantsRayFrames
+            {
+                get
+                {
+                    _elements.RemoveAll(reference => !reference.TryGetTarget(out _));
+                    return _elements.Count > 0;
+                }
+            }
+
+            public bool IgnoresGlowGate => false;
+
+            public bool TakesEveryHeldFrame => false;
+
+            public void OnRayFrame()
+            {
+                var opacity = CurrentPulseOpacity(Settings);
+                for (var i = 0; i < _elements.Count; i++)
+                {
+                    if (_elements[i].TryGetTarget(out var element) &&
+                        !(bool)element.GetValue(IsPausedProperty))
+                    {
+                        element.Opacity = opacity;
+                    }
+                }
+            }
         }
 
         private static void OnIsActiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -252,8 +306,6 @@ namespace PlayniteAchievements.Views.Helpers
                     args.PropertyName == nameof(PersistedSettings.RarityGlowPulseMaxOpacity) ||
                     args.PropertyName == nameof(PersistedSettings.RarityGlowPulseSpeed))
                 {
-                    // Retune the shared clock once; every element then re-attaches to it.
-                    InvalidateSharedClock();
                     ApplyAnimation(element, persisted);
                 }
             };
@@ -318,40 +370,24 @@ namespace PlayniteAchievements.Views.Helpers
             return min + ((max - min) * eased);
         }
 
-        // One clock drives every phase-locked pulse. Each BeginAnimation would otherwise create an
-        // independent clock that the timing manager ticks separately every frame, so a dense
-        // surface (the showcase icon mosaic shows up to 64 glowing icons at once) paid for dozens
-        // of redundant clocks. Phase-locked pulses all want the identical curve at the identical
-        // phase, so they can share one. Opt-outs (toasts, which must start at the cycle peak) keep
-        // their own clock.
-        private static AnimationClock _sharedElementClock;
-        private static string _sharedClockKey;
-
-        private static AnimationClock GetSharedClock(DoubleAnimation animation, double cycleMilliseconds)
-        {
-            var key = animation.From.ToString() + "|" + animation.To.ToString() + "|" +
-                animation.Duration.ToString();
-            if (_sharedElementClock == null || !string.Equals(_sharedClockKey, key, StringComparison.Ordinal))
-            {
-                animation.BeginTime = GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds);
-                _sharedElementClock = animation.CreateClock();
-                _sharedClockKey = key;
-            }
-
-            return _sharedElementClock;
-        }
-
-        /// <summary>
-        /// Drops the shared clock so the next activation rebuilds it from current settings.
-        /// </summary>
-        private static void InvalidateSharedClock()
-        {
-            _sharedElementClock = null;
-            _sharedClockKey = null;
-        }
-
         private static void ApplyAnimation(FrameworkElement element, PersistedSettings persisted)
         {
+            if (GetTarget(element) == RarityGlowPulseTarget.Element && GetPhaseLock(element))
+            {
+                // Every phase-locked pulse wants the identical value at the identical moment, so
+                // one tick computes it once and writes it to all of them. Settings are read per
+                // tick, so retuning needs no rebuild.
+                var ticker = PhaseLockedTicker.Instance;
+                ticker.Settings = persisted;
+                if (!(bool)element.GetValue(IsPausedProperty))
+                {
+                    element.Opacity = CurrentPulseOpacity(persisted);
+                }
+
+                ticker.Add(element);
+                return;
+            }
+
             var (min, max, seconds) = ResolvePulseParams(persisted);
 
             // Phase-locked to the shared epoch (full cycle = fade in + auto-reversed fade
@@ -368,12 +404,6 @@ namespace PlayniteAchievements.Views.Helpers
                 RepeatBehavior = RepeatBehavior.Forever,
                 EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
             });
-
-            if (GetTarget(element) == RarityGlowPulseTarget.Element && GetPhaseLock(element))
-            {
-                ApplyElementClock(element, GetSharedClock(animation, cycleMilliseconds), shared: true);
-                return;
-            }
 
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
             {
@@ -409,12 +439,13 @@ namespace PlayniteAchievements.Views.Helpers
                 animation.BeginTime = GetPhaseLock(element)
                     ? GlowAnimationClock.PhaseLockBeginTime(cycleMilliseconds)
                     : GlowAnimationClock.PeakStartBeginTime(cycleMilliseconds);
-                ApplyElementClock(element, animation.CreateClock(), shared: false);
+                ApplyElementClock(element, animation.CreateClock());
             }
         }
 
         private static void StopAnimation(FrameworkElement element)
         {
+            PhaseLockedTicker.Instance.Remove(element);
             element.ClearValue(IsPausedProperty);
             element.ClearValue(ElementPulseProperty);
             if (GetTarget(element) == RarityGlowPulseTarget.Effect)
@@ -428,7 +459,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
             else
             {
-                // Detaches whether the element was driven by the shared clock or its own.
+                // Detaches an opt-out's own clock; a no-op for a ticker-driven element.
                 element.ApplyAnimationClock(UIElement.OpacityProperty, null);
 
                 // Drop the phase pre-set local value (see OnIsActiveChanged) so the element
@@ -449,8 +480,8 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// Freezes both card-effect and icon-opacity pulses during a slide. Either kind would
-        /// invalidate the whole-card motion cache every frame. Shared clocks keep running for
-        /// consumers outside this subtree. UI thread only.
+        /// invalidate the whole-card motion cache every frame. The shared tick skips paused
+        /// elements, so consumers outside this subtree keep pulsing. UI thread only.
         /// </summary>
         public static void PauseUnder(DependencyObject root)
         {
@@ -459,8 +490,67 @@ namespace PlayniteAchievements.Views.Helpers
                 if (!GetIsActive(element) || (bool)element.GetValue(IsPausedProperty)) return;
                 element.SetValue(IsPausedProperty, true);
                 (element.GetValue(EffectClockProperty) as AnimationClock)?.Controller?.Pause();
-                (element.GetValue(ElementPulseProperty) as ElementPulse)?.Pause(element);
+                (element.GetValue(ElementPulseProperty) as ElementPulse)?.Pause();
             });
+        }
+
+        /// <summary>
+        /// Stops <paramref name="element"/>'s Effect-target pulse with the effect at the pulse's
+        /// peak, and reports the opacity it showed at that moment and the sweep it was running
+        /// (floor, peak, seconds per half cycle). For a caller that shows the element through
+        /// something it can dim itself: the element then stands still at the peak and the caller
+        /// reproduces the sweep. False, changing nothing, when the element has no running Effect
+        /// pulse. Undone by <see cref="ReleaseEffectPulse"/>. UI thread only.
+        /// </summary>
+        internal static bool TryHoldEffectPulseAtPeak(
+            FrameworkElement element, out double shown, out double floor, out double peak, out double halfCycleSeconds)
+        {
+            shown = floor = peak = halfCycleSeconds = 0d;
+            if (element == null || !GetIsActive(element) || (bool)element.GetValue(IsPausedProperty) ||
+                !(element.GetValue(EffectClockProperty) is AnimationClock clock) ||
+                !(clock.Timeline is DoubleAnimation sweep) || clock.Controller == null ||
+                !(element.Effect is DropShadowEffect effect) ||
+                !sweep.From.HasValue || !sweep.To.HasValue || !sweep.Duration.HasTimeSpan)
+            {
+                return false;
+            }
+
+            shown = effect.Opacity;
+            floor = sweep.From.Value;
+            peak = sweep.To.Value;
+            halfCycleSeconds = sweep.Duration.TimeSpan.TotalSeconds;
+            if (halfCycleSeconds <= 0)
+            {
+                return false;
+            }
+
+            element.SetValue(IsPausedProperty, true);
+            clock.Controller.Pause();
+            clock.Controller.SeekAlignedToLastTick(sweep.Duration.TimeSpan, TimeSeekOrigin.BeginTime);
+            return true;
+        }
+
+        /// <summary>
+        /// Resumes a pulse held by <see cref="TryHoldEffectPulseAtPeak"/> from
+        /// <paramref name="cycleSeconds"/> into its cycle (the rise, then the fall).
+        /// </summary>
+        internal static void ReleaseEffectPulse(FrameworkElement element, double cycleSeconds)
+        {
+            if (element == null || !(bool)element.GetValue(IsPausedProperty))
+            {
+                return;
+            }
+
+            element.ClearValue(IsPausedProperty);
+            var controller = (element.GetValue(EffectClockProperty) as AnimationClock)?.Controller;
+            if (controller == null)
+            {
+                return;
+            }
+
+            controller.SeekAlignedToLastTick(
+                TimeSpan.FromSeconds(Math.Max(0d, cycleSeconds)), TimeSeekOrigin.BeginTime);
+            controller.Resume();
         }
 
         /// <summary>Resumes the clocks <see cref="PauseUnder"/> paused. UI thread only.</summary>
@@ -471,7 +561,7 @@ namespace PlayniteAchievements.Views.Helpers
                 if (!(bool)element.GetValue(IsPausedProperty)) return;
                 element.ClearValue(IsPausedProperty);
                 (element.GetValue(EffectClockProperty) as AnimationClock)?.Controller?.Resume();
-                (element.GetValue(ElementPulseProperty) as ElementPulse)?.Resume(element);
+                (element.GetValue(ElementPulseProperty) as ElementPulse)?.Resume();
             });
         }
 

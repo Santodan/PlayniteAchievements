@@ -91,6 +91,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         // Legacy lists follow the modern compact list glow setting (locked icons never glow).
         protected override string RarityGlowSettingPath => "Settings.Persisted.ModernCompactListShowRarityGlow";
 
+        protected override string RarityBarSettingPath => "Settings.Persisted.ShowCompactLockedListRarityBar";
+
         protected override bool SupportsHiddenReveal => true;
 
         public bool HasLocked => GetTotalCount() > 0;

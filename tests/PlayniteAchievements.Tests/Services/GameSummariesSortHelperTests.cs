@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.RecentUnlock,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock),
                     OverviewGameSummariesGridSortDescending = true
                 });
 
@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.RecentUnlock,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock),
                     OverviewGameSummariesGridSortDescending = false
                 });
 
@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.LastPlayed,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.LastPlayed),
                     OverviewGameSummariesGridSortDescending = true
                 });
 
@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.TotalAchievements,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.TotalAchievements),
                     OverviewGameSummariesGridSortDescending = true
                 });
 
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.Progress,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.Progress),
                     OverviewGameSummariesGridSortDescending = true
                 });
 
@@ -142,7 +142,7 @@ namespace PlayniteAchievements.Services.Tests
                 items,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.Alphabetical,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.Alphabetical),
                     OverviewGameSummariesGridSortDescending = false
                 });
 
@@ -156,7 +156,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                OverviewGameSummariesGridSortMode = GameSummariesSortMode.RecentUnlock,
+                OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock),
                 OverviewGameSummariesGridSortDescending = true
             };
 
@@ -188,7 +188,7 @@ namespace PlayniteAchievements.Services.Tests
         {
             var settings = new PersistedSettings
             {
-                OverviewGameSummariesGridSortMode = GameSummariesSortMode.LastPlayed,
+                OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.LastPlayed),
                 OverviewGameSummariesGridSortDescending = true
             };
 
@@ -256,7 +256,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ApplySortIndicator_RecentUnlockDefault_DoesNotReturnVisibleColumn()
+        public void ApplySortIndicator_RecentUnlockDefault_MarksTheLastUnlockColumn()
         {
             string indicatorPath = "seed";
             ListSortDirection? indicatorDirection = ListSortDirection.Ascending;
@@ -266,7 +266,7 @@ namespace PlayniteAchievements.Services.Tests
                 null,
                 new PersistedSettings
                 {
-                    OverviewGameSummariesGridSortMode = GameSummariesSortMode.RecentUnlock,
+                    OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock),
                     OverviewGameSummariesGridSortDescending = true
                 },
                 (path, direction) =>
@@ -275,8 +275,8 @@ namespace PlayniteAchievements.Services.Tests
                     indicatorDirection = direction;
                 });
 
-            Assert.IsNull(indicatorPath);
-            Assert.IsNull(indicatorDirection);
+            Assert.AreEqual("LastUnlockUtc", indicatorPath);
+            Assert.AreEqual(ListSortDirection.Descending, indicatorDirection);
         }
 
         [TestMethod]

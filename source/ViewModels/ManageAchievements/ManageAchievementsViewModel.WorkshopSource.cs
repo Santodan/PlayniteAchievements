@@ -267,6 +267,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
+
+                PromptAttachLinkedFileIfMappingOnly();
             }
             catch (Exception ex)
             {

@@ -229,6 +229,20 @@ namespace PlayniteAchievements.Services.Refresh
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _logger = logger;
             _runWithProgressWindow = runWithProgressWindow;
+
+            // Every refresh request reports here, including ones that run with no provider work
+            // and ones started straight on the runtime, so subscribers see each one once.
+            _refreshService.RequestCompleted += gameIds =>
+            {
+                try
+                {
+                    RefreshCompleted?.Invoke(gameIds);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "RefreshCompleted event handler failed.");
+                }
+            };
         }
 
         public async Task ExecuteAsync(RefreshRequest request, RefreshExecutionPolicy policy = null)
@@ -284,22 +298,8 @@ namespace PlayniteAchievements.Services.Refresh
             }
             finally
             {
+                // RefreshCompleted is raised by the runtime's RequestCompleted, forwarded above.
                 policy?.OnRefreshCompleted?.Invoke(success);
-
-                // Raise RefreshCompleted event for subscribers (e.g., tag syncing)
-                if (success)
-                {
-                    try
-                    {
-                        // Get the actual refreshed game IDs from RefreshRuntime.
-                        var gameIds = _refreshService.LastRefreshedGameIds;
-                        RefreshCompleted?.Invoke(gameIds);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, "RefreshCompleted event handler failed.");
-                    }
-                }
             }
         }
 

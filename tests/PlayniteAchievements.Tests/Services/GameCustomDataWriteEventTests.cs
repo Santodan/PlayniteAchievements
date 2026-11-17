@@ -114,7 +114,7 @@ namespace PlayniteAchievements.Tests.Services
 
                 // The write already reached the repository by the time the event runs, so losing
                 // the recording must not lose the edit.
-                Assert.AreEqual("b", store.LoadOrDefault(gameId).AchievementNotes["a"]);
+                Assert.AreEqual("b", PlayniteAchievements.Models.Settings.AchievementOverride.Project(store.LoadOrDefault(gameId).AchievementOverrides, o => o.Note)["a"]);
             });
         }
 

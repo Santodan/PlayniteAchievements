@@ -49,6 +49,12 @@ namespace PlayniteAchievements.Services.Overview
         public UnlockDaySpan? CompletionSpan { get; set; }
 
         /// <summary>
+        /// Each game's completions inside <see cref="CompletionSpan"/>, for the Completed games
+        /// pie's per-badge split; null when every game's completions count whole.
+        /// </summary>
+        public Dictionary<Guid, int> CompletionsByGame { get; set; }
+
+        /// <summary>
         /// The widget achievement filter this snapshot's achievement totals were counted through
         /// (see <see cref="OverviewLinkedSnapshots.FilterAchievements"/>); null when every
         /// achievement counts. A count over the games' tallies applies it too.

@@ -701,6 +701,7 @@ namespace PlayniteAchievements.Services.Tests
                 string providerGameKey,
                 int appId,
                 string gameName,
+                bool mappedToLibrary,
                 CancellationToken cancel) =>
                 Task.FromResult(FriendsProviderResult<FriendGameDefinition>.FromData(new FriendGameDefinition
                 {

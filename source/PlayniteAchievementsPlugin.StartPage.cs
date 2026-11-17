@@ -125,7 +125,7 @@ namespace PlayniteAchievements
             // The custom title and its alignment, then (for the profile card) its identity, then
             // the display options, as in the Showcase widget dialog; each persists on edit.
             var panel = new StackPanel { Margin = new Thickness(16) };
-            ShowcaseProfileSettingsEditor.AddTextBox(
+            var titleBox = ShowcaseProfileSettingsEditor.AddTextBox(
                 panel,
                 L("LOCPlayAch_Showcase_CustomTitle"),
                 settings.CustomTitle,
@@ -146,7 +146,7 @@ namespace PlayniteAchievements
                 });
             }
 
-            panel.Children.Add(new ShowcaseWidgetOptionsControl(
+            var options = new ShowcaseWidgetOptionsControl(
                 settings,
                 () =>
                 {
@@ -156,7 +156,10 @@ namespace PlayniteAchievements
                 margin: new Thickness(0),
                 loadStyles: false,
                 backgroundDefault: false,
-                contentAfterSharedRows: profileEditor));
+                contentAfterSharedRows: profileEditor);
+            // The title alignment row follows the title box as it is typed in.
+            titleBox.TextChanged += (_, __) => options.SetHasTitle(!string.IsNullOrWhiteSpace(titleBox.Text));
+            panel.Children.Add(options);
             var host = new UserControl { Content = panel };
             host.Resources.MergedDictionaries.Add(new ResourceDictionary
             {
@@ -585,7 +588,6 @@ namespace PlayniteAchievements
                     id => OpenManageAchievementsView(id),
                     PlayniteApi,
                     _achievementOverridesService,
-                    _cacheManager,
                     _logger,
                     menuSource: menuSource,
                     includeViewCaptures: true);

@@ -149,8 +149,58 @@ namespace PlayniteAchievements.Services.Images
         /// </summary>
         internal static bool IsCachedIconPath(string path)
         {
-            return !string.IsNullOrWhiteSpace(path) &&
-                path.IndexOf(IconCacheFolderName, StringComparison.OrdinalIgnoreCase) >= 0;
+            return GetCacheSegments(path) != null;
+        }
+
+        /// <summary>
+        /// The path's folders and file name below the icon cache root, or null for a path outside
+        /// it. The root is the configured one when the plugin runs; a path stored in the logical
+        /// form, or one with an <see cref="IconCacheFolderName"/> folder in it, also counts.
+        /// </summary>
+        private static string[] GetCacheSegments(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            var trimmed = path.Trim();
+            string rest = null;
+            if (IconCacheLocation.Current != null &&
+                IconCacheLocation.Current.TryMakeLogical(trimmed, out var logical))
+            {
+                IconCacheLocation.TryStripLogicalPrefix(logical, out rest);
+            }
+            else if (!IconCacheLocation.TryStripLogicalPrefix(trimmed, out rest))
+            {
+                rest = StripThroughCacheFolderName(trimmed);
+            }
+
+            if (rest == null)
+            {
+                return null;
+            }
+
+            return rest.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        // The part of an absolute path after its first icon_cache folder, for paths under the
+        // default root and outside the plugin, where no configured root exists.
+        private static string StripThroughCacheFolderName(string path)
+        {
+            var separators = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+            var segments = path.Split(separators);
+            for (var i = 0; i < segments.Length; i++)
+            {
+                if (string.Equals(segments[i], IconCacheFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Join(Path.DirectorySeparatorChar.ToString(), segments, i + 1, segments.Length - i - 1);
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -206,31 +256,21 @@ namespace PlayniteAchievements.Services.Images
         /// </summary>
         internal static bool IsMetadataSourceIconPath(string path, string gameId)
         {
-            if (!IsCachedIconPath(path))
+            // <root>\metadata\<source>\<list>\<file>, or <root>\<gameId>\metadata\<source>\<file>.
+            var segments = GetCacheSegments(path);
+            if (segments == null || segments.Length != 4)
             {
                 return false;
             }
 
-            try
+            if (string.Equals(segments[0], MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase))
             {
-                var listFolder = Path.GetDirectoryName(path);
-                var sourceFolder = Path.GetDirectoryName(listFolder);
-                var parent = Path.GetDirectoryName(sourceFolder);
-                if (string.Equals(Path.GetFileName(parent), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                return true;
+            }
 
-                return !string.IsNullOrWhiteSpace(gameId) &&
-                    string.Equals(Path.GetFileName(sourceFolder), MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(Path.GetFileName(parent), gameId.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(Path.GetFileName(Path.GetDirectoryName(parent)), IconCacheFolderName, StringComparison.OrdinalIgnoreCase);
-            }
-            catch
-            {
-                return false;
-            }
+            return !string.IsNullOrWhiteSpace(gameId) &&
+                string.Equals(segments[0], gameId.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(segments[1], MetadataSourceFolderName, StringComparison.OrdinalIgnoreCase);
         }
 
         public static string BuildCustomRelativePath(

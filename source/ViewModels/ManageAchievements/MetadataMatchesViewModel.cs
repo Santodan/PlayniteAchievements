@@ -29,7 +29,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             SourceName = sourceName;
             _trophies = (snapshot?.Rows ?? new List<MetadataSourceRow>())
-                .Select(MatchOption.ForRow)
+                .Select(row => MatchOption.Create(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List))
                 .ToList();
             _trophiesByApiName = _trophies
                 .GroupBy(trophy => trophy.Key, StringComparer.OrdinalIgnoreCase)
@@ -115,14 +115,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     }
 
     /// <summary>One of the game's achievements, what it is paired with, and its searchable dropdown.</summary>
-    public sealed class MatchTargetItem : ObservableObject
+    public sealed class MatchTargetItem : MatchPickerItem
     {
         private readonly MetadataMatchesViewModel _owner;
         private readonly string _automatic;
         private readonly string _saved;
         private string _staged;
-        private string _search = string.Empty;
-        private bool _isPickerOpen;
 
         internal MatchTargetItem(MetadataMatchesViewModel owner, AchievementDetail target, string automatic, string saved)
         {
@@ -165,54 +163,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ? ResourceProvider.GetString("LOCPlayAch_Common_None")
             : string.Empty);
 
-        public bool IsPickerOpen
-        {
-            get => _isPickerOpen;
-            set
-            {
-                if (_isPickerOpen == value)
-                {
-                    return;
-                }
-
-                _isPickerOpen = value;
-                if (value)
-                {
-                    _search = string.Empty;
-                    OnPropertyChanged(nameof(Search));
-                    RefreshOptions();
-                }
-
-                OnPropertyChanged();
-            }
-        }
-
-        public string Search
-        {
-            get => _search;
-            set
-            {
-                _search = value ?? string.Empty;
-                OnPropertyChanged();
-                RefreshOptions();
-            }
-        }
-
-        private IReadOnlyList<MatchOption> _options;
-
-        /// <summary>
-        /// Automatic (when the user set a pairing), None, then the source's rows matching the
-        /// search. Built once per opening and search, so the dropdown keeps one list to scroll.
-        /// </summary>
-        public IReadOnlyList<MatchOption> Options => _options ?? (_options = BuildOptions());
-
-        private void RefreshOptions()
-        {
-            _options = null;
-            OnPropertyChanged(nameof(Options));
-        }
-
-        private IReadOnlyList<MatchOption> BuildOptions()
+        /// <summary>Automatic (when the user set a pairing), None, then the source's rows matching the search.</summary>
+        protected override IReadOnlyList<MatchOption> BuildOptions(string search)
         {
             var options = new List<MatchOption>();
             if (IsUserSet)
@@ -221,16 +173,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             options.Add(_owner.None);
-            var search = _search.Trim();
-            options.AddRange(_owner.Trophies.Where(trophy =>
-                search.Length == 0 ||
-                (trophy.Name ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
-                (trophy.Description ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
-                (trophy.List ?? string.Empty).IndexOf(search, StringComparison.CurrentCultureIgnoreCase) >= 0));
+            options.AddRange(_owner.Trophies.Where(trophy => MatchesSearch(trophy, search)));
             return options;
         }
 
-        internal void Pick(MatchOption option)
+        public override void Pick(MatchOption option)
         {
             if (option == null)
             {
@@ -245,72 +192,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(IsMatched));
             OnPropertyChanged(nameof(PairingText));
             _owner.RefreshPairedWith();
-        }
-    }
-
-    /// <summary>
-    /// A choice in a pairing dropdown: one of the source's rows, or the None (empty key) and
-    /// Automatic (null key) choices.
-    /// </summary>
-    public sealed class MatchOption : ObservableObject
-    {
-        private readonly string _ownIcon;
-        private string _pairedWith;
-        private string _pairedIcon;
-
-        private MatchOption(string key, string name, string description, string ownIcon, string list, bool isSpecial)
-        {
-            Key = key;
-            Name = name;
-            Description = description;
-            _ownIcon = ownIcon;
-            List = list;
-            IsSpecial = isSpecial;
-        }
-
-        internal static MatchOption ForRow(MetadataSourceRow row) =>
-            new MatchOption(row.ApiName, row.Name, row.Description, MetadataSourceSnapshotStore.LocalIconPath(row.Icon), row.List, isSpecial: false);
-
-        internal static MatchOption Special(string key, string name) =>
-            new MatchOption(key, name, null, null, null, isSpecial: true);
-
-        /// <summary>The list it comes from when the link names several (a collection's game), else null.</summary>
-        public string List { get; }
-
-        public bool HasList => !string.IsNullOrEmpty(List);
-
-        public string Key { get; }
-
-        public string Name { get; }
-
-        public string Description { get; }
-
-        public bool IsSpecial { get; }
-
-        /// <summary>The achievements paired with it, or null.</summary>
-        public string PairedWith => _pairedWith;
-
-        public bool IsPaired => _pairedWith != null;
-
-        /// <summary>
-        /// The icon of the first achievement paired with it, so both sides of a pairing show the
-        /// same icon; while unpaired, its own icon when the source has one on disk, else null.
-        /// </summary>
-        public string Icon => _pairedIcon ?? _ownIcon;
-
-        internal void SetPairedWith(string names, string icon)
-        {
-            if (string.Equals(_pairedWith, names, StringComparison.Ordinal) &&
-                string.Equals(_pairedIcon, icon, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _pairedWith = names;
-            _pairedIcon = string.IsNullOrWhiteSpace(icon) ? null : icon;
-            OnPropertyChanged(nameof(PairedWith));
-            OnPropertyChanged(nameof(IsPaired));
-            OnPropertyChanged(nameof(Icon));
         }
     }
 }

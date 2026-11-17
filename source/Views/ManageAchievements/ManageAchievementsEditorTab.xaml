@@ -353,7 +353,7 @@
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
                         <!-- One button: it links an unlinked game and relinks a linked one. -->
-                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_Tab_ManualTracking}"
+                        <Button Content="{DynamicResource LOCPlayAch_ManageAchievements_LinkDefinitions}"
                                 Command="{Binding ManualLinkCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
@@ -363,6 +363,31 @@
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="0"
                                 Visibility="{Binding IsManuallyTrackedGame, Converter={StaticResource BoolToVis}}" />
+                        <!-- The linked file: Link File until a file is linked, then Edit Linked File,
+                             which opens the same window. The file and its state are in the tooltip;
+                             a warning glyph shows when the link cannot be read. -->
+                        <Button Content="{DynamicResource LOCPlayAch_LinkedFile_LinkButton}"
+                                ToolTip="{DynamicResource LOCPlayAch_LinkedFile_LinkHint}"
+                                Command="{Binding OpenLinkedFileCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding ShowLinkFileButton, Converter={StaticResource BoolToVis}}" />
+                        <Button ToolTip="{Binding LinkedFileToolTip}"
+                                Command="{Binding OpenLinkedFileCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}"
+                                Margin="12,0,0,0"
+                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEF1B;"
+                                           FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                           Foreground="{DynamicResource PlayAch.Brush.AuthError}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"
+                                           Visibility="{Binding LinkedFileHasProblem, Converter={StaticResource BoolToVis}}" />
+                                <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_EditButton}"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                     <TextBlock Text="{Binding StatusText}"
                                Style="{StaticResource StatusTextStyle}"
@@ -1199,6 +1224,63 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
+                    <!-- The key a linked file matches by. Editable for authored rows, where it is the
+                         achievement's id; a provider row shows the provider's key read-only. Masked
+                         with the description, since the key is often the spoiler. -->
+                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_ApiName}"
+                                            Width="180"
+                                            MinWidth="80"
+                                            SortMemberPath="ApiNameText"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorApiName"
+                                            IsReadOnly="True"
+                                            helpers:EditorCellRouting.RoutesToSelection="True"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_ApiName}">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <controls:EditOnClickPresenter VerticalAlignment="Center"
+                                                                   IsEnabled="{Binding CanEditApiName}"
+                                                                   helpers:EditorCellRouting.Field="ApiNameText"
+                                                                   Visibility="{Binding IsDescriptionHidden, Converter={StaticResource InverseBoolToVis}}">
+                                        <controls:EditOnClickPresenter.DisplayTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource GridEditorDisplayBorderStyle}">
+                                                    <Border Style="{StaticResource GridEditorDisplayHostStyle}">
+                                                        <TextBlock Text="{Binding ApiNameText}"
+                                                                   Style="{StaticResource GridEditorDisplayTextStyle}" />
+                                                    </Border>
+                                                </Border>
+                                            </DataTemplate>
+                                        </controls:EditOnClickPresenter.DisplayTemplate>
+                                        <controls:EditOnClickPresenter.EditorTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding ApiNameText, Mode=OneWay}"
+                                                         Style="{StaticResource GridEditorTextBoxStyle}"
+                                                         PreviewKeyDown="RoutedCellTextBox_KeyDown"
+                                                         helpers:EditorCellRouting.Field="ApiNameText" />
+                                            </DataTemplate>
+                                        </controls:EditOnClickPresenter.EditorTemplate>
+                                    </controls:EditOnClickPresenter>
+                                    <controls:LazyContent IsActive="{Binding IsDescriptionHidden}">
+                                        <controls:LazyContent.Template>
+                                            <DataTemplate>
+                                                <Border Background="Transparent"
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        Cursor="Hand"
+                                                        ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                        PreviewMouseLeftButtonDown="MaskedDescription_PreviewMouseLeftButtonDown">
+                                                    <TextBlock Text="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                               Style="{StaticResource MaskedCellTextStyle}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </controls:LazyContent.Template>
+                                    </controls:LazyContent>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
                     <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_UnlockTime}"
                                             Width="320"
                                             SortMemberPath="UnlockTime"
@@ -1435,20 +1517,51 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
 
-                    <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Rarity}"
-                                            Width="150"
-                                            MinWidth="112"
+                    <DataGridTemplateColumn Width="176"
+                                            MinWidth="136"
                                             IsReadOnly="True"
                                             CanUserSort="False"
                                             SortMemberPath="Rarity"
+                                            HeaderStyle="{StaticResource RevealColumnHeaderStyle}"
                                             helpers:ColumnVisibilityHelper.ColumnKey="EditorRarity"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Rarity}"
                                             helpers:EditorCellRouting.RoutesToSelection="True">
+                        <DataGridTemplateColumn.Header>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0"
+                                        Width="30"
+                                        Visibility="{Binding Data.CanRevealAnyRarity, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource RevealHeaderToggleButtonStyle}"
+                                        Visibility="{Binding Data.CanRevealAnyRarity, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding Data.ToggleAllRaritiesRevealCommand, Source={StaticResource EditorTabContext}}">
+                                    <Grid>
+                                        <TextBlock Text="&#xEF22;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding Data.AreAllRaritiesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource InverseBoolToVis}}"/>
+                                        <TextBlock Text="&#xEF24;"
+                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                   Visibility="{Binding Data.AreAllRaritiesRevealed, Source={StaticResource EditorTabContext}, Converter={StaticResource BoolToVis}}"/>
+                                    </Grid>
+                                </Button>
+                            </Grid>
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Grid VerticalAlignment="Center" Margin="4,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Image Grid.Column="0"
@@ -1477,13 +1590,18 @@
                                                         <Setter Property="Visibility" Value="Visible" />
                                                         <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}" />
                                                     </DataTrigger>
+                                                    <!-- Last, so the masked badge beats the tier triggers above. -->
+                                                    <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                                        <Setter Property="Source" Value="{DynamicResource BadgeRarityUnknown}" />
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Image.Style>
                                     </Image>
                                     <controls:EditOnClickPresenter Grid.Column="1"
                                                                    VerticalAlignment="Center"
-                                                                   IsEnabled="{Binding CanEditRarity}">
+                                                                   IsEnabled="{Binding CanEditRarity}"
+                                                                   Visibility="{Binding IsRarityHidden, Converter={StaticResource InverseBoolToVis}}">
                                         <controls:EditOnClickPresenter.DisplayTemplate>
                                             <DataTemplate>
                                                 <Border Style="{StaticResource GridEditorDisplayBorderStyle}">
@@ -1532,7 +1650,38 @@
                                             Content="&#x25BE;"
                                             Style="{StaticResource DropdownButtonStyle}"
                                             IsEnabled="{Binding CanEditRarity}"
+                                            Visibility="{Binding IsRarityHidden, Converter={StaticResource InverseBoolToVis}}"
                                             Click="RarityMenuButton_Click" />
+                                    <controls:LazyContent Grid.Column="1" Grid.ColumnSpan="2" IsActive="{Binding IsRarityHidden}">
+                                        <controls:LazyContent.Template>
+                                            <DataTemplate>
+                                                <Border Background="Transparent"
+                                                        Cursor="Hand"
+                                                        ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                                                        PreviewMouseLeftButtonDown="MaskedRarity_PreviewMouseLeftButtonDown">
+                                                    <TextBlock Text="?"
+                                                               Style="{StaticResource MaskedCellTextStyle}"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </controls:LazyContent.Template>
+                                    </controls:LazyContent>
+                                    <controls:LazyContent Grid.Column="3" IsActive="{Binding CanRevealRarity}">
+                                        <controls:LazyContent.Template>
+                                            <DataTemplate>
+                                                <Button Style="{StaticResource RevealToggleButtonStyle}"
+                                                        Click="ToggleRarityRevealButton_Click">
+                                                    <Grid>
+                                                        <TextBlock Text="&#xEF22;"
+                                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                                   Visibility="{Binding IsRarityHidden, Converter={StaticResource BoolToVis}}"/>
+                                                        <TextBlock Text="&#xEF24;"
+                                                                   Style="{StaticResource RevealGlyphTextStyle}"
+                                                                   Visibility="{Binding IsRarityHidden, Converter={StaticResource InverseBoolToVis}}"/>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </controls:LazyContent.Template>
+                                    </controls:LazyContent>
                                 </Grid>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>

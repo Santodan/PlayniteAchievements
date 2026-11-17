@@ -174,6 +174,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 PlayniteAchievementsPlugin.Instance?.Settings,
                 Logger);
             _controlBarAdapter.AttachFriendCompare(_friendCompare);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                _friendCompare.PersistSelection,
+                PlayniteAchievements.Models.Settings.GridOptionKeys.Achievement.DesktopTheme);
             SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
@@ -504,7 +507,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 _currentSortDirection,
                 EffectiveSettings?.Persisted,
                 AchievementSortSurface.AchievementDataGrid,
-                e.Column?.SortDirection);
+                e.Column?.SortDirection,
+                e);
             if (sortAction.Kind == AchievementGridSortActionKind.None)
             {
                 return;
@@ -589,7 +593,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 gameId => plugin?.OpenManageAchievementsView(gameId),
                 API.Instance,
                 plugin?.AchievementOverridesService,
-                plugin?.CacheManager,
                 LogManager.GetLogger(),
                 includeViewCaptures: true,
                 menuSource: row);

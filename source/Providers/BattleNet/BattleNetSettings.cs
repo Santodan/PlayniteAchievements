@@ -25,7 +25,9 @@ namespace PlayniteAchievements.Providers.BattleNet
         private string _wowRegion;
         private string _wowRealmSlug;
         private string _wowCharacter;
-        private bool _wowAggregateAccountCharacters = true;
+        private WowCharacterSource _wowCharacterSource = WowCharacterSource.Account;
+        private string _wowClassicRealmSlug;
+        private string _wowClassicCharacter;
         private bool _useDataForAzerothForWowRarity = true;
         private string _dataForAzerothUserId;
 
@@ -119,10 +121,27 @@ namespace PlayniteAchievements.Providers.BattleNet
             set => SetValue(ref _wowCharacter, value);
         }
 
-        public bool WowAggregateAccountCharacters
+        /// <summary>
+        /// Where WoW achievements come from. Account falls back to the typed characters while not
+        /// signed in; Forever always uses the account.
+        /// </summary>
+        public WowCharacterSource WowCharacterSource
         {
-            get => _wowAggregateAccountCharacters;
-            set => SetValue(ref _wowAggregateAccountCharacters, value);
+            get => _wowCharacterSource;
+            set => SetValue(ref _wowCharacterSource, value);
+        }
+
+        /// <summary>WoW Classic realm slug; Classic shares the retail region.</summary>
+        public string WowClassicRealmSlug
+        {
+            get => _wowClassicRealmSlug;
+            set => SetValue(ref _wowClassicRealmSlug, value);
+        }
+
+        public string WowClassicCharacter
+        {
+            get => _wowClassicCharacter;
+            set => SetValue(ref _wowClassicCharacter, value);
         }
 
         /// <summary>
@@ -152,5 +171,15 @@ namespace PlayniteAchievements.Providers.BattleNet
                 LegacyDefaultRedirectUri,
                 StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>Where World of Warcraft achievements come from.</summary>
+    public enum WowCharacterSource
+    {
+        /// <summary>Every character on the signed-in account.</summary>
+        Account = 0,
+
+        /// <summary>The realm and character typed for each version.</summary>
+        Character = 1
     }
 }

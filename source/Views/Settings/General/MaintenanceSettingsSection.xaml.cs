@@ -38,51 +38,51 @@ namespace PlayniteAchievements.Views.Settings.General
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
+            Loaded += (_, __) => UpdateIconCacheFolderRow();
+        }
+
+        // -----------------------------
+        // Icon cache folder
+        // -----------------------------
+
+        private void UpdateIconCacheFolderRow()
+        {
+            var location = _plugin?.IconCacheFolder;
+            IconCacheFolderText.Text = location?.Root ?? string.Empty;
+            IconCacheFolderResetButton.IsEnabled = location?.IsCustom == true;
+        }
+
+        private void IconCacheFolder_Browse_Click(object sender, RoutedEventArgs e)
+        {
+            var target = _plugin.PlayniteApi.Dialogs.SelectFolder();
+            if (!string.IsNullOrWhiteSpace(target))
+            {
+                _plugin.MoveIconCacheInteractive(target);
+                UpdateIconCacheFolderRow();
+            }
+        }
+
+        private void IconCacheFolder_Reset_Click(object sender, RoutedEventArgs e)
+        {
+            var location = _plugin.IconCacheFolder;
+            if (location?.IsCustom == true)
+            {
+                _plugin.MoveIconCacheInteractive(location.DefaultRootPath);
+                UpdateIconCacheFolderRow();
+            }
         }
 
         // -----------------------------
         // Cache actions
         // -----------------------------
 
-        private void WipeCache_Click(object sender, RoutedEventArgs e)
+        /// <summary>Clears the layer named by the button's Tag for every game.</summary>
+        private void ClearLayer_Click(object sender, RoutedEventArgs e)
         {
-            string message = null;
-            var image = MessageBoxImage.Information;
-            Exception operationError = null;
-            var progressText = L("LOCPlayAch_Settings_Cache_ProgressClearing");
-
-            RunMaintenanceProgress(
-                progressText,
-                isIndeterminate: true,
-                operation: progress =>
-                {
-                    try
-                    {
-                        _plugin.RefreshRuntime.Cache.ClearCache();
-                        message = L("LOCPlayAch_Status_Succeeded");
-                        image = MessageBoxImage.Information;
-                    }
-                    catch (Exception ex)
-                    {
-                        operationError = ex;
-                    }
-                });
-
-            if (operationError != null)
+            if (Enum.TryParse((sender as FrameworkElement)?.Tag as string, out DataClear kind))
             {
-                _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Status_Failed", operationError.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                return;
+                _plugin.ClearData(kind, null);
             }
-
-            _plugin.PlayniteApi.Dialogs.ShowMessage(
-                message ?? L("LOCPlayAch_Status_Succeeded"),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                image);
         }
 
         private void ClearUnownedFriendGameData_Click(object sender, RoutedEventArgs e)

@@ -30,10 +30,15 @@
 
             <!-- Ungrouped: plugin chrome, not a formatting choice. -->
             <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
-                </controls:SettingRow>
+                <StackPanel>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}">
+                        <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowSidebarButton}"
+                                         Margin="0">
+                        <CheckBox IsChecked="{Binding Persisted.ShowSidebarButton}"/>
+                    </controls:SettingRow>
+                </StackPanel>
             </Border>
 
             <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
@@ -151,14 +156,12 @@
                                          Hint="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}">
                         <CheckBox IsChecked="{Binding Persisted.RoundRarityPercentages}"/>
                     </controls:SettingRow>
-                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_Help}">
-                        <ComboBox SelectedValue="{Binding Persisted.ProgressBadgeSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag"
-                                  MinWidth="140">
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable}" Tag="{x:Static settings:ProgressBadgeSource.TrophyWhenAvailable}"/>
-                            <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:ProgressBadgeSource.Rarity}"/>
-                        </ComboBox>
+                    <!-- How many Achievement styles (General page) a progress bar shows. -->
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressBarDetailCount}">
+                        <TextBox Text="{Binding Persisted.ProgressDetailShownCount, UpdateSourceTrigger=LostFocus}"
+                                 Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                 HorizontalAlignment="Left"
+                                 TextAlignment="Right"/>
                     </controls:SettingRow>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SoftGlowTiers}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_GlowTiers_Help}">

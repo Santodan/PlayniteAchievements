@@ -26,7 +26,10 @@ namespace PlayniteAchievements.Providers.Metadata
         Tags = 128,
 
         /// <summary>The achievement's name and description.</summary>
-        Text = 256
+        Text = 256,
+
+        /// <summary>The achievement's position in the source's list.</summary>
+        Order = 512
     }
 
     /// <summary>

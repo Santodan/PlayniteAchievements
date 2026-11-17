@@ -261,11 +261,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <TextBlock Text="{Binding FriendSectionTitle}"
-                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   Style="{StaticResource PlayAch.TextBlock.SectionHeaderStyle}"/>
                         <Button Content="&#x2715;"
                                 ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                                 Click="ClearGameSelection_Click"
@@ -297,11 +293,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <TextBlock Text="{Binding GameSectionTitle}"
-                                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                   FontWeight="Bold"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   Style="{StaticResource PlayAch.TextBlock.SectionHeaderStyle}"/>
                         <Button Content="&#x2715;"
                                 ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
                                 Click="ClearFriendSelection_Click"
@@ -330,50 +322,30 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal"
+                <controls:FlexibleRowPanel Grid.Column="0"
                             VerticalAlignment="Center">
                     <TextBlock Text="{Binding AchievementSectionTitle}"
-                               FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
-                               MouseLeftButtonUp="GameNameBreadcrumb_Click">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Cursor" Value="Arrow"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCategorySelected}" Value="True">
-                                        <Setter Property="Cursor" Value="Hand"/>
-                                        <Setter Property="TextDecorations" Value="Underline"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                               Style="{StaticResource PlayAch.TextBlock.BreadcrumbRootStyle}"
+                               Tag="{Binding IsCategorySelected}"
+                               MouseLeftButtonUp="GameNameBreadcrumb_Click"/>
                     <TextBlock Text=" > "
-                               FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                               VerticalAlignment="Center"
+                               Style="{StaticResource PlayAch.TextBlock.HeaderSubtleStyle}"
                                Visibility="{Binding IsCategorySelected, Converter={StaticResource BoolToVis}}"/>
                     <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=FriendsAchievementsGrid}"
                                   ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
                                   VerticalAlignment="Center"
+                                  controls:FlexibleRowPanel.Fill="True"
                                   Visibility="{Binding IsCategorySelected, Converter={StaticResource BoolToVis}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal"/>
+                                <controls:CategoryPathPanel/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
                     <TextBlock Text="{Binding AchievementCountText}"
+                               Style="{StaticResource PlayAch.TextBlock.HeaderSubtleStyle}"
                                FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                               Foreground="{DynamicResource PlayAch.Brush.Text}"
-                               Opacity="{StaticResource PlayAch.Opacity.Subtle}"
                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                               VerticalAlignment="Center"
                                Visibility="{Binding HasFriendGameSelection, Converter={StaticResource BoolToVis}}"/>
                     <Button Content="&#x2715;"
                             ToolTip="{DynamicResource LOCPlayAch_FriendsOverview_ClearSelection}"
@@ -381,7 +353,7 @@
                             Style="{StaticResource ClearGameSelectionButtonStyle}"
                             Margin="10,0,0,0"
                             Visibility="{Binding HasAnySelection, Converter={StaticResource BoolToVis}}"/>
-                </StackPanel>
+                </controls:FlexibleRowPanel>
                 <Button Grid.Column="1"
                         Style="{StaticResource HeaderControlBarToggleStyle}"
                         Tag="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridControlBar}"
@@ -478,6 +450,7 @@
                                                      CategorySummarySource="{Binding SelectedFriendGameAllAchievements}"
                                                      ColumnSettingsKey="{Binding AchievementColumnSettingsKey}"
                                                      EnableCategoryMode="{Binding HasFriendGameSelection}"
+                                                     AllowCategoryEditing="False"
                                                      HideCategorySummaryRow="{Binding Settings.Persisted.FriendsOverviewAchievementsHideCategorySummaryRow}"
                                                      DrilledCategory="{Binding SelectedCategoryName, Mode=OneWayToSource}"
                                                      CategoryUseCoverImages="{Binding Settings.Persisted.FriendsOverviewCategorySummariesUseCoverImages}"

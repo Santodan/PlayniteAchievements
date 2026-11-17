@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
 {
     /// <summary>
     /// Achievement flags, as tags, from the TrueGaming sites: TrueAchievements, TrueTrophies and
-    /// TrueSteamAchievements, tried in that order for every platform. Pages are public and load through an offscreen browser view. A
+    /// TrueSteamAchievements, tried in that order for every platform. Pages are public and are read with in-page fetches from an offscreen browser view, so they are never rendered. A
     /// game links to one site's page ("tt:Fallout-4-PS4"), read first; another site is read under
     /// the page's name or its edition variants there ("Fallout-4"), and where it led is kept in
     /// <see cref="TrueGamingPageStore"/>. Only the pages the wanted fields need are loaded; see
@@ -71,6 +71,12 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
         public void EndRun()
         {
             Interlocked.Exchange(ref _lease, null)?.Dispose();
+            lock (_anchorGate)
+            {
+                _anchorView = null;
+                _anchorSite = null;
+            }
+
             lock (_pages)
             {
                 _pages.Clear();
@@ -305,13 +311,23 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             string text;
             try
             {
-                text = await _views.WithNavigableViewAsync(async view =>
+                text = await _views.WithDiscardableViewAsync(async view =>
                 {
-                    await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
-                    var source = await ReadPastChallengeAsync(view.GetPageSourceAsync, ct).ConfigureAwait(false);
-                    return string.IsNullOrWhiteSpace(source) || IsChallenge(source) || !asText
-                        ? source
-                        : await view.GetPageTextAsync().ConfigureAwait(false);
+                    var read = await ReadThroughFetchAsync(view, site, url, ct).ConfigureAwait(false);
+                    if (read.Fetched)
+                    {
+                        return (read.Source, false);
+                    }
+
+                    // Read by loading the page: the search API is a document whose text is its XML.
+                    var source = read.Source;
+                    if (!read.Late && asText && !string.IsNullOrWhiteSpace(source) && !IsChallenge(source))
+                    {
+                        source = await view.GetPageTextAsync().ConfigureAwait(false);
+                    }
+
+                    await LeavePageAsync(view, site, read.Late).ConfigureAwait(false);
+                    return (source, read.Late);
                 }, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -725,23 +741,15 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             TrueGamingPage page;
             try
             {
-                // A page still loading at the timeout (ads, trackers) usually has its list already,
-                // so it is read as it stands. Its view is replaced, so the page's late load cannot
-                // end the next page's wait.
                 var (html, timedOut) = await _views.WithDiscardableViewAsync(async view =>
                 {
-                    var late = false;
-                    try
+                    var read = await ReadThroughFetchAsync(view, site, url, ct).ConfigureAwait(false);
+                    if (!read.Fetched)
                     {
-                        await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
-                    }
-                    catch (TimeoutException)
-                    {
-                        late = true;
+                        await LeavePageAsync(view, site, read.Late).ConfigureAwait(false);
                     }
 
-                    var source = await ReadPastChallengeAsync(view.GetPageSourceAsync, ct).ConfigureAwait(false);
-                    return ((source, late), late);
+                    return ((read.Source, read.Late), read.Late);
                 }, ct).ConfigureAwait(false);
                 page = TrueGamingPageParser.Parse(html);
                 page.Loaded = !string.IsNullOrWhiteSpace(html) && !IsChallenge(html);
@@ -775,6 +783,109 @@ namespace PlayniteAchievements.Providers.Metadata.TrueGaming
             }
 
             return page;
+        }
+
+        // The view last opened on a site's anchor address, and that site: while both still hold, the
+        // view is on the site's origin and fetches need no navigation first.
+        private readonly object _anchorGate = new object();
+        private IWebView _anchorView;
+        private TrueGamingSite _anchorSite;
+
+        /// <summary>
+        /// A page's source, read with an in-page fetch from the site's anchor address so the page
+        /// is never rendered: its ads, video and scripts never run in the offscreen view. A fetch
+        /// that fails or meets a challenge falls back to loading the page, which lets Cloudflare's
+        /// browser check run; Fetched is false then, and the caller leaves the page with
+        /// <see cref="LeavePageAsync"/>. Late is set when that load was still going at the timeout
+        /// (ads, trackers): the list is usually there already, so the page is read as it stands.
+        /// </summary>
+        private async Task<(string Source, bool Fetched, bool Late)> ReadThroughFetchAsync(
+            IWebView view, TrueGamingSite site, string url, CancellationToken ct)
+        {
+            await AnchorAsync(view, site).ConfigureAwait(false);
+            var fetched = await InPageFetch.FetchAsync(view, url, ct, PageTimeoutMs).ConfigureAwait(false);
+            if (fetched != null && fetched.Status != 403 && !IsChallenge(fetched.Body))
+            {
+                return (fetched.Body, true, false);
+            }
+
+            _logger?.Debug($"[TrueGamingMetadata] {url} fetch {(fetched == null ? "failed" : "was challenged (" + fetched.Status + ")")}; loading the page instead.");
+            ForgetAnchor(view);
+            var late = false;
+            try
+            {
+                await view.NavigateAndWaitAsync(url, PageTimeoutMs).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                late = true;
+            }
+
+            var source = await ReadPastChallengeAsync(view.GetPageSourceAsync, ct).ConfigureAwait(false);
+            return (source, false, late);
+        }
+
+        /// <summary>
+        /// Takes a view off a loaded page and back to the site's anchor, so the page's ads and
+        /// scripts stop at once. A page still loading at the timeout is left alone: its view is
+        /// discarded, so the late load cannot end another navigation's wait.
+        /// </summary>
+        private async Task LeavePageAsync(IWebView view, TrueGamingSite site, bool late)
+        {
+            if (late)
+            {
+                return;
+            }
+
+            try
+            {
+                await AnchorAsync(view, site).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[TrueGamingMetadata] Leaving a loaded page failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        /// <summary>Opens the site's anchor address in the view unless the view is already on it.</summary>
+        private async Task AnchorAsync(IWebView view, TrueGamingSite site)
+        {
+            lock (_anchorGate)
+            {
+                if (ReferenceEquals(_anchorView, view) && _anchorSite == site)
+                {
+                    return;
+                }
+            }
+
+            try
+            {
+                await view.NavigateAndWaitAsync(site.AnchorUrl, PageTimeoutMs).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                // The fetch is tried regardless; a failed one falls back to loading the page.
+                ForgetAnchor(view);
+                return;
+            }
+
+            lock (_anchorGate)
+            {
+                _anchorView = view;
+                _anchorSite = site;
+            }
+        }
+
+        private void ForgetAnchor(IWebView view)
+        {
+            lock (_anchorGate)
+            {
+                if (ReferenceEquals(_anchorView, view))
+                {
+                    _anchorView = null;
+                    _anchorSite = null;
+                }
+            }
         }
 
         // Cloudflare's browser check clears itself and reloads the page within a few seconds.

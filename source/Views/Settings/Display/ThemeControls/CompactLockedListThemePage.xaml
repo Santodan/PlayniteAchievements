@@ -56,6 +56,9 @@
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
+                                      IsChecked="{Binding Persisted.ShowCompactLockedListRarityBar}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>

@@ -60,7 +60,13 @@ namespace PlayniteAchievements.Providers.Metadata
             ("BioShock: The Collection", "exophase:Xbox", "Xbox", new[] { "TrueGaming", "SteamHunters" }),
             ("Elden Ring", "exophase:PlayStation", "PSN", new[] { "TrueGaming", "SteamHunters" }),
             ("The Binding of Isaac: Rebirth", "exophase:PlayStation", "PSN", new[] { "TrueGaming", "SteamHunters" }),
-            ("The Binding of Isaac: Rebirth", "exophase:Xbox", "Xbox", new[] { "TrueGaming", "SteamHunters" })
+            ("The Binding of Isaac: Rebirth", "exophase:Xbox", "Xbox", new[] { "TrueGaming", "SteamHunters" }),
+
+            // Steam games to PlayStation with the newest console preferred: a PS4-only game, by
+            // its Steam name and its short name, and a game whose PlayStation page is known to link.
+            ("Shadow of the Tomb Raider: Definitive Edition", "steam:750920", "Steam", new[] { "PlayStation" }),
+            ("Shadow of the Tomb Raider", "steam:750920", "Steam", new[] { "PlayStation" }),
+            ("Satisfactory", "steam:526870", "Steam", new[] { "PlayStation" })
         };
 
         public static async Task RunAsync(
@@ -127,7 +133,8 @@ namespace PlayniteAchievements.Providers.Metadata
                         var report = new StringBuilder();
                         report.AppendLine($"{name} ({servicing}, {origin}): {rows.Count} achievements -> {sourceKey}");
                         report.AppendLine("shared by the sources before: " + (sharedLabel ?? "nothing").Replace("\t", " => ").Replace("\n", "; "));
-                        var provider = open.FirstOrDefault(entry => string.Equals(entry.Key, sourceKey, StringComparison.OrdinalIgnoreCase));
+                        var provider = open.FirstOrDefault(entry => string.Equals(entry.Key, sourceKey, StringComparison.OrdinalIgnoreCase))
+                            ?? (exophaseOpen && exophase.TryGetValue(sourceKey, out var branchProvider) ? branchProvider : null);
                         try
                         {
                             if (provider == null)

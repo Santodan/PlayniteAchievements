@@ -50,8 +50,7 @@
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                         <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureDelaySeconds}"
-                                             Margin="0">
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureDelaySeconds}">
                             <controls:SettingRow.IsEnabled>
                                 <MultiBinding Converter="{StaticResource AnyTrue}">
                                     <Binding Path="Persisted.EnableUnlockScreenshots"/>
@@ -62,6 +61,32 @@
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                      TextAlignment="Right"/>
                         </controls:SettingRow>
+
+                        <!-- Saves each capture twice: at the unlock, then after the delay. Offered
+                             only with a delay, since without one both captures are the same moment.
+                             The panel carries the delay gate and the row the same switches as the
+                             delay row above; a disabled parent disables the row with it. -->
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Persisted.CaptureDelaySeconds}" Value="0">
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay}"
+                                                 Margin="0">
+                                <controls:SettingRow.IsEnabled>
+                                    <MultiBinding Converter="{StaticResource AnyTrue}">
+                                        <Binding Path="Persisted.EnableUnlockScreenshots"/>
+                                        <Binding Path="Persisted.EnableUnlockRecordings"/>
+                                    </MultiBinding>
+                                </controls:SettingRow.IsEnabled>
+                                <CheckBox IsChecked="{Binding Persisted.CaptureAtUnlockAndAfterDelay}"/>
+                            </controls:SettingRow>
+                        </StackPanel>
 
                         <!-- Game mode only: the folder this game's screenshots and clips go
                              straight into, in place of the global folders below. -->

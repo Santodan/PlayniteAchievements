@@ -207,7 +207,10 @@
                                                 Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
                                     </Style>
                                 </TextBlock.Style>
-                                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                                <InlineUIContainer BaselineAlignment="Center">
+                                    <controls:AchievementInlineDetail Style="{StaticResource AchievementInlineDetailStyle}"
+                                                                      Styles="{Binding InlineNameDetailStyles, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"/>
+                                </InlineUIContainer><Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                                      FontStyle="Italic"
                                      Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
@@ -491,6 +494,11 @@
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding RarityDetailText}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>
@@ -501,6 +509,11 @@
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding RarityDetailText}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>
@@ -510,11 +523,16 @@
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="ToolTip" Value="{Binding RarityDetailText}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding GlobalPercentText}"
+                        <TextBlock Text="{Binding GlobalPercentTextResolved}"
                                    FontWeight="SemiBold"
                                    Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                             <TextBlock.Style>
@@ -523,6 +541,9 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
                                             <Setter Property="Foreground" Value="{Binding RarityBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsRarityHidden}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

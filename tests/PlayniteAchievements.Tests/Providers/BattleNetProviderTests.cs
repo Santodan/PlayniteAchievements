@@ -259,6 +259,12 @@ namespace PlayniteAchievements.Tests.Providers
                     ApiName = "missing",
                     DisplayName = "Missing",
                     Rarity = RarityTier.Common
+                },
+                new AchievementDetail
+                {
+                    ApiName = " ",
+                    DisplayName = "No id",
+                    Rarity = RarityTier.Common
                 }
             };
 
@@ -270,13 +276,30 @@ namespace PlayniteAchievements.Tests.Providers
                     { "6", 100 }
                 });
 
-            Assert.AreEqual(2, updated);
+            Assert.AreEqual(3, updated);
             Assert.AreEqual(4.3049, achievements[0].GlobalPercentUnlocked.Value);
             Assert.AreEqual(RarityTier.UltraRare, achievements[0].Rarity);
             Assert.AreEqual(100d, achievements[1].GlobalPercentUnlocked.Value);
             Assert.AreEqual(RarityTier.Common, achievements[1].Rarity);
-            Assert.IsFalse(achievements[2].GlobalPercentUnlocked.HasValue);
-            Assert.AreEqual(RarityTier.Common, achievements[2].Rarity);
+            Assert.AreEqual(0d, achievements[2].GlobalPercentUnlocked.Value);
+            Assert.AreEqual(RarityTier.UltraRare, achievements[2].Rarity);
+            Assert.IsFalse(achievements[3].GlobalPercentUnlocked.HasValue);
+            Assert.AreEqual(RarityTier.Common, achievements[3].Rarity);
+        }
+
+        [TestMethod]
+        public void WowRarity_EmptyDocumentLeavesAchievementsUntouched()
+        {
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "157", GlobalPercentUnlocked = 12.5, Rarity = RarityTier.Rare }
+            };
+
+            var updated = WowGameStrategy.ApplyDataForAzerothRarity(achievements, new Dictionary<string, double>());
+
+            Assert.AreEqual(0, updated);
+            Assert.AreEqual(12.5, achievements[0].GlobalPercentUnlocked.Value);
+            Assert.AreEqual(RarityTier.Rare, achievements[0].Rarity);
         }
 
         [TestMethod]
@@ -332,6 +355,245 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void GameSupport_RoutesClassicAndForeverAwayFromRetail()
+        {
+            Assert.AreEqual(BattleNetGameTitle.Wow, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft")));
+            Assert.AreEqual(BattleNetGameTitle.Wow, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("WoW")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft: Mists of Pandaria Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowClassic, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("WoW Classic")));
+            Assert.AreEqual(BattleNetGameTitle.WowForever, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("World of Warcraft: Forever")));
+            Assert.AreEqual(BattleNetGameTitle.Sc2, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("StarCraft II")));
+            Assert.AreEqual(BattleNetGameTitle.None, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("Diablo IV")));
+            Assert.AreEqual(BattleNetGameTitle.None, BattleNetGameSupport.ResolveTitleByName(BattleNetGame("StarCraft: Remastered")));
+
+            var settings = new BattleNetSettings();
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+
+            settings.BattleNetClientId = "id";
+            settings.BattleNetClientSecret = "secret";
+            Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft Classic"), settings));
+            Assert.IsFalse(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+
+            settings.BattleNetAccountId = "account";
+            settings.BattleNetAccessToken = "token";
+            Assert.IsTrue(BattleNetGameSupport.IsSupported(BattleNetGame("World of Warcraft: Forever"), settings));
+        }
+
+        [TestMethod]
+        public void WowVersion_PutsTheVersionPrefixIntoEveryNamespace()
+        {
+            Assert.AreSame(WowVersion.Classic, WowVersion.ForTitle(BattleNetGameTitle.WowClassic));
+            Assert.AreSame(WowVersion.Forever, WowVersion.ForTitle(BattleNetGameTitle.WowForever));
+            Assert.AreSame(WowVersion.Retail, WowVersion.ForTitle(BattleNetGameTitle.Wow));
+            Assert.IsNull(WowVersion.ForTitle(BattleNetGameTitle.Sc2));
+
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/achievement/index?namespace=static-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAchievementIndexUrl("eu", "en_US", WowVersion.Classic.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/achievement-category/15597?namespace=static-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildWowAchievementCategoryUrl("eu", 15597, "en_US", WowVersion.Forever.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/wow/character/shekzeer/eternal/achievements?namespace=profile-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialCharacterAchievementsUrl("eu", "shekzeer", "Eternal", "en_US", WowVersion.Classic.NamespacePrefix));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/user/wow?namespace=profile-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAccountProfileUrl("eu", "en_US", WowVersion.Forever.NamespacePrefix));
+            Assert.AreEqual(
+                "https://us.api.blizzard.com/data/wow/achievement/index?namespace=static-us&locale=en_US",
+                BattleNetApiClient.BuildWowOfficialAchievementIndexUrl("us", "en_US"));
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/media/achievement/62041?namespace=static-forever-eu",
+                WowGameStrategy.BuildOfficialAchievementMediaHref(null, "eu", 62041, WowVersion.Forever.NamespacePrefix));
+        }
+
+        [TestMethod]
+        public void WowApiClient_BuildsAchievementsUrlFromACharacterProfileLink()
+        {
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/profile/wow/character/some-realm/name/achievements?namespace=profile-forever-eu&locale=en_US",
+                BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(
+                    "https://eu.api.blizzard.com/profile/wow/character/some-realm/name?namespace=profile-forever-eu",
+                    "en_US"));
+            Assert.IsNull(BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(
+                "https://eu.api.blizzard.com/profile/user/wow/protected-character/1-2?namespace=profile-eu",
+                "en_US"));
+            Assert.IsNull(BattleNetApiClient.BuildCharacterAchievementsUrlFromProfileHref(null, "en_US"));
+        }
+
+        [TestMethod]
+        public void WowAccountCharacters_ReadNameAndRealmFromTheEntryWithTheLinkAsFallback()
+        {
+            var profile = JsonConvert.DeserializeObject<WowAccountProfileResponse>(@"{
+  ""wow_accounts"": [{
+    ""id"": 1,
+    ""characters"": [
+      {
+        ""character"": { ""href"": ""https://eu.api.blizzard.com/profile/wow/character/tarren-mill/cowkiri?namespace=profile-eu"" },
+        ""protected_character"": { ""href"": ""https://eu.api.blizzard.com/profile/user/wow/protected-character/1-2?namespace=profile-eu"" },
+        ""name"": ""Cowkiri"",
+        ""id"": 2,
+        ""realm"": { ""name"": ""Tarren Mill"", ""id"": 1084, ""slug"": ""tarren-mill"" },
+        ""level"": 90
+      },
+      {
+        ""character"": { ""href"": ""https://eu.api.blizzard.com/profile/wow/character/far-realm/linkonly?namespace=profile-forever-eu"" },
+        ""id"": 3
+      },
+      { ""id"": 4 }
+    ]
+  }]
+}");
+
+            var characters = WowGameStrategy.ExtractAccountCharacters("eu", profile);
+
+            Assert.AreEqual(2, characters.Count);
+            Assert.IsTrue(characters[0].HasRealmAndName);
+            Assert.AreEqual("tarren-mill", characters[0].RealmSlug);
+            Assert.AreEqual("Cowkiri", characters[0].CharacterName);
+            Assert.IsFalse(characters[1].HasRealmAndName);
+            StringAssert.Contains(characters[1].ProfileHref, "/linkonly?namespace=profile-forever-eu");
+        }
+
+        [TestMethod]
+        public void WowAccountCharacters_SkipCharactersBelowTheProfileLevel()
+        {
+            var profile = JsonConvert.DeserializeObject<WowAccountProfileResponse>(@"{
+  ""wow_accounts"": [{ ""characters"": [
+    { ""name"": ""Alt"", ""realm"": { ""slug"": ""ravencrest"" }, ""level"": 9 },
+    { ""name"": ""Main"", ""realm"": { ""slug"": ""ravencrest"" }, ""level"": 10 }
+  ] }]
+}");
+
+            var characters = WowGameStrategy.ExtractAccountCharacters("eu", profile);
+
+            Assert.AreEqual(1, characters.Count);
+            Assert.AreEqual("Main", characters[0].CharacterName);
+            Assert.AreEqual(10, characters[0].Level);
+        }
+
+        [TestMethod]
+        public void WowCharacterSource_ChoosesAccountOrTypedCharacterWithForeverAlwaysAccount()
+        {
+            var settings = new BattleNetSettings();
+            Assert.AreEqual(WowCharacterSource.Account, settings.WowCharacterSource);
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Retail));
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Classic));
+
+            settings.WowCharacterSource = WowCharacterSource.Character;
+            Assert.IsFalse(WowGameStrategy.UsesAccount(settings, WowVersion.Retail));
+            Assert.IsFalse(WowGameStrategy.UsesAccount(settings, WowVersion.Classic));
+            Assert.IsTrue(WowGameStrategy.UsesAccount(settings, WowVersion.Forever));
+        }
+
+        [TestMethod]
+        public void WowRealmIndexUrl_UsesTheVersionDynamicNamespace()
+        {
+            Assert.AreEqual(
+                "https://eu.api.blizzard.com/data/wow/realm/index?namespace=dynamic-classic-eu&locale=en_US",
+                BattleNetApiClient.BuildWowRealmIndexUrl("eu", null, WowVersion.Classic.NamespacePrefix));
+        }
+
+        [TestMethod]
+        public void WowRealmSlug_AcceptsTypedRealmNames()
+        {
+            Assert.AreEqual("tarren-mill", WowGameStrategy.NormalizeRealmSlug("  Tarren Mill "));
+            Assert.AreEqual("shekzeer", WowGameStrategy.NormalizeRealmSlug("Shek'zeer"));
+            Assert.AreEqual("area-52", WowGameStrategy.NormalizeRealmSlug("area-52"));
+            Assert.IsNull(WowGameStrategy.NormalizeRealmSlug(" "));
+        }
+
+        [TestMethod]
+        public void WowCatalogFromCategories_NestsPathsAndSkipsGuildBranches()
+        {
+            var resources = JsonConvert.DeserializeObject<List<WowAchievementCategoryResource>>(@"[
+  { ""id"": 15568, ""name"": ""Classes"", ""achievements"": [] },
+  { ""id"": 15577, ""name"": ""Druid"", ""parent_category"": { ""id"": 15568, ""name"": ""Classes"" },
+    ""achievements"": [ { ""id"": 62100, ""name"": ""Shapeshifter"" }, { ""id"": 62101, ""name"": ""Bear Form"", ""points"": 10 } ] },
+  { ""id"": 15597, ""name"": ""Ranks"", ""parent_category"": { ""id"": 15590, ""name"": ""Player vs. Player"" },
+    ""achievements"": [ { ""id"": 62041, ""name"": ""Rank 3"" }, { ""id"": 62100, ""name"": ""Duplicate"" } ] },
+  { ""id"": 15088, ""name"": ""Guild"", ""is_guild_category"": true,
+    ""achievements"": [ { ""id"": 5000, ""name"": ""Guild Level"" } ] },
+  { ""id"": 15089, ""name"": ""Guild Dungeons"", ""parent_category"": { ""id"": 15088, ""name"": ""Guild"" },
+    ""achievements"": [ { ""id"": 5001, ""name"": ""Guild Run"" } ] }
+]");
+            var guildIds = new HashSet<int>();
+
+            var achievements = WowGameStrategy.BuildCatalogFromCategories(resources, guildIds);
+
+            CollectionAssert.AreEquivalent(new[] { "62041", "62100", "62101" }, achievements.Select(a => a.ApiName).ToList());
+            Assert.AreEqual(
+                CategoryPathHelper.JoinRaw("Classes", "Druid"),
+                achievements.Single(a => a.ApiName == "62100").Category);
+            Assert.AreEqual(
+                CategoryPathHelper.JoinRaw("Player vs. Player", "Ranks"),
+                achievements.Single(a => a.ApiName == "62041").Category);
+            Assert.AreEqual(10, achievements.Single(a => a.ApiName == "62101").Points);
+            Assert.IsNull(achievements.Single(a => a.ApiName == "62100").Points);
+            CollectionAssert.IsSubsetOf(new[] { 15088, 15089 }, guildIds.ToList());
+            Assert.IsTrue(achievements.All(a => !a.Unlocked));
+        }
+
+        [TestMethod]
+        public void Sc2BuildAchievements_MapsStaticCatalogOntoProfile()
+        {
+            var definitions = JsonConvert.DeserializeObject<Sc2AchievementDefinitionsResponse>(@"{
+  ""achievements"": [
+    { ""id"": ""91475320766632"", ""title"": ""Victory"", ""description"": ""Win a game."", ""imageUrl"": ""https://example.test/a.jpg"", ""categoryId"": ""4325379"", ""points"": 10 },
+    { ""id"": ""91475320766633"", ""title"": ""Still Going"", ""description"": ""In progress."", ""categoryId"": ""4325379"", ""points"": 0 },
+    { ""id"": ""91475320766632"", ""title"": ""Duplicate"" },
+    { ""title"": ""No id"" }
+  ],
+  ""categories"": [
+    { ""id"": ""4325379"", ""name"": ""Wings of Liberty"", ""parentCategoryId"": ""4325377"" },
+    { ""id"": ""4325377"", ""name"": ""Campaign"", ""parentCategoryId"": null },
+    { ""id"": ""4325377"", ""name"": ""Campaign duplicate"" }
+  ]
+}");
+            var profile = JsonConvert.DeserializeObject<Sc2ProfileResponse>(@"{
+  ""summary"": { ""id"": ""987654"", ""displayName"": ""Tester"", ""totalAchievementPoints"": 10 },
+  ""earnedAchievements"": [
+    { ""achievementId"": ""91475320766632"", ""completionDate"": 1.710000000E9, ""isComplete"": true, ""inProgress"": false },
+    { ""achievementId"": ""91475320766633"", ""completionDate"": 0, ""isComplete"": false, ""inProgress"": true }
+  ]
+}");
+
+            var achievements = Sc2GameStrategy.BuildAchievements(definitions, profile);
+
+            Assert.AreEqual(2, achievements.Count);
+            var won = achievements[0];
+            Assert.AreEqual("91475320766632", won.ApiName);
+            Assert.AreEqual("Victory", won.DisplayName);
+            Assert.AreEqual("https://example.test/a.jpg", won.UnlockedIconPath);
+            Assert.AreEqual(10, won.Points);
+            Assert.AreEqual(CategoryPathHelper.JoinRaw("Campaign", "Wings of Liberty"), won.Category);
+            Assert.IsTrue(won.Unlocked);
+            Assert.AreEqual(new DateTime(2024, 3, 9, 16, 0, 0, DateTimeKind.Utc), won.UnlockTimeUtc);
+
+            var pending = achievements[1];
+            Assert.IsFalse(pending.Unlocked);
+            Assert.IsNull(pending.UnlockTimeUtc);
+            Assert.IsNull(pending.Points);
+        }
+
+        [TestMethod]
+        public void Sc2ChooseProfile_PrefersTheSignInRegion()
+        {
+            var profiles = new List<Sc2PlayerProfile>
+            {
+                new Sc2PlayerProfile { RegionId = 1, RealmId = 1, ProfileId = 0 },
+                new Sc2PlayerProfile { RegionId = 1, RealmId = 1, ProfileId = 11 },
+                new Sc2PlayerProfile { RegionId = 2, RealmId = 1, ProfileId = 22 }
+            };
+
+            Assert.AreEqual(22, Sc2GameStrategy.ChooseProfile(profiles, "eu").ProfileId);
+            Assert.AreEqual(11, Sc2GameStrategy.ChooseProfile(profiles, "kr").ProfileId);
+            Assert.IsNull(Sc2GameStrategy.ChooseProfile(null, "us"));
+        }
+
+        [TestMethod]
         public async Task Sc2ApiClient_UsesClientCredentialsTokenAndOfficialEndpoints()
         {
             var handler = new RecordingHandler();
@@ -364,11 +626,11 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.AreEqual("Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=", handler.Requests[0].AuthorizationParameter);
             Assert.AreEqual("grant_type=client_credentials", handler.Requests[0].Body);
 
-            Assert.AreEqual("https://eu.api.blizzard.com/sc2/legacy/data/achievements/2?locale=de_DE", handler.Requests[1].RequestUri.ToString());
+            Assert.AreEqual("https://eu.api.blizzard.com/sc2/static/profile/2?locale=de_DE", handler.Requests[1].RequestUri.ToString());
             Assert.AreEqual("Bearer", handler.Requests[1].AuthorizationScheme);
             Assert.AreEqual("token-value", handler.Requests[1].AuthorizationParameter);
 
-            Assert.AreEqual("https://eu.api.blizzard.com/sc2/legacy/profile/2/1/987654?locale=de_DE", handler.Requests[2].RequestUri.ToString());
+            Assert.AreEqual("https://eu.api.blizzard.com/sc2/profile/2/1/987654?locale=de_DE", handler.Requests[2].RequestUri.ToString());
             Assert.AreEqual("Bearer", handler.Requests[2].AuthorizationScheme);
             Assert.AreEqual("token-value", handler.Requests[2].AuthorizationParameter);
         }
@@ -489,7 +751,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler();
@@ -530,7 +791,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler();
@@ -569,7 +829,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var handler = new RecordingHandler { IncludeOfficialGuildAchievement = true };
@@ -602,7 +861,6 @@ namespace PlayniteAchievements.Tests.Providers
                 battleNetSettings.WowCharacter = "Noshotz";
                 battleNetSettings.BattleNetClientId = "client-id";
                 battleNetSettings.BattleNetClientSecret = "client-secret";
-                battleNetSettings.WowAggregateAccountCharacters = false;
                 registry.Save(battleNetSettings);
 
                 var firstHandler = new RecordingHandler();
@@ -658,7 +916,6 @@ namespace PlayniteAchievements.Tests.Providers
             battleNetSettings.WowCharacter = "Noshotz";
             battleNetSettings.BattleNetClientId = "client-id";
             battleNetSettings.BattleNetClientSecret = "client-secret";
-            battleNetSettings.WowAggregateAccountCharacters = false;
             registry.Save(battleNetSettings);
 
             var achievements = new List<AchievementDetail>
@@ -773,15 +1030,15 @@ namespace PlayniteAchievements.Tests.Providers
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/legacy/data/achievements/2?locale=de_DE")
+                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/static/profile/2?locale=de_DE")
                 {
                     return JsonResponse(@"{""achievements"":[{""id"":""ach-1"",""title"":""Win"",""description"":""Win a match"",""points"":10,""categoryId"":""cat-1""}],""categories"":[{""id"":""cat-1"",""name"":""General""}]}");
                 }
 
                 if (request.Method == HttpMethod.Get &&
-                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/legacy/profile/2/1/987654?locale=de_DE")
+                    request.RequestUri.ToString() == "https://eu.api.blizzard.com/sc2/profile/2/1/987654?locale=de_DE")
                 {
-                    return JsonResponse(@"{""summary"":{""id"":""987654"",""displayName"":""Tester"",""totalAchievementPoints"":10},""earnedAchievements"":[{""achievementId"":""ach-1"",""completionDate"":""1710000000"",""isComplete"":true}]}");
+                    return JsonResponse(@"{""summary"":{""id"":""987654"",""displayName"":""Tester"",""totalAchievementPoints"":10},""earnedAchievements"":[{""achievementId"":""ach-1"",""completionDate"":1.71E9,""isComplete"":true}]}");
                 }
 
                 if (request.Method == HttpMethod.Post &&

@@ -47,6 +47,11 @@ namespace PlayniteAchievements.ViewModels.Items
         /// </summary>
         public bool SelfHasGameData { get; set; }
 
+        // Whether the friend is known to have this row's game: it is in their game list or has
+        // playtime. False for a row made only by scraping their achievements for the game, which
+        // lists every achievement locked whether or not they own it.
+        public bool FriendOwnsGame { get; set; }
+
         /// <summary>
         /// Unless spoilers are shown, visibility decisions use the current user's
         /// unlock state instead of the friend's, so achievements the user has not

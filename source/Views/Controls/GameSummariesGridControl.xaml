@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.Controls.GameSummariesGridControl"
+<controls:SummaryGridControlBase x:Class="PlayniteAchievements.Views.Controls.GameSummariesGridControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
@@ -7,7 +7,7 @@
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
-             helpers:CompletionBadge.PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource Self}}"
+             helpers:CompletionBadge.DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource Self}}"
              Loaded="OnLoaded"
              Unloaded="OnUnloaded">
     <UserControl.Resources>
@@ -339,6 +339,10 @@
                                             <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="CollectionScoreTotal"/>
+                                            <Binding Path="PrestigeScoreTotal"/>
+                                            <Binding Path="ShowMetadataCollection" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPrestige" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
                                     <TextBlock.Visibility>
@@ -353,6 +357,10 @@
                                             <Binding Path="PlatformScorePointsTotal"/>
                                             <Binding Path="ShowMetadataTotal" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                             <Binding Path="ShowMetadataPoints" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="CollectionScoreTotal"/>
+                                            <Binding Path="PrestigeScoreTotal"/>
+                                            <Binding Path="ShowMetadataCollection" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                            <Binding Path="ShowMetadataPrestige" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Visibility>
                                 </TextBlock>
@@ -790,4 +798,4 @@
         </DataGrid.Columns>
     </DataGrid>
     </Grid>
-</UserControl>
+</controls:SummaryGridControlBase>

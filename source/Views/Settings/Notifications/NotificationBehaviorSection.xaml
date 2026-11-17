@@ -116,16 +116,6 @@
                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_ToastPosition_TopLeft}" Tag="{x:Static settings:ToastScreenCorner.TopLeft}"/>
                             </ComboBox>
                         </controls:SettingRow>
-                        <controls:SettingRow x:Name="RenderModeGlobalRow"
-                                             Label="{DynamicResource LOCPlayAch_Settings_NotificationRenderMode}"
-                                             Hint="{DynamicResource LOCPlayAch_Settings_NotificationRenderMode_Hint}">
-                            <ComboBox SelectedValue="{Binding Persisted.NotificationRenderMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      SelectedValuePath="Tag"
-                                      MinWidth="140">
-                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_NotificationRenderMode_Performance}" Tag="{x:Static settings:NotificationRenderMode.Performance}"/>
-                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_RecordingQuality}" Tag="{x:Static settings:NotificationRenderMode.Quality}"/>
-                            </ComboBox>
-                        </controls:SettingRow>
 
                         <controls:SettingRow x:Name="VibrationGlobalRow"
                                              Label="{DynamicResource LOCPlayAch_Settings_EnableControllerVibration}">

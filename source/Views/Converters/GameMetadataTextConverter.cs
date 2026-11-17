@@ -7,13 +7,14 @@ using PlayniteAchievements.Services;
 namespace PlayniteAchievements.Views.Converters
 {
     /// <summary>
-    /// Joins the per-game platform, playtime, region, total achievement count and total points
-    /// into the secondary metadata line, including only the parts whose corresponding visibility
-    /// flag is enabled.
+    /// Joins the per-game platform, playtime, region, total achievement count, total points and
+    /// Collection and Prestige score totals into the secondary metadata line, including only the
+    /// parts whose corresponding visibility flag is enabled.
     /// Expects six bound values: platformText, playtimeText, regionText, showPlatform,
     /// showPlaytime, showRegion; optionally followed by totalAchievements, points, showTotal and
-    /// showPoints, which count as off when absent. When targeting <see cref="Visibility"/>,
-    /// returns Collapsed when the joined result is empty; otherwise returns the joined string.
+    /// showPoints, then collectionTotal, prestigeTotal, showCollection and showPrestige, which
+    /// count as off when absent. When targeting <see cref="Visibility"/>, returns Collapsed when
+    /// the joined result is empty; otherwise returns the joined string.
     /// </summary>
     public class GameMetadataTextConverter : IMultiValueConverter
     {
@@ -29,6 +30,10 @@ namespace PlayniteAchievements.Views.Converters
             var points = GetInt(values, 7);
             var showTotal = GetBool(values, 8);
             var showPoints = GetBool(values, 9);
+            var collectionTotal = GetInt(values, 10);
+            var prestigeTotal = GetInt(values, 11);
+            var showCollection = GetBool(values, 12);
+            var showPrestige = GetBool(values, 13);
 
             var text = PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
                 platformText,
@@ -36,11 +41,15 @@ namespace PlayniteAchievements.Views.Converters
                 regionText,
                 totalAchievements,
                 points,
+                collectionTotal,
+                prestigeTotal,
                 showPlatform,
                 showPlaytime,
                 showRegion,
                 showTotal,
-                showPoints);
+                showPoints,
+                showCollection,
+                showPrestige);
 
             if (targetType == typeof(Visibility))
             {

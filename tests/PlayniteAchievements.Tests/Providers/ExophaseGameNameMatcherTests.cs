@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Providers.Exophase;
+using Newtonsoft.Json;
 using System.Linq;
 
 namespace PlayniteAchievements.Tests.Providers
@@ -187,9 +188,9 @@ namespace PlayniteAchievements.Tests.Providers
         {
             var games = new[]
             {
-                RegionRow("Demon's Souls", "demons-souls", "NA", "ps3"),
-                RegionRow("Demon's Souls", "demons-souls-2", "EU", "ps3"),
-                RegionRow("Demon's Souls", "demons-souls-3", "AS", "ps3")
+                RegionRow("Demon's Souls", "demons-souls", "north-america", "ps3"),
+                RegionRow("Demon's Souls", "demons-souls-2", "europe", "ps3"),
+                RegionRow("Demon's Souls", "demons-souls-3", "asia", "ps3")
             };
 
             var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3", "eu");
@@ -199,18 +200,21 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
-        public void SelectBestSearchMatch_RegionHint_TreatsUsAndNaAsEquivalent()
+        public void SearchRows_DeserializeRegionsList()
         {
-            var games = new[]
-            {
-                RegionRow("Demon's Souls", "demons-souls-2", "EU", "ps3"),
-                RegionRow("Demon's Souls", "demons-souls", "US", "ps3")
-            };
+            // Trimmed from a live archive search for "Demon's Souls".
+            const string json = @"{""success"":true,""games"":{""list"":[
+                {""title"":""Demon's Souls"",""platforms"":[{""name"":""PS5"",""slug"":""ps5""}],""regions"":null,
+                 ""endpoint_awards"":""https://www.exophase.com/game/demons-souls-psn/trophies/""},
+                {""title"":""Demon's Souls"",""platforms"":[{""name"":""PS3"",""slug"":""ps3""}],
+                 ""regions"":[{""termTaxonomyId"":127591,""termId"":69670,""name"":""Europe"",""slug"":""europe""}],
+                 ""endpoint_awards"":""https://www.exophase.com/game/demons-souls-2/trophies/""}]}}";
 
-            var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3", "na");
+            var rows = JsonConvert.DeserializeObject<ExophaseSearchResult>(json).Games.List;
 
-            Assert.IsNotNull(match);
-            StringAssert.Contains(match.EndpointAwards, "/game/demons-souls/");
+            Assert.IsNull(rows[0].GetRegionNames());
+            Assert.AreEqual("Europe", rows[1].GetRegionNames());
+            Assert.AreEqual("eu", ExophaseGameNameMatcher.MapRegionSlugToHint(rows[1].Regions[0].Slug));
         }
 
         [TestMethod]
@@ -255,10 +259,10 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsNull(ExophaseGameNameMatcher.MapPsnContentIdToRegionHint(null));
         }
 
-        private static ExophaseGame RegionRow(string title, string slug, string region, params string[] platformSlugs)
+        private static ExophaseGame RegionRow(string title, string slug, string regionSlug, params string[] platformSlugs)
         {
             var row = SearchRow(title, slug, platformSlugs);
-            row.Region = region;
+            row.Regions = new System.Collections.Generic.List<ExophaseRegion> { new ExophaseRegion { Name = regionSlug, Slug = regionSlug } };
             return row;
         }
 

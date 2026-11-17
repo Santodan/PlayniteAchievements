@@ -94,16 +94,28 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsFalse(game.ShowMetadataPoints);
             Assert.IsFalse(category.ShowMetadataTotal);
             Assert.IsFalse(category.ShowMetadataPoints);
+            Assert.IsFalse(game.ShowMetadataCollection);
+            Assert.IsFalse(game.ShowMetadataPrestige);
+            Assert.IsFalse(category.ShowMetadataCollection);
+            Assert.IsFalse(category.ShowMetadataPrestige);
 
             game.ShowMetadataTotal = true;
             game.ShowMetadataPoints = true;
+            game.ShowMetadataCollection = true;
+            game.ShowMetadataPrestige = true;
             category.ShowMetadataTotal = true;
             category.ShowMetadataPoints = true;
+            category.ShowMetadataCollection = true;
+            category.ShowMetadataPrestige = true;
 
             Assert.IsTrue(game.Clone().ShowMetadataTotal);
             Assert.IsTrue(game.Clone().ShowMetadataPoints);
+            Assert.IsTrue(game.Clone().ShowMetadataCollection);
+            Assert.IsTrue(game.Clone().ShowMetadataPrestige);
             Assert.IsTrue(category.Clone().ShowMetadataTotal);
             Assert.IsTrue(category.Clone().ShowMetadataPoints);
+            Assert.IsTrue(category.Clone().ShowMetadataCollection);
+            Assert.IsTrue(category.Clone().ShowMetadataPrestige);
         }
 
         [TestMethod]

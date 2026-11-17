@@ -15,10 +15,10 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Services.Metadata
 {
     /// <summary>
-    /// Copies achievement metadata from secondary sources onto a game another provider services,
-    /// field by field in the user's preference order. Runs on the refreshed payload before it is
-    /// cached, so turning a source off reverts on the next refresh and user overrides, applied at
-    /// read time, stay on top.
+    /// Builds the metadata layer of a game another provider services from secondary sources, field
+    /// by field, and resolves the refreshed payload over it before it is cached. The platform's own
+    /// values stay in their layer, so turning a source off or clearing metadata reverts without a
+    /// refetch, and user overrides, applied at read time, stay on top.
     /// </summary>
     internal sealed class MetadataOverlay
     {
@@ -178,8 +178,6 @@ namespace PlayniteAchievements.Services.Metadata
         private readonly object _sessionSync = new object();
         private readonly Dictionary<string, Task<bool>> _sessions =
             new Dictionary<string, Task<bool>>(StringComparer.OrdinalIgnoreCase);
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>> _ownIcons =
-            new System.Collections.Concurrent.ConcurrentDictionary<Guid, Dictionary<string, OwnIconPaths>>();
         private readonly MetadataRunTimings _timings = new MetadataRunTimings();
         private readonly long _runStarted = Stopwatch.GetTimestamp();
 
@@ -238,26 +236,38 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Applies the enabled metadata fields to the payload. Returns true when the game's icon
-        /// source changed since the last overlay, so cached icon files must be overwritten.
+        /// Builds the game's metadata layer and resolves the payload over it.
         /// <paramref name="forceIcons"/> overwrites the sources' saved row icons as well.
         /// <paramref name="keepStored"/>, or a run that <see cref="KeepsStored"/>, asks no source:
         /// every planned source is treated as failed, so the game keeps what was last saved.
         /// </summary>
-        public async Task<bool> ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false, bool keepStored = false)
+        public async Task ApplyAsync(Game game, GameAchievementData data, CancellationToken ct, bool forceIcons = false, bool keepStored = false)
         {
             var gameId = data?.PlayniteGameId ?? game?.Id ?? Guid.Empty;
             if (gameId == Guid.Empty || data?.Achievements == null || data.Achievements.Count == 0)
             {
-                return false;
+                return;
             }
 
+            // Each overlay starts from the platform's own values; the sources' go to a layer of their own.
+            var drafts = new Dictionary<AchievementDetail, LayerDraft>();
+            foreach (var row in data.Achievements.Where(row => row != null).Distinct())
+            {
+                row.PlatformLayer = AchievementLayers.PlatformOf(row);
+                drafts[row] = new LayerDraft();
+            }
+
+            Commit(drafts);
             var englishTitles = EnglishTitlesFor(game, data);
             var request = CreateRequest(game, data, gameId, englishTitles);
-            var plan = BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
-            if (plan.IsEmpty)
+            // A game excluded from metadata takes nothing from any source, so its layer stays empty.
+            var plan = _links?.IsExcludedFromMetadata(gameId) == true
+                ? null
+                : BuildPlan(request.ServicingProviderKey, _links?.GetChoices(gameId));
+            if (plan == null || plan.IsEmpty)
             {
-                return _links?.RecordApplied(gameId, null, null) ?? false;
+                _links?.RecordApplied(gameId, null, null);
+                return;
             }
 
             var sets = new Dictionary<string, MatchedSet>(StringComparer.OrdinalIgnoreCase);
@@ -288,10 +298,9 @@ namespace PlayniteAchievements.Services.Metadata
             await DownloadSourceIconsAsync(gameId, plan, sets, forceIcons, ct).ConfigureAwait(false);
             _timings.Add("icons", step);
             step = Stopwatch.GetTimestamp();
-            var iconsChanged = await ApplySetsAsync(gameId, data, plan, sets, failed, ct).ConfigureAwait(false);
+            await ApplySetsAsync(gameId, data, drafts, plan, sets, failed, ct).ConfigureAwait(false);
             _timings.Add("apply", step);
             _timings.Add("total", started);
-            return iconsChanged;
         }
 
         /// <summary>
@@ -349,12 +358,14 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Applies the loaded sources' fields to the payload and records what was applied. A failed
-        /// source's fields keep the values last saved. Returns whether the icon source changed.
+        /// Builds each achievement's metadata layer from the loaded sources, resolves the payload
+        /// over it, and records what was applied. A failed source's fields keep the metadata layer
+        /// last saved.
         /// </summary>
-        private async Task<bool> ApplySetsAsync(
+        private async Task ApplySetsAsync(
             Guid gameId,
             GameAchievementData data,
+            Dictionary<AchievementDetail, LayerDraft> drafts,
             OverlayPlan plan,
             Dictionary<string, MatchedSet> sets,
             HashSet<string> failed,
@@ -366,38 +377,37 @@ namespace PlayniteAchievements.Services.Metadata
                 failed.Contains(key) || (sets.TryGetValue(key, out var answered) && (answered.Set.UnavailableFields & field) != 0));
             var anyFailed = failed.Count > 0 || sets.Values.Any(answered => answered.Set.UnavailableFields != MetadataField.None);
             var previous = anyFailed ? _links?.GetApplied(gameId) : null;
-            var stored = anyFailed ? StoredByApiName(gameId) : null;
+            var stored = anyFailed ? StoredLayers(gameId) : null;
+            void KeepStored(bool fieldFailed, AchievementField fields)
+            {
+                if (!fieldFailed || stored == null)
+                {
+                    return;
+                }
 
-            var ownIcons = new Dictionary<string, OwnIconPaths>(StringComparer.OrdinalIgnoreCase);
-            var iconSource = ApplyIcons(plan.IconKeys, sets, ownIcons);
-            var borrowedIconApiNames = ownIcons.Keys.ToList();
+                foreach (var pair in drafts)
+                {
+                    if (pair.Key.ApiName != null && stored.TryGetValue(pair.Key.ApiName.Trim(), out var old))
+                    {
+                        pair.Value.Keep(old, fields);
+                    }
+                }
+            }
+
+            var iconSource = ApplyIcons(plan.IconKeys, sets, drafts);
             if (iconSource == null && plan.IconKeys.Any(failed.Contains) &&
                 previous?.IconSourceKey != null && failed.Contains(previous.IconSourceKey))
             {
                 iconSource = previous.IconSourceKey;
-                borrowedIconApiNames = previous.IconApiNames ?? new List<string>();
-                var borrowed = new HashSet<string>(borrowedIconApiNames, StringComparer.OrdinalIgnoreCase);
-                KeepStored(data.Achievements, stored, row => borrowed.Contains(row.ApiName ?? string.Empty), (target, old) =>
-                {
-                    target.UnlockedIconPath = old.UnlockedIconPath;
-                    target.LockedIconPath = old.LockedIconPath;
-                });
-            }
-            if (ownIcons.Count > 0)
-            {
-                _ownIcons[gameId] = ownIcons;
-            }
-            Replace(plan.CategoryKeys, sets, ApplyCategory, MetadataField.Categories);
-            Replace(plan.TagKeys, sets, ApplyTags, MetadataField.Tags);
-            if (Failed(plan.CategoryKeys, MetadataField.Categories))
-            {
-                KeepStored(data.Achievements, stored, _ => true, ApplyCategory);
+                KeepStored(true, AchievementField.Icons);
             }
 
-            if (Failed(plan.TagKeys, MetadataField.Tags))
-            {
-                KeepStored(data.Achievements, stored, _ => true, ApplyTags);
-            }
+            Replace(plan.CategoryKeys, sets, drafts, ApplyCategory, MetadataField.Categories);
+            KeepStored(Failed(plan.CategoryKeys, MetadataField.Categories), AchievementField.Categories);
+            Replace(plan.TagKeys, sets, drafts, ApplyTags, MetadataField.Tags);
+            KeepStored(Failed(plan.TagKeys, MetadataField.Tags), AchievementField.Tags);
+            // Category art and capstones below read the achievements' categories.
+            Commit(drafts);
             var categoryArt = CollectCategoryArt(plan.CategoryKeys, sets);
             if (categoryArt.Count > 0 && _downloadCategoryArt != null)
             {
@@ -405,40 +415,14 @@ namespace PlayniteAchievements.Services.Metadata
             }
 
             // A borrowed platinum type only labels the trophy; capstones keep their own rules.
-            ApplyField(
-                plan.TrophyTypeKeys,
-                sets,
-                source => !string.IsNullOrWhiteSpace(source.TrophyType),
-                (target, source) => target.TrophyType = source.TrophyType);
-            ApplyField(
-                plan.PointsKeys,
-                sets,
-                source => source.Points.HasValue,
-                (target, source) => target.Points = source.Points);
-            // A source's rarity is its players' share of unlocks; it replaces the platform's tier
-            // wherever the source has a share for the achievement.
-            Replace(plan.RarityKeys, sets, ApplyRarity, MetadataField.Rarity);
-            if (Failed(plan.RarityKeys, MetadataField.Rarity))
-            {
-                KeepStored(data.Achievements, stored, _ => true, (target, old) =>
-                {
-                    if (old.GlobalPercentUnlocked.HasValue)
-                    {
-                        target.GlobalPercentUnlocked = old.GlobalPercentUnlocked;
-                        target.Rarity = old.Rarity;
-                    }
-                });
-            }
-
-            if (Failed(plan.TrophyTypeKeys, MetadataField.TrophyTypes))
-            {
-                KeepStored(data.Achievements, stored, _ => true, (target, old) => target.TrophyType = old.TrophyType ?? target.TrophyType);
-            }
-
-            if (Failed(plan.PointsKeys, MetadataField.Points))
-            {
-                KeepStored(data.Achievements, stored, _ => true, (target, old) => target.Points = old.Points ?? target.Points);
-            }
+            Replace(plan.TrophyTypeKeys, sets, drafts, (draft, source) => draft.TrophyType = source.TrophyType, MetadataField.TrophyTypes);
+            KeepStored(Failed(plan.TrophyTypeKeys, MetadataField.TrophyTypes), AchievementField.TrophyType);
+            Replace(plan.PointsKeys, sets, drafts, (draft, source) => draft.Points = source.Points, MetadataField.Points);
+            KeepStored(Failed(plan.PointsKeys, MetadataField.Points), AchievementField.Points);
+            Replace(plan.RarityKeys, sets, drafts, ApplyRarity, MetadataField.Rarity);
+            KeepStored(Failed(plan.RarityKeys, MetadataField.Rarity), AchievementField.Rarity);
+            ApplyOrder(plan.OrderKeys, sets, drafts);
+            KeepStored(Failed(plan.OrderKeys, MetadataField.Order), AchievementField.Order);
 
             var capstone = ResolveCapstone(plan.CapstoneArtKeys, sets);
             var capstoneArt = SavedArt(sets.Values, capstone);
@@ -467,11 +451,13 @@ namespace PlayniteAchievements.Services.Metadata
             var textSets = sets
                 .Where(pair => pair.Value.Set.TextInPluginLanguage)
                 .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-            Replace(plan.TextKeys, textSets, ApplyText, MetadataField.Text);
-            if (Failed(plan.TextKeys, MetadataField.Text))
-            {
-                KeepStored(data.Achievements, stored, _ => true, ApplyText);
-            }
+            Replace(plan.TextKeys, textSets, drafts, ApplyText, MetadataField.Text);
+            KeepStored(Failed(plan.TextKeys, MetadataField.Text), AchievementField.Text);
+            Commit(drafts);
+            var borrowedIconApiNames = drafts.Keys
+                .Where(row => row.MetadataLayer?.UnlockedIconPath != null)
+                .Select(row => row.ApiName)
+                .ToList();
             // A source that supplies achievement data is judged, and shown, by how many of the
             // game's achievements it matched; one used only for the auto capstone by its platinum.
             var coverage = new Dictionary<string, MetadataCoverage>(StringComparer.OrdinalIgnoreCase);
@@ -524,7 +510,7 @@ namespace PlayniteAchievements.Services.Metadata
                 }
             }
 
-            return _links?.RecordApplied(
+            _links?.RecordApplied(
                 gameId,
                 iconSource,
                 capstoneArt,
@@ -533,76 +519,7 @@ namespace PlayniteAchievements.Services.Metadata
                 capstoneTitle,
                 capstoneDescription,
                 capstoneMatch,
-                categoryCapstones) ?? false;
-        }
-
-        /// <summary>
-        /// After the game's icon download: the borrowed icons that fell back to the game's own on an
-        /// earlier refresh get their borrowed source back, because their files still hold the own
-        /// icon and a download that reuses files would keep it. Returns their ApiNames, to download
-        /// again with files overwritten.
-        /// </summary>
-        public ISet<string> ResetEarlierIconFallbacks(GameAchievementData data)
-        {
-            var reset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var gameId = data?.PlayniteGameId ?? Guid.Empty;
-            if (gameId == Guid.Empty || data.Achievements == null || !_ownIcons.TryGetValue(gameId, out var ownIcons))
-            {
-                return reset;
-            }
-
-            var earlier = new HashSet<string>(_links?.GetIconFallbacks(gameId) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-            foreach (var achievement in data.Achievements)
-            {
-                if (achievement?.ApiName == null ||
-                    !earlier.Contains(achievement.ApiName) ||
-                    !ownIcons.TryGetValue(achievement.ApiName, out var paths))
-                {
-                    continue;
-                }
-
-                achievement.UnlockedIconPath = paths.BorrowedUnlocked;
-                achievement.LockedIconPath = paths.BorrowedLocked;
-                reset.Add(achievement.ApiName);
-            }
-
-            return reset;
-        }
-
-        /// <summary>
-        /// Puts the game's own icons back on each achievement whose borrowed icon did not download,
-        /// so it shows what it would without the source, and records them so a later refresh tries
-        /// the borrowed icon again. Call once per game, after its icon downloads. Returns the
-        /// ApiNames put back, to download with files overwritten.
-        /// </summary>
-        public ISet<string> RestoreOwnIconsWhereDownloadFailed(GameAchievementData data, Func<string, bool> isUndownloaded)
-        {
-            var restored = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var gameId = data?.PlayniteGameId ?? Guid.Empty;
-            if (gameId == Guid.Empty || data.Achievements == null)
-            {
-                return restored;
-            }
-
-            if (_ownIcons.TryRemove(gameId, out var ownIcons))
-            {
-                foreach (var achievement in data.Achievements)
-                {
-                    if (achievement?.ApiName == null ||
-                        !ownIcons.TryGetValue(achievement.ApiName, out var paths) ||
-                        !isUndownloaded(achievement.UnlockedIconPath))
-                    {
-                        continue;
-                    }
-
-                    achievement.UnlockedIconPath = paths.Unlocked;
-                    achievement.LockedIconPath = paths.Locked;
-                    restored.Add(achievement.ApiName);
-                }
-            }
-
-            _links?.ReplaceIconFallbacks(gameId, restored);
-            return restored;
+                categoryCapstones);
         }
 
         public void Dispose()
@@ -657,7 +574,8 @@ namespace PlayniteAchievements.Services.Metadata
                 Chosen(choices.CapstoneArt, MetadataField.CapstoneArt),
                 Chosen(choices.TrophyTypes, MetadataField.TrophyTypes),
                 Chosen(choices.Points, MetadataField.Points),
-                Chosen(choices.Text, MetadataField.Text));
+                Chosen(choices.Text, MetadataField.Text),
+                Chosen(choices.Order, MetadataField.Order));
         }
 
         /// <summary>
@@ -1032,18 +950,18 @@ namespace PlayniteAchievements.Services.Metadata
         private static string ExtendedOr(AchievementSourceSet set, string linkId) =>
             string.IsNullOrWhiteSpace(set.ExtendedLinkId) ? linkId : set.ExtendedLinkId.Trim();
 
-        /// <summary>The game's last saved achievements by ApiName; empty when there are none.</summary>
-        private Dictionary<string, AchievementDetail> StoredByApiName(Guid gameId)
+        /// <summary>The game's last saved metadata layers by ApiName; empty when there are none.</summary>
+        private Dictionary<string, AchievementLayerValues> StoredLayers(Guid gameId)
         {
-            var byApiName = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            var byApiName = new Dictionary<string, AchievementLayerValues>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 foreach (var row in _loadStored?.Invoke(gameId)?.Achievements ?? Enumerable.Empty<AchievementDetail>())
                 {
                     var apiName = row?.ApiName?.Trim();
-                    if (!string.IsNullOrEmpty(apiName) && !byApiName.ContainsKey(apiName))
+                    if (!string.IsNullOrEmpty(apiName) && row.MetadataLayer != null && !byApiName.ContainsKey(apiName))
                     {
-                        byApiName[apiName] = row;
+                        byApiName[apiName] = row.MetadataLayer;
                     }
                 }
             }
@@ -1055,25 +973,13 @@ namespace PlayniteAchievements.Services.Metadata
             return byApiName;
         }
 
-        /// <summary>Copies a field from each achievement's saved row, for the achievements <paramref name="applies"/> selects.</summary>
-        private static void KeepStored(
-            IList<AchievementDetail> targets,
-            IReadOnlyDictionary<string, AchievementDetail> stored,
-            Func<AchievementDetail, bool> applies,
-            Action<AchievementDetail, AchievementDetail> copy)
+        /// <summary>Gives each achievement its draft metadata layer and resolves its fields over it.</summary>
+        private static void Commit(Dictionary<AchievementDetail, LayerDraft> drafts)
         {
-            if (stored == null || stored.Count == 0)
+            foreach (var pair in drafts)
             {
-                return;
-            }
-
-            foreach (var target in targets)
-            {
-                if (target?.ApiName != null && applies(target) &&
-                    stored.TryGetValue(target.ApiName.Trim(), out var old) && old != null)
-                {
-                    copy(target, old);
-                }
+                pair.Key.MetadataLayer = pair.Value.Build();
+                AchievementLayers.Resolve(pair.Key);
             }
         }
 
@@ -1247,13 +1153,14 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Replaces each achievement's icons with the first preferred source that matched it,
-        /// keeping each replaced achievement's own icons in <paramref name="ownIcons"/> by ApiName.
+        /// Gives each achievement the icons of the first preferred source that matched it. Where the
+        /// source's icons were saved, one still at its web address did not download and is left
+        /// out, so the game's own shows.
         /// </summary>
         private static string ApplyIcons(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            IDictionary<string, OwnIconPaths> ownIcons)
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts)
         {
             string firstApplied = null;
             var done = new HashSet<AchievementDetail>();
@@ -1268,23 +1175,15 @@ namespace PlayniteAchievements.Services.Metadata
                 {
                     var icons = set.IconsOf(match.Source);
                     var unlocked = FirstNonBlank(icons.Unlocked, icons.Locked);
-                    if (unlocked == null || !done.Add(match.Target))
+                    bool Unsaved(string path) => set.Icons != null && IsWebPath(path);
+                    if (unlocked == null || Unsaved(unlocked) || !drafts.TryGetValue(match.Target, out var draft) || !done.Add(match.Target))
                     {
                         continue;
                     }
 
-                    var own = new OwnIconPaths
-                    {
-                        Unlocked = match.Target.UnlockedIconPath,
-                        Locked = match.Target.LockedIconPath
-                    };
-                    match.Target.UnlockedIconPath = unlocked;
-                    match.Target.LockedIconPath = string.IsNullOrWhiteSpace(icons.Locked)
-                        ? null
-                        : icons.Locked;
-                    own.BorrowedUnlocked = match.Target.UnlockedIconPath;
-                    own.BorrowedLocked = match.Target.LockedIconPath;
-                    ownIcons[match.Target.ApiName] = own;
+                    draft.UnlockedIconPath = unlocked;
+                    draft.LockedIconPath = string.IsNullOrWhiteSpace(icons.Locked) || Unsaved(icons.Locked) ? null : icons.Locked;
+                    draft.Cleared |= draft.LockedIconPath == null ? AchievementField.LockedIcon : AchievementField.None;
                     firstApplied = firstApplied ?? key;
                 }
             }
@@ -1292,31 +1191,44 @@ namespace PlayniteAchievements.Services.Metadata
             return firstApplied;
         }
 
+        private static bool IsWebPath(string path) =>
+            path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
         /// <summary>
-        /// Fills one field of each achievement that has no value of its own, from the first
-        /// preferred source that matched it and has one: a platform with its own points or trophy
-        /// types (RetroAchievements, Epic, the MMOs) keeps them.
+        /// Gives each achievement the order source matched to its row's position in the source's
+        /// list; the rest read after the ordered ones in the platform's order.
         /// </summary>
-        private static void ApplyField(
+        private static void ApplyOrder(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            Func<AchievementDetail, bool> hasValue,
-            Action<AchievementDetail, AchievementDetail> copy)
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts)
         {
-            var done = new HashSet<AchievementDetail>();
-            foreach (var key in keys)
+            var set = keys
+                .Select(key => sets.TryGetValue(key, out var found) ? found : null)
+                .FirstOrDefault(found => found != null && (found.Set.UnavailableFields & MetadataField.Order) == 0);
+            if (set == null)
             {
-                if (!sets.TryGetValue(key, out var set))
-                {
-                    continue;
-                }
+                return;
+            }
 
-                foreach (var match in set.Matches)
+            var positions = new Dictionary<AchievementDetail, int>();
+            for (var i = 0; i < set.Set.Achievements.Count; i++)
+            {
+                var row = set.Set.Achievements[i];
+                if (row != null && !positions.ContainsKey(row))
                 {
-                    if (!hasValue(match.Target) && hasValue(match.Source) && done.Add(match.Target))
-                    {
-                        copy(match.Target, match.Source);
-                    }
+                    positions[row] = i;
+                }
+            }
+
+            foreach (var match in set.Matches)
+            {
+                if (match.Target != null && match.Source != null &&
+                    positions.TryGetValue(match.Source, out var position) &&
+                    drafts.TryGetValue(match.Target, out var draft))
+                {
+                    draft.Order = position;
                 }
             }
         }
@@ -1399,13 +1311,13 @@ namespace PlayniteAchievements.Services.Metadata
         }
 
         /// <summary>
-        /// Replaces each matched achievement's value with that of the first source that matched it,
-        /// whatever the achievement had.
+        /// Gives each matched achievement's draft the value of the first source that matched it.
         /// </summary>
         private static void Replace(
             IReadOnlyList<string> keys,
             IReadOnlyDictionary<string, MatchedSet> sets,
-            Action<AchievementDetail, AchievementDetail> copy,
+            IReadOnlyDictionary<AchievementDetail, LayerDraft> drafts,
+            Action<LayerDraft, AchievementDetail> copy,
             MetadataField field)
         {
             var done = new HashSet<AchievementDetail>();
@@ -1418,16 +1330,16 @@ namespace PlayniteAchievements.Services.Metadata
 
                 foreach (var match in set.Matches)
                 {
-                    if (done.Add(match.Target))
+                    if (drafts.TryGetValue(match.Target, out var draft) && done.Add(match.Target))
                     {
-                        copy(match.Target, match.Source);
+                        copy(draft, match.Source);
                     }
                 }
             }
         }
 
         /// <summary>The source's unlock share and its rarity tier, where the source has a share.</summary>
-        internal static void ApplyRarity(AchievementDetail target, AchievementDetail source)
+        internal static void ApplyRarity(LayerDraft target, AchievementDetail source)
         {
             if (!source.GlobalPercentUnlocked.HasValue)
             {
@@ -1443,39 +1355,83 @@ namespace PlayniteAchievements.Services.Metadata
         /// The source's name and description, each where the source has one: a source that hides a
         /// description (as Steam does for hidden achievements) leaves the game's own.
         /// </summary>
-        internal static void ApplyText(AchievementDetail target, AchievementDetail source)
+        internal static void ApplyText(LayerDraft target, AchievementDetail source)
         {
-            if (!string.IsNullOrWhiteSpace(source.DisplayName))
-            {
-                target.DisplayName = source.DisplayName.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(source.Description))
-            {
-                target.Description = source.Description.Trim();
-            }
+            target.DisplayName = string.IsNullOrWhiteSpace(source.DisplayName) ? target.DisplayName : source.DisplayName.Trim();
+            target.Description = string.IsNullOrWhiteSpace(source.Description) ? target.Description : source.Description.Trim();
         }
 
-        /// <summary>Replaces an achievement's category and kind with the source's.</summary>
-        internal static void ApplyCategory(AchievementDetail target, AchievementDetail source)
+        /// <summary>The source's category and kind, replacing the game's even where the source has none.</summary>
+        internal static void ApplyCategory(LayerDraft target, AchievementDetail source)
         {
-            target.Category = AchievementCategoryHelper.NormalizeCategory(source.Category);
+            target.Category = DataLayers.NamedCategory(AchievementCategoryHelper.NormalizeCategory(source.Category));
             target.CategoryKind = CategoryKindHelper.Normalize(source.CategoryKind);
+            target.Cleared |= (target.Category == null ? AchievementField.Category : AchievementField.None) |
+                              (target.CategoryKind == null ? AchievementField.CategoryKind : AchievementField.None);
         }
 
         /// <summary>
-        /// Replaces an achievement's tags with the source's, keeping what only the game's own
-        /// provider can know: the unlock mode (how this user earned it) and Unobtainable (the
-        /// platform retired it, as Steam does with archived achievements).
+        /// The source's tags, replacing the game's. What only the game's own provider can know,
+        /// the unlock mode and Unobtainable, the resolver keeps from the platform layer.
         /// </summary>
-        internal static void ApplyTags(AchievementDetail target, AchievementDetail source)
+        internal static void ApplyTags(LayerDraft target, AchievementDetail source)
         {
-            target.Tags = AchievementTagHelper.Combine(new[]
+            target.Tags = AchievementTagHelper.StripDerived(source.Tags);
+            target.Cleared |= target.Tags == null ? AchievementField.Tags : AchievementField.None;
+        }
+
+        /// <summary>
+        /// Gives each of <paramref name="rows"/> a metadata layer of the category and kind
+        /// (<paramref name="categories"/>) and the tags (<paramref name="tags"/>) of the source row
+        /// with its ApiName, by <see cref="ApplyCategory"/> and <see cref="ApplyTags"/>, and resolves
+        /// the row over it. The row's own values are pinned as its platform layer first; a row the
+        /// source has no row for gets no metadata layer.
+        /// </summary>
+        internal static void LayerByApiName(
+            IEnumerable<AchievementDetail> rows,
+            IEnumerable<AchievementDetail> sourceRows,
+            bool categories,
+            bool tags)
+        {
+            var sources = new Dictionary<string, AchievementDetail>(StringComparer.OrdinalIgnoreCase);
+            foreach (var source in sourceRows ?? Enumerable.Empty<AchievementDetail>())
             {
-                AchievementTagHelper.StripDerived(source.Tags),
-                AchievementTagHelper.DerivedOnly(target.Tags),
-                AchievementTagHelper.IsUnobtainable(target.Tags) ? AchievementTagHelper.Unobtainable : null
-            });
+                var apiName = source?.ApiName?.Trim();
+                if (!string.IsNullOrEmpty(apiName) && !sources.ContainsKey(apiName))
+                {
+                    sources[apiName] = source;
+                }
+            }
+
+            foreach (var row in rows ?? Enumerable.Empty<AchievementDetail>())
+            {
+                if (row == null)
+                {
+                    continue;
+                }
+
+                row.PlatformLayer = AchievementLayers.PlatformOf(row);
+                var apiName = row.ApiName?.Trim();
+                if ((categories || tags) &&
+                    !string.IsNullOrEmpty(apiName) &&
+                    sources.TryGetValue(apiName, out var source))
+                {
+                    var draft = new LayerDraft();
+                    if (categories)
+                    {
+                        ApplyCategory(draft, source);
+                    }
+
+                    if (tags)
+                    {
+                        ApplyTags(draft, source);
+                    }
+
+                    row.MetadataLayer = draft.Build();
+                }
+
+                AchievementLayers.Resolve(row);
+            }
         }
 
         /// <summary>The first preferred source's capstone (platinum) icon, when that source matched the game.</summary>
@@ -1702,16 +1658,60 @@ namespace PlayniteAchievements.Services.Metadata
                     : (row?.UnlockedIconPath, row?.LockedIconPath);
         }
 
-        /// <summary>An achievement's icons as its own provider gave them, and the source's that replaced them.</summary>
-        private sealed class OwnIconPaths
+        /// <summary>One achievement's metadata layer while the overlay builds it.</summary>
+        internal sealed class LayerDraft
         {
-            public string Unlocked { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
+            public string UnlockedIconPath { get; set; }
+            public string LockedIconPath { get; set; }
+            public int? Points { get; set; }
+            public string TrophyType { get; set; }
+            public string Category { get; set; }
+            public string CategoryKind { get; set; }
+            public string Tags { get; set; }
+            public double? GlobalPercentUnlocked { get; set; }
+            public RarityTier? Rarity { get; set; }
+            public int? Order { get; set; }
+            public AchievementField Cleared { get; set; }
 
-            public string Locked { get; set; }
+            /// <summary>Takes <paramref name="fields"/> from a saved layer, set or cleared.</summary>
+            public void Keep(AchievementLayerValues saved, AchievementField fields)
+            {
+                bool Takes(AchievementField field) => (fields & field) != 0;
+                if (Takes(AchievementField.DisplayName)) DisplayName = saved.DisplayName;
+                if (Takes(AchievementField.Description)) Description = saved.Description;
+                if (Takes(AchievementField.UnlockedIcon)) UnlockedIconPath = saved.UnlockedIconPath;
+                if (Takes(AchievementField.LockedIcon)) LockedIconPath = saved.LockedIconPath;
+                if (Takes(AchievementField.Points)) Points = saved.Points;
+                if (Takes(AchievementField.TrophyType)) TrophyType = saved.TrophyType;
+                if (Takes(AchievementField.Category)) Category = saved.Category;
+                if (Takes(AchievementField.CategoryKind)) CategoryKind = saved.CategoryKind;
+                if (Takes(AchievementField.Tags)) Tags = saved.Tags;
+                if (Takes(AchievementField.Rarity))
+                {
+                    GlobalPercentUnlocked = saved.GlobalPercentUnlocked;
+                    Rarity = saved.Rarity;
+                }
 
-            public string BorrowedUnlocked { get; set; }
+                if (Takes(AchievementField.Order)) Order = saved.Order;
+                Cleared = (Cleared & ~fields) | (saved.Cleared & fields);
+            }
 
-            public string BorrowedLocked { get; set; }
+            public AchievementLayerValues Build() => new AchievementLayerValues(
+                DisplayName,
+                Description,
+                UnlockedIconPath,
+                LockedIconPath,
+                Points,
+                TrophyType,
+                Category,
+                CategoryKind,
+                Tags,
+                GlobalPercentUnlocked,
+                Rarity,
+                Order,
+                cleared: Cleared);
         }
 
         private sealed class OverlayPlan
@@ -1724,7 +1724,8 @@ namespace PlayniteAchievements.Services.Metadata
                 List<string> capstoneArtKeys,
                 List<string> trophyTypeKeys,
                 List<string> pointsKeys,
-                List<string> textKeys)
+                List<string> textKeys,
+                List<string> orderKeys)
             {
                 IconKeys = iconKeys;
                 CategoryKeys = categoryKeys;
@@ -1734,7 +1735,8 @@ namespace PlayniteAchievements.Services.Metadata
                 TrophyTypeKeys = trophyTypeKeys;
                 PointsKeys = pointsKeys;
                 TextKeys = textKeys;
-                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys).Concat(textKeys)
+                OrderKeys = orderKeys;
+                PerAchievementKeys = iconKeys.Concat(categoryKeys).Concat(tagKeys).Concat(rarityKeys).Concat(trophyTypeKeys).Concat(pointsKeys).Concat(textKeys).Concat(orderKeys)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 AllKeys = PerAchievementKeys.Concat(capstoneArtKeys)
@@ -1747,6 +1749,8 @@ namespace PlayniteAchievements.Services.Metadata
             public List<string> PointsKeys { get; }
 
             public List<string> TextKeys { get; }
+
+            public List<string> OrderKeys { get; }
 
             /// <summary>Sources supplying achievement fields, judged by how many achievements they match.</summary>
             public List<string> PerAchievementKeys { get; }
@@ -1776,7 +1780,8 @@ namespace PlayniteAchievements.Services.Metadata
                        (Has(CapstoneArtKeys) ? MetadataField.CapstoneArt : MetadataField.None) |
                        (Has(TrophyTypeKeys) ? MetadataField.TrophyTypes : MetadataField.None) |
                        (Has(PointsKeys) ? MetadataField.Points : MetadataField.None) |
-                       (Has(TextKeys) ? MetadataField.Text : MetadataField.None);
+                       (Has(TextKeys) ? MetadataField.Text : MetadataField.None) |
+                       (Has(OrderKeys) ? MetadataField.Order : MetadataField.None);
             }
         }
     }

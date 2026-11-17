@@ -103,11 +103,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _canRevealAnyDescription;
         private bool _canRevealAnyTrophy;
         private bool _canRevealAnyPoints;
+        private bool _canRevealAnyRarity;
         private bool _canRevealAnyIcon;
         private bool _areAllTitlesRevealed = true;
         private bool _areAllDescriptionsRevealed = true;
         private bool _areAllTrophiesRevealed = true;
         private bool _areAllPointsRevealed = true;
+        private bool _areAllRaritiesRevealed = true;
         private AchievementIconRevealStage _iconColumnStage = AchievementIconRevealStage.Unlocked;
         private SearchQuery _filterQuery;
         private readonly SearchTextIndex<AchievementEditorRow> _searchIndex =
@@ -254,6 +256,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
             ToggleAllTrophiesRevealCommand = new RelayCommand(_ => ToggleAllTrophiesReveal());
             ToggleAllPointsRevealCommand = new RelayCommand(_ => ToggleAllPointsReveal());
+            ToggleAllRaritiesRevealCommand = new RelayCommand(_ => ToggleAllRaritiesReveal());
             CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
 
             ReloadData();
@@ -398,6 +401,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case nameof(AchievementEditorRow.ProgressDenomText):
                     return "Progress";
 
+                // The API Name cell writes the id; both names are one edit.
+                case nameof(AchievementEditorRow.ApiNameText):
+                case nameof(AchievementEditorRow.Id):
+                    return nameof(AchievementEditorRow.Id);
+
                 default:
                     return propertyName;
             }
@@ -456,6 +464,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 nameof(AchievementEditorRow.DisplayName),
                 nameof(AchievementEditorRow.Description),
+                nameof(AchievementEditorRow.ApiNameText),
                 nameof(AchievementEditorRow.PointsText),
                 nameof(AchievementEditorRow.TrophyType),
                 nameof(AchievementEditorRow.Hidden),
@@ -494,7 +503,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 nameof(AchievementEditorRow.UnlockedIconPath),
                 nameof(AchievementEditorRow.LockedIconPath),
                 nameof(AchievementEditorRow.Unlocked),
-                nameof(AchievementEditorRow.UnlockTime)
+                nameof(AchievementEditorRow.UnlockTime),
+                // An authored row's id, edited through the API Name cell.
+                nameof(AchievementEditorRow.Id)
             }
             .ToDictionary(
                 name => name,
@@ -554,6 +565,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 dispatcher.BeginInvoke(new Action(() => GameCustomDataStore_CustomDataWritten(sender, e)));
                 return;
+            }
+
+            // A read of the linked file writes its status here; the header chip follows it.
+            if (!ReferenceEquals(e.Previous?.LinkedFile, e.Persisted?.LinkedFile))
+            {
+                RefreshLinkedFileState();
             }
 
             if (_isApplyingUndo)
@@ -916,10 +933,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     foreach (var change in entry.RowValues)
                     {
-                        if (!byApiName.TryGetValue(change.ApiName, out var row) ||
+                        var isIdChange = change.PropertyName == nameof(AchievementEditorRow.Id);
+
+                        // The step was recorded under the row's key before the edit, but an id
+                        // edit moves the key once it saves: undoing finds the row under the id it
+                        // was given, redoing under the id it had.
+                        var lookupKey = isIdChange
+                            ? CustomAchievementProjectionService.BuildApiName((reverse ? change.NewValue : change.OldValue) as string) ?? change.ApiName
+                            : change.ApiName;
+                        if (lookupKey == null ||
+                            !byApiName.TryGetValue(lookupKey, out var row) ||
                             !UndoableRowFields.TryGetValue(change.PropertyName, out var property) ||
                             property == null)
                         {
+                            continue;
+                        }
+
+                        if (isIdChange)
+                        {
+                            // Through the cell's own setter, so the grid and the details pane
+                            // show the id it puts back.
+                            row.ApiNameText = (reverse ? change.OldValue : change.NewValue) as string;
+                            touchedAuthoredRow = true;
                             continue;
                         }
 
@@ -1198,6 +1233,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public RelayCommand ToggleAllPointsRevealCommand { get; }
 
+        public RelayCommand ToggleAllRaritiesRevealCommand { get; }
+
         /// <summary>
         /// Steps the whole icon column through the hidden placeholder, the locked placeholder and
         /// the achievements' own art, skipping whichever of those the rows on screen do not have.
@@ -1225,6 +1262,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool CanRevealAnyPoints => _canRevealAnyPoints;
 
+        public bool CanRevealAnyRarity => _canRevealAnyRarity;
+
         public bool CanRevealAnyIcon => _canRevealAnyIcon;
 
         /// <summary>
@@ -1238,6 +1277,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool AreAllTrophiesRevealed => _areAllTrophiesRevealed;
 
         public bool AreAllPointsRevealed => _areAllPointsRevealed;
+
+        public bool AreAllRaritiesRevealed => _areAllRaritiesRevealed;
 
         /// <summary>
         /// The stage the icon column's toggle shows: the most masked one any row on screen is still
@@ -1282,6 +1323,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void ToggleAllPointsReveal() =>
             ToggleAllReveal(row => row.CanRevealPoints, row => row.IsPointsRevealed, (row, value) => row.IsPointsRevealed = value);
+
+        private void ToggleAllRaritiesReveal() =>
+            ToggleAllReveal(row => row.CanRevealRarity, row => row.IsRarityRevealed, (row, value) => row.IsRarityRevealed = value);
 
         /// <summary>
         /// Steps every maskable row on screen to the column's next stage. Each row settles on the
@@ -1367,11 +1411,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _canRevealAnyDescription = false;
             _canRevealAnyTrophy = false;
             _canRevealAnyPoints = false;
+            _canRevealAnyRarity = false;
             _canRevealAnyIcon = false;
             _areAllTitlesRevealed = true;
             _areAllDescriptionsRevealed = true;
             _areAllTrophiesRevealed = true;
             _areAllPointsRevealed = true;
+            _areAllRaritiesRevealed = true;
             foreach (var row in visible)
             {
                 if (row.CanRevealTitle)
@@ -1410,6 +1456,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
                 }
 
+                if (row.CanRevealRarity)
+                {
+                    _canRevealAnyRarity = true;
+                    if (!row.IsRarityRevealed)
+                    {
+                        _areAllRaritiesRevealed = false;
+                    }
+                }
+
                 if (row.CanReveal)
                 {
                     _canRevealAnyIcon = true;
@@ -1422,11 +1477,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(CanRevealAnyDescription));
             OnPropertyChanged(nameof(CanRevealAnyTrophy));
             OnPropertyChanged(nameof(CanRevealAnyPoints));
+            OnPropertyChanged(nameof(CanRevealAnyRarity));
             OnPropertyChanged(nameof(CanRevealAnyIcon));
             OnPropertyChanged(nameof(AreAllTitlesRevealed));
             OnPropertyChanged(nameof(AreAllDescriptionsRevealed));
             OnPropertyChanged(nameof(AreAllTrophiesRevealed));
             OnPropertyChanged(nameof(AreAllPointsRevealed));
+            OnPropertyChanged(nameof(AreAllRaritiesRevealed));
             OnPropertyChanged(nameof(IconColumnStage));
             OnPropertyChanged(nameof(IconColumnStageIsCovered));
             OnPropertyChanged(nameof(IconColumnStageIsLocked));
@@ -1449,11 +1506,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 case nameof(AchievementEditorRow.IsPointsRevealed):
                 case nameof(AchievementEditorRow.IsTrophyHidden):
                 case nameof(AchievementEditorRow.IsPointsHidden):
+                case nameof(AchievementEditorRow.IsRarityRevealed):
+                case nameof(AchievementEditorRow.IsRarityHidden):
                 case nameof(AchievementEditorRow.CanReveal):
                 case nameof(AchievementEditorRow.CanRevealTitle):
                 case nameof(AchievementEditorRow.CanRevealDescription):
                 case nameof(AchievementEditorRow.CanRevealTrophy):
                 case nameof(AchievementEditorRow.CanRevealPoints):
+                case nameof(AchievementEditorRow.CanRevealRarity):
                     return true;
                 default:
                     return false;
@@ -2426,6 +2486,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshManualTrackingState(rawData);
             RebuildCustomProviderOptions();
+
+            _hasCachedAchievements = rawData?.Achievements?.Count > 0;
+            RefreshLinkedFileState();
         }
 
         private void RebuildCustomProviderOptions()
@@ -3912,6 +3975,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             using var replaceScope = Common.PerfScope.Start(_logger, "Editor.ReplaceRows", thresholdMs: 5);
             var previousSelectedId = SelectedRow?.NormalizedId;
+            var previousSelectedApiName = SelectedRow?.OriginalApiName;
             var previousSelectedApiNames = _selectedRows
                 .Where(row => !string.IsNullOrWhiteSpace(row?.OriginalApiName))
                 .Select(row => row.OriginalApiName)
@@ -4066,10 +4130,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // Keep the user's place: a save or reload rebuilds the rows, and the details pane
-            // should stay on the achievement they were editing.
+            // should stay on the achievement they were editing. Provider rows carry no id, so
+            // they are matched on the ApiName they were loaded under.
             SelectedRow = AchievementRows.FirstOrDefault(row =>
                               !string.IsNullOrWhiteSpace(previousSelectedId) &&
                               string.Equals(row?.NormalizedId, previousSelectedId, StringComparison.OrdinalIgnoreCase))
+                          ?? AchievementRows.FirstOrDefault(row =>
+                              !string.IsNullOrWhiteSpace(previousSelectedApiName) &&
+                              string.Equals(row?.OriginalApiName, previousSelectedApiName, StringComparison.OrdinalIgnoreCase))
                           ?? AchievementRows.FirstOrDefault();
 
             // SelectedRow restores one row, so a multi-row selection would otherwise come back as
@@ -4539,7 +4607,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private Dictionary<string, string> GetCurrentCategoryOverrideMap(ResolvedGameCustomData resolved = null)
         {
-            var source = (resolved ?? ResolveCurrentCustomData())?.AchievementCategoryOverrides
+            var source = (resolved ?? ResolveCurrentCustomData())?.Project(o => o.Category)
                 ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in source)
@@ -4623,6 +4691,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ShowLockedTrophy = _settings?.Persisted?.ShowLockedTrophy ?? true;
             row.ShowHiddenPoints = _settings?.Persisted?.ShowHiddenPoints ?? true;
             row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;
+            row.ShowHiddenRarity = _settings?.Persisted?.ShowHiddenRarity ?? true;
+            row.ShowLockedRarity = _settings?.Persisted?.ShowLockedRarity ?? true;
             row.UseSeparateLockedIcons = useSeparateLockedIcons
                 ?? ResolveUseSeparateLockedIcons();
             row.PropertyChanged -= Row_PropertyChanged;
@@ -4700,6 +4770,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     else if (e.PropertyName == nameof(AchievementEditorRow.PointsText) && valueEditedRow.HasPoints)
                     {
                         valueEditedRow.IsPointsRevealed = true;
+                    }
+                    else if (e.PropertyName == nameof(AchievementEditorRow.RarityInput) && valueEditedRow.HasRarityPercent)
+                    {
+                        valueEditedRow.IsRarityRevealed = true;
                     }
                 }
                 finally
@@ -5973,8 +6047,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     unlocked[row.OriginalApiName] = row.UnlockTime;
                 }
 
+                // Before the write, as in ApplyHistoryStep. The cache projection below raises the
+                // cache-updated event synchronously, and the host skips the refresh that brings
+                // back only if this marker is already set. Unmarked, every unlock edit rebuilt all
+                // rows, and the selection of a provider row did not survive the rebuild.
+                SuppressExternalRefresh = true;
                 if (!_achievementOverridesService.SetManualUnlockStates(_gameId, unlocked))
                 {
+                    SuppressExternalRefresh = false;
                     return;
                 }
 
@@ -5983,6 +6063,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
             catch (Exception ex)
             {
+                // Set above for a cascade this failed write may never have started.
+                SuppressExternalRefresh = false;
                 _logger?.Error(ex, $"Failed saving manual unlock state for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
@@ -6069,6 +6151,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             RefreshSourceHeading(rawData, link);
             UnlinkManualTrackingCommand.RaiseCanExecuteChanged();
+            RefreshLinkedFileState();
         }
 
         /// <summary>
@@ -6932,10 +7015,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private bool _showLockedTrophy = true;
         private bool _showHiddenPoints = true;
         private bool _showLockedPoints = true;
+        private bool _showHiddenRarity = true;
+        private bool _showLockedRarity = true;
         private bool _isTitleRevealed;
         private bool _isDescriptionRevealed;
         private bool _isTrophyRevealed;
         private bool _isPointsRevealed;
+        private bool _isRarityRevealed;
 
         public AchievementEditorRow()
         {
@@ -7014,6 +7100,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isDescriptionRevealed = previous._isDescriptionRevealed;
             _isTrophyRevealed = previous._isTrophyRevealed;
             _isPointsRevealed = previous._isPointsRevealed;
+            _isRarityRevealed = previous._isRarityRevealed;
         }
 
         public string OriginalApiName { get; private set; }
@@ -7025,9 +7112,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// description: the key is often the spoiler.
         /// </summary>
         public string ApiNameResolved =>
-            IsProviderRow && !IsBulkRow && !IsBlank && !IsDescriptionHidden
-                ? OriginalApiName
+            !IsBulkRow && !IsBlank && !IsDescriptionHidden
+                ? ApiNameText
                 : string.Empty;
+
+        /// <summary>
+        /// The key a linked file matches this achievement by: the provider's own key for a
+        /// provider row, the bare id for an authored one. Editing it renames an authored row's id;
+        /// the "custom:" prefix is accepted and dropped, since matching takes either form.
+        /// </summary>
+        public string ApiNameText
+        {
+            get => IsBulkRow ? string.Empty : IsProviderRow ? OriginalApiName : NormalizedId;
+            set
+            {
+                if (CanEditApiName)
+                {
+                    var id = CustomAchievementProjectionService.NormalizeId(value);
+                    if (!string.Equals(id, NormalizedId, StringComparison.Ordinal))
+                    {
+                        Id = id;
+                    }
+                }
+
+                // Raised even when refused, so the cell shows what is stored.
+                OnPropertyChanged(nameof(ApiNameText));
+                OnPropertyChanged(nameof(NormalizedId));
+                OnPropertyChanged(nameof(ApiNameResolved));
+                OnPropertyChanged(nameof(HasApiName));
+            }
+        }
+
+        /// <summary>Only an authored row's key is the user's to change.</summary>
+        public bool CanEditApiName => !IsProviderRow && !IsBulkRow && !IsBlank;
 
         public bool HasApiName => !string.IsNullOrWhiteSpace(ApiNameResolved);
 
@@ -7229,6 +7346,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        public bool ShowHiddenRarity
+        {
+            get => _showHiddenRarity;
+            set
+            {
+                if (SetValueAndReturn(ref _showHiddenRarity, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
+        public bool ShowLockedRarity
+        {
+            get => _showLockedRarity;
+            set
+            {
+                if (SetValueAndReturn(ref _showLockedRarity, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
         /// <summary>
         /// Whether the name and the description are revealed. They are tracked apart because each
         /// has its own toggle beside it, and reading one is not a reason to spoil the other.
@@ -7281,6 +7422,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        public bool IsRarityRevealed
+        {
+            get => _isRarityRevealed;
+            set
+            {
+                if (SetValueAndReturn(ref _isRarityRevealed, value))
+                {
+                    NotifyRevealStateChanged();
+                }
+            }
+        }
+
         /// <summary>True while a placeholder is covering the art rather than the art showing.</summary>
         public bool IsIconCovered => IconStage == AchievementIconRevealStage.Covered;
 
@@ -7313,6 +7466,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool CanRevealPoints =>
             !Unlocked && HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));
 
+        /// <summary>
+        /// Rarity masks only a row with an unlock percentage, matching the grid: a bare tier is
+        /// the Common default as often as a real value.
+        /// </summary>
+        public bool CanRevealRarity =>
+            !Unlocked && HasRarityPercent && (!ShowLockedRarity || (Hidden && !ShowHiddenRarity));
+
+        /// <summary>True when the row carries an unlock percentage.</summary>
+        public bool HasRarityPercent => !string.IsNullOrWhiteSpace(GlobalPercentUnlockedText);
+
         /// <summary>True when the row carries a trophy grade at all.</summary>
         public bool HasTrophyType => !string.IsNullOrWhiteSpace(TrophyType);
 
@@ -7330,6 +7493,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool IsTrophyHidden => CanRevealTrophy && !IsTrophyRevealed;
 
         public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;
+
+        public bool IsRarityHidden => CanRevealRarity && !IsRarityRevealed;
 
         /// <summary>
         /// Steps to the next stage this row has, wrapping from its own art back to the most masked
@@ -7418,6 +7583,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
+        /// <summary>Reveals the rarity. See <see cref="RevealTitle"/>.</summary>
+        public void RevealRarity()
+        {
+            if (CanRevealRarity)
+            {
+                IsRarityRevealed = true;
+            }
+        }
+
+        public void ToggleRarityReveal()
+        {
+            if (CanRevealRarity)
+            {
+                IsRarityRevealed = !IsRarityRevealed;
+            }
+        }
+
         /// <summary>
         /// Raised once after any reveal state settles. A single toggle moves several of the
         /// properties below, so a listener that summarizes them over every row -- the column
@@ -7454,10 +7636,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(CanRevealDescription));
             OnPropertyChanged(nameof(CanRevealTrophy));
             OnPropertyChanged(nameof(CanRevealPoints));
+            OnPropertyChanged(nameof(CanRevealRarity));
             OnPropertyChanged(nameof(IsTitleHidden));
             OnPropertyChanged(nameof(IsDescriptionHidden));
             OnPropertyChanged(nameof(IsTrophyHidden));
             OnPropertyChanged(nameof(IsPointsHidden));
+            OnPropertyChanged(nameof(IsRarityHidden));
             OnPropertyChanged(nameof(DisplayIcon));
             OnPropertyChanged(nameof(ApiNameResolved));
             OnPropertyChanged(nameof(HasApiName));
@@ -7855,6 +8039,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     OnPropertyChanged(nameof(CanEditRarity));
                     OnPropertyChanged(nameof(CanEditUnlocked));
                     OnPropertyChanged(nameof(CanEditProgress));
+                    OnPropertyChanged(nameof(CanEditApiName));
+                    OnPropertyChanged(nameof(ApiNameText));
                 }
             }
         }
@@ -8629,7 +8815,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string GlobalPercentUnlockedText
         {
             get => _globalPercentUnlockedText;
-            set => SetValue(ref _globalPercentUnlockedText, value);
+            set
+            {
+                if (SetValueAndReturn(ref _globalPercentUnlockedText, value))
+                {
+                    OnPropertyChanged(nameof(HasRarityPercent));
+                    NotifyRevealStateChanged();
+                }
+            }
         }
 
         /// <summary>

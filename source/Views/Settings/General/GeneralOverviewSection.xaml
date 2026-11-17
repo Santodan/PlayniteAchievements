@@ -91,6 +91,12 @@
                     </Button>
                 </Grid>
 
+                <!-- ================== PRIORITY ================== -->
+                <!-- Every surface follows this order, so it sits on the first page. -->
+                <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                    <ContentControl x:Name="PriorityEditorHost" Focusable="False"/>
+                </Border>
+
                 <!-- ================== FRIENDS ================== -->
                 <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
                     <StackPanel>

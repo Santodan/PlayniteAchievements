@@ -449,6 +449,16 @@ namespace PlayniteAchievements.Models
         public const string Favorites = "Favorites";
         public const string Ownership = "Ownership";
 
+        /// <summary>The grids' and mosaics' Sort By dropdown and direction button.</summary>
+        public const string Sort = "Sort";
+
+        /// <summary>The Filters button; hidden, the dropdown filters show on the bar itself.</summary>
+        public const string Filters = "Filters";
+
+        /// <summary>The category list's Expand All and Collapse All buttons.</summary>
+        public const string ExpandAll = "ExpandAll";
+        public const string CollapseAll = "CollapseAll";
+
         /// <summary>Every item a Timeline's control bar offers.</summary>
         public static readonly IReadOnlyList<string> TimelineItems = new[]
         {
@@ -484,6 +494,7 @@ namespace PlayniteAchievements.Models
         // The whole-bar option per-item visibility replaced; read only as the per-item fallback.
         private const string ShowControlBar = "ShowControlBar";
         private const string ControlBarItemPrefix = "ShowControlBarItem.";
+        private const string ControlBarItemOrderPrefix = "ControlBarItemOrder.";
         private const string UseCoverImages = "UseCoverImages";
         private const string ShowCompletionGlow = "ShowCompletionGlow";
         private const string ShowCompletionFrame = "ShowCompletionFrame";
@@ -512,9 +523,11 @@ namespace PlayniteAchievements.Models
         private const string ProfileStats = "ProfileStats";
         private const string StatisticsStats = "StatisticsStats";
         private const string ProfileMedals = "ProfileMedals";
+        private const string ProfileMedalRows = "ProfileMedalRows";
         private const string ProfileFullBleed = "ProfileFullBleed";
         private const string ProfileLayoutOption = "ProfileLayout";
         private const string ProfileLinks = "ProfileLinks";
+        private const string ProfileUnlocksMedal = "ProfileUnlocksMedal";
         private const string MosaicIconSize = "MosaicIconSize";
         private const string ProfileAvatarWidth = "ProfileAvatarWidth";
         private const string ProfileAvatarHeight = "ProfileAvatarHeight";
@@ -1103,6 +1116,35 @@ namespace PlayniteAchievements.Models
         }
 
         /// <summary>
+        /// The saved order of a control bar's items (ids, earliest first) for the adapter saving
+        /// its state under <paramref name="stateKey"/>; null keeps the default order.
+        /// </summary>
+        public static IReadOnlyList<string> GetControlBarItemOrder(
+            ShowcaseWidgetInstanceSettings settings,
+            string stateKey)
+        {
+            if (settings?.Options == null ||
+                !settings.Options.TryGetValue(ControlBarItemOrderPrefix + stateKey, out var raw) ||
+                string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            var ids = raw.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            return ids.Length == 0 ? null : ids;
+        }
+
+        public static void SetControlBarItemOrder(
+            ShowcaseWidgetInstanceSettings settings,
+            string stateKey,
+            IEnumerable<string> order)
+        {
+            settings?.SetOption(
+                ControlBarItemOrderPrefix + stateKey,
+                string.Join("|", (order ?? Enumerable.Empty<string>()).Where(id => !string.IsNullOrWhiteSpace(id))));
+        }
+
+        /// <summary>
         /// The settings dialog's edited options applied over <paramref name="target"/>'s: every
         /// option comes from <paramref name="edited"/> except the control bar filter state, which
         /// the bar saves to the live widget while the dialog is open and the edited copy only
@@ -1198,16 +1240,93 @@ namespace PlayniteAchievements.Models
             }
         }
 
-        /// <summary>
-        /// Which counts the profile medal row shows. Trophy is only meaningful for a library
-        /// holding PlayStation-shaped games; every other library sums to zero and the row hides.
-        /// </summary>
-        public static ShowcaseProfileMedalMode GetProfileMedalMode(ShowcaseWidgetInstanceSettings settings) =>
-            GetEnum(settings, ProfileMedals, ShowcaseProfileMedalMode.Rarity);
+        private static readonly ProgressDetailStyle[] MedalRowStyles =
+        {
+            ProgressDetailStyle.Rarity,
+            ProgressDetailStyle.Trophy,
+            ProgressDetailStyle.Points
+        };
 
-        public static void SetProfileMedalMode(
+        /// <summary>
+        /// The profile card's medal rows in order, each on or off: Rarity (completions and rarity
+        /// tiers), Trophy (trophy grades) and Points (mythic finishes and each platform's points).
+        /// A row whose counts are all zero shows nothing. Unset, the rows follow the former single
+        /// Medals choice, which defaulted to rarity tiers.
+        /// </summary>
+        public static List<ProgressDetailEntry> GetProfileMedalRows(ShowcaseWidgetInstanceSettings settings)
+        {
+            if (settings?.Options != null &&
+                settings.Options.TryGetValue(ProfileMedalRows, out var raw) &&
+                !string.IsNullOrWhiteSpace(raw))
+            {
+                // Stored as "Rarity,-Trophy,Points": order, with "-" marking a row turned off.
+                return NormalizeMedalRows(raw.Split(',').Select(part =>
+                {
+                    var token = part.Trim();
+                    var enabled = !token.StartsWith("-", StringComparison.Ordinal);
+                    return Enum.TryParse(token.TrimStart('-'), out ProgressDetailStyle style)
+                        ? new ProgressDetailEntry { Style = style, Enabled = enabled }
+                        : null;
+                }));
+            }
+
+            switch (GetEnum(settings, ProfileMedals, ShowcaseProfileMedalMode.Rarity))
+            {
+                case ShowcaseProfileMedalMode.Trophy:
+                    return MedalRows((ProgressDetailStyle.Trophy, true));
+                case ShowcaseProfileMedalMode.Both:
+                    return MedalRows((ProgressDetailStyle.Rarity, true), (ProgressDetailStyle.Trophy, true));
+                case ShowcaseProfileMedalMode.Points:
+                    return MedalRows((ProgressDetailStyle.Points, true));
+                case ShowcaseProfileMedalMode.None:
+                    return MedalRows();
+                default:
+                    return MedalRows((ProgressDetailStyle.Rarity, true));
+            }
+        }
+
+        /// <summary>Stores the medal rows, replacing the former single Medals choice.</summary>
+        public static void SetProfileMedalRows(
             ShowcaseWidgetInstanceSettings settings,
-            ShowcaseProfileMedalMode value) => settings?.SetOption(ProfileMedals, value);
+            IEnumerable<ProgressDetailEntry> rows)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            settings.SetOption(
+                ProfileMedalRows,
+                string.Join(",", NormalizeMedalRows(rows).Select(row => (row.Enabled ? string.Empty : "-") + row.Style)));
+            settings.Options?.Remove(ProfileMedals);
+        }
+
+        // The given rows first, in order, then the rest turned off.
+        private static List<ProgressDetailEntry> MedalRows(params (ProgressDetailStyle Style, bool Enabled)[] leading) =>
+            NormalizeMedalRows(leading.Select(row => new ProgressDetailEntry { Style = row.Style, Enabled = row.Enabled }));
+
+        // One entry per row style, in the given order; missing ones are appended turned off.
+        private static List<ProgressDetailEntry> NormalizeMedalRows(IEnumerable<ProgressDetailEntry> rows)
+        {
+            var result = new List<ProgressDetailEntry>();
+            foreach (var row in rows ?? Enumerable.Empty<ProgressDetailEntry>())
+            {
+                if (row != null && MedalRowStyles.Contains(row.Style) && result.All(entry => entry.Style != row.Style))
+                {
+                    result.Add(row.Clone());
+                }
+            }
+
+            foreach (var style in MedalRowStyles)
+            {
+                if (result.All(entry => entry.Style != style))
+                {
+                    result.Add(new ProgressDetailEntry { Style = style, Enabled = false });
+                }
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Whether the profile background fills the whole card, edge to edge, instead of sitting
@@ -1232,6 +1351,16 @@ namespace PlayniteAchievements.Models
 
         public static void SetProfileShowLinks(ShowcaseWidgetInstanceSettings settings, bool value) =>
             settings?.SetOption(ProfileLinks, value);
+
+        /// <summary>
+        /// Whether the profile medal row leads with the total unlocks medal. Independent of the
+        /// medal mode, so it also shows when the mode is None.
+        /// </summary>
+        public static bool GetProfileUnlocksMedal(ShowcaseWidgetInstanceSettings settings) =>
+            settings?.GetOption(ProfileUnlocksMedal, true) ?? true;
+
+        public static void SetProfileUnlocksMedal(ShowcaseWidgetInstanceSettings settings, bool value) =>
+            settings?.SetOption(ProfileUnlocksMedal, value);
 
         /// <summary>Standard-density profile picture size, shown in the editor when no size is set.</summary>
         public const int DefaultProfileAvatarSize = 72;
@@ -1901,6 +2030,12 @@ namespace PlayniteAchievements.Models
         public static ShowcaseVerticalAlignment GetVerticalAlignment(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, VerticalAlign, ShowcaseVerticalAlignment.Center);
 
+        /// <summary>The widget's vertical alignment, or <paramref name="fallback"/> while unset.</summary>
+        public static ShowcaseVerticalAlignment GetVerticalAlignment(
+            ShowcaseWidgetInstanceSettings settings,
+            ShowcaseVerticalAlignment fallback) =>
+            GetEnum(settings, VerticalAlign, fallback);
+
         public static void SetVerticalAlignment(
             ShowcaseWidgetInstanceSettings settings,
             ShowcaseVerticalAlignment value) => settings?.SetOption(VerticalAlign, value);
@@ -2006,10 +2141,14 @@ namespace PlayniteAchievements.Models
                 case ShowcaseWidgetKind.Profile:
                     // A new profile card starts blank and shows the provider identity until edited.
                     settings.Profile = new ShowcaseProfileSettings();
-                    ShowcaseWidgetOptions.SetProfileMedalMode(settings, ShowcaseProfileMedalMode.Rarity);
+                    ShowcaseWidgetOptions.SetProfileMedalRows(settings, new[]
+                    {
+                        new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = true }
+                    });
                     ShowcaseWidgetOptions.SetProfileFullBleed(settings, false);
                     ShowcaseWidgetOptions.SetProfileLayout(settings, ShowcaseProfileLayout.Left);
                     ShowcaseWidgetOptions.SetProfileShowLinks(settings, true);
+                    ShowcaseWidgetOptions.SetProfileUnlocksMedal(settings, true);
                     break;
                 case ShowcaseWidgetKind.Timeline:
                     ShowcaseTimelineOptions.SetWindow(settings, TimeWindow.FromPreset(TimelineRange.ThreeMonths));

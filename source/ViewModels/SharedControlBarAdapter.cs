@@ -57,6 +57,25 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>The bar's Sort By, once a widget that sorts its rows has asked for it; otherwise null.</summary>
+        public GridSortSelector SortSelector { get; private set; }
+
+        /// <summary>
+        /// Adds Sort By as the bar's last item, for a widget that sorts its rows: the grids, whose
+        /// grid lists its columns in it, and the mosaics, which list their sort keys. Widgets that
+        /// do not sort never call this, so their bars and settings offer no Sort By.
+        /// </summary>
+        public GridSortSelector EnableSort()
+        {
+            if (SortSelector == null && ControlBar != null)
+            {
+                SortSelector = new GridSortSelector();
+                ControlBar.Items.Add(SortSelector);
+            }
+
+            return SortSelector;
+        }
+
         /// <summary>Names this adapter's saved state among a widget's options; one per adapter type.</summary>
         public abstract string StateKey { get; }
 
@@ -375,8 +394,8 @@ namespace PlayniteAchievements.ViewModels
 
     /// <summary>
     /// A control bar's saved state. Platforms map a provider key to its selected platform names.
-    /// Progress and Activity hold option positions rather than labels, so the saved choice
-    /// survives a change of Playnite language.
+    /// Progress keys and Activity positions stand in for labels, so the saved choice survives a
+    /// change of Playnite language.
     /// </summary>
     public sealed class ControlBarFilterState
     {
@@ -393,7 +412,14 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The Screenshot Slideshow's screenshot style (a ShowcaseScreenshotVariant name); null for every style.</summary>
         public string Variant { get; set; }
 
+        /// <summary>
+        /// Progress positions in the former Complete, In Progress, No Progress options; read only
+        /// when <see cref="ProgressKeys"/> is absent.
+        /// </summary>
         public List<int> Progress { get; set; }
+
+        /// <summary>Selected Progress choices, as ProgressFilterChoices keys.</summary>
+        public List<string> ProgressKeys { get; set; }
 
         public List<int> Activity { get; set; }
 
@@ -414,5 +440,14 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>Selected category paths, for achievement control bars showing one game.</summary>
         public List<string> Categories { get; set; }
+
+        /// <summary>False when an achievement grid's Unlocked toggle is off; null while it is on.</summary>
+        public bool? ShowUnlocked { get; set; }
+
+        /// <summary>False when an achievement grid's Locked toggle is off; null while it is on.</summary>
+        public bool? ShowLocked { get; set; }
+
+        /// <summary>False when an achievement grid's Hidden toggle is off; null while it is on.</summary>
+        public bool? ShowHidden { get; set; }
     }
 }

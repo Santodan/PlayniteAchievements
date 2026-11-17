@@ -6,6 +6,7 @@
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -15,6 +16,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:EnumToBoolConverter x:Key="WowSourceToBool"/>
 
             <Style x:Key="BattleNetFieldLabelStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
@@ -58,6 +61,23 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <!-- The account's region: sign-in and every WoW lookup use it. -->
+                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Common_Region}"
+                                   Style="{StaticResource BattleNetFieldLabelStyle}"/>
+                        <ComboBox Grid.Column="1"
+                                  x:Name="WowRegionCombo"
+                                  SelectionChanged="WowRegion_SelectionChanged"
+                                  FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                  Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                    </Grid>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_OAuthHelp}"
@@ -215,58 +235,123 @@
                                            TextWrapping="Wrap"/>
                             </Grid>
 
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <!-- Where WoW achievements come from: every character on the signed-in account, or one typed character per version. -->
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <RadioButton GroupName="WowCharacterSource"
+                                             Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceAccount}"
+                                             IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Account}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                             Margin="{StaticResource PlayAch.Thickness.Right.Md}"/>
+                                <RadioButton GroupName="WowCharacterSource"
+                                             Content="{DynamicResource LOCPlayAch_Settings_BattleNet_WowSourceCharacter}"
+                                             IsChecked="{Binding Settings.WowCharacterSource, Mode=TwoWay, Converter={StaticResource WowSourceToBool}, ConverterParameter=Character}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
+                            </StackPanel>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Common_Region}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <ComboBox Grid.Row="0"
-                                          Grid.Column="1"
-                                          x:Name="WowRegionCombo"
-                                          SelectionChanged="WowRegion_SelectionChanged"
-                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Settings.WowCharacterSource}" Value="Account">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowAccountCharactersHint}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
 
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowRealm}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                                <ComboBox Grid.Row="1"
-                                          Grid.Column="1"
-                                          x:Name="WowRealmCombo"
-                                          DisplayMemberPath="Name"
-                                          SelectionChanged="WowRealm_SelectionChanged"
-                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Settings.WowCharacterSource}" Value="Character">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
 
-                                <TextBlock Grid.Row="2"
-                                           Grid.Column="0"
-                                           Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacter}"
-                                           Style="{StaticResource BattleNetFieldLabelStyle}"
-                                           Margin="{StaticResource PlayAch.Thickness.Right.Md}"/>
-                                <TextBox Grid.Row="2"
-                                         Grid.Column="1"
-                                         Text="{Binding Settings.WowCharacter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                         Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <CheckBox Grid.Row="3"
-                                          Grid.Column="1"
-                                          Content="{DynamicResource LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters}"
-                                          IsChecked="{Binding Settings.WowAggregateAccountCharacters, Mode=TwoWay}"
-                                          FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
-                            </Grid>
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowRealm}"
+                                               Style="{StaticResource BattleNetFieldLabelStyle}"/>
+                                    <ComboBox Grid.Row="0"
+                                              Grid.Column="1"
+                                              x:Name="WowRealmCombo"
+                                              DisplayMemberPath="Name"
+                                              SelectionChanged="WowRealm_SelectionChanged"
+                                              FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacter}"
+                                               Style="{StaticResource BattleNetFieldLabelStyle}"
+                                               Margin="{StaticResource PlayAch.Thickness.Right.Md}"/>
+                                    <TextBox Grid.Row="1"
+                                             Grid.Column="1"
+                                             Text="{Binding Settings.WowCharacter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                             Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                                </Grid>
+
+                                <Grid Margin="{StaticResource PlayAch.Thickness.Top.Md}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0"
+                                               Grid.ColumnSpan="2"
+                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowClassicSection}"
+                                               FontWeight="SemiBold"
+                                               Style="{StaticResource BattleNetFieldLabelStyle}"/>
+
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowRealm}"
+                                               Style="{StaticResource BattleNetFieldLabelStyle}"/>
+                                    <ComboBox Grid.Row="1"
+                                              Grid.Column="1"
+                                              x:Name="WowClassicRealmCombo"
+                                              DisplayMemberPath="Name"
+                                              SelectionChanged="WowClassicRealm_SelectionChanged"
+                                              FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                              Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_BattleNet_WowCharacter}"
+                                               Style="{StaticResource BattleNetFieldLabelStyle}"/>
+                                    <TextBox Grid.Row="2"
+                                             Grid.Column="1"
+                                             Text="{Binding Settings.WowClassicCharacter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                             Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

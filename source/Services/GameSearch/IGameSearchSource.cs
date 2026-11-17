@@ -8,12 +8,13 @@ namespace PlayniteAchievements.Services.GameSearch
     /// <summary>One game a search found, or the game a pasted id or address names.</summary>
     public sealed class GameSearchResult
     {
-        public GameSearchResult(string id, string name, string iconUrl = null, string platforms = null)
+        public GameSearchResult(string id, string name, string iconUrl = null, string platforms = null, string region = null)
         {
             Id = id;
             Name = string.IsNullOrWhiteSpace(name) ? id : name.Trim();
             IconUrl = string.IsNullOrWhiteSpace(iconUrl) ? null : iconUrl;
             Platforms = string.IsNullOrWhiteSpace(platforms) ? null : platforms;
+            Region = string.IsNullOrWhiteSpace(region) ? null : region.Trim();
         }
 
         /// <summary>What the source stores for the game (an appId, a page slug); never shown.</summary>
@@ -25,6 +26,9 @@ namespace PlayniteAchievements.Services.GameSearch
 
         /// <summary>The platforms the source lists the game on ("Steam, PS4"); null when it lists none.</summary>
         public string Platforms { get; }
+
+        /// <summary>The release region the source lists the game under ("Europe"); null when it lists none.</summary>
+        public string Region { get; }
 
         /// <summary>True for the game named by an id or address typed into the search box.</summary>
         public bool IsDirect { get; internal set; }

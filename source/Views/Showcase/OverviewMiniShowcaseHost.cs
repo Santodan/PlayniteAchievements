@@ -129,9 +129,14 @@ namespace PlayniteAchievements.Views.Showcase
         /// set rather than narrowing to it. Every other widget follows the range and the rarity
         /// and trophy filters: to the games with matching unlocks, and to those unlocks where it
         /// counts achievements. The completions pie, and a platform pie counting completed games,
-        /// count whole games, so they keep every achievement of the games kept, locked ones
-        /// included; a platform pie counting achievements counts only the matching unlocks.
+        /// count whole games, so they leave out the rarity, trophy and tag filters, which pick
+        /// achievements rather than games, as a showcase widget counting games hides them; they
+        /// still follow the unlock range, which keeps the completions finished in it. A platform
+        /// pie counting achievements counts only the matching unlocks.
         /// </summary>
+        private const OverviewLinkedFilter AchievementPickers =
+            OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy | OverviewLinkedFilter.Tag;
+
         private static (OverviewLinkedFilter Exclude, OverviewLinkedSelection Selection, bool CountsGames) LinkRule(
             ShowcaseWidgetInstanceSettings widget)
         {
@@ -141,10 +146,11 @@ namespace PlayniteAchievements.Views.Showcase
                     switch (ShowcaseWidgetOptions.GetPieMode(widget))
                     {
                         case ShowcasePieMode.Provider:
+                            var countsGames = !ShowcaseWidgetOptions.CountsAchievements(widget);
                             return (
-                                OverviewLinkedFilter.Provider,
+                                OverviewLinkedFilter.Provider | (countsGames ? AchievementPickers : OverviewLinkedFilter.None),
                                 OverviewLinkedSelection.Ignore,
-                                !ShowcaseWidgetOptions.CountsAchievements(widget));
+                                countsGames);
                         case ShowcasePieMode.Rarity:
                             return (OverviewLinkedFilter.Rarity, OverviewLinkedSelection.WhenRarityData, false);
                         case ShowcasePieMode.Trophy:
@@ -154,7 +160,7 @@ namespace PlayniteAchievements.Views.Showcase
                             // its own slices set the tag filter, so that one is left out.
                             return (OverviewLinkedFilter.Tag, OverviewLinkedSelection.Always, false);
                         default:
-                            return (OverviewLinkedFilter.Completeness, OverviewLinkedSelection.Ignore, true);
+                            return (OverviewLinkedFilter.Completeness | AchievementPickers, OverviewLinkedSelection.Ignore, true);
                     }
 
                 case ShowcaseWidgetKind.Timeline:

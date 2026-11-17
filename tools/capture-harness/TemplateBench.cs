@@ -1,4 +1,4 @@
-// Benchmarks and compares the real notification card: the user's own settings (config.json, with its
+﻿// Benchmarks and compares the real notification card: the user's own settings (config.json, with its
 // background, glow, sizes and shadows), the bundled template or a template file, built and animated by
 // the plugin's own code driven through reflection, in a DWM-composited window as the plugin shows it.
 //
@@ -54,6 +54,7 @@ public static class TemplateBench
     private static Card _overlay;
     private static readonly List<GameSample> _gameFrames = new List<GameSample>();
     private static bool _noCapture, _inProcessCapture;
+    private static int _recorderPriority = 2;
     private static int _frameRate;
 
     // Every CompositionTarget.Rendering: the frames WPF prepared, presented or not.
@@ -65,6 +66,170 @@ public static class TemplateBench
     private static extern int D3DKMTSetProcessSchedulingPriorityClass(IntPtr process, int priority);
     private static bool _freezeMotion;
     private static bool _liveMotion;
+    private static bool _thumbnail;
+    private static bool _presenter;
+    private static bool _holdLayers, _layersCompare, _earlyLayers, _layersMidSlide;
+
+    // The card as the clip sampler renders it (effects stripped, rays hidden), through the
+    // service's own TryRenderToastItemBytes: from the card window, or with layers from the
+    // background layer's container with the content layer's drawn over it.
+    private static byte[] SamplerRender(Type svcType, Card card, object layers, out int width, out int height)
+    {
+        width = height = 0;
+        var container = (FrameworkElement)card.Surface.ItemContainerGenerator.ContainerFromIndex(0);
+        FrameworkElement under = null, over = null;
+        if (layers != null)
+        {
+            var find = layers.GetType().GetMethod("CardContainer");
+            under = (FrameworkElement)find.Invoke(layers, new object[] { layers.GetType().GetProperty("Background").GetValue(layers), 0 });
+            over = (FrameworkElement)find.Invoke(layers, new object[] { layers.GetType().GetProperty("Content").GetValue(layers), 0 });
+        }
+
+        var pairType = typeof(KeyValuePair<,>).MakeGenericType(typeof(FrameworkElement), typeof(System.Windows.Media.Effects.Effect));
+        var effects = Activator.CreateInstance(typeof(List<>).MakeGenericType(pairType));
+        var burstType = _plugin.GetType("PlayniteAchievements.Views.Controls.RarityRayBurst");
+        var bursts = Activator.CreateInstance(typeof(List<>).MakeGenericType(burstType));
+        var collect = svcType.GetMethod("CollectEffects", Flags);
+        collect.Invoke(null, new object[] { container, effects, bursts });
+        if (under != null) collect.Invoke(null, new object[] { under, effects, null });
+        if (over != null) collect.Invoke(null, new object[] { over, effects, null });
+        svcType.GetMethod("StripEffects", Flags).Invoke(null, new object[] { effects });
+        svcType.GetMethod("HideRayBursts", Flags).Invoke(null, new object[] { bursts });
+        try
+        {
+            Func<int, byte[]> take = length => new byte[length];
+            var call = new object[] { card.Window, container, null, take, false, 1d, null, null, 0, 0, 0, 0, false, under, over };
+            var ok = (bool)svcType.GetMethod("TryRenderToastItemBytes", Flags).Invoke(card.Service, call);
+            if (!ok) return null;
+            width = (int)call[8];
+            height = (int)call[9];
+            return (byte[])call[7];
+        }
+        finally
+        {
+            svcType.GetMethod("RestoreRayBursts", Flags).Invoke(null, new object[] { bursts });
+            svcType.GetMethod("RestoreEffects", Flags).Invoke(null, new object[] { effects });
+        }
+    }
+
+    private static void SavePixels(byte[] pixels, int width, int height, string path)
+    {
+        var bitmap = System.Windows.Media.Imaging.BitmapSource.Create(
+            width, height, 96, 96, PixelFormats.Pbgra32, null, pixels, width * 4);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using (var file = File.Create(path)) encoder.Save(file);
+    }
+
+    private static object _layersToDrop;
+
+    // What the end of a wave does to its layers: the rays go back to the card's own window and
+    // the layer windows close.
+    private static void DropLayers(Type svcType, object service)
+    {
+        if (_layersToDrop == null) return;
+        svcType.GetMethod("DropRaysAhead", Flags).Invoke(service, null);
+        ((IDisposable)_layersToDrop).Dispose();
+        _layersToDrop = null;
+    }
+
+    private static object PrepareLayers(Type svcType, dynamic card, bool report, string when)
+    {
+        DropLayers(svcType, (object)card.Service);
+        var build = Stopwatch.StartNew();
+        object prepared = svcType.GetMethod("PrepareHoldLayers", Flags).Invoke(
+            (object)card.Service, new object[] { (object)card.Window, (object)card.Surface, (object)card.Items, (object)card.Template, false, when == "before" });
+        if (report) Console.WriteLine("hold layers built {0} the entrance in {1} ms: {2}", when, build.ElapsedMilliseconds, prepared != null);
+        return prepared;
+    }
+    private static bool _tinyAnimation;
+    // Which bursts --no-rays hides: all, the card's own (ToastLayer.Role Rays) or the icon's.
+    private static string _hideRays = "all";
+    // Bursts draw one geometry per copy, whatever their template asks.
+    private static bool _rayGeometry;
+    // Cards in the wave, stacked as the service stacks a wave of several notifications.
+    private static int _cards = 1;
+    // The content layer's effects are removed once it is shown, to measure what they cost there.
+    private static bool _contentNoEffects;
+    // The glow pulses inside the content layer are stopped once it is shown.
+    private static bool _contentNoPulse;
+
+    private static int StopPulses(DependencyObject root)
+    {
+        var pulse = _plugin.GetType("PlayniteAchievements.Views.Helpers.RarityGlowPulse");
+        var get = pulse.GetMethod("GetIsActive", BindingFlags.Public | BindingFlags.Static);
+        var set = pulse.GetMethod("SetIsActive", BindingFlags.Public | BindingFlags.Static);
+        var stopped = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            var which = Environment.GetEnvironmentVariable("BENCH_PULSES") ?? "all";
+            if (child is FrameworkElement pulsing && (bool)get.Invoke(null, new object[] { child }) &&
+                (which == "all" || (which == "hidden") == !pulsing.IsVisible))
+            {
+                set.Invoke(null, new object[] { child, false });
+                stopped++;
+            }
+
+            stopped += StopPulses(child);
+        }
+
+        return stopped;
+    }
+    // The background's decoding Image is collapsed in the content and rays layers.
+    private static bool _layersStopDecode;
+
+    private static int CollapseNamed(DependencyObject root, string name)
+    {
+        var done = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is FrameworkElement element && element.Name == name)
+            {
+                element.Visibility = Visibility.Collapsed;
+                done++;
+            }
+
+            done += CollapseNamed(child, name);
+        }
+
+        return done;
+    }
+
+    private static int RemoveEffects(DependencyObject root)
+    {
+        var removed = 0;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is UIElement element && element.Effect != null)
+            {
+                element.Effect = null;
+                removed++;
+            }
+
+            removed += RemoveEffects(child);
+        }
+
+        return removed;
+    }
+
+    private static void UseRayGeometry(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child.GetType().Name == "RarityRayBurst")
+            {
+                child.GetType().GetProperty("IsRasterized").SetValue(child, false);
+            }
+
+            UseRayGeometry(child);
+        }
+    }
+    // The ray driver's invalidations per second when above its own 30, through SetSamplingFps.
+    private static double _rayFps;
     private static string _snapshot;
     private static string _decodePath;
     // Glow pulse and rays off and no countdown: only the background animates in the hold.
@@ -127,6 +292,13 @@ public static class TemplateBench
                 case "--game": _gameWork = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--no-pulse": _noPulse = true; break;
                 case "--no-rays": _noRays = true; break;
+                case "--ray-geometry": _rayGeometry = true; break;
+                case "--cards": _cards = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
+                case "--content-no-effects": _contentNoEffects = true; break;
+                case "--content-no-pulse": _contentNoPulse = true; break;
+                case "--layers-stop-decode": _layersStopDecode = true; break;
+                case "--no-icon-rays": _noRays = true; _hideRays = "icon"; break;
+                case "--no-card-rays": _noRays = true; _hideRays = "card"; break;
                 case "--no-countdown": _noCountdown = true; break;
                 case "--still-background": _stillBackground = true; break;
                 // Pauses the card and icon glow pulses only; --no-pulse also stops the rays.
@@ -137,6 +309,10 @@ public static class TemplateBench
                 // Capture runs in a child process at normal GPU priority unless one of these is given.
                 case "--no-capture": _noCapture = true; break;
                 case "--in-process-capture": _inProcessCapture = true; break;
+                // The capture child's GPU scheduling class (default 2, normal). At 5 it is not
+                // starved by the game and misses few updates, but takes GPU time itself: read
+                // notification cadence from such a run and game fps from a --no-capture one.
+                case "--recorder-priority": _recorderPriority = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--gpu-priority": _gpuPriority = int.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 case "--card-scale": _cardScale = double.Parse(args[++i], CultureInfo.InvariantCulture); break;
                 // The plugin's animation frame rate (AnimationFrameRate.Current) instead of the display's.
@@ -145,6 +321,29 @@ public static class TemplateBench
                 // through the slides.
                 case "--animate-motion": _freezeMotion = false; break;
                 case "--live-motion": _liveMotion = true; break;
+                // The card window stays cloaked and a surfaceless presenter window shows its DWM
+                // thumbnail; entrance and exit move the thumbnail from a pacing thread, so the
+                // motion needs no WPF frames.
+                case "--thumbnail": _thumbnail = true; break;
+                // The plugin's own presenter (ToastThumbnailPresenter): the card window stays
+                // cloaked, the slide storyboards run on the service's motion stand-in, and the
+                // service mirrors it onto the thumbnail.
+                case "--presenter": _presenter = true; break;
+                // With --presenter: while the card rests, the plugin shows its background and its
+                // content from layer windows (ToastHoldLayers) over the card window, which stands still.
+                case "--hold-layers": _holdLayers = true; break;
+                // With --hold-layers: builds the layers before the entrance, as the wave does,
+                // so the hold only shows them.
+                case "--early-layers": _earlyLayers = true; break;
+                // With --early-layers: builds them once the slide is under way instead.
+                case "--layers-mid-slide": _layersMidSlide = true; break;
+                // With --hold-layers: captures the card on screen before and after the split and
+                // counts differing pixels. Use with --still-background --no-pulse --no-rays.
+                case "--layers-compare": _layersCompare = true; break;
+                // A 6 px square in the window corner, away from the card, animating forever: a
+                // frame every composition that redraws none of the card.
+                case "--tiny-animation": _tinyAnimation = true; break;
+                case "--ray-fps": _rayFps = double.Parse(args[++i], CultureInfo.InvariantCulture); break;
             }
         }
 
@@ -152,6 +351,10 @@ public static class TemplateBench
         AppDomain.CurrentDomain.AssemblyResolve += Resolve;
         var code = 0;
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        // The popup brushes a Playnite theme supplies; without them a card with no background image
+        // has no surface. The plugin's neutral preview theme's values.
+        app.Resources["PlayAch.Brush.PopupSurface"] = Frozen(Color.FromRgb(0x23, 0x29, 0x33));
+        app.Resources["PlayAch.Brush.PopupBorder"] = Frozen(Color.FromRgb(0x34, 0x3B, 0x46));
         var loads = new List<Process>();
         if (_gpuPriority >= 0)
         {
@@ -296,6 +499,98 @@ public static class TemplateBench
         card.Window.Close();
     }
 
+    /// <summary>
+    /// A window with no surface of its own that shows the cloaked card window through a DWM
+    /// thumbnail and moves it, one step per DWM composition, from its own thread.
+    /// </summary>
+    private sealed class ThumbnailPresenter
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Props
+        {
+            public int Flags;
+            public Rect32 Destination;
+            public Rect32 Source;
+            public byte Opacity;
+            [MarshalAs(UnmanagedType.Bool)] public bool Visible;
+            [MarshalAs(UnmanagedType.Bool)] public bool SourceClientAreaOnly;
+        }
+
+        [DllImport("dwmapi.dll")] private static extern int DwmRegisterThumbnail(IntPtr dest, IntPtr src, out IntPtr thumb);
+        [DllImport("dwmapi.dll")] private static extern int DwmUpdateThumbnailProperties(IntPtr thumb, ref Props props);
+        [DllImport("dwmapi.dll")] private static extern int DwmFlush();
+
+        private sealed class Surfaceless : System.Windows.Forms.Form
+        {
+            protected override bool ShowWithoutActivation => true;
+
+            protected override System.Windows.Forms.CreateParams CreateParams
+            {
+                get
+                {
+                    var p = base.CreateParams;
+                    // TOPMOST | TRANSPARENT | TOOLWINDOW | NOACTIVATE | NOREDIRECTIONBITMAP
+                    p.ExStyle |= 0x8 | 0x20 | 0x80 | 0x08000000 | 0x00200000;
+                    return p;
+                }
+            }
+        }
+
+        private readonly IntPtr _thumb;
+        private readonly int _width, _height, _travel;
+        private readonly Surfaceless _form;
+
+        public ThumbnailPresenter(IntPtr source, Rect32 rect, int travelPx)
+        {
+            _width = rect.Right - rect.Left;
+            _height = rect.Bottom - rect.Top;
+            _travel = travelPx;
+            _form = new Surfaceless
+            {
+                FormBorderStyle = System.Windows.Forms.FormBorderStyle.None,
+                ShowInTaskbar = false,
+                StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                TopMost = true,
+                Bounds = new System.Drawing.Rectangle(rect.Left, rect.Top, _width, _height),
+            };
+            _form.Show();
+            var hr = DwmRegisterThumbnail(_form.Handle, source, out _thumb);
+            if (hr != 0) throw new InvalidOperationException("DwmRegisterThumbnail 0x" + hr.ToString("X"));
+            Place(_travel, false);
+        }
+
+        private void Place(int offsetY, bool visible)
+        {
+            var p = new Props
+            {
+                Flags = 1 | 4 | 8 | 16,
+                Destination = new Rect32 { Left = 0, Top = offsetY, Right = _width, Bottom = offsetY + _height },
+                Opacity = 255,
+                Visible = visible,
+                SourceClientAreaOnly = true,
+            };
+            DwmUpdateThumbnailProperties(_thumb, ref p);
+        }
+
+        /// <summary>Slides in (from the travel offset to rest) or out, sine eased, and returns at once.</summary>
+        public void Slide(bool entering, double durationMs)
+        {
+            var thread = new Thread(() =>
+            {
+                var clock = Stopwatch.StartNew();
+                while (true)
+                {
+                    var p = Math.Min(1.0, clock.Elapsed.TotalMilliseconds / durationMs);
+                    var shown = entering ? Math.Sin(p * Math.PI / 2) : Math.Cos(p * Math.PI / 2);
+                    Place((int)Math.Round(_travel * (1 - shown)), entering || p < 1.0);
+                    if (p >= 1.0) break;
+                    DwmFlush();
+                }
+            }) { IsBackground = true, Priority = ThreadPriority.AboveNormal };
+            thread.Start();
+        }
+    }
+
     private static void Cloak(Card card, bool cloaked)
     {
         _plugin.GetType("PlayniteAchievements.Services.UI.ToastWindowSurface").GetMethod("SetCloaked")
@@ -311,6 +606,8 @@ public static class TemplateBench
         public object Service;
         public Rect32 Rect;
         public double TravelDip;
+        public object Items;
+        public DataTemplate Template;
     }
 
     private static object _settings;
@@ -335,7 +632,7 @@ public static class TemplateBench
         var pluginType = _plugin.GetType("PlayniteAchievements.PlayniteAchievementsPlugin");
         var instance = FormatterServices.GetUninitializedObject(pluginType);
         var dataDir = Path.GetDirectoryName(_configPath);
-        var disk = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.DiskImageService"), _logger, dataDir, 8);
+        var disk = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.DiskImageService"), _logger, dataDir, 8, null);
         var memory = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.MemoryImageService"), _logger, disk, 512);
         var rays = Activator.CreateInstance(_plugin.GetType("PlayniteAchievements.Services.Images.RayTrackService"), _logger, memory, 1024);
         Set(instance, "_diskImageService", disk);
@@ -381,11 +678,13 @@ public static class TemplateBench
             : p.ParameterType == persisted.GetType() ? persisted
             : p.ParameterType == typeof(bool) ? (object)false
             : null).ToArray();
-        var vm = ctor.Invoke(values);
-        await (Task)vmType.GetMethod("PrepareImagesAsync").Invoke(vm, null);
-
         var items = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(vmType));
-        items.Add(vm);
+        for (var n = 0; n < Math.Max(1, _cards); n++)
+        {
+            var vm = ctor.Invoke(values);
+            await (Task)vmType.GetMethod("PrepareImagesAsync").Invoke(vm, null);
+            items.Add(vm);
+        }
         var factory = _plugin.GetType("PlayniteAchievements.Services.UI.ToastSurfaceFactory");
         var surface = (ItemsControl)factory.GetMethod("BuildToastSurface", Flags).Invoke(null, new object[] { items, template });
         if (Math.Abs(_cardScale - 1) > 1e-6)
@@ -401,7 +700,22 @@ public static class TemplateBench
         var window = (Window)provider.GetMethod("CreateBorderlessTopmostWindow").Invoke(null, new object[] { null, "TemplateBench" });
         var surfaceType = _plugin.GetType("PlayniteAchievements.Services.UI.ToastWindowSurface");
         surfaceType.GetMethod("UseDwmComposition").Invoke(null, new object[] { window });
-        window.Content = host;
+        Grid motionHost = null;
+        if (_presenter)
+        {
+            var motionArgs = new object[] { null, null };
+            motionHost = (Grid)factory.GetMethod("BuildSlideHost", Flags).Invoke(null, motionArgs);
+            slide = (TranslateTransform)motionArgs[1];
+            var root = new Grid { IsHitTestVisible = false };
+            root.Children.Add(motionHost);
+            root.Children.Add(host);
+            window.Content = root;
+        }
+        else
+        {
+            window.Content = host;
+        }
+
         window.Left = left ? 60 : 60;
         window.Top = left ? 60 : 760;
 
@@ -413,6 +727,7 @@ public static class TemplateBench
         Set(svc, "_activeSlideTransform", slide);
         Set(svc, "_activeCardSurface", surface);
         Set(svc, "_activeDwmComposed", true);
+        if (_presenter) Set(svc, "_activeMotionHost", motionHost);
         Set(svc, "_activeMonitorScale", 1.0);
         Set(svc, "_activeSlideInTravels", true);
         Set(svc, "_activeSlideOutTravels", true);
@@ -441,6 +756,15 @@ public static class TemplateBench
         window.Closed += (s, e) => backdrop.Close();
 
         window.Show();
+        if (_presenter)
+        {
+            surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { window, true });
+            svcType.GetMethod("StartPresenter", Flags).Invoke(svc, new object[] { window, false });
+            var made = svcType.GetField("_activePresenter", Flags).GetValue(svc);
+            if (made == null) throw new InvalidOperationException("presenter was not created");
+            made.GetType().GetMethod("Reveal").Invoke(made, null);
+        }
+
         if (_software)
         {
             // The card's window drawn on the CPU, out of the GPU queue a game keeps full.
@@ -457,7 +781,7 @@ public static class TemplateBench
         await Task.Delay(2500);
         GetWindowRect(new WindowInteropHelper(window).Handle, out var rect);
         var travel = (double)svcType.GetMethod("SlideDistanceDip", Flags).Invoke(svc, new object[] { window });
-        return new Card { Window = window, Host = host, Surface = surface, Slide = slide, Service = svc, Rect = rect, TravelDip = travel };
+        return new Card { Window = window, Host = host, Surface = surface, Slide = slide, Service = svc, Rect = rect, TravelDip = travel, Items = items, Template = template };
     }
 
     private static async Task BenchAsync(Card card)
@@ -485,7 +809,42 @@ public static class TemplateBench
             if (_overlay != null) HideRays(_overlay.Host);
         }
 
+        if (_rayGeometry)
+        {
+            UseRayGeometry(card.Host);
+        }
+
         StillBackground(card.Host);
+
+        if (_rayFps > 0)
+        {
+            _plugin.GetType("PlayniteAchievements.Views.Helpers.RayAnimationDriver")
+                .GetMethod("SetSamplingFps", Flags | BindingFlags.Public).Invoke(null, new object[] { _rayFps });
+        }
+
+        if (_tinyAnimation)
+        {
+            var dot = new System.Windows.Shapes.Rectangle
+            {
+                Width = 6, Height = 6, Fill = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            };
+            card.Host.Children.Add(dot);
+            dot.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromSeconds(1))
+            {
+                AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
+            });
+        }
+
+        ThumbnailPresenter presenter = null;
+        if (_thumbnail)
+        {
+            var scale = PresentationSource.FromVisual(card.Window).CompositionTarget.TransformToDevice.M22;
+            presenter = new ThumbnailPresenter(new WindowInteropHelper(card.Window).Handle, card.Rect,
+                (int)Math.Round(card.TravelDip * scale));
+            Cloak(card, true);
+            Console.WriteLine("thumbnail presenter: travel {0} px", (int)Math.Round(card.TravelDip * scale));
+        }
 
         IRecorder recorder = _noCapture ? new NullRecorder()
             : _inProcessCapture ? new RegionRecorder(card.Rect)
@@ -515,7 +874,7 @@ public static class TemplateBench
                 var b0 = Stopwatch.GetTimestamp();
                 await Task.Delay(3000);
                 var b1 = Stopwatch.GetTimestamp();
-                surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
+                if (!_thumbnail && !_presenter) surfaceType.GetMethod("SetCloaked").Invoke(null, new object[] { card.Window, false });
                 Console.WriteLine("game with card hidden {0:0.0} fps, worst frame {1:0.0} ms", GameFps(b0, b1), GameMaxMs(b0, b1));
                 await Task.Delay(500);
             }
@@ -523,12 +882,42 @@ public static class TemplateBench
             for (var c = 0; c < _cycles; c++)
             {
                 // Entrance, as the wave runs it: cache realized a frame ahead, then the slide.
-                card.Slide.Y = card.TravelDip;
-                engage.Invoke(null, new object[] { card.Host, card.Window });
+                if (_thumbnail)
+                {
+                    card.Slide.Y = 0;
+                }
+                else
+                {
+                    card.Slide.Y = card.TravelDip;
+                    if (!_presenter) engage.Invoke(null, new object[] { card.Host, card.Window });
+                }
+
+                object prepared = null;
+                if (_holdLayers && _earlyLayers && !_layersMidSlide)
+                {
+                    prepared = PrepareLayers(svcType, card, c == 0, "before");
+                }
+
                 await Frames(3);
                 var t0 = Stopwatch.GetTimestamp();
-                run.Invoke(card.Service, new object[] { null, card.TravelDip, 0d, easeIn, inMs, true, "in", false });
-                if (_liveMotion)
+                if (_thumbnail)
+                {
+                    presenter.Slide(true, inMs);
+                }
+                else
+                {
+                    run.Invoke(card.Service, new object[] { null, card.TravelDip, 0d, easeIn, inMs, true, "in", false });
+                }
+
+                if (_holdLayers && _earlyLayers && _layersMidSlide)
+                {
+                    prepared = PrepareLayers(svcType, card, c == 0, "during");
+                }
+
+                if (_thumbnail)
+                {
+                }
+                else if (_liveMotion)
                 {
                     svcType.GetMethod("DisposeSlideQuiet", Flags).Invoke(card.Service, null);
                 }
@@ -539,7 +928,7 @@ public static class TemplateBench
 
                 await Task.Delay((int)inMs + 20);
                 var t1 = Stopwatch.GetTimestamp();
-                stop.Invoke(card.Service, null);
+                if (!_thumbnail) stop.Invoke(card.Service, null);
                 StillBackground(card.Host);
 
                 // As the wave does at the settle: hits, and DWM composition, limited to the card.
@@ -551,14 +940,174 @@ public static class TemplateBench
                     Cloak(_overlay, false);
                 }
 
+                object layers = null;
+                if (_holdLayers)
+                {
+                    int sampledW = 0, sampledH = 0;
+                    var sampledOne = _layersCompare ? SamplerRender(svcType, card, null, out sampledW, out sampledH) : null;
+                    var before = _layersCompare ? Capture(card.Rect) : null;
+                    if (_layersCompare && _snapshot != null) SaveCapture(card.Rect, _snapshot + "-one.png");
+                    var begun = (Task)svcType.GetMethod("BeginHoldLayersAsync", Flags).Invoke(
+                        card.Service, new object[] { card.Window, card.Surface, card.Items, card.Template, false, prepared });
+                    await begun;
+                    layers = begun.GetType().GetProperty("Result").GetValue(begun);
+                    if (c == 0) Console.WriteLine("hold layers: " + (layers != null ? "shown" : "none"));
+                    if (layers != null && _layersStopDecode)
+                    {
+                        foreach (var name in new[] { "Rays", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            if (layerWindow != null)
+                            {
+                                var done = CollapseNamed((DependencyObject)layerWindow.Content, "ToastBackgroundSourceHost");
+                                if (c == 0) Console.WriteLine(name + " layer decode hosts collapsed: " + done);
+                            }
+                        }
+                    }
+
+                    if (layers != null && _contentNoPulse)
+                    {
+                        var contentWindow = (Window)layers.GetType().GetProperty("Content").GetValue(layers);
+                        var stopped = StopPulses((DependencyObject)contentWindow.Content);
+                        if (c == 0) Console.WriteLine("content layer pulses stopped: " + stopped);
+                    }
+
+                    if (layers != null && _contentNoEffects)
+                    {
+                        var contentWindow = (Window)layers.GetType().GetProperty("Content").GetValue(layers);
+                        var removed = RemoveEffects((DependencyObject)contentWindow.Content);
+                        if (c == 0) Console.WriteLine("content layer effects removed: " + removed);
+                    }
+
+                    if (layers != null && _rayGeometry)
+                    {
+                        foreach (var name in new[] { "Rays", "Background", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            if (layerWindow != null) UseRayGeometry((DependencyObject)layerWindow.Content);
+                        }
+                    }
+
+                    if (layers != null && _noRays)
+                    {
+                        foreach (var name in new[] { "Background", "Content" })
+                        {
+                            var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                            HideRays((Grid)layerWindow.Content);
+                        }
+                    }
+
+                    if (before != null && layers != null)
+                    {
+                        // The compositions right after the layers were shown: what a layer that had
+                        // not presented yet would leave missing while the card under it is hidden.
+                        int missing = 0, worst = 0, worstFrame = 0;
+                        for (var frame = 1; frame <= 30; frame++)
+                        {
+                            await Frames(1);
+                            var atOnce = Capture(card.Rect);
+                            var count = 0;
+                            for (var i = 0; i < before.Length; i++)
+                            {
+                                var a = before[i];
+                                var b = atOnce[i];
+                                var d = Math.Max(Math.Abs(((a >> 16) & 255) - ((b >> 16) & 255)),
+                                    Math.Max(Math.Abs(((a >> 8) & 255) - ((b >> 8) & 255)), Math.Abs((a & 255) - (b & 255))));
+                                if (d > 16) count++;
+                                if (d > worst) worst = d;
+                            }
+
+                            if (count > missing)
+                            {
+                                missing = count;
+                                worstFrame = frame;
+                                if (_snapshot != null) SaveCapture(card.Rect, _snapshot + "-atonce.png");
+                            }
+                        }
+
+                        Console.WriteLine(
+                            "layers over 30 frames vs one window: at most {0} px differ by more than 16 levels (frame {1}), max {2}",
+                            missing, worstFrame, worst);
+                        await Task.Delay(500);
+                        var after = Capture(card.Rect);
+                        if (_snapshot != null)
+                        {
+                            SaveCapture(card.Rect, _snapshot + "-layers.png");
+                            // Each layer's own tree, rendered offscreen: what it holds, not how it is shown.
+                            foreach (var name in new[] { "Background", "Content" })
+                            {
+                                var layerWindow = (Window)layers.GetType().GetProperty(name).GetValue(layers);
+                                var visual = (FrameworkElement)layerWindow.Content;
+                                var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                                    (int)Math.Ceiling(visual.ActualWidth), (int)Math.Ceiling(visual.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                                rtb.Render(visual);
+                                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+                                using (var file = File.Create(_snapshot + "-" + name + ".png")) encoder.Save(file);
+                            }
+                        }
+                        int differing = 0, max = 0;
+                        for (var i = 0; i < before.Length; i++)
+                        {
+                            var a = before[i];
+                            var b = after[i];
+                            var d = Math.Max(Math.Abs(((a >> 16) & 255) - ((b >> 16) & 255)),
+                                Math.Max(Math.Abs(((a >> 8) & 255) - ((b >> 8) & 255)), Math.Abs((a & 255) - (b & 255))));
+                            if (d > 0) differing++;
+                            if (d > max) max = d;
+                        }
+
+                        Console.WriteLine("layers vs one window: {0} of {1} px differ, max {2} levels", differing, before.Length, max);
+
+                        // The clip sampler's render of the card, from its window before the split
+                        // and from the layers now.
+                        var sampledLayers = SamplerRender(svcType, card, layers, out var layeredW, out var layeredH);
+                        if (sampledOne == null || sampledLayers == null || layeredW != sampledW || layeredH != sampledH)
+                        {
+                            Console.WriteLine("sampler render: failed or sizes differ ({0}x{1} vs {2}x{3})", sampledW, sampledH, layeredW, layeredH);
+                        }
+                        else
+                        {
+                            int off = 0, most = 0;
+                            for (var i = 0; i < sampledOne.Length; i++)
+                            {
+                                var d = Math.Abs(sampledOne[i] - sampledLayers[i]);
+                                if (d > 2 && i % 4 == 0) off++;
+                                if (d > most) most = d;
+                            }
+
+                            Console.WriteLine(
+                                "sampler render, layers vs one window: {0}x{1}, {2} px differ by more than 2 levels in blue, max {3} in any channel",
+                                sampledW, sampledH, off, most);
+                            if (_snapshot != null)
+                            {
+                                SavePixels(sampledOne, sampledW, sampledH, _snapshot + "-sampler-one.png");
+                                SavePixels(sampledLayers, sampledW, sampledH, _snapshot + "-sampler-layers.png");
+                            }
+                        }
+                    }
+
+                    // The hold is measured from the split.
+                    t1 = Stopwatch.GetTimestamp();
+                }
+
                 if (!_backgroundOnly && !_noCountdown)
                 {
                     // Split, the countdown is in the front window.
                     var bar = _overlay ?? card;
-                    countdown.Invoke(bar.Service, new object[] { bar.Window, (int)(_holdSeconds * 1000) });
+                    countdown.Invoke(bar.Service, new object[] { bar.Window, (int)(_holdSeconds * 1000), 0d });
                 }
                 await Task.Delay(TimeSpan.FromSeconds(_holdSeconds));
                 var t2 = Stopwatch.GetTimestamp();
+                if (layers != null)
+                {
+                    await (Task)svcType.GetMethod("EndHoldLayersAsync", Flags).Invoke(
+                        card.Service, new object[] { card.Window, layers, 250 });
+                    // The wave disposes its layers when it ends, after the exit; here the card
+                    // lives on, so they go before the next cycle builds its own.
+                    _layersToDrop = layers;
+                }
+
                 if (!_backgroundOnly && !_noCountdown)
                 {
                     var bar = _overlay ?? card;
@@ -570,11 +1119,22 @@ public static class TemplateBench
                 {
                     Cloak(_overlay, true);
                 }
-                engage.Invoke(null, new object[] { card.Host, card.Window });
+                if (!_thumbnail && !_presenter) engage.Invoke(null, new object[] { card.Host, card.Window });
                 await Frames(1);
                 var t3 = Stopwatch.GetTimestamp();
-                run.Invoke(card.Service, new object[] { null, 0d, card.TravelDip, easeOut, outMs, true, "out", false });
-                if (_liveMotion)
+                if (_thumbnail)
+                {
+                    presenter.Slide(false, outMs);
+                }
+                else
+                {
+                    run.Invoke(card.Service, new object[] { null, 0d, card.TravelDip, easeOut, outMs, true, "out", false });
+                }
+
+                if (_thumbnail)
+                {
+                }
+                else if (_liveMotion)
                 {
                     svcType.GetMethod("DisposeSlideQuiet", Flags).Invoke(card.Service, null);
                 }
@@ -585,7 +1145,7 @@ public static class TemplateBench
 
                 await Task.Delay((int)outMs + 20);
                 var t4 = Stopwatch.GetTimestamp();
-                stop.Invoke(card.Service, null);
+                if (!_thumbnail) stop.Invoke(card.Service, null);
                 StillBackground(card.Host);
                 await Task.Delay(300);
 
@@ -793,12 +1353,27 @@ public static class TemplateBench
         }
     }
 
+    private static bool IsCardBurst(DependencyObject burst)
+    {
+        var role = _plugin.GetType("PlayniteAchievements.Views.Helpers.ToastLayer")
+            .GetMethod("GetRole", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { burst });
+        return role.ToString() == "Rays";
+    }
+
+    private static SolidColorBrush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
     private static void HideRays(DependencyObject root)
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
         {
             var child = VisualTreeHelper.GetChild(root, i);
-            if (child.GetType().Name == "RarityRayBurst" && child is UIElement element)
+            if (child.GetType().Name == "RarityRayBurst" && child is UIElement element &&
+                (_hideRays == "all" || (_hideRays == "card") == IsCardBurst(child)))
             {
                 element.Visibility = Visibility.Hidden;
             }
@@ -1003,7 +1578,7 @@ public static class TemplateBench
         {
             var exe = Assembly.GetExecutingAssembly().Location;
             _process = Process.Start(new ProcessStartInfo(exe, string.Format(CultureInfo.InvariantCulture,
-                "--record {0},{1},{2},{3}", r.Left, r.Top, r.Right, r.Bottom))
+                "--record {0},{1},{2},{3},{4}", r.Left, r.Top, r.Right, r.Bottom, _recorderPriority))
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -1064,8 +1639,8 @@ public static class TemplateBench
     /// <summary>The --record child: streams "r time changed accumulated" per frame until killed.</summary>
     private static int RecordChild(string spec)
     {
-        D3DKMTSetProcessSchedulingPriorityClass(Process.GetCurrentProcess().Handle, 2);
         var p = spec.Split(',').Select(v => int.Parse(v, CultureInfo.InvariantCulture)).ToArray();
+        D3DKMTSetProcessSchedulingPriorityClass(Process.GetCurrentProcess().Handle, p.Length > 4 ? p[4] : 2);
         var recorder = new RegionRecorder(new Rect32 { Left = p[0], Top = p[1], Right = p[2], Bottom = p[3] });
         var output = Console.Out;
         recorder.Sink = f =>

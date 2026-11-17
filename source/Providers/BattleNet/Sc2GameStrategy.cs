@@ -22,11 +22,6 @@ namespace PlayniteAchievements.Providers.BattleNet
             _logger = logger;
         }
 
-        public bool MatchesGame(Game game)
-        {
-            return BattleNetGameSupport.IsSc2Enabled && BattleNetGameSupport.IsSc2Game(game);
-        }
-
         public async Task<GameAchievementData> FetchAchievementsAsync(Game game, string locale, CancellationToken ct)
         {
             var settings = ProviderRegistry.Settings<BattleNetSettings>();
@@ -49,7 +44,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 settings.BattleNetClientId,
                 settings.BattleNetClientSecret,
                 apiLocale,
-                ct);
+                ct).ConfigureAwait(false);
             var profile = await _client.GetSc2ProfileAsync(
                 regionId,
                 realmId,
@@ -57,7 +52,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 settings.BattleNetClientId,
                 settings.BattleNetClientSecret,
                 apiLocale,
-                ct);
+                ct).ConfigureAwait(false);
 
             if (definitions == null || profile == null)
             {
@@ -65,40 +60,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return null;
             }
 
-            var categoryLookup = definitions.Categories?.ToDictionary(c => c.Id, c => c.Name) ?? new Dictionary<string, string>();
-            var parentLookup = definitions.Categories?.ToDictionary(c => c.Id, c => c.ParentCategoryId) ?? new Dictionary<string, string>();
-            var earnedLookup = profile.EarnedAchievements?.ToDictionary(e => e.AchievementId) ?? new Dictionary<string, Sc2EarnedAchievement>();
-
-            var achievements = new List<AchievementDetail>();
-
-            foreach (var def in definitions.Achievements ?? Enumerable.Empty<Sc2AchievementDefinition>())
-            {
-                var detail = new AchievementDetail
-                {
-                    ApiName = def.Id,
-                    DisplayName = def.Title,
-                    Description = def.Description,
-                    UnlockedIconPath = def.ImageUrl,
-                    Points = def.Points > 0 ? def.Points : (int?)null,
-                    Category = ResolveCategory(def.CategoryId, categoryLookup, parentLookup),
-                    ProviderKey = "BattleNet"
-                };
-
-                if (earnedLookup.TryGetValue(def.Id, out var earned))
-                {
-                    detail.Unlocked = earned.IsComplete;
-                    if (earned.IsComplete && int.TryParse(earned.CompletionDate, out var unixSeconds) && unixSeconds > 0)
-                    {
-                        detail.UnlockTimeUtc = DateTimeOffset.FromUnixTimeSeconds(unixSeconds).UtcDateTime;
-                    }
-                }
-                else
-                {
-                    detail.Unlocked = false;
-                }
-
-                achievements.Add(detail);
-            }
+            var achievements = BuildAchievements(definitions, profile);
 
             var data = new GameAchievementData
             {
@@ -112,6 +74,74 @@ namespace PlayniteAchievements.Providers.BattleNet
             };
 
             return data;
+        }
+
+        /// <summary>
+        /// Maps the static achievement catalog onto the profile's earned list. Every catalog entry
+        /// becomes a row; an entry is unlocked when the profile reports it complete.
+        /// </summary>
+        internal static List<AchievementDetail> BuildAchievements(
+            Sc2AchievementDefinitionsResponse definitions,
+            Sc2ProfileResponse profile)
+        {
+            var categories = (definitions?.Categories ?? new List<Sc2Category>())
+                .Where(c => c != null && !string.IsNullOrEmpty(c.Id))
+                .GroupBy(c => c.Id, StringComparer.Ordinal)
+                .Select(g => g.First())
+                .ToList();
+            var categoryLookup = categories.ToDictionary(c => c.Id, c => c.Name, StringComparer.Ordinal);
+            var parentLookup = categories.ToDictionary(c => c.Id, c => c.ParentCategoryId, StringComparer.Ordinal);
+            var earnedLookup = (profile?.EarnedAchievements ?? new List<Sc2EarnedAchievement>())
+                .Where(e => e != null && !string.IsNullOrEmpty(e.AchievementId))
+                .GroupBy(e => e.AchievementId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault(e => e.IsComplete) ?? g.First(), StringComparer.Ordinal);
+
+            var achievements = new List<AchievementDetail>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var def in definitions?.Achievements ?? Enumerable.Empty<Sc2AchievementDefinition>())
+            {
+                if (def == null || string.IsNullOrEmpty(def.Id) || !seen.Add(def.Id))
+                {
+                    continue;
+                }
+
+                var detail = new AchievementDetail
+                {
+                    ApiName = def.Id,
+                    DisplayName = def.Title,
+                    Description = def.Description,
+                    UnlockedIconPath = def.ImageUrl,
+                    Points = def.Points > 0 ? def.Points : (int?)null,
+                    Category = ResolveCategory(def.CategoryId, categoryLookup, parentLookup),
+                    ProviderKey = "BattleNet",
+                    Unlocked = false
+                };
+
+                if (earnedLookup.TryGetValue(def.Id, out var earned) && earned.IsComplete)
+                {
+                    detail.Unlocked = true;
+                    detail.UnlockTimeUtc = ToUtc(earned.CompletionDate);
+                }
+
+                achievements.Add(detail);
+            }
+
+            return achievements;
+        }
+
+        internal static DateTime? ToUtc(double? unixSeconds)
+        {
+            if (!unixSeconds.HasValue ||
+                double.IsNaN(unixSeconds.Value) ||
+                double.IsInfinity(unixSeconds.Value) ||
+                unixSeconds.Value <= 0 ||
+                unixSeconds.Value > 253402300799d)
+            {
+                return null;
+            }
+
+            return DateTimeOffset.FromUnixTimeSeconds((long)unixSeconds.Value).UtcDateTime;
         }
 
         /// <summary>
@@ -133,7 +163,7 @@ namespace PlayniteAchievements.Providers.BattleNet
                 settings.BattleNetAccessToken,
                 ct).ConfigureAwait(false);
 
-            var chosen = profiles?.FirstOrDefault(p => p != null && p.ProfileId > 0);
+            var chosen = ChooseProfile(profiles, apiRegion);
             if (chosen == null)
             {
                 return false;
@@ -152,10 +182,26 @@ namespace PlayniteAchievements.Providers.BattleNet
 
             if (profiles.Count > 1)
             {
-                _logger?.Info($"[BattleNet/SC2] Discovered {profiles.Count} profiles; using first (region={chosen.RegionId}, realm={chosen.RealmId}).");
+                _logger?.Info($"[BattleNet/SC2] Discovered {profiles.Count} profiles; using region={chosen.RegionId}, realm={chosen.RealmId}.");
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Picks the profile in the account's own API region when there is one, so an account with
+        /// profiles in several regions reads the one it signed in through; otherwise the first.
+        /// </summary>
+        internal static Sc2PlayerProfile ChooseProfile(IEnumerable<Sc2PlayerProfile> profiles, string apiRegion)
+        {
+            var usable = (profiles ?? Enumerable.Empty<Sc2PlayerProfile>())
+                .Where(p => p != null && p.ProfileId > 0)
+                .ToList();
+            return usable.FirstOrDefault(p => string.Equals(
+                    BattleNetApiClient.MapSc2RegionIdToApiRegion(p.RegionId),
+                    apiRegion,
+                    StringComparison.OrdinalIgnoreCase))
+                ?? usable.FirstOrDefault();
         }
 
         private static string ResolveCategory(string categoryId, Dictionary<string, string> names, Dictionary<string, string> parents)

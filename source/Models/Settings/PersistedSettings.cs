@@ -80,6 +80,9 @@ namespace PlayniteAchievements.Models.Settings
         private string _autoCapstoneCategoryDescriptionTemplate;
         private List<string> _autoCapstoneTemplateHistory = new List<string>();
         private string _autoCapstoneAppliedTemplates;
+        private string _autoCapstoneGameTags;
+        private string _autoCapstoneCategoryTags;
+        private string _autoCapstoneAppliedTags;
         private int _inGamePollIntervalSeconds = 15;
         private bool _inGamePollRefreshFriends = false;
         private int _inGameFriendRefreshMultiplier = 4;
@@ -97,6 +100,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _toastDurationSeconds = 6;
         private double _notificationDelaySeconds = 0;
         private double _captureDelaySeconds = 0;
+        private bool _captureAtUnlockAndAfterDelay = false;
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
@@ -116,6 +120,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _unlockScreenshotSuffixWithToast = "notification";
         private string _unlockScreenshotSuffixFramed = "framed";
         private string _unlockScreenshotDirectory;
+        private string _iconCacheDirectory;
         private Dictionary<string, LibraryLink> _libraryLinks =
             new Dictionary<string, LibraryLink>(StringComparer.OrdinalIgnoreCase);
         private ScreenshotResolution _screenshotResolution = ScreenshotResolution.Native;
@@ -147,7 +152,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, ProviderNotificationOverride> _providerNotificationOverrides =
             new Dictionary<string, ProviderNotificationOverride>(StringComparer.OrdinalIgnoreCase);
         private ToastScreenCorner _toastPosition = ToastScreenCorner.BottomRight;
-        private NotificationRenderMode _notificationRenderMode = NotificationRenderMode.Performance;
         private int _recentRefreshGamesCount = 10;
         private RefreshModeType _defaultOverviewRefreshMode = RefreshModeType.Installed;
         private bool _enableAchievementHotkeys = true;
@@ -178,8 +182,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showHiddenPoints = true;
         private bool _showLockedTrophy = true;
         private bool _showLockedPoints = true;
+        private bool _showHiddenRarity = true;
+        private bool _showLockedRarity = true;
         private bool _useSeparateLockedIconsWhenAvailable = false;
-        private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private string _lockedFallbackIconPath = null;
         private string _hiddenFallbackIconPath = null;
         private bool _modernCompactListShowRarityGlow = true;
@@ -207,8 +212,11 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showFriendSpoilers;
         private int _friendsOverviewRecentUnlockLimit = 200;
         private bool _showTopMenuBarButton = true;
+        private bool _showSidebarButton = true;
         private bool _showCompletedProgressColoring = true;
         private bool _showCompactListRarityBar = true;
+        private bool _showCompactLockedListRarityBar = true;
+        private bool _showCompactUnlockedListRarityBar = true;
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
         private bool _commonGlowTierCleared = true;
@@ -222,7 +230,8 @@ namespace PlayniteAchievements.Models.Settings
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
-        private ProgressBadgeSource _progressBadgeSource = ProgressBadgeSource.TrophyWhenAvailable;
+        private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
+        private int _progressDetailShownCount = ProgressDetailOrder.MinShownCount;
         private FriendNameDisplayMode _friendNameDisplayMode = FriendNameDisplayMode.PersonaAndNickname;
         private bool _enableAchievementCompactListControl = true;
         private bool _enableAchievementDataGridControl = true;
@@ -241,6 +250,8 @@ namespace PlayniteAchievements.Models.Settings
         private ShowcaseSettings _overviewMiniShowcase;
         private double _overviewMiniShowcaseHeight = OverviewMiniShowcaseLayout.DefaultHeight;
         private bool _showOverviewMiniShowcase = true;
+        private Dictionary<string, string> _controlBarStates =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private GridOptionsCatalog _gridOptions = new GridOptionsCatalog();
         private GameActivityScope _startPageActivityScope = DefaultStartPageActivityScope;
         private GameProgressScope _startPageProgressScope = DefaultStartPageProgressScope;
@@ -265,14 +276,6 @@ namespace PlayniteAchievements.Models.Settings
         private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
-        private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
-        private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
-        private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
-        private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
-        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryOverrides =
-            new Dictionary<Guid, Dictionary<string, string>>();
-        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryTypeOverrides =
-            new Dictionary<Guid, Dictionary<string, string>>();
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private CompactListSortMode _compactListSortMode = CompactListSortMode.None;
@@ -991,6 +994,37 @@ namespace PlayniteAchievements.Models.Settings
             get => _autoCapstoneAppliedTemplates;
             set => SetValue(ref _autoCapstoneAppliedTemplates, value);
         }
+
+        /// <summary>
+        /// Global tag keys (pipe-joined) every whole-game auto capstone carries besides the tags of
+        /// the achievements it stands for. Null for none.
+        /// </summary>
+        public string AutoCapstoneGameTags
+        {
+            get => _autoCapstoneGameTags;
+            set => SetValue(ref _autoCapstoneGameTags, value);
+        }
+
+        /// <summary>
+        /// Global tag keys (pipe-joined) every category auto capstone carries besides the tags of
+        /// the achievements it stands for. Null for none.
+        /// </summary>
+        public string AutoCapstoneCategoryTags
+        {
+            get => _autoCapstoneCategoryTags;
+            set => SetValue(ref _autoCapstoneCategoryTags, value);
+        }
+
+        /// <summary>
+        /// The configured capstone tags the library's auto capstones were last brought in line
+        /// with, so startup and a settings save know whether a change still has to be applied.
+        /// </summary>
+        public string AutoCapstoneAppliedTags
+        {
+            get => _autoCapstoneAppliedTags;
+            set => SetValue(ref _autoCapstoneAppliedTags, value);
+        }
+
         public int InGamePollIntervalSeconds
         {
             get => _inGamePollIntervalSeconds;
@@ -1361,6 +1395,18 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _captureDelaySeconds, Math.Max(0, value));
         }
 
+        /// <summary>
+        /// With a capture delay configured, also takes the captures a delay of zero would take:
+        /// each unlock then saves one set at the unlock and a second set after the delay. The
+        /// unlock set is written first and takes the normal file names; the delayed set lands
+        /// on the duplicate names. Has no effect while <see cref="CaptureDelaySeconds"/> is zero.
+        /// </summary>
+        public bool CaptureAtUnlockAndAfterDelay
+        {
+            get => _captureAtUnlockAndAfterDelay;
+            set => SetValue(ref _captureAtUnlockAndAfterDelay, value);
+        }
+
         public int MaxConcurrentToasts
         {
             get => _maxConcurrentToasts;
@@ -1371,16 +1417,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _toastPosition;
             set => SetValue(ref _toastPosition, value);
-        }
-
-        /// <summary>
-        /// Whether a shown notification takes realtime GPU scheduling (Quality) or leaves the game
-        /// its frame rate (Performance).
-        /// </summary>
-        public NotificationRenderMode NotificationRenderMode
-        {
-            get => _notificationRenderMode;
-            set => SetValue(ref _notificationRenderMode, value);
         }
 
         /// <summary>
@@ -1602,6 +1638,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotDirectory;
             set => SetValue(ref _unlockScreenshotDirectory, value);
+        }
+
+        /// <summary>
+        /// The folder holding the icon cache; empty for icon_cache in the plugin data folder. Only
+        /// a move through the Maintenance settings changes it, since the files move with it.
+        /// </summary>
+        public string IconCacheDirectory
+        {
+            get => _iconCacheDirectory;
+            set => SetValue(ref _iconCacheDirectory, value);
         }
 
         /// <summary>
@@ -2138,6 +2184,24 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, the rarity of a hidden achievement is shown before reveal.
+        /// </summary>
+        public bool ShowHiddenRarity
+        {
+            get => _showHiddenRarity;
+            set => SetValue(ref _showHiddenRarity, value);
+        }
+
+        /// <summary>
+        /// When true, the rarity of a locked achievement is shown before reveal.
+        /// </summary>
+        public bool ShowLockedRarity
+        {
+            get => _showLockedRarity;
+            set => SetValue(ref _showLockedRarity, value);
+        }
+
+        /// <summary>
         /// When true, providers with distinct locked icons will cache and use them instead of grayscaling the unlocked icon.
         /// Changes apply on the next refresh for newly cached icons.
         /// </summary>
@@ -2145,33 +2209,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _useSeparateLockedIconsWhenAvailable;
             set => SetValue(ref _useSeparateLockedIconsWhenAvailable, value);
-        }
-
-        /// <summary>
-        /// Game IDs that always use separate locked icons when available, regardless of the global default.
-        /// When absent, the game falls back to the global UseSeparateLockedIconsWhenAvailable setting.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> SeparateLockedIconEnabledGameIds
-        {
-            get => _separateLockedIconEnabledGameIds;
-            set => SetValue(ref _separateLockedIconEnabledGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Resolves whether a game should use separate locked icons after applying the per-game override.
-        /// </summary>
-        public bool ShouldUseSeparateLockedIcons(Guid? playniteGameId)
-        {
-            if (UseSeparateLockedIconsWhenAvailable)
-            {
-                return true;
-            }
-
-            return playniteGameId.HasValue &&
-                   playniteGameId.Value != Guid.Empty &&
-                   SeparateLockedIconEnabledGameIds?.Contains(playniteGameId.Value) == true;
         }
 
         /// <summary>
@@ -2422,12 +2459,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, shows the top menu bar button for opening the achievements window.
+        /// When true, shows the Playnite top panel button that opens the achievements overview.
         /// </summary>
         public bool ShowTopMenuBarButton
         {
             get => _showTopMenuBarButton;
             set => SetValue(ref _showTopMenuBarButton, value);
+        }
+
+        /// <summary>
+        /// When true, shows the Playnite sidebar button that opens the achievements overview.
+        /// </summary>
+        public bool ShowSidebarButton
+        {
+            get => _showSidebarButton;
+            set => SetValue(ref _showSidebarButton, value);
         }
 
         /// <summary>
@@ -2467,6 +2513,25 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showCompactListRarityBar;
             set => SetValue(ref _showCompactListRarityBar, value);
+        }
+
+        /// <summary>
+        /// When true, shows the rarity bar at the bottom of compact locked list achievement items.
+        /// </summary>
+        public bool ShowCompactLockedListRarityBar
+        {
+            get => _showCompactLockedListRarityBar;
+            set => SetValue(ref _showCompactLockedListRarityBar, value);
+        }
+
+        /// <summary>
+        /// When true, shows the rarity bar at the bottom of compact unlocked list and compact
+        /// latest achievement items.
+        /// </summary>
+        public bool ShowCompactUnlockedListRarityBar
+        {
+            get => _showCompactUnlockedListRarityBar;
+            set => SetValue(ref _showCompactUnlockedListRarityBar, value);
         }
 
         /// <summary>
@@ -2602,18 +2667,30 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Which badges the progress column footer shows: a game's trophies when it has them, or
-        /// its rarity spread regardless.
+        /// The progress column footer's detail styles in priority order, each enabled or not. A
+        /// game shows the first enabled styles it has data for, up to
+        /// <see cref="ProgressDetailShownCount"/>.
         /// </summary>
         /// <remarks>
-        /// Written out even at its zero value, so choosing Rarity cannot round-trip as unset and
-        /// silently revert to the default.
+        /// Always exactly one entry per style (see <see cref="ProgressDetailOrder.Normalize"/>).
+        /// Edits assign a new list rather than changing this one, so listeners see a property change.
         /// </remarks>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
-        public ProgressBadgeSource ProgressBadgeSource
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<ProgressDetailEntry> ProgressDetails
         {
-            get => _progressBadgeSource;
-            set => SetValue(ref _progressBadgeSource, value);
+            get => _progressDetails;
+            set => SetValue(ref _progressDetails, ProgressDetailOrder.Normalize(value));
+        }
+
+        /// <summary>
+        /// How many of <see cref="ProgressDetails"/> a game shows side by side: the first enabled
+        /// styles it has data for, up to this many. One shows a single style with the later rows
+        /// as fallbacks.
+        /// </summary>
+        public int ProgressDetailShownCount
+        {
+            get => _progressDetailShownCount;
+            set => SetValue(ref _progressDetailShownCount, ProgressDetailOrder.ClampShownCount(value));
         }
 
         /// <summary>
@@ -2841,6 +2918,21 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showOverviewMiniShowcase, value);
         }
 
+        /// <summary>
+        /// Saved control bar state of the grids outside the showcase, keyed by grid surface, as a
+        /// ControlBarFilterState in JSON. Widgets keep theirs in their own options.
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public Dictionary<string, string> ControlBarStates
+        {
+            get => _controlBarStates;
+            set => SetValue(
+                ref _controlBarStates,
+                value != null
+                    ? new Dictionary<string, string>(value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        }
+
         public GridOptionsCatalog GridOptions
         {
             get => AttachGridOptionsBridge(_gridOptions ?? (_gridOptions = new GridOptionsCatalog()));
@@ -3043,82 +3135,6 @@ namespace PlayniteAchievements.Models.Settings
 
         #region User Preferences (Survive Cache Clear)
 
-        /// <summary>
-        /// Game IDs that the user has explicitly excluded from achievement tracking.
-        /// These exclusions persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> ExcludedGameIds
-        {
-            get => _excludedGameIds;
-            set => SetValue(ref _excludedGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Game IDs that are excluded from all summary surfaces.
-        /// These exclusions persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public HashSet<Guid> ExcludedFromSummariesGameIds
-        {
-            get => _excludedFromSummariesGameIds;
-            set => SetValue(ref _excludedFromSummariesGameIds, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Manual capstone selections. Key = Playnite Game ID, Value = Achievement ApiName.
-        /// These selections persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, string> ManualCapstones
-        {
-            get => _manualCapstones;
-            set => SetValue(ref _manualCapstones, value ?? new Dictionary<Guid, string>());
-        }
-
-        /// <summary>
-        /// Manual achievement order per game.
-        /// Key = Playnite Game ID, Value = full ordered list of achievement ApiName values.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, List<string>> AchievementOrderOverrides
-        {
-            get => _achievementOrderOverrides;
-            set => SetValue(ref _achievementOrderOverrides, NormalizeAchievementOrderOverrides(value));
-        }
-
-        /// <summary>
-        /// Manual achievement category overrides per game.
-        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> Category.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryOverrides
-        {
-            get => _achievementCategoryOverrides;
-            set => SetValue(ref _achievementCategoryOverrides, NormalizeAchievementCategoryOverrides(value));
-        }
-
-        /// <summary>
-        /// Manual achievement category type overrides per game.
-        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> CategoryType.
-        /// Allowed values: Base, DLC, Singleplayer, Multiplayer.
-        /// These overrides persist across cache clears.
-        /// </summary>
-        [JsonIgnore]
-        [DontSerialize]
-        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryTypeOverrides
-        {
-            get => _achievementCategoryTypeOverrides;
-            set => SetValue(ref _achievementCategoryTypeOverrides, NormalizeAchievementCategoryTypeOverrides(value));
-        }
-
         #endregion
 
         #region Tagging Settings
@@ -3313,6 +3329,9 @@ namespace PlayniteAchievements.Models.Settings
                 AutoCapstoneCategoryDescriptionTemplate = this.AutoCapstoneCategoryDescriptionTemplate,
                 AutoCapstoneTemplateHistory = new List<string>(this.AutoCapstoneTemplateHistory ?? new List<string>()),
                 AutoCapstoneAppliedTemplates = this.AutoCapstoneAppliedTemplates,
+                AutoCapstoneGameTags = this.AutoCapstoneGameTags,
+                AutoCapstoneCategoryTags = this.AutoCapstoneCategoryTags,
+                AutoCapstoneAppliedTags = this.AutoCapstoneAppliedTags,
                 MetadataDefaults = (this.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone(),
                 MetadataPlatformChoices = ClonePlatformChoices(this.MetadataPlatformChoices),
                 MetadataChoicesSeeded = this.MetadataChoicesSeeded,
@@ -3368,9 +3387,9 @@ namespace PlayniteAchievements.Models.Settings
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 NotificationDelaySeconds = this.NotificationDelaySeconds,
                 CaptureDelaySeconds = this.CaptureDelaySeconds,
+                CaptureAtUnlockAndAfterDelay = this.CaptureAtUnlockAndAfterDelay,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
-                NotificationRenderMode = this.NotificationRenderMode,
                 EnableControllerVibration = this.EnableControllerVibration,
                 ControllerVibrationStrengthPercent = this.ControllerVibrationStrengthPercent,
                 ControllerVibrationDurationMs = this.ControllerVibrationDurationMs,
@@ -3392,6 +3411,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
                 UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 UnlockScreenshotDirectory = this.UnlockScreenshotDirectory,
+                IconCacheDirectory = this.IconCacheDirectory,
                 LibraryLinks = LibraryLink.CloneAll(this.LibraryLinks),
                 ScreenshotResolution = this.ScreenshotResolution,
                 UnlockScreenshotCleanRarities = this.UnlockScreenshotCleanRarities,
@@ -3438,6 +3458,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenPoints = this.ShowHiddenPoints,
                 ShowLockedTrophy = this.ShowLockedTrophy,
                 ShowLockedPoints = this.ShowLockedPoints,
+                ShowHiddenRarity = this.ShowHiddenRarity,
+                ShowLockedRarity = this.ShowLockedRarity,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 LockedFallbackIconPath = this.LockedFallbackIconPath,
                 HiddenFallbackIconPath = this.HiddenFallbackIconPath,
@@ -3465,10 +3487,13 @@ namespace PlayniteAchievements.Models.Settings
                 ShowOverviewScoreCard1 = this.ShowOverviewScoreCard1,
                 ShowOverviewScoreCard2 = this.ShowOverviewScoreCard2,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
+                ShowSidebarButton = this.ShowSidebarButton,
                 ShowCompletedProgressColoring = this.ShowCompletedProgressColoring,
                 ShowFriendSpoilers = this.ShowFriendSpoilers,
                 FriendsOverviewRecentUnlockLimit = this.FriendsOverviewRecentUnlockLimit,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
+                ShowCompactLockedListRarityBar = this.ShowCompactLockedListRarityBar,
+                ShowCompactUnlockedListRarityBar = this.ShowCompactUnlockedListRarityBar,
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
                 CommonGlowTierCleared = this.CommonGlowTierCleared,
@@ -3481,7 +3506,8 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 IconScaleMode = this.IconScaleMode,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
-                ProgressBadgeSource = this.ProgressBadgeSource,
+                ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
+                ProgressDetailShownCount = this.ProgressDetailShownCount,
                 FriendNameDisplayMode = this.FriendNameDisplayMode,
                 EnableAchievementCompactListControl = this.EnableAchievementCompactListControl,
                 EnableAchievementDataGridControl = this.EnableAchievementDataGridControl,
@@ -3505,6 +3531,7 @@ namespace PlayniteAchievements.Models.Settings
                 OverviewMiniShowcase = this.OverviewMiniShowcase?.Clone() ?? OverviewMiniShowcaseLayout.CreateDefault(),
                 OverviewMiniShowcaseHeight = this.OverviewMiniShowcaseHeight,
                 ShowOverviewMiniShowcase = this.ShowOverviewMiniShowcase,
+                ControlBarStates = this.ControlBarStates,
                 GridOptions = this.GridOptions?.Clone() ?? new GridOptionsCatalog(),
                 StartPageActivityScope = this.StartPageActivityScope,
                 StartPageProgressScope = this.StartPageProgressScope,
@@ -3551,41 +3578,6 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase),
 
                 // User Preferences (Survive Cache Clear)
-                ExcludedGameIds = this.ExcludedGameIds != null
-                    ? new HashSet<Guid>(this.ExcludedGameIds)
-                    : new HashSet<Guid>(),
-                ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
-                    ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
-                    : new HashSet<Guid>(),
-                SeparateLockedIconEnabledGameIds = this.SeparateLockedIconEnabledGameIds != null
-                    ? new HashSet<Guid>(this.SeparateLockedIconEnabledGameIds)
-                    : new HashSet<Guid>(),
-                ManualCapstones = this.ManualCapstones != null
-                    ? new Dictionary<Guid, string>(this.ManualCapstones)
-                    : new Dictionary<Guid, string>(),
-                AchievementOrderOverrides = this.AchievementOrderOverrides != null
-                    ? this.AchievementOrderOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new List<string>(kvp.Value)
-                            : new List<string>())
-                    : new Dictionary<Guid, List<string>>(),
-                AchievementCategoryOverrides = this.AchievementCategoryOverrides != null
-                    ? this.AchievementCategoryOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                    : new Dictionary<Guid, Dictionary<string, string>>(),
-                AchievementCategoryTypeOverrides = this.AchievementCategoryTypeOverrides != null
-                    ? this.AchievementCategoryTypeOverrides.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value != null
-                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                    : new Dictionary<Guid, Dictionary<string, string>>(),
-
-                // Tagging Settings
                 TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
             };
         }
@@ -3605,9 +3597,10 @@ namespace PlayniteAchievements.Models.Settings
             ShowHiddenPoints = defaults.ShowHiddenPoints;
             ShowLockedTrophy = defaults.ShowLockedTrophy;
             ShowLockedPoints = defaults.ShowLockedPoints;
+            ShowHiddenRarity = defaults.ShowHiddenRarity;
+            ShowLockedRarity = defaults.ShowLockedRarity;
             ShowFriendSpoilers = defaults.ShowFriendSpoilers;
             UseSeparateLockedIconsWhenAvailable = defaults.UseSeparateLockedIconsWhenAvailable;
-            SeparateLockedIconEnabledGameIds = new HashSet<Guid>();
             LockedFallbackIconPath = defaults.LockedFallbackIconPath;
             HiddenFallbackIconPath = defaults.HiddenFallbackIconPath;
             ModernCompactListShowRarityGlow = defaults.ModernCompactListShowRarityGlow;
@@ -3634,8 +3627,11 @@ namespace PlayniteAchievements.Models.Settings
             ShowOverviewScoreCard1 = defaults.ShowOverviewScoreCard1;
             ShowOverviewScoreCard2 = defaults.ShowOverviewScoreCard2;
             ShowTopMenuBarButton = defaults.ShowTopMenuBarButton;
+            ShowSidebarButton = defaults.ShowSidebarButton;
             ShowCompletedProgressColoring = defaults.ShowCompletedProgressColoring;
             ShowCompactListRarityBar = defaults.ShowCompactListRarityBar;
+            ShowCompactLockedListRarityBar = defaults.ShowCompactLockedListRarityBar;
+            ShowCompactUnlockedListRarityBar = defaults.ShowCompactUnlockedListRarityBar;
 
             GridColumnHeaderAlignment = defaults.GridColumnHeaderAlignment;
             GridCellAlignment = defaults.GridCellAlignment;
@@ -3645,7 +3641,7 @@ namespace PlayniteAchievements.Models.Settings
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
-            ProgressBadgeSource = defaults.ProgressBadgeSource;
+            ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
 
             EnableAchievementCompactListControl = defaults.EnableAchievementCompactListControl;
@@ -3673,6 +3669,7 @@ namespace PlayniteAchievements.Models.Settings
             OverviewMiniShowcase = OverviewMiniShowcaseLayout.CreateDefault();
             OverviewMiniShowcaseHeight = defaults.OverviewMiniShowcaseHeight;
             ShowOverviewMiniShowcase = defaults.ShowOverviewMiniShowcase;
+            ControlBarStates = null;
             GridOptions = new GridOptionsCatalog();
             StartPageActivityScope = defaults.StartPageActivityScope;
             StartPageProgressScope = defaults.StartPageProgressScope;
@@ -4257,99 +4254,6 @@ namespace PlayniteAchievements.Models.Settings
 
         private static string NormalizeNullableString(string value) =>
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-        private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(
-            Dictionary<Guid, List<string>> value)
-        {
-            var normalized = new Dictionary<Guid, List<string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var pair in value)
-            {
-                var order = Services.Achievements.AchievementOrderHelper.NormalizeApiNames(pair.Value);
-                if (order.Count > 0)
-                {
-                    normalized[pair.Key] = order;
-                }
-            }
-
-            return normalized;
-        }
-
-        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryOverrides(
-            Dictionary<Guid, Dictionary<string, string>> value)
-        {
-            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var gamePair in value)
-            {
-                var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                if (gamePair.Value != null)
-                {
-                    foreach (var categoryPair in gamePair.Value)
-                    {
-                        var key = (categoryPair.Key ?? string.Empty).Trim();
-                        var category = (categoryPair.Value ?? string.Empty).Trim();
-                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(category))
-                        {
-                            continue;
-                        }
-
-                        categories[key] = category;
-                    }
-                }
-
-                if (categories.Count > 0)
-                {
-                    normalized[gamePair.Key] = categories;
-                }
-            }
-
-            return normalized;
-        }
-
-        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryTypeOverrides(
-            Dictionary<Guid, Dictionary<string, string>> value)
-        {
-            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
-            if (value == null)
-            {
-                return normalized;
-            }
-
-            foreach (var gamePair in value)
-            {
-                var categoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                if (gamePair.Value != null)
-                {
-                    foreach (var categoryTypePair in gamePair.Value)
-                    {
-                        var key = (categoryTypePair.Key ?? string.Empty).Trim();
-                        var categoryType = (categoryTypePair.Value ?? string.Empty).Trim();
-                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(categoryType))
-                        {
-                            continue;
-                        }
-
-                        categoryTypes[key] = categoryType;
-                    }
-                }
-
-                if (categoryTypes.Count > 0)
-                {
-                    normalized[gamePair.Key] = categoryTypes;
-                }
-            }
-
-            return normalized;
-        }
 
         #endregion
     }

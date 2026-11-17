@@ -585,6 +585,7 @@ namespace PlayniteAchievements.Views
             _generalSettingsTab?.Dispose();
             _notificationsSettingsTab?.Dispose();
             _workshopSettingsTab?.Dispose();
+            _metadataSettingsTab?.Dispose();
         }
 
         private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)

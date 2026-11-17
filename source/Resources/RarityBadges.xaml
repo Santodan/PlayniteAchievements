@@ -15,6 +15,11 @@
   <Geometry x:Key="GeoPentagon">M 64,12 L 112,44 94,106 34,106 16,44 Z</Geometry>
   <Geometry x:Key="GeoHexagon">M 64,10 L 110,37 110,91 64,118 18,91 18,37 Z</Geometry>
 
+  <!-- Mythic badge: a four-point star over the outline of a second star turned 45 degrees.
+       Drawn by RarityAppearanceHelper.CreateMythicBadgeImage. -->
+  <Geometry x:Key="GeoMythicStar">M 64,6 L 76,52 122,64 76,76 64,122 52,76 6,64 52,52 Z</Geometry>
+  <Geometry x:Key="GeoMythicStarBack">M 28,28 L 64,50 100,28 78,64 100,100 64,78 28,100 50,64 Z</Geometry>
+
   <!-- Sparkle “glints” -->
   <Geometry x:Key="GeoGlint1">M96,28 L99,36 L107,39 L99,42 L96,50 L93,42 L85,39 L93,36 Z</Geometry>
   <Geometry x:Key="GeoGlint2">M84,44 L86,50 L92,52 L86,54 L84,60 L82,54 L76,52 L82,50 Z</Geometry>
@@ -223,6 +228,29 @@
     </DrawingImage.Drawing>
   </DrawingImage>
 
+  <!-- Masked rarity: the uniform hexagon, so the shape does not give the tier away, in the slate
+       fill and rim of the masked trophy (TrophyUnknown in TrophyBadges.xaml). Reached through the
+       runtime BadgeRarityUnknown alias, which swaps in TrophyUnknown when rarity draws as trophies. -->
+  <LinearGradientBrush x:Key="FillRarityUnknown" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Offset="0" Color="#3B414A"/>
+    <GradientStop Offset="1" Color="#2C3138"/>
+  </LinearGradientBrush>
+
+  <SolidColorBrush x:Key="RimRarityUnknown" Color="#8A939F"/>
+
+  <DrawingImage x:Key="BadgeUnknownHexagon">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource FillRarityUnknown}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimRarityUnknown}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource ShineOverlay}"/>
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
   <!-- Achievement-status checkmark (shared by the Status column and the grid control bar filter) -->
   <Geometry x:Key="GeoCheck">M 3,9 L 7,13 L 15,5</Geometry>
 
@@ -234,6 +262,18 @@
   <DrawingImage x:Key="BadgeLocked">
     <DrawingImage.Drawing>
       <GeometryDrawing Geometry="{StaticResource GeoLock}" Brush="#B0B0B0"/>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
+  <!-- Open padlock, the unlocked counterpart of BadgeLocked: the same body and keyhole, with the
+       shackle raised and its right leg lifted clear of the body. -->
+  <Geometry x:Key="GeoUnlock">
+        M22.8448 57.2288h82.4064v62.7584h-82.4064z M30.1536 57.2288v-23.3088c0-18.7136 15.1936-33.92 33.92-33.92 18.7008 0 33.9328 15.2064 33.9072 33.92v3.3088h-12.7104v-3.3088c0-11.6608-9.4848-21.1328-21.12-21.1328-11.6608 0-21.1712 9.472-21.1712 21.1328v23.3088z M69.9008 102.7712h-11.6352l1.7408-17.2032c-2.1632-1.344-3.5968-3.7248-3.5968-6.4768 0-4.224 3.4304-7.6544 7.6672-7.6544 4.224 0 7.6544 3.4304 7.6544 7.6544 0 2.7392-1.4336 5.1456-3.6224 6.4768l1.792 17.2032z
+  </Geometry>
+
+  <DrawingImage x:Key="BadgeUnlocked">
+    <DrawingImage.Drawing>
+      <GeometryDrawing Geometry="{StaticResource GeoUnlock}" Brush="#B0B0B0"/>
     </DrawingImage.Drawing>
   </DrawingImage>
 

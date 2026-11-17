@@ -72,6 +72,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         }
 
         /// <summary>
+        /// Identifies the ShowRarityBar dependency property.
+        /// When true, achievement icons in this list display the rarity bar.
+        /// </summary>
+        public static readonly DependencyProperty ShowRarityBarProperty =
+            DependencyProperty.Register(nameof(ShowRarityBar), typeof(bool), typeof(AchievementCompactListControlBase),
+                new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether achievement icons in this list display the rarity bar.
+        /// </summary>
+        public bool ShowRarityBar
+        {
+            get => (bool)GetValue(ShowRarityBarProperty);
+            set => SetValue(ShowRarityBarProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the AnimateRarityGlows dependency property. When true, rarity glows in this
         /// list gently fade in and out. Self-bound to the global setting in the constructor.
         /// </summary>

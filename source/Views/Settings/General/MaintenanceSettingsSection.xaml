@@ -26,16 +26,41 @@
 
                     <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
                         <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Title}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Description}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Description}"
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}">
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ClearPlatformData}">
                                 <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
-                                        Click="WipeCache_Click"
+                                        Click="ClearLayer_Click"
+                                        Tag="Platform"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        MinWidth="130"/>
+                            </controls:SettingRow>
+
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ClearMetadata}">
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                                        Click="ClearLayer_Click"
+                                        Tag="Metadata"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        MinWidth="130"/>
+                            </controls:SettingRow>
+
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ClearCustomData}">
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                                        Click="ClearLayer_Click"
+                                        Tag="Custom"
+                                        Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                        MinWidth="130"/>
+                            </controls:SettingRow>
+
+                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ClearAllData}">
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
+                                        Click="ClearLayer_Click"
+                                        Tag="All"
                                         Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
                                         MinWidth="130"/>
                             </controls:SettingRow>
@@ -58,6 +83,32 @@
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Folder}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="IconCacheFolderText"
+                                         Grid.Column="0"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"/>
+                                <Button x:Name="IconCacheFolderBrowseButton"
+                                        Grid.Column="1"
+                                        Content="..."
+                                        ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Click="IconCacheFolder_Browse_Click"
+                                        Margin="8,0,0,0"/>
+                                <Button x:Name="IconCacheFolderResetButton"
+                                        Grid.Column="2"
+                                        Content="{DynamicResource LOCPlayAch_Common_Reset}"
+                                        Click="IconCacheFolder_Reset_Click"
+                                        Margin="8,0,0,0"/>
+                            </Grid>
 
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}">
                                 <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"

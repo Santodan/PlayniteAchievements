@@ -111,7 +111,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
                 var result = await Task.Run(() =>
                 {
-                    return PerformMigration(themePath, backupPath, mode, customSelection);
+                    // A theme that already targets PlayniteAchievements only gets its legacy
+                    // controls and bindings modernized; its SuccessStory text is left as written.
+                    var modernizeOnly = ThemeDiscoveryService.ScanTheme(themePath, _logger).hasNativePlayniteAchievementsSupport;
+                    return PerformMigration(themePath, backupPath, mode, customSelection, modernizeOnly);
                 });
 
                 // If no files needed changes, report success but note no backup was created
@@ -243,7 +246,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Performs the migration: backs up modified files and applies replacements.
         /// </summary>
-        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode, CustomMigrationSelection customSelection)
+        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode, CustomMigrationSelection customSelection, bool modernizeOnly)
         {
             var backedUpFiles = new List<string>();
             int filesProcessed = 0;
@@ -270,7 +273,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     continue;
                 }
 
-                var (needsReplacement, replacementCount) = CheckIfNeedsReplacement(file, mode, customSelection);
+                var (needsReplacement, replacementCount) = CheckIfNeedsReplacement(file, mode, customSelection, modernizeOnly);
                 if (!needsReplacement)
                 {
                     filesSkipped++;
@@ -283,7 +286,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 _logger.Info($"Backing up file with {replacementCount} references: {GetRelativePath(file.FullName, themePath)}");
 
                 // Apply replacements
-                var (processed, textCount, ctrlCount, bindCount) = ProcessFile(file, mode, customSelection);
+                var (processed, textCount, ctrlCount, bindCount) = ProcessFile(file, mode, customSelection, modernizeOnly);
                 if (processed)
                 {
                     filesProcessed++;
@@ -333,25 +336,33 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private (bool needsReplacement, int count) CheckIfNeedsReplacement(
             FileInfo file,
             MigrationMode mode,
-            CustomMigrationSelection customSelection)
+            CustomMigrationSelection customSelection,
+            bool modernizeOnly)
         {
             try
             {
                 var content = File.ReadAllText(file.FullName, Encoding.UTF8);
 
-                int fullscreenHelperCount = CountOccurrences(content, "SuccessStoryFullscreenHelper");
-                int pluginIdCount = CountOccurrences(content, "playnite-successstory-plugin");
-                int helperCount = CountOccurrences(content, "SSHelper");
-                int successStoryCount = CountOccurrences(content, "SuccessStory");
-                int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
-                int iconEntityCount = CountOccurrences(content, "&#xE820;");
-                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount + iconEntityCount;
+                int totalCount = 0;
+                if (!modernizeOnly)
+                {
+                    int fullscreenHelperCount = CountOccurrences(content, "SuccessStoryFullscreenHelper");
+                    int pluginIdCount = CountOccurrences(content, "playnite-successstory-plugin");
+                    int helperCount = CountOccurrences(content, "SSHelper");
+                    int successStoryCount = CountOccurrences(content, "SuccessStory");
+                    int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
+                    int iconEntityCount = CountOccurrences(content, "&#xE820;");
+                    totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount + iconEntityCount;
+                }
 
                 foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                 {
                     totalCount += CountStandaloneControlNameOccurrences(content, mapping.Key);
-                    totalCount += CountOccurrences(content, $"SuccessStory_{mapping.Key}");
                     totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
+                    if (!modernizeOnly)
+                    {
+                        totalCount += CountOccurrences(content, $"SuccessStory_{mapping.Key}");
+                    }
                 }
 
                 if (ShouldModernizeBindings(mode, customSelection))
@@ -441,7 +452,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private (bool processed, int textReplacements, int controlReplacements, int bindingReplacements) ProcessFile(
             FileInfo file,
             MigrationMode mode,
-            CustomMigrationSelection customSelection)
+            CustomMigrationSelection customSelection,
+            bool modernizeOnly)
         {
             string content;
             try
@@ -460,20 +472,19 @@ namespace PlayniteAchievements.Services.ThemeMigration
             int bindingReplacements = 0;
             bool isYamlFile = file.Extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase);
 
-            // For YAML files, preserve URLs to avoid breaking external references
-            if (isYamlFile)
+            // A theme that already targets PlayniteAchievements gets no SuccessStory text replacements.
+            if (!modernizeOnly)
             {
-                content = ProcessYamlFile(content, originalContent, ref textReplacements);
-            }
-            else
-            {
-                content = ProcessStandardFile(content, originalContent, ref textReplacements);
+                // For YAML files, preserve URLs to avoid breaking external references
+                content = isYamlFile
+                    ? ProcessYamlFile(content, originalContent, ref textReplacements)
+                    : ProcessStandardFile(content, originalContent, ref textReplacements);
             }
 
             // Apply selected modernization replacements if enabled
             if (ShouldApplyModernization(mode, customSelection))
             {
-                content = ApplyModernizationReplacements(content, mode, customSelection, ref controlReplacements, ref bindingReplacements);
+                content = ApplyModernizationReplacements(content, mode, customSelection, modernizeOnly, ref controlReplacements, ref bindingReplacements);
             }
 
             if (content != originalContent)
@@ -623,6 +634,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             string content,
             MigrationMode mode,
             CustomMigrationSelection customSelection,
+            bool modernizeOnly,
             ref int controlReplacements,
             ref int bindingReplacements)
         {
@@ -633,7 +645,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
             foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
             {
                 controlReplacements += ReplacePrefixedControlName(ref result, "PlayniteAchievements", mapping.Key, mapping.Value);
-                controlReplacements += ReplacePrefixedControlName(ref result, "SuccessStory", mapping.Key, mapping.Value);
+                if (!modernizeOnly)
+                {
+                    controlReplacements += ReplacePrefixedControlName(ref result, "SuccessStory", mapping.Key, mapping.Value);
+                }
                 controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
             }
 

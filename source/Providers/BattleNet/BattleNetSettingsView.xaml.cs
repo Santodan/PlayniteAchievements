@@ -160,7 +160,19 @@ namespace PlayniteAchievements.Providers.BattleNet
                 case nameof(BattleNetSettings.WowRegion):
                 case nameof(BattleNetSettings.WowRealmSlug):
                 case nameof(BattleNetSettings.WowCharacter):
-                    UpdateWowStatus();
+                case nameof(BattleNetSettings.WowCharacterSource):
+                case nameof(BattleNetSettings.BattleNetAccountId):
+                case nameof(BattleNetSettings.BattleNetAccessToken):
+                case nameof(BattleNetSettings.BattleNetBattleTag):
+                    // Sign-in writes the session from the OAuth callback thread.
+                    if (Dispatcher.CheckAccess())
+                    {
+                        UpdateWowStatus();
+                    }
+                    else
+                    {
+                        Dispatcher.BeginInvoke(new Action(UpdateWowStatus));
+                    }
                     break;
             }
         }
@@ -172,12 +184,28 @@ namespace PlayniteAchievements.Providers.BattleNet
                 return;
             }
 
-            WowConfigured = !string.IsNullOrWhiteSpace(_battleNetSettings.WowRegion) &&
+            // The account choice is ready once signed in; the character choice once a retail realm
+            // and character are filled in.
+            var useAccount = _battleNetSettings.WowCharacterSource == WowCharacterSource.Account;
+            var signedIn = useAccount && BattleNetGameSupport.HasOAuthSession(_battleNetSettings);
+            var characterChosen = !useAccount &&
+                !string.IsNullOrWhiteSpace(_battleNetSettings.WowRegion) &&
                 !string.IsNullOrWhiteSpace(_battleNetSettings.WowRealmSlug) &&
                 !string.IsNullOrWhiteSpace(_battleNetSettings.WowCharacter);
-            WowStatus = ResourceProvider.GetString(WowConfigured
-                ? "LOCPlayAch_Settings_BattleNet_Status_WowReady"
-                : "LOCPlayAch_Settings_BattleNet_Status_WowIncomplete");
+            WowConfigured = signedIn || characterChosen;
+            if (signedIn)
+            {
+                var battleTag = _battleNetSettings.BattleNetBattleTag;
+                WowStatus = string.IsNullOrWhiteSpace(battleTag)
+                    ? ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated")
+                    : string.Format(ResourceProvider.GetString("LOCPlayAch_Auth_AuthenticatedAs"), battleTag);
+            }
+            else
+            {
+                WowStatus = ResourceProvider.GetString(characterChosen
+                    ? "LOCPlayAch_Settings_BattleNet_Status_WowReady"
+                    : "LOCPlayAch_Settings_BattleNet_Status_WowIncomplete");
+            }
         }
 
         private void WowClientSecret_Changed(object sender, RoutedEventArgs e)
@@ -521,6 +549,69 @@ namespace PlayniteAchievements.Providers.BattleNet
             catch (Exception)
             {
                 UpdateWowStatus();
+            }
+
+            await LoadWowClassicRealmsAsync(region, regionChanged);
+        }
+
+        /// <summary>
+        /// Classic realms come from the official API, which needs the app's client credentials;
+        /// without them the list stays empty, and Classic needs credentials to refresh anyway.
+        /// </summary>
+        private async Task LoadWowClassicRealmsAsync(string region, bool regionChanged)
+        {
+            var settings = _battleNetSettings;
+            if (settings == null)
+            {
+                return;
+            }
+
+            if (regionChanged)
+            {
+                settings.WowClassicRealmSlug = null;
+            }
+
+            WowClassicRealmCombo.Items.Clear();
+            if (!BattleNetGameSupport.HasApiCredentials(settings))
+            {
+                return;
+            }
+
+            try
+            {
+                var token = await _apiClient.GetClientCredentialsAccessTokenAsync(
+                    region,
+                    settings.BattleNetClientId,
+                    settings.BattleNetClientSecret,
+                    CancellationToken.None);
+                var realms = await _apiClient.GetWowOfficialRealmsAsync(
+                    region,
+                    null,
+                    token,
+                    CancellationToken.None,
+                    WowVersion.Classic.NamespacePrefix);
+                foreach (var realm in realms)
+                {
+                    WowClassicRealmCombo.Items.Add(realm);
+                }
+
+                var saved = WowGameStrategy.NormalizeRealmSlug(settings.WowClassicRealmSlug);
+                if (!string.IsNullOrEmpty(saved))
+                {
+                    WowClassicRealmCombo.SelectedItem = realms.Find(r => r.Slug == saved);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, $"[BattleNet/Settings] Could not load WoW Classic realms for region '{region}'.");
+            }
+        }
+
+        private void WowClassicRealm_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (_battleNetSettings != null && WowClassicRealmCombo.SelectedItem is WowRealm realm)
+            {
+                _battleNetSettings.WowClassicRealmSlug = realm.Slug;
             }
         }
 

@@ -21,18 +21,11 @@ namespace PlayniteAchievements.Services.Achievements
     {
         private static readonly IReadOnlyDictionary<string, string> EmptyIconOverrides =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<string, string> EmptyStringMap =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> OverviewProjectionAffectingSettings =
             new HashSet<string>(StringComparer.Ordinal)
             {
                 nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
-                nameof(PersistedSettings.SeparateLockedIconEnabledGameIds),
-                nameof(PersistedSettings.ExcludedFromSummariesGameIds),
-                nameof(PersistedSettings.IncludeHiddenGamesInSummaries),
-                nameof(PersistedSettings.ManualCapstones),
-                nameof(PersistedSettings.AchievementCategoryOverrides),
-                nameof(PersistedSettings.AchievementCategoryTypeOverrides)
+                nameof(PersistedSettings.IncludeHiddenGamesInSummaries)
             };
 
         private sealed class SummaryCustomizationData
@@ -657,10 +650,10 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         private HashSet<string> EditedCapstones(Guid gameId, GameCustomDataFile customData)
         {
-            var capstones = customData != null
-                ? (customData.CapstonesMaterialized ? customData.Capstones ?? new List<CapstoneAssignment>() : null)
-                : ResolveFallbackCapstones(gameId);
-            if (capstones == null || (customData == null && capstones.Count == 0))
+            var capstones = customData != null && customData.CapstonesMaterialized
+                ? customData.Capstones ?? new List<CapstoneAssignment>()
+                : null;
+            if (capstones == null)
             {
                 return null;
             }
@@ -770,10 +763,10 @@ namespace PlayniteAchievements.Services.Achievements
                 {
                     Resolved = resolved,
                     UnlockedIconOverrides = includeIconOverrides
-                        ? CloneStringMap(customData?.AchievementUnlockedIconOverrides)
+                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.UnlockedIconPath)
                         : EmptyIconOverrides,
                     LockedIconOverrides = includeIconOverrides
-                        ? CloneStringMap(customData?.AchievementLockedIconOverrides)
+                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.LockedIconPath)
                         : EmptyIconOverrides
                 };
             }
@@ -878,9 +871,7 @@ namespace PlayniteAchievements.Services.Achievements
 
         private HashSet<Guid> BuildExcludedSummaryGameIdsFallback(IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
         {
-            var result = Persisted?.ExcludedFromSummariesGameIds != null
-                ? new HashSet<Guid>(Persisted.ExcludedFromSummariesGameIds)
-                : new HashSet<Guid>();
+            var result = new HashSet<Guid>();
 
             if (customDataByGameId == null || customDataByGameId.Count == 0)
             {
@@ -909,69 +900,9 @@ namespace PlayniteAchievements.Services.Achievements
                 return ResolvedGameCustomData.Empty;
             }
 
-            var hasCustomData = customData != null;
-            var useSeparateLockedIconsDefault = Persisted?.UseSeparateLockedIconsWhenAvailable == true;
-            return new ResolvedGameCustomData
-            {
-                ExcludedFromRefreshes = hasCustomData
-                    ? customData.ExcludedFromRefreshes == true
-                    : Persisted?.ExcludedGameIds?.Contains(gameId) == true,
-                ExcludedFromSummaries = hasCustomData
-                    ? customData.ExcludedFromSummaries == true
-                    : Persisted?.ExcludedFromSummariesGameIds?.Contains(gameId) == true,
-                // Same as GameCustomDataLookup: a manual link owns unlock times, so the override
-                // applier must skip its unlock-time fields here exactly as the per-game path does.
-                HasManualLink = hasCustomData && customData.ManualLink != null,
-                UseSeparateLockedIcons = useSeparateLockedIconsDefault ||
-                    (hasCustomData
-                        ? customData.UseSeparateLockedIconsOverride == true
-                        : Persisted?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                CapstonesMaterialized = hasCustomData
-                    ? customData.CapstonesMaterialized
-                    : ResolveFallbackCapstones(gameId).Count > 0,
-                Capstones = hasCustomData
-                    ? customData.Capstones ?? new List<CapstoneAssignment>()
-                    : ResolveFallbackCapstones(gameId),
-                AchievementCategoryOverrides = hasCustomData
-                    ? CloneStringMap(customData.AchievementCategoryOverrides)
-                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryOverrides, gameId),
-                AchievementCategoryTypeOverrides = hasCustomData
-                    ? CloneStringMap(customData.AchievementCategoryTypeOverrides)
-                    : ResolveFallbackOverrides(Persisted?.AchievementCategoryTypeOverrides, gameId),
-                AchievementCategoryOrder = hasCustomData
-                    ? CloneCategoryOrder(customData.AchievementCategoryOrder)
-                    : new List<string>(),
-                AchievementCategoryImageOverrides = hasCustomData
-                    ? CloneCategoryImageOverrideMap(customData.AchievementCategoryImageOverrides)
-                    : new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer),
-                AchievementNotes = hasCustomData
-                    ? CloneNoteMap(customData.AchievementNotes)
-                    : EmptyStringMap,
-                AchievementOverrides = hasCustomData
-                    ? GameCustomDataFile.CloneAchievementOverrideMap(customData.AchievementOverrides) ??
-                        new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
-            };
-        }
-
-        /// <summary>
-        /// The pre-per-game-file capstone as a materialized single game-wide set, which is what it
-        /// always behaved as: it suppressed every provider capstone.
-        /// </summary>
-        private List<CapstoneAssignment> ResolveFallbackCapstones(Guid gameId)
-        {
-            var capstones = new List<CapstoneAssignment>();
-            if (Persisted?.ManualCapstones != null &&
-                Persisted.ManualCapstones.TryGetValue(gameId, out var legacy))
-            {
-                var apiName = NormalizeText(legacy);
-                if (!string.IsNullOrWhiteSpace(apiName))
-                {
-                    capstones.Add(new CapstoneAssignment { ApiName = apiName });
-                }
-            }
-
-            return capstones;
+            return customData != null
+                ? GameCustomDataLookup.BuildResolvedFromRecord(customData, Persisted)
+                : new ResolvedGameCustomData { UseSeparateLockedIcons = Persisted?.UseSeparateLockedIconsWhenAvailable == true };
         }
 
         /// <summary>
@@ -1017,41 +948,6 @@ namespace PlayniteAchievements.Services.Achievements
             return (scoped, excluded);
         }
 
-        private static Dictionary<string, string> ResolveFallbackOverrides(
-            IReadOnlyDictionary<Guid, Dictionary<string, string>> mapByGameId,
-            Guid gameId)
-        {
-            if (mapByGameId == null || !mapByGameId.TryGetValue(gameId, out var overrides))
-            {
-                return EmptyStringMap;
-            }
-
-            return CloneStringMap(overrides);
-        }
-
-        private static Dictionary<string, string> CloneStringMap(IReadOnlyDictionary<string, string> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return EmptyStringMap;
-            }
-
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = NormalizeText(pair.Key);
-                var value = NormalizeText(pair.Value);
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
-                {
-                    continue;
-                }
-
-                map[key] = value;
-            }
-
-            return map.Count == 0 ? EmptyStringMap : map;
-        }
-
         private static List<string> CloneCategoryOrder(IEnumerable<string> source)
         {
             var result = new List<string>();
@@ -1093,29 +989,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return map;
-        }
-
-        private static Dictionary<string, string> CloneNoteMap(IReadOnlyDictionary<string, string> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return EmptyStringMap;
-            }
-
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = NormalizeText(pair.Key);
-                var value = AchievementNoteHelper.NormalizeNote(pair.Value);
-                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
-                {
-                    continue;
-                }
-
-                map[key] = value;
-            }
-
-            return map.Count == 0 ? EmptyStringMap : map;
         }
 
         private List<GameAchievementData> ExcludeSummaryGames(List<GameAchievementData> allData)
@@ -1537,31 +1410,17 @@ namespace PlayniteAchievements.Services.Achievements
                     achievement.IsCapstone = resolved.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
                 }
 
-                // Summary rows come straight from SQL, so the per-achievement record is applied
-                // here the way the hydrator applies it to the achievement list. Without this the
-                // overview's recent-unlock entries would show the provider's title and points
-                // while the list showed the user's.
-                var userOverride = ResolveSummaryOverride(resolved, apiName);
-                achievement.ProviderCategory = achievement.ProviderCategory ?? achievement.Category;
+                // Summary rows read the resolved view, which already carries the user's text,
+                // points, trophy type, category and tags. What stays outside SQL is applied here
+                // as the hydrator applies it: unlock time, note, category kind and icons.
+                resolved.AchievementOverrides.TryGetValue(apiName, out var userOverride);
+                achievement.Category = CategoryPathHelper.NormalizePath(achievement.Category);
                 if (userOverride != null)
                 {
-                    if (!string.IsNullOrWhiteSpace(userOverride.Category))
-                    {
-                        // NormalizePath, as the hydrator does, so a nested path survives.
-                        achievement.Category = CategoryPathHelper.NormalizePath(userOverride.Category);
-                    }
-
-                    if (userOverride.ClearTags || userOverride.Tags != null)
-                    {
-                        achievement.Tags = AchievementTagHelper.ApplyOverride(
-                            achievement.Tags,
-                            userOverride.ClearTags ? string.Empty : userOverride.Tags);
-                    }
-
                     var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
                         ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
                         : (DateTime?)null;
-                    AchievementOverrideApplier.Apply(achievement, userOverride, resolved.HasManualLink);
+                    userOverride?.ApplyUnlockTimeTo(achievement, resolved.HasManualLink);
                     MoveTimelineCount(timeline, achievement, countedDate);
                 }
 
@@ -1631,17 +1490,6 @@ namespace PlayniteAchievements.Services.Achievements
         /// The per-achievement override record for a summary row, resolving through the legacy
         /// mirror maps when the resolved data predates the record.
         /// </summary>
-        private static AchievementOverride ResolveSummaryOverride(ResolvedGameCustomData resolved, string apiName)
-        {
-            var overrides = resolved?.ResolveAchievementOverrides();
-            if (overrides == null || overrides.Count == 0)
-            {
-                return null;
-            }
-
-            return overrides.TryGetValue(apiName, out var entry) ? entry : null;
-        }
-
         private static string ResolveCustomIconOverridePath(string value, Guid playniteGameId)
         {
             var normalized = NormalizeText(value);
@@ -1742,9 +1590,13 @@ namespace PlayniteAchievements.Services.Achievements
         // subscription order).
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
-            // A reorder-only change (goals) cannot move the filter mirror or any summary, and
-            // resyncing costs a store load plus a mirror write on every toggle. A tag edit moves
-            // only the game's tallies, which are recounted on their own.
+            // The custom layer mirror carries every field the resolved view shows, notes, goals
+            // and order included, so every write resyncs it; the resync diffs and stays silent
+            // when nothing moved.
+            SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
+
+            // A change that moves no summary (goals, order) stops here. A tag edit moves only the
+            // game's tallies, which are recounted on their own.
             if (e != null && !e.AffectsSummaryData)
             {
                 if (e.AffectsTagTotals)
@@ -1755,14 +1607,6 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // Still before the memo is cleared, preserving the ordering invariant above. A writer
-            // that cannot have moved the mirror says so, and for that case the invariant is
-            // vacuous rather than bypassed: there are no stale mirror rows to guard against.
-            if (e == null || e.AffectsOverrideMirror)
-            {
-                SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
-            }
-
             // Names the one game that moved, so the next read patches its contribution instead
             // of re-running five unfiltered whole-library queries.
             var changedGameId = e?.PlayniteGameId ?? Guid.Empty;
@@ -1770,15 +1614,8 @@ namespace PlayniteAchievements.Services.Achievements
                 changedGameId == Guid.Empty ? null : new[] { changedGameId });
         }
 
-        // A full cache invalidation may follow ClearCache(), which deletes the whole database
-        // file including the filter mirror; resync heals it (a cheap no-op when unchanged).
         private void OnCacheInvalidatedForOverview(object sender, CacheInvalidatedEventArgs e)
         {
-            if (e?.IsFull != false)
-            {
-                SyncAllAchievementFiltersFromCustomData();
-            }
-
             // The editor raises a scoped invalidation for its own game on top of the store's
             // CustomDataChanged, and it is the only route by which an edit that does not affect
             // summary data reaches the overview. Honouring the scope here is what stops that
@@ -1809,6 +1646,9 @@ namespace PlayniteAchievements.Services.Achievements
             var entries = BuildOverrideMirrorEntries(customData);
             scope?.SetContext("entries=" + (entries?.Count ?? 0));
             _overrideMirror.ReplaceAchievementOverrides(playniteGameId, entries);
+            _overrideMirror.ReplaceGameCustomStates(
+                new Dictionary<Guid, GameCustomStateEntry> { [playniteGameId] = BuildGameCustomState(customData) },
+                playniteGameId);
         }
 
         /// <summary>
@@ -1828,6 +1668,7 @@ namespace PlayniteAchievements.Services.Achievements
             // holding scalars, so the copies were read once and dropped -- a full copy of the
             // library's custom data on every full invalidation, for a user who has customized
             // all of it.
+            var states = new Dictionary<Guid, GameCustomStateEntry>();
             var entriesByGameId = _gameCustomDataStore?.QueryAll(rows =>
             {
                 var map = new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
@@ -1843,64 +1684,158 @@ namespace PlayniteAchievements.Services.Achievements
                     {
                         map[row.PlayniteGameId] = built;
                     }
+
+                    states[row.PlayniteGameId] = BuildGameCustomState(row);
                 }
 
                 return map;
             }) ?? new Dictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>>();
 
             _overrideMirror.ResyncAllAchievementOverrides(entriesByGameId);
+            _overrideMirror.ReplaceGameCustomStates(states);
             InvalidateOverviewProjectionCaches();
         }
 
         /// <summary>
-        /// Builds a game's desired mirror rows from its custom data: the two filter flags plus the
-        /// user-editable fields summary aggregates resolve in a join.
+        /// Builds a game's desired mirror rows from its custom data: the custom layer of each
+        /// override, the user's per-achievement state, and a row per authored achievement, so the
+        /// resolved views need nothing from the custom-data store.
         /// </summary>
         private static List<AchievementOverrideMirrorEntry> BuildOverrideMirrorEntries(GameCustomDataFile customData)
         {
             var entries = new Dictionary<string, AchievementOverrideMirrorEntry>(StringComparer.OrdinalIgnoreCase);
-            MarkFilterEntries(entries, customData?.FilteredAchievementApiNames, (entry) => entry.IsFiltered = true);
-            MarkFilterEntries(entries, customData?.SummaryFilteredAchievementApiNames, (entry) => entry.IsSummaryFiltered = true);
+            if (customData == null)
+            {
+                return new List<AchievementOverrideMirrorEntry>();
+            }
 
-            // The user-editable fields aggregates read. Everything else on the record is applied
-            // during hydration and deliberately not mirrored.
-            foreach (var pair in customData?.AchievementOverrides ??
-                new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase))
+            var gameId = customData.PlayniteGameId;
+            var hasManualLink = customData.ManualLink != null;
+            var overrides = customData.AchievementOverrides ??
+                new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            MarkPositions(entries, customData.FilteredAchievementApiNames, (entry, _) => entry.IsFiltered = true);
+            MarkPositions(entries, customData.SummaryFilteredAchievementApiNames, (entry, _) => entry.IsSummaryFiltered = true);
+            MarkPositions(entries, customData.GoalAchievementApiNames, (entry, index) => entry.GoalOrder = index);
+            MarkPositions(entries, customData.AchievementOrder, (entry, index) => entry.CustomOrder = index);
+            if (customData.CapstonesMaterialized)
+            {
+                MarkPositions(entries, customData.Capstones?.Select(capstone => capstone?.ApiName), (entry, _) => entry.CapstoneAssigned = true);
+            }
+
+            foreach (var pair in overrides)
             {
                 var apiName = NormalizeText(pair.Key);
-                if (apiName == null || pair.Value == null)
+                var userOverride = pair.Value;
+                if (apiName == null || userOverride == null)
                 {
                     continue;
                 }
 
-                if (!pair.Value.Points.HasValue &&
-                    string.IsNullOrWhiteSpace(pair.Value.TrophyType) &&
-                    !pair.Value.ClearTrophyType)
+                var layer = userOverride.ToLayer();
+                var unlockedIcon = ResolveCustomIconOverridePath(userOverride.UnlockedIconPath, gameId);
+                var lockedIcon = ResolveCustomIconOverridePath(userOverride.LockedIconPath, gameId);
+                var note = NormalizeText(userOverride.Note);
+                var unlockTime = !hasManualLink ? userOverride.UnlockTimeUtc : null;
+                var clearUnlockTime = !hasManualLink && !unlockTime.HasValue && userOverride.ClearUnlockTime;
+                if (layer.IsEmpty && unlockedIcon == null && lockedIcon == null && note == null && !unlockTime.HasValue && !clearUnlockTime)
                 {
                     continue;
                 }
 
                 var entry = ResolveMirrorEntry(entries, apiName);
-                entry.Points = pair.Value.Points;
-                entry.TrophyType = NormalizeText(pair.Value.TrophyType) ??
-                    (pair.Value.ClearTrophyType ? AchievementOverrideMirrorEntry.ClearedTrophyType : null);
+                entry.SetLayer(layer);
+                // Derived tags are the platform's; the views add them back, as the resolver does.
+                entry.Tags = AchievementTagHelper.StripDerived(entry.Tags);
+                entry.UnlockedIconPath = unlockedIcon;
+                entry.LockedIconPath = lockedIcon;
+                entry.Note = note;
+                entry.UnlockTimeUtc = unlockTime;
+                entry.Cleared |= clearUnlockTime ? (long)AchievementField.UnlockTime : 0;
+            }
+
+            // Authored achievements exist only in custom data; each row carries what the plugin
+            // shows for it, with the user's overrides and capstone set already applied.
+            var managedIcons = PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService;
+            foreach (var row in CustomAchievementProjectionService.ProjectAchievements(gameId, customData.CustomAchievements, managedIcons))
+            {
+                overrides.TryGetValue(row.ApiName, out var userOverride);
+                row.CustomLayer = userOverride?.ToLayer();
+                AchievementLayers.Resolve(row);
+                userOverride?.ApplyUnlockTimeTo(row, hasManualLink);
+                row.UnlockedIconPath = ResolveCustomIconOverridePath(userOverride?.UnlockedIconPath, gameId) ?? row.UnlockedIconPath;
+                row.LockedIconPath = ResolveCustomIconOverridePath(userOverride?.LockedIconPath, gameId) ?? row.LockedIconPath;
+                row.Category = CategoryPathHelper.NormalizePath(row.Category);
+                row.CategoryKind = CategoryKindHelper.ResolveEffective(
+                    CategoryEditor.ResolveStoredCategoryKind(customData.AchievementCategoryKinds, row.Category),
+                    row.CategoryKind);
+                var entry = ResolveMirrorEntry(entries, row.ApiName);
+                entry.SetAuthored(row);
+                entry.Note = NormalizeText(userOverride?.Note);
+                entry.IsCapstone = customData.CapstonesMaterialized ? entry.CapstoneAssigned : row.IsCapstone;
             }
 
             return entries.Values.Where(entry => !entry.IsEmpty).ToList();
         }
 
-        private static void MarkFilterEntries(
+        /// <summary>The game-level state the resolved views read from the custom-data store.</summary>
+        private static GameCustomStateEntry BuildGameCustomState(GameCustomDataFile customData)
+        {
+            var state = new GameCustomStateEntry
+            {
+                CapstonesMaterialized = customData?.CapstonesMaterialized == true,
+                HasManualLink = customData?.ManualLink != null,
+                ExcludedFromSummaries = customData?.ExcludedFromSummaries == true,
+                ExcludedFromRefreshes = customData?.ExcludedFromRefreshes == true,
+                UseSeparateLockedIcons = customData?.UseSeparateLockedIconsOverride == true
+            };
+            foreach (var pair in customData?.AchievementCategoryKinds ?? new Dictionary<string, string>())
+            {
+                var category = CategoryPathHelper.NormalizePath(pair.Key);
+                var kind = CategoryKindHelper.NormalizeStored(pair.Value);
+                if (category != null && kind != null)
+                {
+                    state.Category(category).Kind = kind;
+                }
+            }
+
+            var order = customData?.AchievementCategoryOrder ?? new List<string>();
+            for (var i = 0; i < order.Count; i++)
+            {
+                var category = CategoryPathHelper.NormalizePath(order[i]);
+                if (category != null && !state.Category(category).SortIndex.HasValue)
+                {
+                    state.Category(category).SortIndex = i;
+                }
+            }
+
+            foreach (var pair in customData?.AchievementCategoryImageOverrides ?? new Dictionary<string, CategoryImageOverrideData>())
+            {
+                var category = CategoryPathHelper.NormalizePath(pair.Key);
+                var art = ResolveCustomIconOverridePath(pair.Value?.Art, customData.PlayniteGameId);
+                if (category != null && art != null)
+                {
+                    state.Category(category).ImagePath = art;
+                }
+            }
+
+            return state;
+        }
+
+        private static void MarkPositions(
             Dictionary<string, AchievementOverrideMirrorEntry> entries,
             IEnumerable<string> apiNames,
-            Action<AchievementOverrideMirrorEntry> mark)
+            Action<AchievementOverrideMirrorEntry, int> mark)
         {
+            var index = 0;
             foreach (var apiName in apiNames ?? Enumerable.Empty<string>())
             {
                 var normalized = NormalizeText(apiName);
                 if (normalized != null)
                 {
-                    mark(ResolveMirrorEntry(entries, normalized));
+                    mark(ResolveMirrorEntry(entries, normalized), index);
                 }
+
+                index++;
             }
         }
 

@@ -192,11 +192,9 @@ namespace PlayniteAchievements.Services.Images
         /// <summary>The directory holding the managed fallback images.</summary>
         public string GetRootDirectory()
         {
-            // The disk image cache root is <PluginUserDataPath>\icon_cache; fallback images live
-            // beside it so icon-cache clears and per-game pruning never touch them.
-            return Path.Combine(
-                Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
-                RootFolderName);
+            // Kept in the plugin data folder, outside the icon cache, so icon-cache clears, moves
+            // and per-game pruning never touch these images.
+            return Path.Combine(_diskImageService.Location.PluginDataRoot, RootFolderName);
         }
 
         private void DeleteSlotFiles(FallbackIconSlot slot, string exceptPath)

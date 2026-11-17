@@ -165,6 +165,9 @@
     <sys:Double x:Key="PlayAch.Opacity.Full">1</sys:Double>
 
     <sys:Double x:Key="PlayAch.FontSize.SectionHeader">16</sys:Double>
+    <!-- Option settings hierarchy: a section such as the category grid, then its option groups. -->
+    <sys:Double x:Key="PlayAch.FontSize.OptionSectionHeader">19</sys:Double>
+    <sys:Double x:Key="PlayAch.FontSize.OptionGroupHeader">16</sys:Double>
     <sys:Double x:Key="PlayAch.FontSize.ProviderTitle">20</sys:Double>
     <sys:Double x:Key="PlayAch.FontSize.InlineIcon">16</sys:Double>
 
@@ -215,6 +218,12 @@
     <!-- A heading that opens a group: separated from what precedes it, and not flush against
          the first row beneath it. -->
     <Thickness x:Key="PlayAch.Thickness.SubSectionHeading">0,12,0,8</Thickness>
+    <!-- Above an option group's header (Appearance, Layout, ...) in the grid and widget settings. -->
+    <Thickness x:Key="PlayAch.Thickness.OptionGroupHeading">0,12,0,8</Thickness>
+    <!-- Every option row in the grid and widget settings (OptionRowLayout): at least a control's
+         height, so checkbox, dropdown and number rows are one height, and one gap below. -->
+    <sys:Double x:Key="PlayAch.Size.OptionRow.MinHeight">32</sys:Double>
+    <Thickness x:Key="PlayAch.Thickness.OptionRow">0,0,0,8</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Xs">0,0,4,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Compact">0,0,6,0</Thickness>
     <Thickness x:Key="PlayAch.Thickness.Right.Sm">0,0,8,0</Thickness>

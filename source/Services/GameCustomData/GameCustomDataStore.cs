@@ -119,7 +119,6 @@ namespace PlayniteAchievements.Services.GameCustomData
     /// </summary>
     public sealed partial class GameCustomDataStore
     {
-        private const string DatabaseFileName = "game_custom_data.db";
 
         // Portable files are always zip packages under the bare .pa extension (zip inside like
         // Playnite's .pext); the legacy .pa.zip spelling is still accepted on import.
@@ -195,7 +194,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         public GameCustomDataStore(string pluginUserDataPath, ILogger logger = null)
         {
             _logger = logger;
-            var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, DatabaseFileName);
+            var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, Database.SqlNadoSchemaManager.DatabaseFileName);
             _repository = new GameCustomDataRepository(databasePath, _storeWriteSettings, logger);
         }
 
@@ -398,11 +397,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             changed |= RenameListEntries(data.FilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.SummaryFilteredAchievementApiNames, renamedApiNames);
             changed |= RenameListEntries(data.GoalAchievementApiNames, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementCategoryOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementCategoryTypeOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementUnlockedIconOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementLockedIconOverrides, renamedApiNames);
-            changed |= RenameDictionaryKeys(data.AchievementNotes, renamedApiNames);
             changed |= RenameDictionaryKeys(data.AchievementOverrides, renamedApiNames);
 
             return changed;
@@ -679,6 +673,22 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
+        /// Points every stored path under the old icon cache folder at the same file under the new
+        /// one, after the files moved. Raises no change event: the caller reloads every surface
+        /// once the cache root changes.
+        /// </summary>
+        public int RewriteIconCacheRoot(string oldRoot, string newRoot)
+        {
+            var rewritten = _repository.RewriteIconCacheRoot(oldRoot, newRoot);
+            if (rewritten > 0)
+            {
+                InvalidateCache();
+            }
+
+            return rewritten;
+        }
+
+        /// <summary>
         /// Every stored record, deep-cloned so a caller cannot mutate the cache through what it
         /// is handed. Prefer <see cref="QueryAll{TResult}"/> when the answer is a projection:
         /// the copies here cost a library's worth of overrides, notes and maps.
@@ -779,14 +789,14 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
-        public HashSet<Guid> GetExcludedRefreshGameIds(ISet<Guid> fallbackIds = null)
+        public HashSet<Guid> GetExcludedRefreshGameIds()
         {
-            return GetExcludedGameIds(fallbackIds, data => data?.ExcludedFromRefreshes == true);
+            return GetExcludedGameIds(data => data?.ExcludedFromRefreshes == true);
         }
 
-        public HashSet<Guid> GetExcludedSummaryGameIds(ISet<Guid> fallbackIds = null)
+        public HashSet<Guid> GetExcludedSummaryGameIds()
         {
-            return GetExcludedGameIds(fallbackIds, data => data?.ExcludedFromSummaries == true);
+            return GetExcludedGameIds(data => data?.ExcludedFromSummaries == true);
         }
 
         public void ExportPortablePackage(Guid playniteGameId, string destinationPath)
@@ -1928,11 +1938,11 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return !StringMapEquals(
-                       previousData.AchievementUnlockedIconOverrides,
-                       currentData?.AchievementUnlockedIconOverrides) ||
+                       AchievementOverride.Project(previousData.AchievementOverrides, o => o.UnlockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.UnlockedIconPath)) ||
                    !StringMapEquals(
-                       previousData.AchievementLockedIconOverrides,
-                       currentData?.AchievementLockedIconOverrides) ||
+                       AchievementOverride.Project(previousData.AchievementOverrides, o => o.LockedIconPath),
+                       AchievementOverride.Project(currentData?.AchievementOverrides, o => o.LockedIconPath)) ||
                    !CategoryImageMapEquals(
                        previousData.AchievementCategoryImageOverrides,
                        currentData?.AchievementCategoryImageOverrides);
@@ -2017,7 +2027,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var retainedPath in EnumerateManagedCustomIconPaths(
                 gameIdText,
-                data.AchievementUnlockedIconOverrides,
+                AchievementOverride.Project(data.AchievementOverrides, o => o.UnlockedIconPath),
                 fileStems,
                 AchievementIconVariant.Unlocked))
             {
@@ -2026,7 +2036,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             foreach (var retainedPath in EnumerateManagedCustomIconPaths(
                 gameIdText,
-                data.AchievementLockedIconOverrides,
+                AchievementOverride.Project(data.AchievementOverrides, o => o.LockedIconPath),
                 fileStems,
                 AchievementIconVariant.Locked))
             {
@@ -2504,9 +2514,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// </remarks>
         private bool _cacheHoldsEveryStoredRow;
 
-        private HashSet<Guid> GetExcludedGameIds(
-            ISet<Guid> fallbackIds,
-            Func<GameCustomDataFile, bool> selector)
+        private HashSet<Guid> GetExcludedGameIds(Func<GameCustomDataFile, bool> selector)
         {
             if (selector == null)
             {
@@ -2517,9 +2525,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             lock (_cacheSync)
             {
-                var result = fallbackIds != null
-                    ? new HashSet<Guid>(fallbackIds)
-                    : new HashSet<Guid>();
+                var result = new HashSet<Guid>();
 
                 foreach (var pair in _cacheByGameId)
                 {

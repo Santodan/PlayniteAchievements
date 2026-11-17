@@ -92,15 +92,18 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>The source whose achievement names and descriptions replace the platform's; empty keeps the platform's.</summary>
         public string Text { get; set; }
 
+        /// <summary>The source whose list order sets the default achievement order; empty keeps the platform's.</summary>
+        public string Order { get; set; }
+
         public bool IsEmpty() =>
             Icons == null && Categories == null && Tags == null && Rarity == null && CapstoneArt == null &&
-            TrophyTypes == null && Points == null && Text == null;
+            TrophyTypes == null && Points == null && Text == null && Order == null;
 
         /// <summary>
         /// Every field set: each platform's own icons, SteamHunters categories, TrueGaming tags,
         /// Exophase rarity (which only the platforms in <see cref="ExophaseRarityProviders"/> take),
         /// PlayStation trophy types and the platinum for auto capstones where one matches, and
-        /// Xbox points, with each platform's own text.
+        /// Xbox points, with each platform's own text and order.
         /// </summary>
         public static MetadataChoices CreateDefaults()
         {
@@ -113,7 +116,8 @@ namespace PlayniteAchievements.Models.Settings
                 CapstoneArt = PlayStation,
                 TrophyTypes = PlayStation,
                 Points = Xbox,
-                Text = string.Empty
+                Text = string.Empty,
+                Order = string.Empty
             };
         }
 
@@ -138,6 +142,7 @@ namespace PlayniteAchievements.Models.Settings
             complete.TrophyTypes = complete.TrophyTypes ?? defaults.TrophyTypes;
             complete.Points = complete.Points ?? defaults.Points;
             complete.Text = complete.Text ?? defaults.Text;
+            complete.Order = complete.Order ?? defaults.Order;
             return complete;
         }
 
@@ -151,7 +156,8 @@ namespace PlayniteAchievements.Models.Settings
                    CapstoneArt == other.CapstoneArt &&
                    TrophyTypes == other.TrophyTypes &&
                    Points == other.Points &&
-                   Text == other.Text;
+                   Text == other.Text &&
+                   Order == other.Order;
         }
 
         public MetadataChoices Clone()
@@ -165,7 +171,8 @@ namespace PlayniteAchievements.Models.Settings
                 CapstoneArt = CapstoneArt,
                 TrophyTypes = TrophyTypes,
                 Points = Points,
-                Text = Text
+                Text = Text,
+                Order = Order
             };
         }
     }
@@ -231,7 +238,8 @@ namespace PlayniteAchievements.Models.Settings
                     CapstoneArt = string.Empty,
                     TrophyTypes = string.Empty,
                     Points = string.Empty,
-                    Text = string.Empty
+                    Text = string.Empty,
+                    Order = string.Empty
                 };
             }
 
@@ -257,7 +265,8 @@ namespace PlayniteAchievements.Models.Settings
                 Points = MetadataChoices.TakesPoints(providerKey)
                     ? game?.Points ?? platform?.Points ?? defaults.Points ?? string.Empty
                     : string.Empty,
-                Text = game?.Text ?? platform?.Text ?? defaults.Text ?? string.Empty
+                Text = game?.Text ?? platform?.Text ?? defaults.Text ?? string.Empty,
+                Order = game?.Order ?? platform?.Order ?? defaults.Order ?? string.Empty
             };
         }
 

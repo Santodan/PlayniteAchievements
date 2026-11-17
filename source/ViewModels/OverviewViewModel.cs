@@ -112,7 +112,6 @@ namespace PlayniteAchievements.ViewModels
         private readonly AchievementGridControlBarAdapter _selectedGameControlBar = new AchievementGridControlBarAdapter();
         private List<string> _availableProviders = new List<string>();
         private readonly HashSet<string> _selectedCompletenessFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private bool _completenessFilterEdited;
         private readonly HashSet<string> _selectedPlayStatusFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Sort state tracking for quick reverse
@@ -126,6 +125,9 @@ namespace PlayniteAchievements.ViewModels
         // Compare-friend selection for the selected-game grid: enriches the self rows with a
         // friend's unlock state. Selection clears whenever the selected game changes.
         public FriendCompareController FriendCompare { get; }
+
+        /// <summary>Compare for the achievements grid shown while no game is selected.</summary>
+        public LibraryFriendCompareController RecentFriendCompare { get; }
 
 
         internal OverviewViewModel(
@@ -145,6 +147,7 @@ namespace PlayniteAchievements.ViewModels
             _widgetCoordinatorAccessor = widgetCoordinatorAccessor;
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _selectedGameControlBar.AttachFriendCompare(FriendCompare);
+            RecentFriendCompare = new LibraryFriendCompareController(friendCache, settings, logger);
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
@@ -187,10 +190,9 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameAllAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
-            // Default the progress dropdown to the full completed + incomplete scope. Its label
-            // shows the placeholder until the first edit, then always lists the picks.
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete"));
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress"));
+            // Like every other filter, the Progress dropdown starts with nothing picked, which
+            // keeps every game.
+            RestoreGameSummariesBarState();
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -207,6 +209,15 @@ namespace PlayniteAchievements.ViewModels
             _showUnlockedOnly = true;
             _sortIndex = 2; // Unlock Date
             InitializeGridControlBars();
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
+                _selectedGameControlBar,
+                GridOptionKeys.Achievement.OverviewSelectedGame);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                FriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.OverviewSelectedGame);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                RecentFriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.OverviewRecent);
             _selectedGameControlBar.FilterChanged += OnSelectedGameControlBarFilterChanged;
 
             // Initialize commands
@@ -337,7 +348,8 @@ namespace PlayniteAchievements.ViewModels
                 () => SelectedCompletenessFilterText,
                 () => CompletenessFilterOptions,
                 IsCompletenessFilterSelected,
-                SetCompletenessFilterSelected)
+                SetCompletenessFilterSelected,
+                ProgressFilterChoices.Label)
             {
                 Id = ShowcaseControlBarItems.Progress,
                 LabelKey = "LOCPlayAch_Progress",
@@ -370,6 +382,27 @@ namespace PlayniteAchievements.ViewModels
                     LabelKey = "LOCPlayAch_Filter_Achievements"
                 }
             };
+            // Compare: any friend, whose unlock state is drawn on the rows of the games they
+            // have unlocks in.
+            var recentCompareFilter = new GridMultiSelectFilter(
+                this,
+                null,
+                () => RecentFriendCompare.CompareSelectionText,
+                () => RecentFriendCompare.OptionKeys,
+                RecentFriendCompare.IsKeySelected,
+                RecentFriendCompare.SelectKey,
+                RecentFriendCompare.GetDisplayNameForKey,
+                () => RecentFriendCompare.IsCompareAvailable,
+                RecentFriendCompare.IsKeyFavorite)
+            {
+                Id = ShowcaseControlBarItems.Compare,
+                LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
+                Width = 140,
+                ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
+                StaysOnBar = true
+            };
+            RecentFriendCompare.PropertyChanged += (_, __) => recentCompareFilter.Refresh();
+            RecentAchievementsControlBar.Items.Add(recentCompareFilter);
             // The unlock date range; a timeline column or calendar day in the mini-showcase sets
             // it too, and the timeline and calendar mark whatever it holds.
             RecentAchievementsControlBar.Items.Add(new GridDateRangeFilter(
@@ -385,34 +418,12 @@ namespace PlayniteAchievements.ViewModels
                 AutoHideWhenUnavailable = false,
                 Width = 190
             });
-            // Rarity and trophy type; a rarity or trophy pie slice in the mini-showcase toggles
-            // them too. The trophy filter hides while no unlock has a trophy type.
-            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedRarityFilterText),
-                () => SelectedRarityFilterText,
-                () => RarityFilterOptions,
-                IsRarityFilterSelected,
-                SetRarityFilterSelected)
-            {
-                Id = ShowcaseControlBarItems.Rarity,
-                LabelKey = "LOCPlayAch_Column_Rarity",
-                Width = 130,
-                IconKeyOf = RarityFilterIconKey
-            });
-            RecentAchievementsControlBar.Items.Add(new GridMultiSelectFilter(
-                this,
-                nameof(SelectedTrophyFilterText),
-                () => SelectedTrophyFilterText,
-                () => TrophyFilterOptions,
-                IsTrophyFilterSelected,
-                SetTrophyFilterSelected)
-            {
-                Id = ShowcaseControlBarItems.Trophy,
-                LabelKey = "LOCPlayAch_Column_Trophy",
-                Width = 130,
-                IconKeyOf = TrophyFilterIconKey
-            });
+            // Rarity (the tiers and Capstone) and trophy type, the widget bars' own filters; a
+            // rarity or trophy pie slice in the mini-showcase toggles them too. The trophy filter
+            // hides while no unlock has a trophy type.
+            _tierFilters = new RarityTrophyControlBarFilters(ScheduleAchievementFilterApply);
+            RecentAchievementsControlBar.Items.Add(_tierFilters.RarityItem);
+            RecentAchievementsControlBar.Items.Add(_tierFilters.TrophyItem);
             // Achievement tags; a tag pie slice in the mini-showcase toggles them too. The grid
             // lists every game here, so it offers the global tags; a selected game's grid has its
             // own Tags filter with that game's tags.
@@ -708,25 +719,9 @@ namespace PlayniteAchievements.ViewModels
         private void OnProviderFilterSelectionChanged()
         {
             OnPropertyChanged(nameof(SelectedProviderFilterText));
-            // One deferred pass per burst: clearing several groups raises once per group.
-            if (_providerFilterApplyScheduled)
-            {
-                return;
-            }
-
-            _providerFilterApplyScheduled = true;
-            // The linked widgets draw from the new state now; the grids follow in the pass below.
-            InvalidateLinkedSnapshots();
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(() =>
-                {
-                    _providerFilterApplyScheduled = false;
-                    ApplyLeftFilters();
-                }),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
+            // The shared pass merges a burst (clearing several groups raises once per group).
+            ScheduleFilterApply();
         }
-
-        private bool _providerFilterApplyScheduled;
 
         public void ClearProviderFilters()
         {
@@ -764,12 +759,17 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _completenessFilterOptions, value);
         }
 
-        public string SelectedCompletenessFilterText => _completenessFilterEdited
-            ? GetSelectedFilterText(
-                _selectedCompletenessFilters,
-                CompletenessFilterOptions,
-                L("LOCPlayAch_Progress"))
-            : L("LOCPlayAch_Progress");
+        public string SelectedCompletenessFilterText
+        {
+            get
+            {
+                var picked = (CompletenessFilterOptions ?? new ObservableCollection<string>())
+                    .Where(_selectedCompletenessFilters.Contains)
+                    .Select(ProgressFilterChoices.Label)
+                    .ToList();
+                return picked.Count == 0 ? L("LOCPlayAch_Progress") : string.Join(", ", picked);
+            }
+        }
 
         public bool IsCompletenessFilterSelected(string value)
         {
@@ -783,8 +783,8 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
+            SaveGameSummariesBarState();
             // Defer filter application to avoid interfering with menu click handling.
             ScheduleFilterApply();
         }
@@ -814,59 +814,84 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
+            SaveGameSummariesBarState();
             // Defer filter application to avoid interfering with menu click handling.
             ScheduleFilterApply();
         }
 
-        /// <summary>
-        /// Toggles progress filters when a games pie slice is clicked.
-        /// The two-slice games pie maps Incomplete to both non-complete progress buckets.
-        /// </summary>
-        /// <param name="completenessLabel">The progress label from the clicked slice.</param>
-        public void ToggleCompletenessFilterFromPieChart(string completenessLabel)
+        /// <summary>Applies a Completions pie slice click to the Progress filter: it toggles that slice's choice.</summary>
+        /// <param name="key">The slice's <see cref="ProgressFilterChoices"/> key.</param>
+        public void ToggleCompletenessFilterFromPieChart(string key)
         {
-            if (string.IsNullOrWhiteSpace(completenessLabel))
+            if (string.IsNullOrWhiteSpace(key) || !CompletenessFilterOptions.Contains(key))
             {
                 return;
             }
 
-            var completeOption = L("LOCPlayAch_Filter_Complete");
-            var inProgressOption = L("LOCPlayAch_Filter_InProgress");
-            var noProgressOption = L("LOCPlayAch_Filter_NoProgress");
-            var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete");
-            var targetFilters = new List<string>();
-
-            if (string.Equals(completenessLabel, completeOption, StringComparison.OrdinalIgnoreCase))
+            if (!_selectedCompletenessFilters.Remove(key))
             {
-                targetFilters.Add(completeOption);
-            }
-            else if (string.Equals(completenessLabel, incompleteSliceLabel, StringComparison.OrdinalIgnoreCase))
-            {
-                targetFilters.Add(inProgressOption);
-                targetFilters.Add(noProgressOption);
-            }
-            else
-            {
-                return;
+                _selectedCompletenessFilters.Add(key);
             }
 
-            var shouldSelect = targetFilters.Any(filter => !_selectedCompletenessFilters.Contains(filter));
-            foreach (var filter in targetFilters)
-            {
-                if (shouldSelect)
-                {
-                    _selectedCompletenessFilters.Add(filter);
-                }
-                else
-                {
-                    _selectedCompletenessFilters.Remove(filter);
-                }
-            }
-
-            _completenessFilterEdited = true;
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
+            SaveGameSummariesBarState();
             ScheduleFilterApply();
         }
+
+        // The Activity choices in bar order; the saved picks are positions in this list, so they
+        // survive a change of Playnite language.
+        private static IList<string> PlayStatusChoices() => new[]
+        {
+            L("LOCPlayAch_Filter_Played"),
+            L("LOCPlayAch_Filter_Unplayed")
+        };
+
+        /// <summary>
+        /// Restores the game grid's saved Progress and Activity picks, the only bar choices kept
+        /// across sessions so far.
+        /// </summary>
+        private void RestoreGameSummariesBarState()
+        {
+            var state = GridControlBarSurfaceState.Deserialize(
+                Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(GridOptionKeys.GameSummaries.Overview));
+            if (state == null)
+            {
+                return;
+            }
+
+            if (state.ProgressKeys != null)
+            {
+                _selectedCompletenessFilters.Clear();
+                foreach (var key in state.ProgressKeys)
+                {
+                    _selectedCompletenessFilters.Add(key);
+                }
+            }
+
+            _selectedPlayStatusFilters.Clear();
+            foreach (var choice in GridControlBarSurfaceState.RestoreActivity(state, PlayStatusChoices()))
+            {
+                _selectedPlayStatusFilters.Add(choice);
+            }
+        }
+
+        private void SaveGameSummariesBarState()
+        {
+            var state = GridControlBarSurfaceState.Capture(
+                _selectedCompletenessFilters.Count > 0 ? _selectedCompletenessFilters : null,
+                PlayStatusChoices(),
+                _selectedPlayStatusFilters);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                GridOptionKeys.GameSummaries.Overview,
+                GridControlBarSurfaceState.Serialize(state));
+        }
+
+        // The games the Progress filter keeps, or null when it keeps every game.
+        private Func<GameSummaryItem, bool> CompletenessMatcher() =>
+            ProgressFilterChoices.Matcher(
+                _selectedCompletenessFilters,
+                CompletenessFilterOptions,
+                ProgressFilterChoices.CurrentOrder());
 
         public ObservableCollection<RefreshMode> RefreshModes { get; }
 
@@ -1160,7 +1185,7 @@ namespace PlayniteAchievements.ViewModels
                         InvalidateLinkedSnapshots();
                     }
 
-                    _selectedGameControlBar.ResetFilters();
+                    _selectedGameControlBar.ResetSelections();
                     RefreshSelectedGameHeaderCounts();
                     (RefreshCommand as AsyncCommand)?.RaiseCanExecuteChanged();
                     (RefreshOrCancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -1429,6 +1454,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 AttachSharedSnapshotPublisher();
                 _progressTracker.SyncToCurrentState();
+                RecentFriendCompare.Refresh();
                 // Refresh data when overview becomes active to ensure cached changes are visible
                 _ = RefreshViewAsync();
             }
@@ -2488,15 +2514,15 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedProviderFilterText));
         }
 
+        // The Progress choices follow the Achievement styles; picks a style no longer offers are
+        // kept, unused, so turning it back on restores them.
         private void UpdateCompletenessFilterOptions()
         {
-            var options = new List<string>
-            {
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress"),
-                L("LOCPlayAch_Filter_NoProgress")
-            };
-
+            // Only the finishes some game shows, so a choice never empties the grid.
+            var options = ProgressFilterChoices.Keys(
+                ProgressFilterChoices.CurrentOrder(),
+                includeNoProgress: true,
+                _allGameSummaries);
             if (CompletenessFilterOptions == null)
             {
                 CompletenessFilterOptions = new ObservableCollection<string>(options);
@@ -2504,11 +2530,6 @@ namespace PlayniteAchievements.ViewModels
             else
             {
                 CollectionHelper.SynchronizeCollection(CompletenessFilterOptions, options);
-            }
-
-            if (PruneFilterSelections(_selectedCompletenessFilters, CompletenessFilterOptions))
-            {
-                ApplyLeftFilters();
             }
 
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
@@ -2592,6 +2613,16 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 ApplyScoreCards();
                 _ = RefreshViewAsync();
+                UpdateCompletenessFilterOptions();
+                ApplyLeftFilters();
+                return;
+            }
+
+            if (propertyName == nameof(PersistedSettings.ProgressDetails))
+            {
+                // The Progress choices and each finished game's badge follow the Achievement
+                // styles; re-filtering also hands the linked widgets fresh snapshots.
+                UpdateCompletenessFilterOptions();
                 ApplyLeftFilters();
                 return;
             }
@@ -3495,6 +3526,7 @@ namespace PlayniteAchievements.ViewModels
                 _settings?.Persisted?.OverviewRecentAchievementsGridMaxRows);
 
             CollectionHelper.Replace(RecentAchievements, displayItems);
+            RecentFriendCompare.SetTargetItems(displayItems);
         }
 
         /// <summary>
@@ -3628,12 +3660,14 @@ namespace PlayniteAchievements.ViewModels
             filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
                 filtered,
                 _selectedPlayStatusFilters,
-                _selectedCompletenessFilters,
+                null,
                 L("LOCPlayAch_Filter_Played"),
-                L("LOCPlayAch_Filter_Unplayed"),
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress"),
-                L("LOCPlayAch_Filter_NoProgress"));
+                L("LOCPlayAch_Filter_Unplayed"));
+            var matchesProgress = CompletenessMatcher();
+            if (matchesProgress != null)
+            {
+                filtered = filtered.Where(matchesProgress);
+            }
 
             filtered = ApplyAchievementFiltersToGames(filtered);
 
@@ -3669,26 +3703,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             InvalidateLinkedSnapshots();
-        }
-
-        private ISet<string> GetCompletedGamesPieProgressFilters()
-        {
-            if (_selectedCompletenessFilters == null || _selectedCompletenessFilters.Count == 0)
-            {
-                return null;
-            }
-
-            var noProgressLabel = L("LOCPlayAch_Filter_NoProgress");
-            if (_selectedCompletenessFilters.Contains(noProgressLabel))
-            {
-                return null;
-            }
-
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                L("LOCPlayAch_Filter_Complete"),
-                L("LOCPlayAch_Filter_InProgress")
-            };
         }
 
         private GameSummaryItem ResolveSelectedGameForChartContext(OverviewDataSnapshot snapshot)
@@ -4355,6 +4369,7 @@ namespace PlayniteAchievements.ViewModels
             _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
 
             _latestSnapshot = null;
+            RecentFriendCompare.Release();
 
             _globalAchievementSearchIndex.Clear();
             _gameSummarySearchIndex.Clear();

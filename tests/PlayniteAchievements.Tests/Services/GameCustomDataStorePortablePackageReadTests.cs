@@ -106,7 +106,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.AreEqual(storedBefore, store.LoadAll().Count, "no record is written");
                 Assert.IsTrue(store.TryLoad(gameId, out var source));
-                Assert.AreEqual(unlockedPath, source.AchievementUnlockedIconOverrides[apiName], "the source record is untouched");
+                Assert.AreEqual(unlockedPath, AchievementOverride.Project(source.AchievementOverrides, o => o.UnlockedIconPath)[apiName], "the source record is untouched");
                 CollectionAssert.AreEqual(iconFilesBefore, ListFiles(diskImageService.GetCacheDirectoryPath()), "the managed icon cache gains nothing");
             }
             finally

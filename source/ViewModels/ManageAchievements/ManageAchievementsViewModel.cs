@@ -113,7 +113,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private string _providerOverrideKey = ProviderOverrideNoneKey;
         private string _providerOverrideValue;
         private bool _canExportCustomJson;
-        private const string ManualProviderKey = "Manual";
 
         private bool _canClearCustomData;
         private int _customDataRevision;
@@ -132,7 +131,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public RelayCommand UnlinkManualTrackingCommand { get; }
         public RelayCommand RefreshStateCommand { get; }
         public AsyncCommand RefreshGameCommand { get; }
-        public RelayCommand ClearGameDataCommand { get; }
+        public RelayCommand ClearPlatformDataCommand { get; }
+        public RelayCommand ClearMetadataCommand { get; }
+        public RelayCommand ClearAllDataCommand { get; }
         public RelayCommand ExportCustomCommand { get; }
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ImportFromWorkshopCommand { get; }
@@ -183,12 +184,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
-            ClearGameDataCommand = new RelayCommand(_ => ClearGameData(), _ => HasGame);
+            ClearPlatformDataCommand = new RelayCommand(_ => ClearData(DataClear.Platform), _ => HasGame);
+            ClearMetadataCommand = new RelayCommand(_ => ClearData(DataClear.Metadata), _ => HasGame);
+            ClearAllDataCommand = new RelayCommand(_ => ClearData(DataClear.All), _ => HasGame);
             ExportCustomCommand = new RelayCommand(_ => ExportCustom(), _ => HasGame && CanExportCustomJson);
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ImportFromWorkshopCommand = new RelayCommand(_ => _plugin?.OpenWorkshopWindow(_gameId), _ => HasGame && _plugin != null);
             ShareToWorkshopCommand = new RelayCommand(_ => ShareToWorkshop(), _ => HasGame && CanExportCustomJson && _plugin != null);
-            ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
+            ClearCustomDataCommand = new RelayCommand(_ => ClearData(DataClear.Custom), _ => HasGame && CanClearCustomData);
             InitializeWorkshopSource();
 
             Reload();
@@ -874,6 +877,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                 RefreshCustomDataState();
                 RefreshWorkshopSource();
+                RefreshLinkedFile();
                 RebuildSidebarStats();
 
                 if (!HasAchievementData && ManageAchievementsTabs.RequireAchievementData.Contains(SelectedTab))
@@ -1336,7 +1340,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var previousData = TryLoadStoredCustomData(store);
             _achievementOverridesService.MergeCustomAchievements(_gameId, parsed.Definitions, out var added, out var updated);
-            var transitionEffects = AnalyzeCustomDataTransition(previousData, TryLoadStoredCustomData(store));
+            var transitionEffects = CustomDataTransition.Analyze(previousData, TryLoadStoredCustomData(store));
             NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
             _playniteApi?.Dialogs?.ShowMessage(
@@ -1363,7 +1367,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The file replaced what the Workshop item put there: the game no longer follows it.
             RemoveWorkshopSource();
 
-            var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
+            var transitionEffects = CustomDataTransition.Analyze(previousData, currentData);
             NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
             var successMessage = L("LOCPlayAch_Status_Succeeded");
@@ -1381,6 +1385,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 importResult.HasIgnoredPackageImages
                     ? MessageBoxImage.Warning
                     : MessageBoxImage.Information);
+            PromptAttachLinkedFileIfMappingOnly();
         }
 
         /// <summary>
@@ -1394,77 +1399,22 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// that no refresh will ever update -- a real provider's own refresh returns nothing for
         /// them and is turned away by the empty-payload guard, so they are frozen for good.
         /// </remarks>
-        private bool WouldStrandManualAchievements(GameCustomDataFile currentData)
+        /// <summary>Runs one of the plugin's clears on this game, then re-reads what it changed.</summary>
+        private void ClearData(DataClear kind)
         {
-            if (currentData?.ManualLink == null)
-            {
-                return false;
-            }
-
-            var rawGameData = GetRawGameData();
-            return rawGameData?.Achievements?.Count > 0 &&
-                   string.Equals(rawGameData.ProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void ClearCustomData()
-        {
-            if (!HasGame)
+            if (!HasGame || _plugin?.ClearData(kind, new[] { (Id: _gameId, Name: GameName) }) != true)
             {
                 return;
             }
 
-            var store = _plugin?.GameCustomDataStore;
-            if (store == null || !store.TryLoad(_gameId, out var currentData) || currentData == null)
+            RefreshWorkshopSource();
+            if (kind == DataClear.Custom || kind == DataClear.All)
             {
-                return;
+                // The plugin starts any refresh the cleared data needs.
+                NotifyCustomDataChanged(requiresRefresh: false);
             }
-
-            // The manual link is not customization but the game's source of achievements, so
-            // dropping it has to take what it produced with it.
-            var strandsManualAchievements = WouldStrandManualAchievements(currentData);
-            var result = _playniteApi?.Dialogs?.ShowMessage(
-                string.Format(
-                    L(strandsManualAchievements
-                        ? "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual"
-                        : "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm"),
-                    GameName),
-                L("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
+            else
             {
-                return;
-            }
-
-            try
-            {
-                if (strandsManualAchievements)
-                {
-                    // Removes the link from both of its homes and the achievements it produced
-                    // from the cache, so nothing is left that no provider services.
-                    _achievementOverridesService?.ClearGameData(_gameId, GameName);
-                }
-
-                store.Delete(_gameId);
-                RemoveWorkshopSource();
-                var transitionEffects = AnalyzeCustomDataTransition(currentData, null);
-                NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
-
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed clearing custom data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
                 Reload();
             }
         }
@@ -1620,59 +1570,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private void ClearGameData()
-        {
-            if (!HasGame)
-            {
-                return;
-            }
-
-            var result = _playniteApi?.Dialogs?.ShowMessage(
-                string.Format(
-                    L("LOCPlayAch_Menu_ClearData_ConfirmSingle"),
-                    GameName),
-                L("LOCPlayAch_Title_PluginName"),
-                System.Windows.MessageBoxButton.YesNo,
-                System.Windows.MessageBoxImage.Warning) ?? System.Windows.MessageBoxResult.None;
-
-            if (result != System.Windows.MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                if (_achievementOverridesService != null)
-                {
-                    _achievementOverridesService.ClearGameData(_gameId, GameName);
-                }
-                else
-                {
-                    _refreshService?.Cache?.RemoveGameCache(_gameId);
-                }
-
-                RemoveWorkshopSource();
-                _playniteApi?.Dialogs?.ShowMessage(
-                    L("LOCPlayAch_Status_Succeeded"),
-                    L("LOCPlayAch_Title_PluginName"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed to clear cached data for gameId={_gameId}");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(L("LOCPlayAch_Status_Failed"), ex.Message),
-                    L("LOCPlayAch_Title_PluginName"),
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
-            }
-            finally
-            {
-                Reload();
-            }
-        }
-
         private void RaiseCommandStates()
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
@@ -1684,7 +1581,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
-            ClearGameDataCommand?.RaiseCanExecuteChanged();
+            ClearPlatformDataCommand?.RaiseCanExecuteChanged();
+            ClearMetadataCommand?.RaiseCanExecuteChanged();
+            ClearAllDataCommand?.RaiseCanExecuteChanged();
             ExportCustomCommand?.RaiseCanExecuteChanged();
             ShareToWorkshopCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
@@ -2170,13 +2069,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         // Shared with the Workshop installer, which writes custom data through the same stores.
-        private static CustomDataTransitionEffects AnalyzeCustomDataTransition(
-            GameCustomDataFile previousData,
-            GameCustomDataFile currentData)
-        {
-            return CustomDataTransition.Analyze(previousData, currentData);
-        }
-
         private GameCustomDataFile TryLoadStoredCustomData(GameCustomDataStore store)
         {
             if (store == null)

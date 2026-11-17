@@ -64,6 +64,28 @@ namespace PlayniteAchievements.Services.Tests.Capture
         }
 
         [TestMethod]
+        public void CodedWidthRows_ReadTheLengthAtTheMacroblockWidth()
+        {
+            // 2032 (2020 rounded to 16) x 1.5 x 1088 = 3316224; 2048 x 1.5 x 1088 = 3342336 allocated.
+            Assert.AreEqual(1088, Nv12LayoutMath.AlignedHeight(2020, 1080, 2048, 3316224L, 3342336L));
+            // 416 (406 rounded to 16) x 1.5 x 192 = 119808; 448 x 1.5 x 192 = 129024 allocated.
+            Assert.AreEqual(192, Nv12LayoutMath.AlignedHeight(406, 192, 448, 119808L, 129024L));
+        }
+
+        [TestMethod]
+        public void CodedWidthRows_AcceptAnyPaddingNarrowerThanThePitch()
+        {
+            // 1920 (1900 padded to 64) x 1.5 x 1088 = 3133440; 2048 x 1.5 x 1088 = 3342336 allocated.
+            Assert.AreEqual(1088, Nv12LayoutMath.AlignedHeight(1900, 1080, 2048, 3133440L, 3342336L));
+        }
+
+        [TestMethod]
+        public void CodedWidthRows_ThatOverflowTheBuffer_AreRefused()
+        {
+            Assert.AreEqual(0, Nv12LayoutMath.AlignedHeight(2020, 1080, 2048, 3316224L, 3342335L));
+        }
+
+        [TestMethod]
         public void DegenerateInputs_AreRefused()
         {
             Assert.AreEqual(0, Nv12LayoutMath.AlignedHeight(0, 1080, 1984, 3237888L, 3237888L));

@@ -28,6 +28,17 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ToDisplayKey_ShowsManualAsCustomAndLeavesOtherKeysAlone()
+        {
+            Assert.AreEqual("Custom", CustomProviderKeys.ToDisplayKey("Manual"));
+            Assert.AreEqual("Custom", CustomProviderKeys.ToDisplayKey(" manual "));
+            Assert.AreEqual("Custom", CustomProviderKeys.ToDisplayKey("Custom"));
+            Assert.AreEqual("Custom:abc", CustomProviderKeys.ToDisplayKey("Custom:abc"));
+            Assert.AreEqual("Steam", CustomProviderKeys.ToDisplayKey("Steam"));
+            Assert.IsNull(CustomProviderKeys.ToDisplayKey(null));
+        }
+
+        [TestMethod]
         public void IconKey_RoundTrip()
         {
             var iconKey = CustomProviderKeys.BuildIconKey("abc");

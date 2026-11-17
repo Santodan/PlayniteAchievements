@@ -102,13 +102,11 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public async Task SelfKey_Absent_WhenNoSelfGameDataOrNoIdentityLoader()
+        public async Task SelfKey_ReadsNotApplicableWithoutSelfGameData_AndIsAbsentWithoutIdentityLoader()
         {
             var selectedFriend = MakeFriend("friend1", "Friend One");
-            var rowsWithoutSelfData = new List<FriendAchievementDisplayItem>
-            {
-                MakeRow("ACH_1", "friend1", selfHasGameData: false)
-            };
+            var rowWithoutSelfData = MakeRow("ACH_1", "friend1", selfHasGameData: false);
+            var rowsWithoutSelfData = new List<FriendAchievementDisplayItem> { rowWithoutSelfData };
 
             var withLoader = new FriendVsFriendCompareController(
                 () => selectedFriend,
@@ -117,8 +115,13 @@ namespace PlayniteAchievements.Tests.ViewModels
             await withLoader.SelfIdentityLoadTask;
             withLoader.UpdateRows(rowsWithoutSelfData, rowsWithoutSelfData);
 
-            Assert.IsFalse(withLoader.OptionKeys.Any());
-            Assert.IsFalse(withLoader.IsCompareAvailable);
+            // The entry does not depend on the game: it is listed, and the rows read N/A.
+            CollectionAssert.AreEqual(
+                new[] { FriendVsFriendCompareController.SelfOptionKey },
+                withLoader.OptionKeys.ToList());
+            withLoader.SelectKey(FriendVsFriendCompareController.SelfOptionKey, true);
+            Assert.IsTrue(rowWithoutSelfData.HasComparison);
+            Assert.IsFalse(rowWithoutSelfData.ComparisonApplicable);
 
             var withoutLoader = new FriendVsFriendCompareController(
                 () => selectedFriend,
@@ -211,6 +214,175 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(
                 "Me",
                 rawId.GetDisplayNameForKey(FriendVsFriendCompareController.SelfOptionKey));
+        }
+
+        [TestMethod]
+        public void NoSelectedFriend_ComparesEveryOtherFriendsRows_PerGame()
+        {
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var controller = new FriendVsFriendCompareController(
+                () => null,
+                () => new List<FriendSummaryItem> { candidate });
+
+            FriendAchievementDisplayItem Row(string apiName, string friend, int appId)
+            {
+                var row = MakeRow(apiName, friend, unlocked: true);
+                row.AppId = appId;
+                row.FriendName = friend;
+                return row;
+            }
+
+            // The same ApiName in two games: the candidate has it in game 1 only, and has no row
+            // at all for game 3.
+            var sharedGame = Row("ACH_1", "friend1", 1);
+            var otherGame = Row("ACH_1", "friend1", 2);
+            var lockedForCandidate = Row("ACH_2", "friend1", 1);
+            var gameWithoutCandidate = Row("ACH_1", "friend1", 3);
+            var candidateRow = Row("ACH_1", "friend2", 1);
+            var candidateOtherGame = Row("ACH_9", "friend2", 2);
+            var rows = new List<FriendAchievementDisplayItem>
+            {
+                sharedGame, otherGame, lockedForCandidate, gameWithoutCandidate, candidateRow, candidateOtherGame
+            };
+            controller.UpdateRows(rows, rows);
+
+            Assert.IsTrue(controller.IsCompareAvailable);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(sharedGame.ComparisonUnlocked);
+            Assert.AreEqual("friend1", sharedGame.ComparisonOwnerName);
+            Assert.IsTrue(otherGame.HasComparison);
+            Assert.IsFalse(otherGame.ComparisonUnlocked, "the same ApiName in another game is not theirs");
+            Assert.IsTrue(lockedForCandidate.HasComparison);
+            Assert.IsFalse(lockedForCandidate.ComparisonUnlocked);
+            Assert.IsTrue(gameWithoutCandidate.HasComparison);
+            Assert.IsFalse(gameWithoutCandidate.ComparisonApplicable, "no data for the game reads N/A");
+            Assert.IsTrue(lockedForCandidate.ComparisonApplicable, "locked in a game they have");
+            Assert.IsFalse(candidateRow.HasComparison, "their own rows are not compared with themselves");
+        }
+
+        [TestMethod]
+        public void CandidateWithoutDataForTheGame_ReadsNotApplicable_UnlessTheHostKnowsTheyHaveIt()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var row = MakeRow("ACH_1", "friend1", unlocked: true);
+            var rows = new List<FriendAchievementDisplayItem> { row };
+
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate });
+            controller.UpdateRows(rows, rows);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.HasComparison);
+            Assert.AreEqual("Friend Two", row.ComparisonFriendName);
+            Assert.IsFalse(row.ComparisonApplicable);
+            Assert.IsFalse(row.ComparisonUnlocked);
+
+            // The host knows the friend owns the game with nothing unlocked: Locked, not N/A.
+            var owning = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate },
+                hasGameData: (friend, item) => true);
+            owning.UpdateRows(rows, rows);
+            owning.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.ComparisonApplicable);
+            Assert.IsFalse(row.ComparisonUnlocked);
+        }
+
+        [TestMethod]
+        public void ScrapedAllLockedRows_ReadNotApplicable_UntilOwnershipIsKnown()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var row = MakeRow("ACH_1", "friend1", unlocked: true);
+
+            // The candidate's achievements were scraped for the game: every row locked, and
+            // nothing says they own it.
+            var scraped = MakeRow("ACH_1", "friend2");
+            var rows = new List<FriendAchievementDisplayItem> { row, scraped };
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem> { candidate });
+            controller.UpdateRows(rows, rows);
+            controller.SelectKey(candidateKey, true);
+
+            Assert.IsTrue(row.HasComparison);
+            Assert.IsFalse(row.ComparisonApplicable);
+
+            scraped.FriendOwnsGame = true;
+            controller.UpdateRows(rows, rows);
+
+            Assert.IsTrue(row.ComparisonApplicable, "a game they own reads Locked");
+            Assert.IsFalse(row.ComparisonUnlocked);
+        }
+
+        [TestMethod]
+        public void PersistSelection_RestoresTheRememberedFriend_AndSavesOnlyTheUsersPicks()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var candidate = MakeFriend("friend2", "Friend Two");
+            var candidateKey = FriendOverviewProjection.GetFriendScopeKey(candidate);
+            var candidates = new List<FriendSummaryItem>();
+            var saves = new List<string>();
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => candidates);
+            var row = MakeRow("ACH_1", "friend1");
+            var rows = new List<FriendAchievementDisplayItem> { row };
+
+            // Not on offer for this pair: the dropdown still shows the remembered friend as its
+            // selection, by the saved name, and draws no comparison.
+            controller.PersistSelection(candidateKey + "\tFriend Two", saves.Add);
+            controller.UpdateRows(rows, rows);
+            Assert.IsTrue(controller.IsCompareAvailable);
+            Assert.IsTrue(controller.IsKeySelected(candidateKey));
+            Assert.AreEqual("Friend Two", controller.CompareSelectionText);
+            CollectionAssert.Contains(controller.OptionKeys.ToList(), candidateKey);
+            Assert.IsFalse(row.HasComparison);
+
+            candidates.Add(candidate);
+            controller.UpdateRows(rows, rows);
+            Assert.IsTrue(row.HasComparison, "applied once on offer");
+            Assert.AreEqual(1, controller.OptionKeys.Count(key => key == candidateKey));
+
+            // The host clears the selection when the pair changes; the pick stays remembered.
+            controller.ClearSelection();
+            Assert.IsFalse(row.HasComparison);
+            controller.UpdateRows(rows, rows);
+            Assert.IsTrue(row.HasComparison);
+            Assert.AreEqual(0, saves.Count);
+
+            controller.SelectKey(candidateKey, false);
+            CollectionAssert.AreEqual(new string[] { null }, saves);
+            controller.UpdateRows(rows, rows);
+            Assert.IsFalse(controller.IsKeySelected(candidateKey), "a cleared pick is forgotten");
+            Assert.IsFalse(row.HasComparison);
+
+            controller.SelectKey(candidateKey, true);
+            CollectionAssert.AreEqual(new[] { null, candidateKey + "\tFriend Two" }, saves);
+        }
+
+        [TestMethod]
+        public void RememberedEntryThatIsNotOnOffer_IsForgottenWhenUnchecked()
+        {
+            var selectedFriend = MakeFriend("friend1", "Friend One");
+            var saves = new List<string>();
+            var controller = new FriendVsFriendCompareController(
+                () => selectedFriend,
+                () => new List<FriendSummaryItem>());
+            controller.PersistSelection("steam|friend9\tFriend Nine", saves.Add);
+
+            controller.SelectKey("steam|friend9", false);
+
+            CollectionAssert.AreEqual(new string[] { null }, saves);
+            Assert.IsFalse(controller.IsCompareAvailable);
+            Assert.IsFalse(controller.OptionKeys.Any());
         }
     }
 }

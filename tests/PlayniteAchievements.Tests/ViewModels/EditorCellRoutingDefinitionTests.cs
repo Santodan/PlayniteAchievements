@@ -24,6 +24,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             "EditorUnlocked",
             "EditorName",
             "EditorDescription",
+            "EditorApiName",
             "EditorUnlockTime",
             "EditorHidden",
             "EditorGoal",

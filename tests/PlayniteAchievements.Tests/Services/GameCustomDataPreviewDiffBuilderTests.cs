@@ -612,8 +612,8 @@ namespace PlayniteAchievements.Services.Tests
                 GameId,
                 GameCustomDataLookup.BuildResolvedFromRecord(record, persisted),
                 managedCustomIconService: null,
-                () => record.AchievementUnlockedIconOverrides,
-                () => record.AchievementLockedIconOverrides);
+                () => AchievementOverride.Project(record.AchievementOverrides, o => o.UnlockedIconPath),
+                () => AchievementOverride.Project(record.AchievementOverrides, o => o.LockedIconPath));
 
             return new GameCustomDataPreviewSource
             {

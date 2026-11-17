@@ -401,7 +401,7 @@ namespace PlayniteAchievements.Services.Overview
                 return null;
             }
 
-            var providerKey = gameData.EffectiveProviderKey;
+            var providerKey = CustomProviders.CustomProviderKeys.ToDisplayKey(gameData.EffectiveProviderKey);
             providerKey = string.IsNullOrWhiteSpace(providerKey) ? "Unknown" : providerKey;
             var providerName = ProviderRegistry.GetLocalizedName(providerKey);
             if (string.IsNullOrWhiteSpace(providerName))
@@ -981,7 +981,7 @@ namespace PlayniteAchievements.Services.Overview
             var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
                 ? providerPlatformKey
                 : providerKey;
-            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : resolved.Trim();
+            return string.IsNullOrWhiteSpace(resolved) ? "Unknown" : CustomProviders.CustomProviderKeys.ToDisplayKey(resolved.Trim());
         }
 
         private static string BuildAchievementGameKey(CachedRecentUnlockData recent)

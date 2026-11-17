@@ -47,6 +47,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
             public bool HasBackup { get; set; }
             public bool NeedsMigration { get; set; }
             public bool CouldNotScan { get; set; }
+
+            /// <summary>
+            /// True when the theme already targets PlayniteAchievements and uses legacy
+            /// controls or LegacyData bindings that Full or Custom migration can modernize.
+            /// </summary>
+            public bool ModernizeOnly { get; set; }
             public string CurrentThemeVersion { get; set; }
             public string CachedMigratedThemeVersion { get; set; }
             public bool UpgradedSinceLastMigration { get; set; }
@@ -132,7 +138,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         ThemeYamlVersionReader.TryReadThemeName(themeDir, out displayName);
 
                         // Check if theme contains legacy references that still need migration.
-                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport) = CheckIfNeedsMigration(themeDir);
+                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport, hasLegacyPlayniteAchievementsReference) = ScanTheme(themeDir, _logger);
+
+                        // A theme that already targets PlayniteAchievements through legacy controls can be modernized.
+                        // Fullscreen themes only support Limited migration, which has nothing to change for them.
+                        var modernizeOnly = hasNativePlayniteAchievementsSupport && hasLegacyPlayniteAchievementsReference;
+                        var isFullscreenTheme = string.Equals(subDir, "Fullscreen", StringComparison.OrdinalIgnoreCase);
 
                         // Compare against cached migrated version (optional)
                         string cachedVersion = null;
@@ -155,10 +166,11 @@ namespace PlayniteAchievements.Services.ThemeMigration
                             Path = themeDir,
                             HasBackup = hasBackup,
                             NeedsMigration = !hasBackup &&
-                                             needsMigration &&
-                                             !hasNativePlayniteAchievementsSupport,
+                                             ((needsMigration && !hasNativePlayniteAchievementsSupport) ||
+                                              (modernizeOnly && !isFullscreenTheme)),
                             CouldNotScan = couldNotScan &&
                                            !hasNativePlayniteAchievementsSupport,
+                            ModernizeOnly = modernizeOnly,
                             CurrentThemeVersion = currentVersion,
                             CachedMigratedThemeVersion = cachedVersion,
                             UpgradedSinceLastMigration = upgradedSinceLastMigration
@@ -229,14 +241,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Checks if a theme directory contains migratable legacy references.
+        /// Scans a theme directory for migratable legacy references, native PlayniteAchievements
+        /// support, and legacy PlayniteAchievements controls or bindings.
         /// </summary>
-        private (bool needsMigration, bool couldNotScan, bool hasNativePlayniteAchievementsSupport) CheckIfNeedsMigration(string themePath)
+        internal static (bool needsMigration, bool couldNotScan, bool hasNativePlayniteAchievementsSupport, bool hasLegacyPlayniteAchievementsReference) ScanTheme(string themePath, ILogger logger)
         {
             int filesRead = 0;
             int filesSkipped = 0;
             bool foundMigratableReference = false;
             bool foundNativePlayniteAchievementsSupport = false;
+            bool foundLegacyPlayniteAchievementsReference = false;
 
             try
             {
@@ -251,7 +265,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for XAML files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for XAML files in {themePath}");
                 }
 
                 try
@@ -260,7 +274,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for PS1 files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for PS1 files in {themePath}");
                 }
 
                 try
@@ -269,7 +283,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for CS files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for CS files in {themePath}");
                 }
 
                 // Remove duplicates and filter out backup folder
@@ -290,18 +304,27 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         if (ContainsNativePlayniteAchievementsSupport(content))
                         {
                             foundNativePlayniteAchievementsSupport = true;
-                            break;
+                        }
+
+                        if (ContainsLegacyPlayniteAchievementsReference(content))
+                        {
+                            foundLegacyPlayniteAchievementsReference = true;
                         }
 
                         if (ContainsMigratableReference(content))
                         {
                             foundMigratableReference = true;
                         }
+
+                        if (foundNativePlayniteAchievementsSupport && foundLegacyPlayniteAchievementsReference)
+                        {
+                            break;
+                        }
                     }
                     catch (Exception ex)
                     {
                         filesSkipped++;
-                        _logger.Debug(ex, $"Could not read file while checking theme: {file}");
+                        logger?.Debug(ex, $"Could not read file while checking theme: {file}");
                     }
                 }
 
@@ -311,17 +334,43 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 // This handles the case where the theme is currently running and files are locked
                 if (filesRead == 0 && filesSkipped > 0)
                 {
-                    _logger.Warn($"Could not read any files in theme (likely currently running): {themePath}");
-                    return (true, true, false); // Conservative: assume it needs migration, mark as could not scan
+                    logger?.Warn($"Could not read any files in theme (likely currently running): {themePath}");
+                    return (true, true, false, false); // Conservative: assume it needs migration, mark as could not scan
                 }
 
-                return (foundMigratableReference, false, foundNativePlayniteAchievementsSupport);
+                return (foundMigratableReference, false, foundNativePlayniteAchievementsSupport, foundLegacyPlayniteAchievementsReference);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Failed to check if theme needs migration: {themePath}");
-                return (true, true, false); // Conservative: assume it needs migration on error, mark as could not scan
+                logger?.Error(ex, $"Failed to check if theme needs migration: {themePath}");
+                return (true, true, false, false); // Conservative: assume it needs migration on error, mark as could not scan
             }
+        }
+
+        private static bool ContainsLegacyPlayniteAchievementsReference(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                return false;
+            }
+
+            foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
+            {
+                if (content.IndexOf($"PlayniteAchievements_{controlName}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
+            {
+                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool ContainsMigratableReference(string content)

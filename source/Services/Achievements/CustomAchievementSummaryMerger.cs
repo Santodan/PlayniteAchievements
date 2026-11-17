@@ -298,7 +298,9 @@ namespace PlayniteAchievements.Services.Achievements
                 var apiName = achievement?.ApiName?.Trim();
                 if (!string.IsNullOrEmpty(apiName) && overrides.TryGetValue(apiName, out var entry))
                 {
-                    AchievementOverrideApplier.Apply(achievement, entry, hasManualLink);
+                    achievement.CustomLayer = entry.ToLayer();
+                    AchievementLayers.Resolve(achievement);
+                    entry?.ApplyUnlockTimeTo(achievement, hasManualLink);
                 }
             }
         }

@@ -36,7 +36,7 @@
             <Grid Margin="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -87,6 +87,65 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+
+                <!-- Narrowing the category list. The filter drives the collection view only: the
+                     rows behind it stay whole, so every write still sees the complete order. The
+                     same search-box-plus-selector-buttons shape the Editor tab's filter row has. -->
+                <Grid Grid.Row="1"
+                      Margin="0,8,0,8"
+                      Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <TextBox x:Name="FilterTextBox"
+                                 Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Delay=150, Mode=TwoWay}"
+                                 Style="{StaticResource ManageAchievementsSearchTextBoxStyle}" />
+                        <TextBlock Text="{DynamicResource LOCPlayAch_CategorySummaries_FilterPlaceholder}"
+                                   Tag="{Binding Text, ElementName=FilterTextBox}"
+                                   Style="{StaticResource ManageAchievementsEditSearchPlaceholderTextStyle}" />
+                        <Button x:Name="ClearFilterButton"
+                                Tag="{Binding Text, ElementName=FilterTextBox}"
+                                Click="ClearFilterButton_Click"
+                                Style="{StaticResource ClearSearchButtonStyle}" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <!-- A picked category keeps its subcategories; the options render as the
+                             tree they describe, with the connectors the grid below draws. -->
+                        <Button x:Name="CategoryFilterButton"
+                                DataContext="{Binding CategoryFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Category}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
+                        <Button x:Name="KindFilterButton"
+                                DataContext="{Binding KindFilter}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="{Binding MinWidth}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                VerticalAlignment="Center"
+                                ToolTip="{DynamicResource LOCPlayAch_Common_Type}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
                 <TextBlock Grid.Row="2"
                            Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
@@ -179,9 +238,12 @@
                             </DataGridTemplateColumn.CellStyle>
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
+                                    <!-- Disabled as a pair while the grid is filtered: both resolve
+                                         their destination against neighbouring rows the filter hides. -->
                                     <StackPanel Orientation="Vertical"
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"
+                                                IsEnabled="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 Visibility="{Binding IsDefaultCategory, Converter={StaticResource InverseBoolToVis}}">
                                         <!-- IcoFont simple-right / simple-left. The arrow-to-bar
                                              characters render hairline-thin in the body font, and
@@ -373,7 +435,7 @@
                                                 MinWidth="96"
                                                 CanUserResize="False"
                                                 CanUserSort="False"
-                                                Header="{DynamicResource LOCPlayAch_Column_UseForGameSummaries}">
+                                                Header="{DynamicResource LOCPlayAch_Column_ReplaceGameArt}">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <!-- No GroupName: exclusivity is enforced in the view model because

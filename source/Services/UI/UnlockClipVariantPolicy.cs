@@ -10,19 +10,24 @@ namespace PlayniteAchievements.Services.UI
     /// rarity threshold. The clip counterpart of <see cref="UnlockScreenshotVariantPolicy"/>,
     /// sharing its <see cref="ScreenshotVariants"/> flags. The recordings master switch (the
     /// game's own when it has capture settings) is ANDed in as well, so a None result means no clip at all.
+    /// A retrigger bypasses the rarity thresholds: the user asked for that clip, so only the
+    /// switches decide which variants it produces.
     /// </summary>
     internal static class UnlockClipVariantPolicy
     {
         /// <summary>
         /// The clip variants this unlock should produce. Null settings resolve to
-        /// <see cref="ScreenshotVariants.None"/>.
+        /// <see cref="ScreenshotVariants.None"/>. <paramref name="bypassRarity"/> skips every
+        /// variant's rarity threshold while leaving the recordings switch and the per-variant
+        /// flags in force.
         /// </summary>
         public static ScreenshotVariants Resolve(
             RarityTier rarity,
             bool isCompletion,
             string providerKey,
             PersistedSettings persisted,
-            GameCustomDataFile gameData = null)
+            GameCustomDataFile gameData = null,
+            bool bypassRarity = false)
         {
             var effective = ProviderNotificationPolicy.Resolve(persisted, providerKey, gameData);
             if (!effective.RecordingsEnabled)
@@ -33,31 +38,31 @@ namespace PlayniteAchievements.Services.UI
             var captures = effective.Captures;
             var variants = ScreenshotVariants.None;
 
-            if (effective.RecordingClean && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.RecordingClean && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockRecordingCleanRarities,
-                    captures.UnlockRecordingCleanAlwaysCaptureCompletion))
+                    captures.UnlockRecordingCleanAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.Clean;
             }
 
             // The with-notification variant keeps the rarity settings every clip used before
             // clips had variants.
-            if (effective.RecordingWithToast && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.RecordingWithToast && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockRecordingRarities,
-                    captures.UnlockRecordingAlwaysCaptureCompletion))
+                    captures.UnlockRecordingAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.WithToast;
             }
 
-            if (effective.RecordingFramed && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.RecordingFramed && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockRecordingFramedRarities,
-                    captures.UnlockRecordingFramedAlwaysCaptureCompletion))
+                    captures.UnlockRecordingFramedAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.Framed;
             }
@@ -68,7 +73,8 @@ namespace PlayniteAchievements.Services.UI
         /// <summary>
         /// Event-args overload: an unparsable rarity counts as Common, and the completing unlock,
         /// the game-complete event and capstones count as completion unlocks, as in
-        /// <see cref="UnlockCaptureRarityFilter"/>.
+        /// <see cref="UnlockCaptureRarityFilter"/>. A retrigger (<see cref="AchievementUnlockedEventArgs.IsTestFire"/>)
+        /// bypasses the rarity thresholds.
         /// </summary>
         public static ScreenshotVariants Resolve(
             AchievementUnlockedEventArgs args,
@@ -90,7 +96,8 @@ namespace PlayniteAchievements.Services.UI
                 args.IsGameCompleted || args.IsCompletionAchievement || args.IsCapstone,
                 args.ProviderKey,
                 persisted,
-                gameData);
+                gameData,
+                bypassRarity: args.IsTestFire);
         }
     }
 }

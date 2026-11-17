@@ -63,8 +63,8 @@ namespace PlayniteAchievements.Services.Achievements
 
         /// <summary>
         /// Every tag on the achievements the capstone stands for, so it shows under each tag they
-        /// do. The derived Softcore/Hardcore are left out: they say how one achievement was earned.
-        /// Null when they carry none.
+        /// do, plus the tags the settings give capstones of its kind. The derived Softcore/Hardcore
+        /// are left out: they say how one achievement was earned. Null when there are none.
         /// </summary>
         public string Tags { get; }
     }
@@ -175,10 +175,15 @@ namespace PlayniteAchievements.Services.Achievements
         /// game shows; categories it does not name follow in the order of
         /// <paramref name="achievements"/>.
         /// </param>
+        /// <param name="addedTags">
+        /// Tag keys the capstone carries besides those of its achievements, pipe-joined; the
+        /// settings' per-kind lists. Null for none.
+        /// </param>
         public static AutoCapstoneDerivation Derive(
             IEnumerable<AchievementDetail> achievements,
             string category = null,
-            IReadOnlyList<string> categoryOrder = null)
+            IReadOnlyList<string> categoryOrder = null,
+            string addedTags = null)
         {
             // Filtered achievements are out of the counts completion is read from, so waiting on
             // one would hold the capstone locked on a game the summary already calls finished.
@@ -231,6 +236,7 @@ namespace PlayniteAchievements.Services.Achievements
                 ResolveSharedKind(scope),
                 AchievementTagHelper.Combine(scope
                     .SelectMany(achievement => AchievementTagHelper.GetComponents(achievement.Tags))
+                    .Concat(AchievementTagHelper.GetComponents(addedTags))
                     .Where(key => !AchievementTagHelper.IsDerivedTag(key))));
         }
 
@@ -244,12 +250,14 @@ namespace PlayniteAchievements.Services.Achievements
         /// from <paramref name="achievements"/>. The row is what carries the category the user
         /// filed it in; the definition only ever holds the default.
         /// </param>
+        /// <param name="addedTags">The settings' tags for a capstone of its kind; see <see cref="Derive"/>.</param>
         public static AutoCapstoneDerivation DeriveForCapstone(
             IEnumerable<AchievementDetail> achievements,
             string apiName,
             bool isWholeGame,
             string storedCategory = null,
-            IReadOnlyList<string> categoryOrder = null)
+            IReadOnlyList<string> categoryOrder = null,
+            string addedTags = null)
         {
             var list = (achievements ?? Enumerable.Empty<AchievementDetail>())
                 .Where(achievement => achievement != null)
@@ -269,14 +277,15 @@ namespace PlayniteAchievements.Services.Achievements
                 .ToList();
             if (isWholeGame)
             {
-                return Derive(others, categoryOrder: categoryOrder);
+                return Derive(others, categoryOrder: categoryOrder, addedTags: addedTags);
             }
 
             // A category capstone left alone in its category -- one authored before the whole-game
             // scope was stored, on a game whose achievements a provider has since moved into named
             // categories -- has nothing left to stand for there. It stood for the whole game when
             // it was authored, so it goes back to doing that rather than never updating again.
-            return Derive(others, own?.Category ?? storedCategory) ?? Derive(others);
+            return Derive(others, own?.Category ?? storedCategory, addedTags: addedTags) ??
+                   Derive(others, addedTags: addedTags);
         }
     }
 }

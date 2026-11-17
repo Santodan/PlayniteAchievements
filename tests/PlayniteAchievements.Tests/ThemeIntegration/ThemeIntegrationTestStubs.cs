@@ -187,6 +187,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         public string ProviderCategoryKind { get; set; }
 
+        public AchievementLayerValues PlatformLayer { get; set; }
+
+        public AchievementLayerValues MetadataLayer { get; set; }
+
+        public AchievementLayerValues CustomLayer { get; set; }
+
         public string ProviderKey { get; set; }
 
         public bool IsCustom { get; set; }
@@ -198,6 +204,8 @@ namespace PlayniteAchievements.Models.Achievements
         public int CategoryOrderIndex { get; set; } = int.MaxValue;
 
         public int DefaultOrderIndex { get; set; } = int.MaxValue;
+
+        public int? MetadataOrderIndex { get; set; }
 
         public string CleanCapturePath { get; set; }
 
@@ -414,6 +422,10 @@ namespace PlayniteAchievements.ViewModels
 
             public bool ShowLockedPoints { get; set; } = true;
 
+            public bool ShowHiddenRarity { get; set; } = true;
+
+            public bool ShowLockedRarity { get; set; } = true;
+
             public bool UseSeparateLockedIconsWhenAvailable { get; set; }
 
             public bool ShowRarityBar { get; set; }
@@ -589,6 +601,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ComparisonUnlocked { get; private set; }
 
+        public bool ComparisonApplicable { get; private set; }
+
         public string ComparisonOwnerName { get; private set; }
 
         public string ComparisonOwnerAvatarPath { get; private set; }
@@ -599,12 +613,14 @@ namespace PlayniteAchievements.ViewModels
             DateTime? unlockTimeUtc,
             bool unlocked,
             string ownerName = null,
-            string ownerAvatarPath = null)
+            string ownerAvatarPath = null,
+            bool applicable = true)
         {
             ComparisonFriendName = friendName;
             ComparisonFriendAvatarPath = friendAvatarPath;
-            ComparisonUnlockTimeUtc = unlockTimeUtc;
-            ComparisonUnlocked = unlocked;
+            ComparisonUnlockTimeUtc = applicable ? unlockTimeUtc : null;
+            ComparisonUnlocked = applicable && unlocked;
+            ComparisonApplicable = applicable;
             ComparisonOwnerName = ownerName;
             ComparisonOwnerAvatarPath = ownerAvatarPath;
             HasComparison = true;
@@ -617,6 +633,7 @@ namespace PlayniteAchievements.ViewModels
             ComparisonFriendAvatarPath = null;
             ComparisonUnlockTimeUtc = null;
             ComparisonUnlocked = false;
+            ComparisonApplicable = false;
             ComparisonOwnerName = null;
             ComparisonOwnerAvatarPath = null;
         }
