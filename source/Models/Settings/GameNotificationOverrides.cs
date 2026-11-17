@@ -127,6 +127,7 @@ namespace PlayniteAchievements.Models.Settings
     public sealed class GameCaptureOverride : ObservableObject, IUnlockCaptureRarities
     {
         private double _captureDelaySeconds;
+        private bool _captureAtUnlockAndAfterDelay;
         private bool _enableUnlockScreenshots;
         private bool _unlockScreenshotClean;
         private bool _unlockScreenshotWithToast;
@@ -155,6 +156,12 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _captureDelaySeconds;
             set => SetValue(ref _captureDelaySeconds, Math.Max(0, value));
+        }
+
+        public bool CaptureAtUnlockAndAfterDelay
+        {
+            get => _captureAtUnlockAndAfterDelay;
+            set => SetValue(ref _captureAtUnlockAndAfterDelay, value);
         }
 
         public bool EnableUnlockScreenshots
@@ -321,6 +328,7 @@ namespace PlayniteAchievements.Models.Settings
             return new GameCaptureOverride
             {
                 CaptureDelaySeconds = settings.CaptureDelaySeconds,
+                CaptureAtUnlockAndAfterDelay = settings.CaptureAtUnlockAndAfterDelay,
                 EnableUnlockScreenshots = settings.EnableUnlockScreenshots,
                 UnlockScreenshotClean = provider?.ScreenshotClean ?? settings.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = provider?.ScreenshotWithToast ?? settings.UnlockScreenshotWithToast,
@@ -365,6 +373,7 @@ namespace PlayniteAchievements.Models.Settings
             return new GameCaptureOverride
             {
                 CaptureDelaySeconds = CaptureDelaySeconds,
+                CaptureAtUnlockAndAfterDelay = CaptureAtUnlockAndAfterDelay,
                 EnableUnlockScreenshots = EnableUnlockScreenshots,
                 UnlockScreenshotClean = UnlockScreenshotClean,
                 UnlockScreenshotWithToast = UnlockScreenshotWithToast,
