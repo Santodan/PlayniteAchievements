@@ -125,12 +125,32 @@ namespace PlayniteAchievements.Services.Showcase
                 state => SaveCompareSelection(surfaceKey, state));
         }
 
-        /// <summary>The Compare pick saved for a grid surface, or null.</summary>
-        public string LoadCompareSelection(string surfaceKey) => LoadSurface(surfaceKey + ".Compare");
+        private const string CompareSuffix = ".Compare";
 
-        /// <summary>Saves a grid surface's Compare pick; null removes it.</summary>
-        public void SaveCompareSelection(string surfaceKey, string state) =>
-            SaveSurface(surfaceKey + ".Compare", state);
+        /// <summary>
+        /// The Compare pick saved for a grid surface, or null. The grids of one window share a
+        /// pick (<see cref="GridOptionKeys.Achievement.CompareGroup"/>).
+        /// </summary>
+        public string LoadCompareSelection(string surfaceKey) =>
+            LoadSurface(GridOptionKeys.Achievement.CompareGroup(surfaceKey) + CompareSuffix);
+
+        /// <summary>
+        /// Saves a grid surface's Compare pick under its window's shared entry; null removes it.
+        /// Entries saved per grid by 4.3.0 are removed with it.
+        /// </summary>
+        public void SaveCompareSelection(string surfaceKey, string state)
+        {
+            var groupKey = GridOptionKeys.Achievement.CompareGroup(surfaceKey);
+            foreach (var member in GridOptionKeys.Achievement.CompareGroupMembers(groupKey))
+            {
+                if (!string.Equals(member, groupKey, StringComparison.Ordinal))
+                {
+                    SaveSurface(member + CompareSuffix, null);
+                }
+            }
+
+            SaveSurface(groupKey + CompareSuffix, state);
+        }
 
         /// <summary>Writes any batched change now.</summary>
         public void Flush()
