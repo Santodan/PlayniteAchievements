@@ -749,6 +749,7 @@ Files are rewritten in place and this cannot be undone. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">Anzeigedauer (in Sekunden):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">Benachrichtigungsverzögerung (in Sekunden):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureDelaySeconds">Aufnahmeverzögerung (in Sekunden):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay">Also capture at the moment of unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Gamepad-Vibration bei Benachrichtigung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Vibrationsintensität (in Prozent):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Vibrationsdauer (in Millisekunden):</sys:String>
@@ -1840,47 +1841,5 @@ Fortfahren?</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">Freischaltzeit für alles</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">Äußerst selten</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">Benutzerstatistik</sys:String>
-
-    <!-- Main-only keys: still used by the released build, removed at the next release -->
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">Für Übersichten</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">Vollendet</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">Alle Plattformen</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Angepasste Daten entfernen</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Sämtliche angepassten Daten für &quot;{0}&quot; entfernen?
-
-Zwischengespeicherte Erfolgsdaten bleiben erhalten.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?
-
-This also deletes the manual link and the achievements it produced. This cannot be undone.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData">Erfolgsdaten entfernen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Erfolgsdaten der {0} ausgewählten Spiele entfernen?
-
-Hiermit werden zwischengespeicherte Erfolge, Symbole, manuelle Verknüpfungen und Freischaltzeiten gelöscht.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Erfolgsdaten von &quot;{0}&quot; entfernen?
-
-Hiermit werden zwischengespeicherte Erfolge, Symbole, manuelle Verknüpfungen und Freischaltzeiten gelöscht.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">Aus Aktualisierungen ausschließen und Erfolgsdaten entfernen</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">{0} ausgewählte Spiele ausschließen und zugehörige Daten entfernen?
-
-Dadurch werden die Spiele aus Erfolgsansichten ausgeschlossen und sämtliche zugehörige zwischengespeicherten Daten und manuelle Verknüpfungen werden gelöscht.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">&quot;{0}&quot; ausschließen und zugehörige Daten entfernen?
-
-Dadurch wird das Spiel aus Erfolgsansichten ausgeschlossen und sämtliche zugehörige zwischengespeicherten Daten und manuelle Verknüpfungen werden gelöscht.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">In allgemeinen und Aktualisierung ausgewählter Spiele enthalten</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">Erfolge aller Account-Charaktere kombinieren</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Entferne zwischengespeicherte Erfolgsdaten...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Zwischengespeicherte Erfolgsdaten entfernen. Neuerstellung bei nächster Aktualisierung.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Zwischengespeicherte Erfolgsdaten der Plattformen. Das Entfernen betrifft keine Symboldateien.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Zwischengespeicherte Erfolgsdaten</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">Rendering</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">Quality keeps notifications smooth while a game keeps the GPU busy, at some cost to the game's frame rate while a notification is shown.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">Leistung</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource">Abzeichen auf Fortschrittsleiste</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">Which badges show under the progress bar. Trophy when available uses a game's trophies where it has them and its rarity spread everywhere else; Rarity always shows the rarity spread.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable">Trophäe wenn verfügbar</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Synchronisiere Schlagworte...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manuelle Verfolgung</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Likes">Likes</sys:String>
 
 </ResourceDictionary>
