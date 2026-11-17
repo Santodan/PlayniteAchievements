@@ -18,8 +18,9 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// Compare-friend selection for the self achievement surfaces (Overview selected game and
     /// the single-game achievements window): loads every friend's cached rows for one game,
-    /// exposes the friends that have data as dropdown options, and applies the selected
-    /// friend's unlock state onto the self display items' comparison fields. The selection
+    /// exposes every friend as a dropdown option, those with data for the game first, and
+    /// applies the selected friend's unlock state onto the self display items' comparison
+    /// fields. A friend with no data for the game reads N/A on every row. The selection
     /// clears whenever the game changes, and a remembered friend is selected again on each game
     /// they have data for.
     /// </summary>
@@ -47,7 +48,8 @@ namespace PlayniteAchievements.ViewModels
         private Option _selected;
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
         private bool _availabilityPending;
-        private bool _indexedAvailability;
+        // Every friend, loaded with the first game and kept: the list does not depend on the game.
+        private List<FriendSummaryItem> _allFriends;
 
         internal FriendCompareController(
             IFriendCacheManager friendCache,
@@ -57,15 +59,13 @@ namespace PlayniteAchievements.ViewModels
             _friendCache = friendCache;
             _settings = settings;
             _logger = logger;
-            WarmAvailabilityIndex();
         }
 
-        // Stay visible while the cheap shared availability index is warming. Once warm, the
-        // index answers immediately while the heavier per-game option rows continue loading.
-        // A remembered friend keeps the dropdown shown and selected on a game they have no data
-        // for; no comparison is drawn there.
+        // Shown while the friend list loads, and from then on whenever there is a friend to pick.
+        // A remembered friend who is no longer listed keeps the dropdown shown and selected, and
+        // no comparison is drawn.
         public bool IsCompareAvailable =>
-            _availabilityPending || _indexedAvailability || _options.Count > 0 || RememberedKey != null;
+            _availabilityPending || _options.Count > 0 || RememberedKey != null;
 
         public string CompareSelectionText => _selected?.DisplayName
             ?? (RememberedKey != null ? RememberedName : null)
@@ -164,7 +164,6 @@ namespace PlayniteAchievements.ViewModels
                 _selected = null;
                 _friendRows = new List<FriendAchievementDisplayItem>();
                 _options = new List<Option>();
-                _indexedAvailability = false;
                 _availabilityPending = CanLoad(gameId);
                 NotifyCompareStateChanged();
                 BeginLoad(gameId);
@@ -202,7 +201,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var targetGameId = gameId.Value;
-            BeginAvailabilityLoad(targetGameId, version);
+            var knownFriends = _allFriends;
             Task.Run(() =>
             {
                 List<FriendAchievementDisplayItem> rows = null;
@@ -217,7 +216,15 @@ namespace PlayniteAchievements.ViewModels
                     _logger?.Error(ex, $"Failed to load friend rows for compare, game {targetGameId}.");
                 }
 
+                rows = rows ?? new List<FriendAchievementDisplayItem>();
+                var friends = knownFriends;
+                if (friends == null || HasUnlistedFriend(rows, friends))
+                {
+                    friends = LoadAllFriends();
+                }
+
                 var currentUsers = LoadCurrentUsersByProvider();
+                var options = BuildOptions(rows, friends, _settings?.Persisted);
 
                 void Apply()
                 {
@@ -226,10 +233,10 @@ namespace PlayniteAchievements.ViewModels
                         return;
                     }
 
-                    _friendRows = rows ?? new List<FriendAchievementDisplayItem>();
+                    _friendRows = rows;
+                    _allFriends = friends;
                     _currentUsersByProvider = currentUsers;
-                    _options = BuildOptions(_friendRows, _settings?.Persisted);
-                    _indexedAvailability = _options.Count > 0;
+                    _options = options;
                     _availabilityPending = false;
                     OnPropertyChanged(nameof(OptionKeys));
                     OnPropertyChanged(nameof(IsCompareAvailable));
@@ -261,69 +268,43 @@ namespace PlayniteAchievements.ViewModels
                    _settings?.Persisted?.EnableFriendsFeatures == true;
         }
 
-        private void WarmAvailabilityIndex()
+        // The friend list alone, without achievement rows. A failed load is logged and yields an
+        // empty list, so the options fall back to the friends found in the game's rows.
+        private List<FriendSummaryItem> LoadAllFriends()
         {
-            if (_friendCache == null || _settings?.Persisted?.EnableFriendsFeatures != true)
+            try
             {
-                return;
+                return new FriendOverviewProjection(
+                        _friendCache.LoadFriendsOverviewPatchData(null),
+                        _settings?.Persisted)
+                    .Friends
+                    .Where(friend => friend != null)
+                    .ToList();
             }
-
-            Task.Run(() =>
+            catch (Exception ex)
             {
-                try
-                {
-                    _friendCache.LoadFriendDataPlayniteGameIds();
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed to warm the friend compare availability index.");
-                }
-            });
+                _logger?.Error(ex, "Failed to load the friend list for compare.");
+                return new List<FriendSummaryItem>();
+            }
         }
 
-        private void BeginAvailabilityLoad(Guid gameId, int version)
+        // A friend added since the list was loaded shows up in a game's rows first.
+        private static bool HasUnlistedFriend(
+            List<FriendAchievementDisplayItem> rows,
+            List<FriendSummaryItem> friends)
         {
-            Task.Run(() =>
-            {
-                bool isAvailable;
-                try
-                {
-                    isAvailable = (_friendCache.LoadFriendDataPlayniteGameIds() ??
-                                   Array.Empty<Guid>()).Contains(gameId);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed to load friend compare availability for game {gameId}.");
-                    isAvailable = false;
-                }
-
-                void Apply()
-                {
-                    if (version != Volatile.Read(ref _loadVersion))
-                    {
-                        return;
-                    }
-
-                    _indexedAvailability = isAvailable;
-                    _availabilityPending = false;
-                    OnPropertyChanged(nameof(IsCompareAvailable));
-                }
-
-                var dispatcher = System.Windows.Application.Current?.Dispatcher;
-                if (dispatcher != null)
-                {
-                    dispatcher.InvokeIfNeeded(
-                        Apply,
-                        System.Windows.Threading.DispatcherPriority.DataBind);
-                }
-                else
-                {
-                    Apply();
-                }
-            });
+            var listed = new HashSet<string>(
+                friends.Select(FriendOverviewProjection.GetFriendScopeKey),
+                StringComparer.OrdinalIgnoreCase);
+            return rows.Any(row => row != null && !listed.Contains(FriendOverviewProjection.GetFriendScopeKey(row)));
         }
 
-        private static List<Option> BuildOptions(List<FriendAchievementDisplayItem> rows, PersistedSettings persisted)
+        // Every friend, those with rows for the game first, then favorites, then by name. A friend
+        // found only in the rows (the list failed to load) is listed from the row.
+        private static List<Option> BuildOptions(
+            List<FriendAchievementDisplayItem> rows,
+            List<FriendSummaryItem> friends,
+            PersistedSettings persisted)
         {
             var favoriteAccountKeys = new HashSet<string>(
                 (persisted?.Friends ?? Enumerable.Empty<FriendSettingsEntry>())
@@ -337,6 +318,26 @@ namespace PlayniteAchievements.ViewModels
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             var byKey = new Dictionary<string, Option>(StringComparer.OrdinalIgnoreCase);
+            foreach (var friend in friends ?? new List<FriendSummaryItem>())
+            {
+                var key = FriendOverviewProjection.GetFriendScopeKey(friend);
+                if (FriendOverviewProjection.IsAllScope(key) ||
+                    string.IsNullOrWhiteSpace(friend.DisplayName) ||
+                    byKey.ContainsKey(key))
+                {
+                    continue;
+                }
+
+                byKey[key] = new Option
+                {
+                    Key = key,
+                    DisplayName = friend.DisplayName,
+                    AvatarPath = friend.AvatarPath,
+                    IsFavorite = friend.IsFavorite
+                };
+            }
+
+            var withData = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in rows)
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.FriendName))
@@ -345,7 +346,13 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 var key = FriendOverviewProjection.GetFriendScopeKey(row);
-                if (FriendOverviewProjection.IsAllScope(key) || byKey.ContainsKey(key))
+                if (FriendOverviewProjection.IsAllScope(key))
+                {
+                    continue;
+                }
+
+                withData.Add(key);
+                if (byKey.ContainsKey(key))
                 {
                     continue;
                 }
@@ -359,9 +366,9 @@ namespace PlayniteAchievements.ViewModels
                 };
             }
 
-            // Favorites first, then alphabetical within each group.
             return byKey.Values
-                .OrderByDescending(option => option.IsFavorite)
+                .OrderByDescending(option => withData.Contains(option.Key))
+                .ThenByDescending(option => option.IsFavorite)
                 .ThenBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         }
@@ -414,6 +421,8 @@ namespace PlayniteAchievements.ViewModels
                     selectedKey,
                     StringComparison.OrdinalIgnoreCase));
 
+            // A friend with no row for this game has no data for it, and reads N/A on every row.
+            var applicable = compareRows.Count > 0;
             foreach (var item in items)
             {
                 if (item == null)
@@ -441,7 +450,8 @@ namespace PlayniteAchievements.ViewModels
                     compareRow?.UnlockTimeUtc,
                     compareRow?.Unlocked == true,
                     self?.DisplayName,
-                    self?.AvatarPath);
+                    self?.AvatarPath,
+                    applicable);
                 AppliedItems.Add(item);
             }
         }
