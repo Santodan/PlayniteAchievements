@@ -100,6 +100,7 @@ namespace PlayniteAchievements.Models.Settings
         private int _toastDurationSeconds = 6;
         private double _notificationDelaySeconds = 0;
         private double _captureDelaySeconds = 0;
+        private bool _captureAtUnlockAndAfterDelay = false;
         private int _maxConcurrentToasts = 3;
         private bool _enableControllerVibration = false;
         private int _controllerVibrationStrengthPercent = 50;
@@ -1392,6 +1393,18 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _captureDelaySeconds;
             set => SetValue(ref _captureDelaySeconds, Math.Max(0, value));
+        }
+
+        /// <summary>
+        /// With a capture delay configured, also takes the captures a delay of zero would take:
+        /// each unlock then saves one set at the unlock and a second set after the delay. The
+        /// unlock set is written first and takes the normal file names; the delayed set lands
+        /// on the duplicate names. Has no effect while <see cref="CaptureDelaySeconds"/> is zero.
+        /// </summary>
+        public bool CaptureAtUnlockAndAfterDelay
+        {
+            get => _captureAtUnlockAndAfterDelay;
+            set => SetValue(ref _captureAtUnlockAndAfterDelay, value);
         }
 
         public int MaxConcurrentToasts
@@ -3374,6 +3387,7 @@ namespace PlayniteAchievements.Models.Settings
                 ToastDurationSeconds = this.ToastDurationSeconds,
                 NotificationDelaySeconds = this.NotificationDelaySeconds,
                 CaptureDelaySeconds = this.CaptureDelaySeconds,
+                CaptureAtUnlockAndAfterDelay = this.CaptureAtUnlockAndAfterDelay,
                 MaxConcurrentToasts = this.MaxConcurrentToasts,
                 ToastPosition = this.ToastPosition,
                 EnableControllerVibration = this.EnableControllerVibration,

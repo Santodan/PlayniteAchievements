@@ -266,6 +266,7 @@ namespace PlayniteAchievements.Services.UI
             IReadOnlyList<AchievementToastViewModel> wave,
             DateTime? soundPlayedUtc,
             DateTime? surfaceCaptureUtc,
+            DateTime? unlockCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
             int? soundAlignmentDelayMs = null,
@@ -287,6 +288,7 @@ namespace PlayniteAchievements.Services.UI
                         CaptureTimelineClock.UtcNow,
                         soundPlayedUtc,
                         surfaceCaptureUtc,
+                        unlockCaptureUtc,
                         soundFilePath,
                         soundFileGain,
                         soundAlignmentDelayMs,
@@ -820,17 +822,16 @@ namespace PlayniteAchievements.Services.UI
         /// Never disposes or mutates the base bitmap — the save pipeline owns it via the capture
         /// task.
         /// <para>
-        /// Contract the caller relies on: every card is rasterized SYNCHRONOUSLY, before this
-        /// method's first await. The caller invokes it without awaiting, so the rendering happens
-        /// while the wave is settled and the window alive, and only the blit onto the base frame is
-        /// deferred — which is what lets a delayed capture be waited on without holding the toast
-        /// on screen. Do not introduce an await ahead of the render loop.
+        /// Two steps. <see cref="RenderWaveToastOverlays"/> rasterizes every card SYNCHRONOUSLY,
+        /// while the wave is settled and the window alive. <see cref="BlitWaveToastOverlaysAsync"/>
+        /// then waits for a base frame and composites the cards onto it, which is what lets a
+        /// delayed capture be waited on without holding the toast on screen. One render feeds
+        /// every capture set of the wave: with both an unlock and a delayed set, the cards are
+        /// rasterized once and blitted onto each base in turn.
         /// </para>
         /// </summary>
-        private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> ComposeWaveWithToastAsync(
-            WaveScreenshotPlan plan, Window window, bool isTestFire,
-            Task<System.Drawing.Bitmap> baseCaptureTask,
-            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask)
+        private WaveToastOverlays RenderWaveToastOverlays(
+            WaveScreenshotPlan plan, Window window, bool isTestFire)
         {
             var withToastVms = plan.Items
                 .Where(i => (i.Variants & ScreenshotVariants.WithToast) != 0)
@@ -841,11 +842,11 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // The base capture is deliberately NOT awaited yet. With a capture delay configured it
-            // is still pending, and the cards must be rendered from the live window now, while the
-            // wave is settled and laid out at its final size — waiting first would either render
-            // them against a window on its way out or hold the toast on screen for the delay.
-            // Only the blit at the end needs the base frame.
+            // No base capture is awaited here. With a capture delay configured it is still
+            // pending, and the cards must be rendered from the live window now, while the wave is
+            // settled and laid out at its final size — waiting first would either render them
+            // against a window on its way out or hold the toast on screen for the delay. Only the
+            // blit needs the base frame.
 
             // Geometry for placing cards into the base capture: the corner math runs against the
             // anchor rect (game client rect, or the work area for the out-of-game test fire) and
@@ -907,76 +908,125 @@ namespace PlayniteAchievements.Services.UI
                 overlays.Add((vm, overlay, rect, blur));
             }
 
-            // Now the base frame is needed. With a capture delay this is where the wait actually
-            // happens, off the display path — the cards above are already rasterized, so the toast
-            // is free to hold, slide out and close while this waits.
-            var baseBitmap = baseCaptureTask != null
-                ? await baseCaptureTask.ConfigureAwait(true)
-                : null;
-            // Items with a buffered anchor frame composite onto it instead of the shared live
-            // capture; the corner mapping scales through each bitmap's own dimensions, so the two
-            // may differ in size (screenshot cap vs recording cap) without drifting.
-            var anchorFrames = anchorFramesTask != null
-                ? await anchorFramesTask.ConfigureAwait(true)
-                : null;
-            if (baseBitmap == null && anchorFrames == null)
-            {
-                foreach (var entry in overlays)
-                {
-                    entry.Overlay?.Dispose();
-                }
+            return new WaveToastOverlays { Items = overlays, CapturePhys = capturePhys };
+        }
 
+        /// <summary>
+        /// The rendered cards of one wave, with the rect the base capture covers. Owned by the
+        /// last <see cref="BlitWaveToastOverlaysAsync"/> call made with them, which disposes them.
+        /// </summary>
+        private sealed class WaveToastOverlays
+        {
+            public List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect, ToastBlurPatch Blur)> Items;
+            public System.Drawing.Rectangle CapturePhys;
+        }
+
+        /// <summary>
+        /// Composites the rendered cards onto one capture set's base frame, returning an
+        /// independent clone per item. Waits for <paramref name="after"/> first when given, so two
+        /// sets sharing the overlays never touch them concurrently. Disposes the overlays when
+        /// <paramref name="disposeOverlays"/> is set, on every outcome.
+        /// </summary>
+        private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> BlitWaveToastOverlaysAsync(
+            WaveToastOverlays rendered,
+            Task<System.Drawing.Bitmap> baseCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask,
+            Task after,
+            bool disposeOverlays)
+        {
+            if (rendered == null)
+            {
                 return null;
             }
 
-            // Pool: GDI+ clone + composite per item. This completes before the save pipeline takes
-            // the base capture and the anchor frames, so nothing touches those bitmaps concurrently.
-            return await Task.Run(() =>
+            var overlays = rendered.Items;
+            var capturePhys = rendered.CapturePhys;
+            try
             {
-                var byVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
-                foreach (var entry in overlays)
+                if (after != null)
                 {
-                    var source = anchorFrames != null && anchorFrames.TryGetValue(entry.Vm, out var frame)
-                        ? frame
-                        : baseBitmap;
-                    if (source == null)
-                    {
-                        entry.Overlay?.Dispose();
-                        continue;
-                    }
-
                     try
                     {
-                        // Clone(rect, format) preserves the capture's pixel format; new Bitmap(Image)
-                        // would convert it and change the alpha semantics.
-                        var full = new System.Drawing.Rectangle(0, 0, source.Width, source.Height);
-                        var clone = source.Clone(full, source.PixelFormat);
-                        if (entry.Overlay != null)
-                        {
-                            try
-                            {
-                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.Debug(ex, "Toast card composite failed; with-notification shot omits the toast.");
-                            }
-                        }
-
-                        byVm[entry.Vm] = clone;
+                        await after.ConfigureAwait(true);
                     }
                     catch (Exception ex)
                     {
-                        _logger?.Debug(ex, "Base capture clone failed; with-notification shot skipped for one item.");
+                        _logger?.Debug(ex, "Earlier with-notification composite failed; continuing with this set.");
                     }
-                    finally
+                }
+
+                // Now the base frame is needed. With a capture delay this is where the wait
+                // actually happens, off the display path — the cards are already rasterized, so
+                // the toast is free to hold, slide out and close while this waits.
+                var baseBitmap = baseCaptureTask != null
+                    ? await baseCaptureTask.ConfigureAwait(true)
+                    : null;
+                // Items with a buffered anchor frame composite onto it instead of the shared live
+                // capture; the corner mapping scales through each bitmap's own dimensions, so the
+                // two may differ in size (screenshot cap vs recording cap) without drifting.
+                var anchorFrames = anchorFramesTask != null
+                    ? await anchorFramesTask.ConfigureAwait(true)
+                    : null;
+                if (baseBitmap == null && anchorFrames == null)
+                {
+                    return null;
+                }
+
+                // Pool: GDI+ clone + composite per item. This completes before the save pipeline
+                // takes the base capture and the anchor frames, so nothing touches those bitmaps
+                // concurrently.
+                return await Task.Run(() =>
+                {
+                    var byVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
+                    foreach (var entry in overlays)
+                    {
+                        var source = anchorFrames != null && anchorFrames.TryGetValue(entry.Vm, out var frame)
+                            ? frame
+                            : baseBitmap;
+                        if (source == null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            // Clone(rect, format) preserves the capture's pixel format; new
+                            // Bitmap(Image) would convert it and change the alpha semantics.
+                            var full = new System.Drawing.Rectangle(0, 0, source.Width, source.Height);
+                            var clone = source.Clone(full, source.PixelFormat);
+                            if (entry.Overlay != null)
+                            {
+                                try
+                                {
+                                    CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.Debug(ex, "Toast card composite failed; with-notification shot omits the toast.");
+                                }
+                            }
+
+                            byVm[entry.Vm] = clone;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "Base capture clone failed; with-notification shot skipped for one item.");
+                        }
+                    }
+
+                    return byVm.Count > 0 ? byVm : null;
+                }).ConfigureAwait(true);
+            }
+            finally
+            {
+                if (disposeOverlays)
+                {
+                    foreach (var entry in overlays)
                     {
                         entry.Overlay?.Dispose();
                     }
                 }
-
-                return byVm.Count > 0 ? byVm : null;
-            }).ConfigureAwait(true);
+            }
         }
 
         /// <summary>
@@ -2659,9 +2709,23 @@ namespace PlayniteAchievements.Services.UI
             // Stamped even when no screenshot is planned: a clip can be cut with screenshots
             // switched off entirely, and it still anchors here.
             var waveNotifyDelayed = wave[0].NotifyReadyAtUtc != default(DateTime);
+            var waveStartUtc = CaptureTimelineClock.UtcNow;
             var surfaceCaptureUtc = captureDelaySeconds > 0 || waveNotifyDelayed
-                ? CaptureTimelineClock.UtcNow.AddSeconds(captureDelaySeconds)
+                ? waveStartUtc.AddSeconds(captureDelaySeconds)
                 : (DateTime?)null;
+
+            // With a capture delay and the both-captures option, the wave produces two capture
+            // sets. The unlock set is exactly what a capture delay of zero would produce: aimed at
+            // the wave start when a notification delay held the wave, otherwise unscheduled and
+            // free to use the buffered unlock frames. The delayed set is the one described above.
+            // The unlock set is saved first, so it takes the normal file names and the delayed
+            // set lands on the duplicate names.
+            var dualCapture = captureDelaySeconds > 0 &&
+                (_activeWaveCaptures?.CaptureAtUnlockAndAfterDelay
+                    ?? _settings?.Persisted?.CaptureAtUnlockAndAfterDelay
+                    ?? false);
+            var unlockCaptureUtc = dualCapture && waveNotifyDelayed ? waveStartUtc : (DateTime?)null;
+            var primaryCaptureUtc = dualCapture ? unlockCaptureUtc : surfaceCaptureUtc;
 
             // Feeds every variant: clean saves it as-is, framed composites the frame onto it, and
             // with-notification composites each item's rendered card onto a copy of it.
@@ -2671,10 +2735,18 @@ namespace PlayniteAchievements.Services.UI
             // which is safe because a running game is captured per-window and the toast is a
             // separate window; the monitor capture that would catch the card is retrigger-only,
             // and retriggers never delay.
+            //
+            // baseCaptureTask is the wave's only set, or the unlock set when there are two;
+            // delayedCaptureTask is the second set and null otherwise.
             Task<System.Drawing.Bitmap> baseCaptureTask = null;
+            Task<System.Drawing.Bitmap> delayedCaptureTask = null;
             if (plan != null)
             {
-                baseCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, surfaceCaptureUtc);
+                baseCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, primaryCaptureUtc);
+                if (dualCapture)
+                {
+                    delayedCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, surfaceCaptureUtc);
+                }
             }
 
             // Per-item buffered anchor frames: when a recording session covers this wave and no
@@ -2682,9 +2754,10 @@ namespace PlayniteAchievements.Services.UI
             // moment decoded out of the rolling buffer rather than the (possibly much later)
             // instant the toast fired. Items the buffer cannot answer for fall back to the shared
             // live capture above. Skipped whenever a delay applies — a delayed capture
-            // deliberately depicts a different instant, and the clip anchors there with it.
+            // deliberately depicts a different instant, and the clip anchors there with it. The
+            // unlock set of a two-set wave qualifies on the same terms as an undelayed wave.
             Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask = null;
-            if (plan != null && !waveIsTestFire && !surfaceCaptureUtc.HasValue && _captureAnchorFrame != null)
+            if (plan != null && !waveIsTestFire && !primaryCaptureUtc.HasValue && _captureAnchorFrame != null)
             {
                 anchorFramesTask = StartWaveAnchorFramesCapture(plan);
             }
@@ -2696,7 +2769,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, null);
+                    _ = SaveWaveScreenshotSetsAsync(
+                        plan, baseCaptureTask, anchorFramesTask, null, delayedCaptureTask, null);
                 }
 
                 // A windowless wave still owes the recording side its liveness bump and, in the
@@ -2704,7 +2778,7 @@ namespace PlayniteAchievements.Services.UI
                 // UnlockRecordingService.WouldRequestClip), the anchor instant the screenshots
                 // depict — instead of letting that clip burn its full silence budget and fall
                 // back to the unlock anchor.
-                RaiseWaveDisplayed(wave, null, surfaceCaptureUtc);
+                RaiseWaveDisplayed(wave, null, surfaceCaptureUtc, unlockCaptureUtc);
                 return;
             }
 
@@ -2737,6 +2811,7 @@ namespace PlayniteAchievements.Services.UI
             if (_disposed)
             {
                 DisposeCaptureTask(baseCaptureTask);
+                DisposeCaptureTask(delayedCaptureTask);
                 DisposeAnchorFramesTask(anchorFramesTask);
                 return;
             }
@@ -2756,14 +2831,16 @@ namespace PlayniteAchievements.Services.UI
             // at the pop-up. Absorb the overlap here, ahead of the chime, so the chime and the
             // reveal shift together and their alignment holds; bounded, so a stuck capture costs
             // latency, never the wave. A delayed capture runs after the card is on screen and
-            // never overlaps the pop-up in the first place.
-            if (baseCaptureTask != null && captureDelaySeconds <= 0)
+            // never overlaps the pop-up in the first place. The unlock set of a two-set wave is an
+            // undelayed capture, so it is absorbed here as well.
+            if (baseCaptureTask != null && (captureDelaySeconds <= 0 || dualCapture))
             {
                 await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                     .ConfigureAwait(true);
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
+                    DisposeCaptureTask(delayedCaptureTask);
                     DisposeAnchorFramesTask(anchorFramesTask);
                     return;
                 }
@@ -2797,6 +2874,7 @@ namespace PlayniteAchievements.Services.UI
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
+                    DisposeCaptureTask(delayedCaptureTask);
                     DisposeAnchorFramesTask(anchorFramesTask);
                     return;
                 }
@@ -3258,8 +3336,8 @@ namespace PlayniteAchievements.Services.UI
                 // rather than an observation, so the recorder never waits on the capture to plan a
                 // window.
                 RaiseWaveDisplayed(
-                    cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain,
-                    soundAlignmentMs, soundPlaybackId);
+                    cardItems, soundPlayedUtc, surfaceCaptureUtc, unlockCaptureUtc, soundFilePath,
+                    soundFileGain, soundAlignmentMs, soundPlaybackId);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);
@@ -3268,21 +3346,32 @@ namespace PlayniteAchievements.Services.UI
                 // so each item's card renders at its final laid-out size. Cards render on the UI
                 // thread (live visuals); the clones and blits run on the thread pool.
                 Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> toastCompositeTask = null;
+                Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> delayedCompositeTask = null;
                 if (plan != null && plan.NeedsToastComposite)
                 {
-                    // Deliberately not awaited. The call rasterizes every card synchronously before
-                    // its first await — which is why it has to run here, with the wave settled and
-                    // the window alive — and defers only the blit onto the base frame. Awaiting it
-                    // would park the hold, countdown and slide-out behind a delayed capture and
-                    // leave the toast on screen for the length of the delay.
-                    toastCompositeTask = ComposeWaveWithToastAsync(
-                        plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
+                    // The cards are rasterized synchronously here, with the wave settled and the
+                    // window alive. The blits are deliberately not awaited: awaiting them would
+                    // park the hold, countdown and slide-out behind a delayed capture and leave
+                    // the toast on screen for the length of the delay.
+                    var rendered = RenderWaveToastOverlays(plan, window, waveIsTestFire);
+                    toastCompositeTask = BlitWaveToastOverlaysAsync(
+                        rendered, baseCaptureTask, anchorFramesTask, null,
+                        disposeOverlays: delayedCaptureTask == null);
+                    if (delayedCaptureTask != null)
+                    {
+                        delayedCompositeTask = BlitWaveToastOverlaysAsync(
+                            rendered, delayedCaptureTask, null, toastCompositeTask,
+                            disposeOverlays: true);
+                    }
                 }
 
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
+                    _ = SaveWaveScreenshotSetsAsync(
+                        plan, baseCaptureTask, anchorFramesTask, toastCompositeTask,
+                        delayedCaptureTask, delayedCompositeTask);
                     baseCaptureTask = null;
+                    delayedCaptureTask = null;
                     anchorFramesTask = null;
                 }
 
@@ -3467,6 +3556,7 @@ namespace PlayniteAchievements.Services.UI
                 // Null after the save pipeline takes ownership; disposes the pending captures when
                 // the wave aborts (dispose, exception) before the hand-off.
                 DisposeCaptureTask(baseCaptureTask);
+                DisposeCaptureTask(delayedCaptureTask);
                 DisposeAnchorFramesTask(anchorFramesTask);
 
                 if (onRendering != null)
@@ -3862,11 +3952,33 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Saves all requested screenshot variants for a wave. Starts on the UI thread
-        /// (fire-and-forget from the toast pipeline): framed composites render on the dispatcher
-        /// at Background priority so the toast animation stays smooth, and all PNG/file I/O is
-        /// offloaded to the thread pool. Owns disposal of the base capture and every per-item
-        /// with-notification composite.
+        /// Saves a wave's capture sets in order: the only or unlock set, then the delayed set when
+        /// the wave has one. The second save starts after the first has written its files, so the
+        /// first set takes the normal file names and the second the duplicate names.
+        /// </summary>
+        private async Task SaveWaveScreenshotSetsAsync(
+            WaveScreenshotPlan plan,
+            Task<System.Drawing.Bitmap> baseCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> toastCompositeTask,
+            Task<System.Drawing.Bitmap> delayedCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> delayedCompositeTask)
+        {
+            await SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask)
+                .ConfigureAwait(true);
+            if (delayedCaptureTask != null)
+            {
+                await SaveWaveScreenshotsAsync(plan, delayedCaptureTask, null, delayedCompositeTask)
+                    .ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Saves all requested screenshot variants for one capture set of a wave. Starts on the UI
+        /// thread: framed composites render on the dispatcher at Background priority so the toast
+        /// animation stays smooth, and all PNG/file I/O is offloaded to the thread pool. Owns
+        /// disposal of the base capture and every per-item with-notification composite. Completes
+        /// once the files are written.
         /// </summary>
         private async Task SaveWaveScreenshotsAsync(
             WaveScreenshotPlan plan,
@@ -3968,7 +4080,7 @@ namespace PlayniteAchievements.Services.UI
                 baseBitmap = null;
                 toastByVm = null;
                 anchorFrames = null;
-                _ = Task.Run(() =>
+                await Task.Run(() =>
                 {
                     try
                     {
@@ -4027,7 +4139,7 @@ namespace PlayniteAchievements.Services.UI
                         DisposeAll(toasts);
                         DisposeAll(frames);
                     }
-                });
+                }).ConfigureAwait(true);
             }
             catch (Exception ex)
             {

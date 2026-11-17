@@ -876,6 +876,7 @@ namespace PlayniteAchievements.Models.Tests
                 ToastDurationSeconds = 8,
                 NotificationDelaySeconds = 0.4,
                 CaptureDelaySeconds = 0.7,
+                CaptureAtUnlockAndAfterDelay = true,
                 MaxConcurrentToasts = 4,
                 ToastPosition = ToastScreenCorner.TopLeft
             };
@@ -936,6 +937,13 @@ namespace PlayniteAchievements.Models.Tests
 
             settings.CaptureDelaySeconds = 120;
             Assert.AreEqual(120, settings.CaptureDelaySeconds);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsCaptureAtUnlockAndAfterDelayOff()
+        {
+            Assert.IsFalse(new PersistedSettings().CaptureAtUnlockAndAfterDelay);
+            Assert.IsFalse(new GameCaptureOverride().CaptureAtUnlockAndAfterDelay);
         }
 
         [TestMethod]
@@ -2242,6 +2250,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
             Assert.AreEqual(expected.NotificationDelaySeconds, actual.NotificationDelaySeconds);
             Assert.AreEqual(expected.CaptureDelaySeconds, actual.CaptureDelaySeconds);
+            Assert.AreEqual(expected.CaptureAtUnlockAndAfterDelay, actual.CaptureAtUnlockAndAfterDelay);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
         }
