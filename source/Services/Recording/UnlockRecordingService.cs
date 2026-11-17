@@ -330,6 +330,18 @@ namespace PlayniteAchievements.Services.Recording
             /// </summary>
             public double TotalDelaySeconds => NotificationDelaySeconds + CaptureDelaySeconds;
 
+            /// <summary>
+            /// Snapshotted at unlock: this unlock produces two clips, the one a capture delay of
+            /// zero would produce and then the delayed one. Only set with a capture delay.
+            /// </summary>
+            public bool CaptureAtUnlockAndAfterDelay;
+
+            /// <summary>
+            /// The instant the wave's unlock capture set is aimed at, stamped under the gate when
+            /// the wave reports its display instant. Null keeps the unlock clip unlock-anchored.
+            /// </summary>
+            public DateTime? UnlockCaptureUtc;
+
             /// <summary>The clip variants this unlock produces, resolved at unlock; never none.</summary>
             public ScreenshotVariants Variants;
 
@@ -1172,6 +1184,8 @@ namespace PlayniteAchievements.Services.Recording
                     ?? Math.Max(2, persisted.ToastDurationSeconds),
                 NotificationDelaySeconds = notificationDelaySeconds,
                 CaptureDelaySeconds = captureDelaySeconds,
+                CaptureAtUnlockAndAfterDelay =
+                    captureDelaySeconds > 0 && effective.Captures.CaptureAtUnlockAndAfterDelay,
                 Variants = variants,
                 FramedSeconds = effective.Captures.UnlockRecordingFramedSeconds,
                 TrackTcs = new TaskCompletionSource<ToastOverlayTrack>(
@@ -1248,7 +1262,11 @@ namespace PlayniteAchievements.Services.Recording
                         r.DisplayTcs != null &&
                         !r.DisplayTcs.Task.IsCompleted &&
                         r.CaptureCorrelationId == vm.CaptureCorrelationId);
-                    displayMatch?.DisplayTcs.TrySetResult(e.SurfaceCaptureUtc);
+                    if (displayMatch != null)
+                    {
+                        displayMatch.UnlockCaptureUtc = e.UnlockCaptureUtc;
+                        displayMatch.DisplayTcs.TrySetResult(e.SurfaceCaptureUtc);
+                    }
                 }
             }
         }
@@ -1324,9 +1342,17 @@ namespace PlayniteAchievements.Services.Recording
         /// appeared, so that instant has to be waited for before the window exists — the one thing
         /// that runs ahead of the base extraction. It falls back to the unlock anchor rather than
         /// blocking indefinitely, so base-first still holds for every outcome.
+        ///
+        /// A request that captures both at the unlock and after the capture delay produces two
+        /// clips. The unlock clip is the one a capture delay of zero would produce: unlock-anchored
+        /// with no notification delay (its base is then extracted at once, ahead of any wait), and
+        /// anchored on the wave start with one. The delayed clip is the usual one. Both bases are
+        /// extracted before the track wait, and the unlock clip's variants are placed first, so
+        /// they take the normal file names and the delayed ones the duplicate names.
         /// </summary>
         private async Task ProduceClipAsync(ClipRequest request)
         {
+            var bases = new List<ClipBase>();
             try
             {
                 var session = request.Session;
@@ -1337,129 +1363,262 @@ namespace PlayniteAchievements.Services.Recording
                     return;
                 }
 
-                var pollInterval = Math.Max(10, persisted.InGamePollIntervalSeconds);
                 var toastSlotSeconds = request.EffectiveToastSeconds + SlideAllowanceSeconds;
+                var both = request.CaptureAtUnlockAndAfterDelay;
+                if (both && request.NotificationDelaySeconds <= 0)
+                {
+                    AddBase(bases, await ExportClipBaseAsync(
+                            request, persisted, toastSlotSeconds, displayAnchorUtc: null, keepHeld: true)
+                        .ConfigureAwait(false));
+                }
+
                 var displayAnchorUtc = await WaitForDisplayAsync(request).ConfigureAwait(false);
-                var window = SegmentTimeline.ComputeClipWindow(
-                    request.VideoAnchorUtc,
-                    request.ObservedUtc,
-                    session.CaptureStartUtc,
-                    oldestSegmentStartUtc: null,
-                    pollIntervalSeconds: pollInterval,
-                    preRollSeconds: persisted.RecordingClipSeconds,
-                    toastSlotSeconds: toastSlotSeconds,
-                    tailSeconds: ToastTailSeconds,
-                    displayAnchorUtc: displayAnchorUtc);
-
-                if ((window.EndUtc - window.StartUtc).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
+                if (both && request.NotificationDelaySeconds > 0)
                 {
-                    _logger?.Debug(
-                        $"[Recording] Clip window for '{request.AchievementName}' collapsed below {SegmentTimeline.MinimumWindowSeconds}s; skipping.");
-                    AbandonTrackWait(request);
-                    return;
-                }
-
-                var outputPaths = BuildOutputPaths(persisted, request);
-                if (outputPaths == null)
-                {
-                    AbandonTrackWait(request);
-                    return;
-                }
-
-                // Base extraction: prune suspension covers only this span — once the base exists,
-                // the buffer no longer owes this clip anything, even if its toast is queued far
-                // behind other waves.
-                string basePath;
-                double videoLeadSeconds;
-                DateTime clipStartUtc;
-                lock (_outstandingGate)
-                {
-                    _outstandingWindowStarts.Add(window.StartUtc);
-                }
-
-                try
-                {
-                    (basePath, videoLeadSeconds, clipStartUtc) = await ExportBaseClipAsync(session, request, window)
-                        .ConfigureAwait(false);
-                }
-                finally
-                {
-                    lock (_outstandingGate)
-                    {
-                        _outstandingWindowStarts.Remove(window.StartUtc);
-                    }
-                }
-
-                if (basePath == null)
-                {
-                    AbandonTrackWait(request);
-                    return;
-                }
-
-                try
-                {
-                    var track = await WaitForTrackAsync(request).ConfigureAwait(false);
+                    DateTime? unlockAnchorUtc;
                     lock (_gate)
                     {
-                        // A clean-only request's wait resolved at once and was never matched.
-                        _awaitingTrack.Remove(request);
+                        unlockAnchorUtc = request.UnlockCaptureUtc;
                     }
 
-                    var composition = ResolveComposition(
-                        session, request, track, window, toastSlotSeconds, videoLeadSeconds, clipStartUtc);
-                    var cleanWanted = (request.Variants & ScreenshotVariants.Clean) != 0;
-
-                    // The notification clip first: it is the one most setups ask for, and the others
-                    // re-encode more. A clip whose composite fails is saved without its notification,
-                    // unless a clean clip is being saved anyway.
-                    if ((request.Variants & ScreenshotVariants.WithToast) != 0)
-                    {
-                        var toast = MediaFoundationOverlayReencoder.CreateToastSource(
-                            track, composition.ToastStartSeconds, toastSlotSeconds);
-                        var composited = toast == null
-                            ? null
-                            : await EncodeVariantAsync(
-                                    session, basePath, new[] { toast }, videoLeadSeconds, composition, withChime: true)
-                                .ConfigureAwait(false);
-                        if (composited == null)
-                        {
-                            _logger?.Warn(
-                                $"[Recording] Toast composite failed for '{request.AchievementName}'" +
-                                (cleanWanted ? "; the clean clip is still saved." : "; saving the clip without a toast."));
-                        }
-
-                        PlaceClip(request, composited ?? (cleanWanted ? null : basePath), outputPaths.WithToast,
-                            fromBase: composited == null);
-                    }
-
-                    if (cleanWanted)
-                    {
-                        // Cut to the same span as the composited variants; the base itself starts a
-                        // keyframe lead early and runs out the worst-case tail.
-                        var trimmed = await EncodeVariantAsync(
-                                session, basePath, new IFrameOverlaySource[0], videoLeadSeconds, composition,
-                                withChime: false)
-                            .ConfigureAwait(false);
-                        PlaceClip(request, trimmed ?? basePath, outputPaths.Clean, fromBase: trimmed == null);
-                    }
-
-                    if ((request.Variants & ScreenshotVariants.Framed) != 0)
-                    {
-                        var framed = await EncodeFramedAsync(
-                                session, request, basePath, track, videoLeadSeconds, composition, toastSlotSeconds)
-                            .ConfigureAwait(false);
-                        PlaceClip(request, framed, outputPaths.Framed, fromBase: false);
-                    }
+                    AddBase(bases, await ExportClipBaseAsync(
+                            request, persisted, toastSlotSeconds, unlockAnchorUtc, keepHeld: true)
+                        .ConfigureAwait(false));
                 }
-                finally
+
+                // Without a display instant the delayed clip of a pair would fall back to the
+                // unlock anchor and repeat the unlock clip, so it is left out.
+                if (!both || displayAnchorUtc.HasValue)
                 {
-                    TryDeleteFile(basePath);
+                    AddBase(bases, await ExportClipBaseAsync(
+                            request, persisted, toastSlotSeconds, displayAnchorUtc, keepHeld: false)
+                        .ConfigureAwait(false));
+                }
+
+                if (bases.Count == 0)
+                {
+                    AbandonTrackWait(request);
+                    return;
+                }
+
+                var track = await WaitForTrackAsync(request).ConfigureAwait(false);
+                lock (_gate)
+                {
+                    // A clean-only request's wait resolved at once and was never matched.
+                    _awaitingTrack.Remove(request);
+                }
+
+                foreach (var clipBase in bases)
+                {
+                    await EncodeAndPlaceVariantsAsync(session, request, clipBase, track, toastSlotSeconds)
+                        .ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
             {
                 AbandonTrackWait(request);
                 _logger?.Debug(ex, $"[Recording] Clip production failed for '{request?.AchievementName}'.");
+            }
+            finally
+            {
+                foreach (var clipBase in bases)
+                {
+                    TryDeleteFile(clipBase.BasePath);
+                    if (clipBase.HeldWindowStartUtc.HasValue)
+                    {
+                        lock (_outstandingGate)
+                        {
+                            _outstandingWindowStarts.Remove(clipBase.HeldWindowStartUtc.Value);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>One extracted toastless base clip with the window and paths it was cut for.</summary>
+        private sealed class ClipBase
+        {
+            public SegmentTimeline.ClipWindow Window;
+            public ClipOutputPaths OutputPaths;
+            public string BasePath;
+            public double VideoLeadSeconds;
+            public DateTime ClipStartUtc;
+
+            /// <summary>The request's fallback-track flag as this base's own audio selection left it.</summary>
+            public bool UsedFallbackTrack;
+
+            /// <summary>
+            /// Set when this base's window start is still registered against pruning, which the
+            /// producer releases once every base of the request has been extracted and encoded.
+            /// </summary>
+            public DateTime? HeldWindowStartUtc;
+        }
+
+        private static void AddBase(List<ClipBase> bases, ClipBase clipBase)
+        {
+            if (clipBase != null)
+            {
+                bases.Add(clipBase);
+            }
+        }
+
+        /// <summary>
+        /// Computes the clip window for <paramref name="displayAnchorUtc"/> (null anchors on the
+        /// unlock) and extracts its toastless base. Null when the window collapsed, no output path
+        /// could be built, or the extraction failed.
+        ///
+        /// Pruning is suspended back to the window start for the extraction. With
+        /// <paramref name="keepHeld"/> a successful extraction leaves that suspension in place:
+        /// the request's later window starts after this one, so holding the earlier start keeps
+        /// the later window's footage until it has been extracted too.
+        /// </summary>
+        private async Task<ClipBase> ExportClipBaseAsync(
+            ClipRequest request, PersistedSettings persisted, double toastSlotSeconds,
+            DateTime? displayAnchorUtc, bool keepHeld)
+        {
+            var session = request.Session;
+            var window = SegmentTimeline.ComputeClipWindow(
+                request.VideoAnchorUtc,
+                request.ObservedUtc,
+                session.CaptureStartUtc,
+                oldestSegmentStartUtc: null,
+                pollIntervalSeconds: Math.Max(10, persisted.InGamePollIntervalSeconds),
+                preRollSeconds: persisted.RecordingClipSeconds,
+                toastSlotSeconds: toastSlotSeconds,
+                tailSeconds: ToastTailSeconds,
+                displayAnchorUtc: displayAnchorUtc);
+
+            if ((window.EndUtc - window.StartUtc).TotalSeconds < SegmentTimeline.MinimumWindowSeconds)
+            {
+                _logger?.Debug(
+                    $"[Recording] Clip window for '{request.AchievementName}' collapsed below {SegmentTimeline.MinimumWindowSeconds}s; skipping.");
+                return null;
+            }
+
+            var outputPaths = BuildOutputPaths(persisted, request);
+            if (outputPaths == null)
+            {
+                return null;
+            }
+
+            // Each base's audio selection sets the request's fallback flag for itself.
+            lock (_gate)
+            {
+                request.UsedFallbackTrack = false;
+            }
+
+            // Base extraction: prune suspension covers only this span — once the base exists,
+            // the buffer no longer owes this clip anything, even if its toast is queued far
+            // behind other waves.
+            string basePath = null;
+            double videoLeadSeconds;
+            DateTime clipStartUtc;
+            lock (_outstandingGate)
+            {
+                _outstandingWindowStarts.Add(window.StartUtc);
+            }
+
+            try
+            {
+                (basePath, videoLeadSeconds, clipStartUtc) = await ExportBaseClipAsync(session, request, window)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                if (!keepHeld || basePath == null)
+                {
+                    lock (_outstandingGate)
+                    {
+                        _outstandingWindowStarts.Remove(window.StartUtc);
+                    }
+                }
+            }
+
+            if (basePath == null)
+            {
+                return null;
+            }
+
+            bool usedFallbackTrack;
+            lock (_gate)
+            {
+                usedFallbackTrack = request.UsedFallbackTrack;
+            }
+
+            return new ClipBase
+            {
+                Window = window,
+                OutputPaths = outputPaths,
+                BasePath = basePath,
+                VideoLeadSeconds = videoLeadSeconds,
+                ClipStartUtc = clipStartUtc,
+                UsedFallbackTrack = usedFallbackTrack,
+                HeldWindowStartUtc = keepHeld ? window.StartUtc : (DateTime?)null,
+            };
+        }
+
+        /// <summary>
+        /// Encodes every requested variant from one base and places each at its output path.
+        /// </summary>
+        private async Task EncodeAndPlaceVariantsAsync(
+            CaptureSession session, ClipRequest request, ClipBase clipBase, ToastOverlayTrack track,
+            double toastSlotSeconds)
+        {
+            var basePath = clipBase.BasePath;
+            var videoLeadSeconds = clipBase.VideoLeadSeconds;
+            var outputPaths = clipBase.OutputPaths;
+
+            // The composition's chime decision reads the flag this base's own extraction set.
+            lock (_gate)
+            {
+                request.UsedFallbackTrack = clipBase.UsedFallbackTrack;
+            }
+
+            var composition = ResolveComposition(
+                session, request, track, clipBase.Window, toastSlotSeconds, videoLeadSeconds,
+                clipBase.ClipStartUtc);
+            var cleanWanted = (request.Variants & ScreenshotVariants.Clean) != 0;
+
+            // The notification clip first: it is the one most setups ask for, and the others
+            // re-encode more. A clip whose composite fails is saved without its notification,
+            // unless a clean clip is being saved anyway.
+            if ((request.Variants & ScreenshotVariants.WithToast) != 0)
+            {
+                var toast = MediaFoundationOverlayReencoder.CreateToastSource(
+                    track, composition.ToastStartSeconds, toastSlotSeconds);
+                var composited = toast == null
+                    ? null
+                    : await EncodeVariantAsync(
+                            session, basePath, new[] { toast }, videoLeadSeconds, composition, withChime: true)
+                        .ConfigureAwait(false);
+                if (composited == null)
+                {
+                    _logger?.Warn(
+                        $"[Recording] Toast composite failed for '{request.AchievementName}'" +
+                        (cleanWanted ? "; the clean clip is still saved." : "; saving the clip without a toast."));
+                }
+
+                PlaceClip(request, composited ?? (cleanWanted ? null : basePath), outputPaths.WithToast,
+                    fromBase: composited == null);
+            }
+
+            if (cleanWanted)
+            {
+                // Cut to the same span as the composited variants; the base itself starts a
+                // keyframe lead early and runs out the worst-case tail.
+                var trimmed = await EncodeVariantAsync(
+                        session, basePath, new IFrameOverlaySource[0], videoLeadSeconds, composition,
+                        withChime: false)
+                    .ConfigureAwait(false);
+                PlaceClip(request, trimmed ?? basePath, outputPaths.Clean, fromBase: trimmed == null);
+            }
+
+            if ((request.Variants & ScreenshotVariants.Framed) != 0)
+            {
+                var framed = await EncodeFramedAsync(
+                        session, request, basePath, track, videoLeadSeconds, composition, toastSlotSeconds)
+                    .ConfigureAwait(false);
+                PlaceClip(request, framed, outputPaths.Framed, fromBase: false);
             }
         }
 
