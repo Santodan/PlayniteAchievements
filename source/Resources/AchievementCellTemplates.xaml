@@ -1047,29 +1047,39 @@
         </StackPanel>
     </DataTemplate>
 
+    <!-- The stand-in drawn in a Compare avatar circle whose side has no avatar image (a
+         provider with no stored account, or a friend with no cached avatar). The element's Tag
+         carries the avatar path. -->
+    <Style x:Key="CompareAvatarPlaceholderStyle" TargetType="controls:GlyphIcon">
+        <Setter Property="Glyph" Value="&#xED05;"/>
+        <Setter Property="Size" Value="11"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Icon}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="{x:Null}">
+                <Setter Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="">
+                <Setter Property="Visibility" Value="Visible"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Unlock Date / Progress Template -->
     <DataTemplate x:Key="AchievementUnlockDateTemplate">
         <!-- The tooltip names both sides of the comparison, so it covers the whole cell rather
              than only the friend's row. It resolves to null outside compare mode.
 
-             Outside compare mode the grid stretches and the date aligns itself inside the star
-             column, as it always has. In compare mode the grid instead sizes to its content and
-             takes the column's alignment itself, so the avatar+date block moves as one unit:
-             centered centers the whole pair, right pushes the whole pair right. Aligning each row
-             on its own instead would leave the two avatars at different offsets, since the rows
-             hold different text. -->
+             The grid always stretches. In compare mode the avatars sit in column 0 at the cell's
+             left edge, so they form one column down the grid whatever the rows hold, and each
+             row's text takes the column's configured alignment within the space to their right. -->
         <Grid Background="Transparent"
+              HorizontalAlignment="Stretch"
               ToolTip="{Binding ComparisonToolTip, Mode=OneWay}">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                            <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -1087,29 +1097,20 @@
                     Margin="0,0,5,0"
                     ClipToBounds="True"
                     VerticalAlignment="Center"
+                    Background="{DynamicResource PlayAch.Brush.Control.Background}"
                     Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
-                <Image Stretch="Uniform"
-                       helpers:AsyncImage.Uri="{Binding ComparisonOwnerAvatarPath}"
-                       helpers:AsyncImage.DecodePixel="32"/>
+                <Grid>
+                    <controls:GlyphIcon Style="{StaticResource CompareAvatarPlaceholderStyle}"
+                                        Tag="{Binding ComparisonOwnerAvatarPath}"/>
+                    <Image Stretch="Uniform"
+                           helpers:AsyncImage.Uri="{Binding ComparisonOwnerAvatarPath}"
+                           helpers:AsyncImage.DecodePixel="32"/>
+                </Grid>
             </Border>
 
-            <!-- Inside the block the text sits hard against its avatar; the block as a whole is
-                 what carries the column's alignment (see the grid style above). Letting the text
-                 align itself here as well would slide it away from the avatar and stagger the two
-                 rows. Outside compare mode there is no block to align, so the column's configured
-                 alignment applies to the text directly, as it always has. -->
             <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                   Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                                <Setter Property="HorizontalAlignment" Value="Left"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
                 <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                         Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                         Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -1125,21 +1126,23 @@
                 </TextBlock>
             </Grid>
 
+            <!-- Hidden in compare mode for an unlock with no date, where the Unlocked label below
+                 takes the row. -->
             <Grid Grid.Column="1"
-                Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
                 Margin="4,0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
-                <!-- The column stops stretching once the cell sizes to its content in compare
-                     mode, so the bar needs a floor there or it shrinks to the width of whatever
-                     text the friend row happens to carry. Left unconstrained otherwise, where the
-                     star column still drives its width. -->
                 <Grid.Style>
                     <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                                <Setter Property="MinWidth" Value="80"/>
-                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasComparison}" Value="True"/>
+                                    <Condition Binding="{Binding UnlockedWithoutDate}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
@@ -1161,7 +1164,8 @@
                  the progress bar inside it only renders when HasProgress, so a locked achievement
                  with no progress data leaves this row empty. Beside an avatar that reads as a
                  stray image, so the friend row's Locked label is mirrored here. -->
-            <Grid Grid.Column="1" HorizontalAlignment="Left">
+            <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -1184,10 +1188,35 @@
                         Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
             </Grid>
 
-            <!-- Comparison row: the compare friend's avatar + unlock date, Locked, or N/A when
-                 they have no data for the row's game. The avatar
-                 sits in the same Auto column as the owner's above it, so the two line up by
-                 construction instead of each row aligning itself independently. -->
+            <!-- Owner's Unlocked label, compare mode only: an unlock with no date on record (a
+                 manual unlock) has no date to show beside the avatar. -->
+            <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasComparison}" Value="True"/>
+                                    <Condition Binding="{Binding UnlockedWithoutDate}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
+            </Grid>
+
+            <!-- Comparison row: the compare friend's avatar + unlock date, Unlocked when they have
+                 it with no date, Locked, or N/A when they have no data for the row's game. The
+                 avatar sits in the same Auto column as the owner's above it, so the two line up
+                 by construction. -->
             <Border Grid.Row="1"
                     Grid.Column="0"
                     Width="16"
@@ -1196,19 +1225,23 @@
                     Margin="0,2,5,0"
                     ClipToBounds="True"
                     VerticalAlignment="Center"
+                    Background="{DynamicResource PlayAch.Brush.Control.Background}"
                     Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
-                <Image Stretch="Uniform"
-                       helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
-                       helpers:AsyncImage.DecodePixel="32"/>
+                <Grid>
+                    <controls:GlyphIcon Style="{StaticResource CompareAvatarPlaceholderStyle}"
+                                        Tag="{Binding ComparisonFriendAvatarPath}"/>
+                    <Image Stretch="Uniform"
+                           helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
+                           helpers:AsyncImage.DecodePixel="32"/>
+                </Grid>
             </Border>
 
-            <!-- Left, matching the owner's text above: this row only exists in compare mode, where
-                 both sides are pinned left against their shared avatar column. -->
+            <!-- The friend's text takes the column's alignment, as the owner's text above does. -->
             <StackPanel Grid.Row="1"
                         Grid.Column="1"
                         Orientation="Horizontal"
                         Margin="0,2,0,0"
-                        HorizontalAlignment="Left"
+                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                         Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
                 <TextBlock VerticalAlignment="Center"
                         Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -1223,6 +1256,12 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                        Visibility="{Binding ComparisonUnlockedWithoutDate, Converter={StaticResource BoolToVis}}"/>
                 <!-- The outer panel shows Locked for every row that is not unlocked; the text
                      inside reads N/A instead when the comparison does not apply. -->
                 <StackPanel Orientation="Horizontal"
