@@ -817,8 +817,9 @@ namespace PlayniteAchievements.Services
 
         /// <summary>
         /// Applies a linked file read. Linked-definition rows go to the cache and the manual link,
-        /// so the next refresh keeps them; custom rows go to their definitions, which the cache
-        /// never holds. The snapshots include the custom rows so their unlocks are announced.
+        /// so the next refresh keeps them; a platform's rows go to the cache, which keeps a recorded
+        /// unlock through refreshes; custom rows go to their definitions, which the cache never
+        /// holds. The snapshots include the custom rows so their unlocks are announced.
         /// </summary>
         private void ApplyLinkedFileResult(
             GamePollState state,
@@ -839,11 +840,19 @@ namespace PlayniteAchievements.Services
             var linkedDefinitionRows = observations
                 .Where(observation => !CustomAchievementProjectionService.IsCustomApiName(observation?.ApiName))
                 .ToList();
-            if (linkedDefinitionRows.Count > 0 && state.Provider != null && _progressWriter != null)
+            // The rows are written under the provider the cache holds them for, which need not be
+            // one that services the game right now.
+            var cachedProviderKey = _cacheManager?.LoadGameData(gameId.ToString())?.ProviderKey;
+            if (string.IsNullOrWhiteSpace(cachedProviderKey))
+            {
+                cachedProviderKey = state.Provider?.ProviderKey;
+            }
+
+            if (linkedDefinitionRows.Count > 0 && !string.IsNullOrWhiteSpace(cachedProviderKey) && _progressWriter != null)
             {
                 var cacheWrite = _progressWriter.ApplyInGameProgress(
                     gameId.ToString(),
-                    state.Provider.ProviderKey,
+                    cachedProviderKey,
                     linkedDefinitionRows);
                 if (cacheWrite?.Success == true)
                 {
