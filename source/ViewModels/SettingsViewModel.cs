@@ -44,7 +44,10 @@ namespace PlayniteAchievements.ViewModels
         public PlayniteAchievementsSettingsViewModel(PlayniteAchievementsPlugin plugin)
         {
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
-            GameCustomDataStore = new GameCustomDataStore(_plugin.GetPluginUserDataPath(), _logger);
+            using (PerfScope.StartStartup(_logger, "SettingsLoad.CustomDataStore", thresholdMs: 20))
+            {
+                GameCustomDataStore = new GameCustomDataStore(_plugin.GetPluginUserDataPath(), _logger);
+            }
 
             // Load saved settings with migration support
             var savedSettings = LoadSettingsWithMigration();
@@ -54,7 +57,10 @@ namespace PlayniteAchievements.ViewModels
                 // Set the plugin reference for ISettings methods
                 Settings._plugin = _plugin;
                 // Initialize DontSerialize properties that are not persisted
-                Settings.InitializeThemeProperties();
+                using (PerfScope.StartStartup(_logger, "SettingsLoad.InitializeThemeProperties", thresholdMs: 20))
+                {
+                    Settings.InitializeThemeProperties();
+                }
                 _logger.Info($"Settings loaded from storage. EnablePeriodicUpdates={Settings.Persisted.EnablePeriodicUpdates}");
             }
             else
@@ -83,6 +89,7 @@ namespace PlayniteAchievements.ViewModels
 
                 // Read raw JSON and run migration
                 var rawJson = File.ReadAllText(settingsFilePath);
+                var migrateScope = PerfScope.StartStartup(_logger, "SettingsLoad.Migrate", thresholdMs: 20, context: $"bytes={rawJson.Length}");
                 var migratedJson = ProviderSettingsMigration.MigrateFromJson(rawJson);
                 var overviewMigratedJson = OverviewSettingsMigration.MigrateFromJson(migratedJson);
                 var gridOptionsMigratedJson = GridOptionsSettingsMigration.MigrateFromJson(overviewMigratedJson);
@@ -93,6 +100,7 @@ namespace PlayniteAchievements.ViewModels
                 var notificationStyleMigratedJson = NotificationStyleSettingsMigration.MigrateFromJson(unlockSoundMigratedJson);
                 var metadataMigratedJson = MetadataSettingsMigration.MigrateFromJson(notificationStyleMigratedJson);
                 var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(metadataMigratedJson);
+                migrateScope?.Dispose();
 
                 // If migration changed the JSON, save the migrated version
                 if (fullyMigratedJson != rawJson)
@@ -117,7 +125,10 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 // Deserialize the (potentially migrated) JSON
-                return Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(fullyMigratedJson);
+                using (PerfScope.StartStartup(_logger, "SettingsLoad.Deserialize", thresholdMs: 20))
+                {
+                    return Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(fullyMigratedJson);
+                }
             }
             catch (Exception ex)
             {

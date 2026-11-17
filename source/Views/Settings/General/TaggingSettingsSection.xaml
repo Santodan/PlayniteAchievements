@@ -21,7 +21,7 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
 
-            <!-- ================== TAGGING ================== -->
+            <!-- ================== TAGS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel Grid.IsSharedSizeScope="True">
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingHeader}"
@@ -36,28 +36,10 @@
                         <CheckBox IsChecked="{Binding Persisted.TaggingSettings.EnableTagging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </controls:SettingRow>
 
-                    <!-- Completion status, actions and the tag list - only visible when tagging is enabled -->
+                    <!-- Actions and the tag grids - only visible when tagging is enabled -->
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
                                 Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 Grid.IsSharedSizeScope="True">
-
-                        <!-- Completion Status -->
-                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SetCompletionStatus}">
-                            <CheckBox IsChecked="{Binding Persisted.TaggingSettings.SetCompletionStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                        </controls:SettingRow>
-
-                        <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                    Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    Grid.IsSharedSizeScope="True">
-                            <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_CompletionStatus}">
-                                <ComboBox x:Name="CompletionStatusComboBox"
-                                          MinWidth="200"
-                                          ItemsSource="{Binding CompletionStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                          DisplayMemberPath="Name"
-                                          SelectedValuePath="Id"
-                                          SelectedValue="{Binding Persisted.TaggingSettings.CompletionStatusId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, TargetNullValue={x:Static sys:Guid.Empty}}"/>
-                            </controls:SettingRow>
-                        </StackPanel>
 
                         <!-- Action Buttons: section-level actions, not one setting's control. -->
                         <StackPanel Orientation="Horizontal" Margin="0">
@@ -79,7 +61,7 @@
                                    Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
                         <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.StatusRows}"
                                            ShowHeaders="False"
-                                           TagColumns="3"/>
+                                           TagColumns="4"/>
 
                         <TextBlock Text="{DynamicResource LOCPlayAch_Filter_CustomizationSelectorPlaceholder}"
                                    FontWeight="SemiBold"
@@ -89,6 +71,72 @@
                                            FirstHeader="{DynamicResource LOCPlayAch_Common_Platform}"
                                            SecondHeader="{DynamicResource LOCPlayAch_Common_Metadata}"
                                            ThirdHeader="{DynamicResource LOCPlayAch_Common_Custom}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ================== FEATURES ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel Grid.IsSharedSizeScope="True">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FeatureSyncHeader}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FeatureSyncDescription}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}"
+                               TextWrapping="Wrap"/>
+
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableFeatureSync}">
+                        <CheckBox IsChecked="{Binding Persisted.TaggingSettings.EnableFeatureSync, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    </controls:SettingRow>
+
+                    <!-- Actions and the feature grid - only visible when feature sync is enabled -->
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                Visibility="{Binding Persisted.TaggingSettings.EnableFeatureSync, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Grid.IsSharedSizeScope="True">
+
+                        <StackPanel Orientation="Horizontal" Margin="0">
+                            <Button Content="{DynamicResource LOCPlayAch_Settings_ApplyAndSync}"
+                                    Click="ApplyAndSync_Click"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Settings_RemoveAllFeatures}"
+                                    Click="RemoveAllFeatures_Click"
+                                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Status}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.SubSectionHeading}"/>
+                        <local:TagRowsGrid DataContext="{Binding Persisted.TaggingSettings.FeatureStatusRows}"
+                                           ShowHeaders="False"
+                                           TagColumns="4"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ================== COMPLETION STATUS ================== -->
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel Grid.IsSharedSizeScope="True">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_CompletionStatus}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SetCompletionStatus}">
+                        <CheckBox IsChecked="{Binding Persisted.TaggingSettings.SetCompletionStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    </controls:SettingRow>
+
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
+                                Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Grid.IsSharedSizeScope="True">
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_CompletionStatus}">
+                            <ComboBox x:Name="CompletionStatusComboBox"
+                                      MinWidth="200"
+                                      ItemsSource="{Binding CompletionStatuses, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding Persisted.TaggingSettings.CompletionStatusId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, TargetNullValue={x:Static sys:Guid.Empty}}"/>
+                        </controls:SettingRow>
                     </StackPanel>
                 </StackPanel>
             </Border>

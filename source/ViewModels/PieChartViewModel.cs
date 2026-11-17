@@ -10,6 +10,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Overview;
 using Playnite.SDK;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
@@ -31,6 +32,9 @@ namespace PlayniteAchievements.ViewModels
             public int TotalCount { get; set; }
             public bool IsLocked { get; set; }
             public string TooltipTitle { get; set; }
+
+            /// <summary>The slice counts things without a total of its own, like completions.</summary>
+            public bool CountOnly { get; set; }
         }
 
         /// <summary>
@@ -305,46 +309,84 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Sets the pie chart data for Games completion (Completed vs Incomplete).
+        /// Sets the pie chart data for completions: one slice per finish badge, most finishes
+        /// first (ties keep the breakdown's priority order), then the open finishes as In
+        /// Progress and No Progress.
         /// </summary>
-        public void SetGameData(int totalGames, int completedGames, string completedLabel, string incompleteLabel)
+        public void SetCompletionData(CompletionBreakdown breakdown)
         {
-            if (totalGames == 0)
+            var dataPoints = new List<PieSliceInputData>();
+            var finishOrder = (breakdown?.FinishOrder ?? Array.Empty<CompletionBadgeKind>())
+                .OrderByDescending(kind => breakdown.Finishes(kind));
+            foreach (var kind in finishOrder)
             {
-                UpdateExactCounts(0, 0);
-                SynchronizePieChartAndLegend(new List<PieSliceData>());
-                return;
+                var count = breakdown.Finishes(kind);
+                dataPoints.Add(new PieSliceInputData
+                {
+                    Label = CompletionLabel(kind),
+                    Count = count,
+                    IconKey = CompletionIconKey(kind),
+                    Color = ResolveCurrentColor(CompletionIconKey(kind), out _),
+                    OriginalColorHex = string.Empty,
+                    UnlockedCount = count,
+                    TotalCount = count,
+                    CountOnly = true
+                });
             }
 
-            var incomplete = totalGames - completedGames;
-
-            var dataPoints = new List<PieSliceInputData>
+            if (breakdown != null)
             {
-                new PieSliceInputData
-                {
-                    Label = completedLabel,
-                    Count = completedGames,
-                    IconKey = "BadgeCompletedGame",
-                    Color = RarityAppearanceHelper.GetCompletedColor(),
-                    OriginalColorHex = string.Empty,
-                    UnlockedCount = completedGames,
-                    TotalCount = completedGames,
-                    IsLocked = false
-                },
-                new PieSliceInputData
-                {
-                    Label = incompleteLabel,
-                    Count = incomplete,
-                    IconKey = "BadgeLocked",
-                    Color = GetLockedColor(),
-                    OriginalColorHex = string.Empty,
-                    UnlockedCount = incomplete,
-                    TotalCount = incomplete,
-                    IsLocked = true
-                }
-            };
+                dataPoints.Add(OpenSlice(ProgressFilterChoices.Label(ProgressFilterChoices.InProgress), breakdown.InProgress, InProgressIconKey));
+                dataPoints.Add(OpenSlice(ProgressFilterChoices.Label(ProgressFilterChoices.NoProgress), breakdown.NoProgress, "BadgeLocked"));
+            }
 
             ApplySmallSliceMode(dataPoints);
+        }
+
+        // The open-padlock badge: started, not finished.
+        private const string InProgressIconKey = "BadgeUnlocked";
+
+        private static PieSliceInputData OpenSlice(string label, int count, string iconKey) =>
+            new PieSliceInputData
+            {
+                Label = label,
+                Count = count,
+                IconKey = iconKey,
+                Color = iconKey == InProgressIconKey ? GetInProgressColor() : GetLockedColor(),
+                OriginalColorHex = string.Empty,
+                UnlockedCount = count,
+                TotalCount = count,
+                IsLocked = true,
+                CountOnly = true
+            };
+
+        /// <summary>
+        /// The label a finish badge's completions slice is drawn under: its Progress filter
+        /// choice's, so a slice and the choice it stands for read the same.
+        /// </summary>
+        public static string CompletionLabel(CompletionBadgeKind kind) =>
+            ProgressFilterChoices.Label(ProgressFilterChoices.KeyOf(kind));
+
+        private static string CompletionIconKey(CompletionBadgeKind kind)
+        {
+            switch (kind)
+            {
+                case CompletionBadgeKind.Platinum:
+                    return "TrophyPlatinum";
+                case CompletionBadgeKind.Mythic:
+                    return "BadgeRarityMythic";
+                default:
+                    return "BadgeCompletedGame";
+            }
+        }
+
+        // Partway from the locked surface to the completed color, flat like the locked slice.
+        private static Color GetInProgressColor()
+        {
+            var locked = GetLockedColor();
+            var completed = RarityAppearanceHelper.GetCompletedColor();
+            byte mix(byte from, byte to) => (byte)(from + (to - from) * 0.4);
+            return Color.FromRgb(mix(locked.R, completed.R), mix(locked.G, completed.G), mix(locked.B, completed.B));
         }
 
         /// <summary>
@@ -928,7 +970,7 @@ namespace PlayniteAchievements.ViewModels
                 return string.Empty;
             }
 
-            if (dataPoint.IsLocked || IsCompletedGamesSlice(dataPoint.IconKey))
+            if (dataPoint.IsLocked || dataPoint.CountOnly)
             {
                 return dataPoint.Count.ToString("N0", FormattingCulture.Current);
             }
@@ -946,7 +988,7 @@ namespace PlayniteAchievements.ViewModels
             var totalLabel = ResourceProvider.GetString("LOCPlayAch_Column_Total");
             var piePercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(dataPoint.Count, pieTotalCount);
 
-            if (dataPoint.IsLocked || IsCompletedGamesSlice(dataPoint.IconKey))
+            if (dataPoint.IsLocked || dataPoint.CountOnly)
             {
                 return $"{PercentFormatter.FormatWhole(piePercent)} {totalLabel}";
             }
@@ -954,11 +996,6 @@ namespace PlayniteAchievements.ViewModels
             var unlockedLabel = ResourceProvider.GetString("LOCPlayAch_Common_Unlocked");
             var categoryPercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(dataPoint.UnlockedCount, dataPoint.TotalCount);
             return $"{PercentFormatter.FormatWhole(categoryPercent)} {unlockedLabel} ({PercentFormatter.FormatWhole(piePercent)} {totalLabel})";
-        }
-
-        private static bool IsCompletedGamesSlice(string iconKey)
-        {
-            return string.Equals(iconKey, "BadgeCompletedGame", StringComparison.Ordinal);
         }
 
         private static string ResolveLegendColor(PieSliceInputData dataPoint)
@@ -1022,6 +1059,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 case "BadgeCompletedGame":
                     return RarityAppearanceHelper.GetCompletedColor();
+                case "BadgeRarityMythic":
+                    return RarityAppearanceHelper.GetMythicColor();
+                case InProgressIconKey:
+                    return GetInProgressColor();
                 case "BadgePlatinumHexagon":
                 case "BadgeRarityUltraRare":
                     return RarityAppearanceHelper.GetPieColor(RarityTier.UltraRare);

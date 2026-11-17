@@ -1,9 +1,11 @@
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Providers.Metadata;
+using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
@@ -171,59 +173,6 @@ namespace PlayniteAchievements.Services.Images
                     cancel: cancel,
                     onIconProgress: onIconProgress)
                 .ConfigureAwait(false);
-
-            DeleteOwnCopiesOfBorrowedIcons(targets, fileStems, gameId);
-        }
-
-        /// <summary>
-        /// Deletes the game's own-folder files of achievements whose icon is used from a metadata
-        /// source folder. Those files are copies of the borrowed icon, or an own icon no longer
-        /// shown; a later fallback to the own icon downloads it again.
-        /// </summary>
-        private void DeleteOwnCopiesOfBorrowedIcons(
-            IReadOnlyList<AchievementDetail> achievements,
-            IReadOnlyDictionary<string, string> fileStems,
-            string gameId)
-        {
-            HashSet<string> ownFolder = null;
-            foreach (var achievement in achievements)
-            {
-                var apiName = NormalizeText(achievement?.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName) ||
-                    !AchievementIconCachePathBuilder.IsMetadataSourceIconPath(achievement.UnlockedIconPath, gameId) ||
-                    !fileStems.TryGetValue(apiName, out var fileStem) ||
-                    string.IsNullOrWhiteSpace(fileStem))
-                {
-                    continue;
-                }
-
-                // One listing of the own folder for the pass, taken at the first borrowed icon.
-                ownFolder = ownFolder ?? _diskImageService.ScanAchievementIconCacheDirectory(gameId);
-                if (ownFolder.Count == 0)
-                {
-                    return;
-                }
-
-                foreach (var variant in new[] { AchievementIconVariant.Unlocked, AchievementIconVariant.Locked })
-                {
-                    var ownPath = _diskImageService.FindExistingAchievementIconCachePath(gameId, fileStem, variant, ownFolder);
-                    if (string.IsNullOrWhiteSpace(ownPath) ||
-                        string.Equals(ownPath, achievement.UnlockedIconPath, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(ownPath, achievement.LockedIconPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        File.Delete(ownPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, $"Failed to delete own copy of borrowed icon '{ownPath}'.");
-                    }
-                }
-            }
         }
 
         public async Task PopulateFriendAvatarIconCacheAsync(
@@ -594,6 +543,132 @@ namespace PlayniteAchievements.Services.Images
             {
                 IconPath = TryGetResolvedPath(iconRequest, resolvedPaths),
                 CoverPath = TryGetResolvedPath(coverRequest, resolvedPaths)
+            };
+        }
+
+        // Caches a friend game's icon and cover from the ownership source URLs. For Steam games with
+        // an app id, a missing cover falls back to the library hero image, and anything still missing
+        // falls back to the Steam store appdetails images.
+        public async Task<FriendGameImageCacheResult> PopulateFriendGameImageCacheWithSteamFallbackAsync(
+            string providerKey,
+            string gameKey,
+            FriendGameOwnership source,
+            CancellationToken cancel,
+            Action onImageResolved)
+        {
+            var result = await PopulateFriendGameImageCacheAsync(
+                    providerKey,
+                    gameKey,
+                    source?.IconUrl,
+                    source?.CoverUrl,
+                    cancel,
+                    onImageResolved)
+                .ConfigureAwait(false);
+
+            if (!(source?.AppId > 0) ||
+                !string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase))
+            {
+                return result;
+            }
+
+            var missingIcon = string.IsNullOrWhiteSpace(result?.IconPath);
+            var missingCover = string.IsNullOrWhiteSpace(result?.CoverPath);
+            if (!missingIcon && !missingCover)
+            {
+                return result;
+            }
+
+            if (!missingIcon && missingCover)
+            {
+                var heroResult = await TryPopulateSteamFriendGameImageFallbackAsync(
+                        providerKey,
+                        gameKey,
+                        iconUrl: null,
+                        coverUrl: SteamImageUrls.LibraryHero(source.AppId),
+                        sourceIconUrl: source.IconUrl,
+                        sourceCoverUrl: source.CoverUrl,
+                        cancel: cancel)
+                    .ConfigureAwait(false);
+                result = MergeFriendGameImageResults(result, heroResult);
+                missingCover = string.IsNullOrWhiteSpace(result?.CoverPath);
+            }
+
+            missingIcon = string.IsNullOrWhiteSpace(result?.IconPath);
+            if (!missingIcon && !missingCover)
+            {
+                return result;
+            }
+
+            var storeFallback = await SteamImageUrls
+                .GetStoreFallbackAsync(source.AppId, cancel, _logger)
+                .ConfigureAwait(false);
+            if (storeFallback == null)
+            {
+                return result;
+            }
+
+            var storeResult = await TryPopulateSteamFriendGameImageFallbackAsync(
+                    providerKey,
+                    gameKey,
+                    iconUrl: missingIcon ? storeFallback.IconUrl : null,
+                    coverUrl: missingCover ? storeFallback.CoverUrl : null,
+                    sourceIconUrl: source.IconUrl,
+                    sourceCoverUrl: source.CoverUrl,
+                    cancel: cancel)
+                .ConfigureAwait(false);
+            return MergeFriendGameImageResults(result, storeResult);
+        }
+
+        private async Task<FriendGameImageCacheResult> TryPopulateSteamFriendGameImageFallbackAsync(
+            string providerKey,
+            string gameKey,
+            string iconUrl,
+            string coverUrl,
+            string sourceIconUrl,
+            string sourceCoverUrl,
+            CancellationToken cancel)
+        {
+            var fallbackIconUrl = IsDistinctCacheableImageSource(iconUrl, sourceIconUrl) ? iconUrl : null;
+            var fallbackCoverUrl = IsDistinctCacheableImageSource(coverUrl, sourceCoverUrl) ? coverUrl : null;
+            if (string.IsNullOrWhiteSpace(fallbackIconUrl) && string.IsNullOrWhiteSpace(fallbackCoverUrl))
+            {
+                return null;
+            }
+
+            return await PopulateFriendGameImageCacheAsync(
+                    providerKey,
+                    gameKey,
+                    fallbackIconUrl,
+                    fallbackCoverUrl,
+                    cancel,
+                    onImageResolved: null)
+                .ConfigureAwait(false);
+        }
+
+        private static bool IsDistinctCacheableImageSource(string candidate, string original)
+        {
+            return DiskImageService.IsCacheableImageSource(candidate) &&
+                   !string.Equals(candidate?.Trim(), original?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static FriendGameImageCacheResult MergeFriendGameImageResults(
+            FriendGameImageCacheResult primary,
+            FriendGameImageCacheResult fallback)
+        {
+            if (fallback == null)
+            {
+                return primary;
+            }
+
+            if (primary == null)
+            {
+                return fallback;
+            }
+
+            return new FriendGameImageCacheResult
+            {
+                IconPath = StringCoalesce.FirstNonBlank(primary.IconPath, fallback.IconPath),
+                CoverPath = StringCoalesce.FirstNonBlank(primary.CoverPath, fallback.CoverPath)
             };
         }
 

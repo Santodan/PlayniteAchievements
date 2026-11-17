@@ -56,6 +56,9 @@
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
                                        Style="{StaticResource ContextLabelStyle}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
+                                      IsChecked="{Binding Persisted.ShowCompactUnlockedListRarityBar}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
                                       IsChecked="{Binding Persisted.ModernUnlockedListShowRarityGlow}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>

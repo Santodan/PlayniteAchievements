@@ -284,10 +284,9 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The finish badge at mini-badge size. When the row's capstones are exactly its platinum
-         trophies and the user has left trophy badges on, the badge becomes the platinum itself
-         (CompletionBadgeImageStyle) and the trophy row drops its own platinum, so the platinum is
-         shown once rather than twice. -->
+    <!-- The finish badge at mini-badge size. It follows the row's leading progress detail
+         (CompletionBadgeImageStyle); when it shows the platinum, the trophy row drops its own
+         platinum, so the platinum is shown once rather than twice. -->
     <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource CompletionBadgeImageStyle}">
         <Setter Property="Width" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
         <Setter Property="Height" Value="{StaticResource PlayAch.Size.Icon.Tiny}"/>
@@ -300,11 +299,11 @@
     <Style x:Key="OverviewCompletedFooterTextStyle" TargetType="TextBlock" BasedOn="{StaticResource OverviewMiniBadgeTextCompletedStyle}">
         <Setter Property="Visibility" Value="{Binding ShowCompletionCount, Converter={StaticResource BoolToVis}}"/>
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Dynamic_Capstone}"/>
+        <Setter Property="helpers:CompletionBadge.TracksKind" Value="True"/>
         <Style.Triggers>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding ShowPlatinumInCompletionSpot}" Value="True"/>
-                    <Condition Binding="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding (helpers:CompletionBadge.Kind), RelativeSource={RelativeSource Self}}" Value="Platinum"/>
                     <Condition Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
                 <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Trophy.Platinum}"/>
@@ -312,10 +311,12 @@
         </Style.Triggers>
     </Style>
 
-    <!-- The rarity/trophy badge row under the progress bar is one drawn element,
-         controls:ProgressBadgeStrip; it reads the same brush, glyph and font resource keys the
+    <!-- The detail row under the progress bar (rarity, trophy and points) is one drawn element,
+         controls:ProgressDetailStrip; it reads the same brush, glyph and font resource keys the
          former per-badge styles used. The footer templates below position it and, for the Left
-         and Center alignments, reverse its order. -->
+         and Center alignments, reverse its order. Each template gives the strip a star column so
+         it is measured against the space left beside the completion count and can drop the
+         detail groups that do not fit. -->
 
     <!-- Right alignment (default / legacy look): completed badge pinned far left, badge row
          pinned far right in descending-rarity order. -->
@@ -329,27 +330,36 @@
                 <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
             <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
             </StackPanel>
-            <controls:ProgressBadgeStrip Grid.Column="1"
+            <controls:ProgressDetailStrip Grid.Column="1"
                                          HorizontalAlignment="Right"
                                          VerticalAlignment="Center"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
         </Grid>
     </DataTemplate>
 
     <!-- Center alignment: a single centered row in ascending-rarity order (the strip reversed)
-         followed by the completed badge. -->
+         followed by the completed badge. The centered grid sizes to its content, so the star
+         column is exactly the strip's width. -->
     <DataTemplate x:Key="ProgressFooterCenterTemplate">
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-            <controls:ProgressBadgeStrip VerticalAlignment="Center"
+        <Grid HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <controls:ProgressDetailStrip Grid.Column="0"
+                                         VerticalAlignment="Center"
                                          Reversed="True"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
-            <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
-            <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
-        </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>
+                <TextBlock Text="{Binding CompletionCountText}" Style="{StaticResource OverviewCompletedFooterTextStyle}"/>
+            </StackPanel>
+        </Grid>
     </DataTemplate>
 
     <!-- Left alignment (inverse of Right): badge row pinned far left in ascending-rarity order
@@ -357,14 +367,15 @@
     <DataTemplate x:Key="ProgressFooterLeftTemplate">
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <controls:ProgressBadgeStrip Grid.Column="0"
+            <controls:ProgressDetailStrip Grid.Column="0"
                                          HorizontalAlignment="Left"
                                          VerticalAlignment="Center"
                                          Reversed="True"
-                                         PreferTrophyBadges="{Binding PreferTrophyBadges, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         DetailOrder="{Binding ProgressDetailStyles, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
+                                         ShownCount="{Binding ProgressDetailShownCount, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"
                                          ColorByRarity="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:GameSummariesGridControl}}"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                 <Image Style="{StaticResource OverviewCompletedFooterIconStyle}"/>

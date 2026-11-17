@@ -1,3 +1,4 @@
+using PlayniteAchievements.Common;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
@@ -207,6 +208,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             string providerGameKey,
             int appId,
             string gameName,
+            bool mappedToLibrary,
             CancellationToken cancel)
         {
             var gameId = ResolveGameId(providerGameKey, appId);
@@ -231,9 +233,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     AppId = gameId,
                     ProviderGameKey = providerGameKey,
                     ProviderPlatformKey = null,
-                    GameName = FirstNonEmpty(gameName, gameInfo?.GameTitle, $"RetroAchievements Game {gameId.ToString(CultureInfo.InvariantCulture)}"),
+                    GameName = StringCoalesce.FirstNonBlankTrimmed(gameName, gameInfo?.GameTitle, $"RetroAchievements Game {gameId.ToString(CultureInfo.InvariantCulture)}"),
                     IconUrl = RetroAchievementsAchievementMapper.NormalizeImageUrl(
-                        FirstNonEmpty(gameInfo?.ImageBoxArt, gameInfo?.ImageTitle, gameInfo?.ImageIngame, gameInfo?.ImageIcon)),
+                        StringCoalesce.FirstNonBlankTrimmed(gameInfo?.ImageBoxArt, gameInfo?.ImageTitle, gameInfo?.ImageIngame, gameInfo?.ImageIcon)),
                     Status = achievements.Count > 0 ? FriendGameDefinitionStatus.Ok : FriendGameDefinitionStatus.NoAchievements,
                     LastCheckedUtc = DateTime.UtcNow,
                     Achievements = achievements
@@ -328,7 +330,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         friendId,
                         item,
                         mapping.BaseGameId,
-                        FirstNonEmpty(mapping.BaseGameTitle, baseInfo?.GameTitle, RetroAchievementsSubsetTitleResolver.ExtractBaseTitle(item.Title)),
+                        StringCoalesce.FirstNonBlankTrimmed(mapping.BaseGameTitle, baseInfo?.GameTitle, RetroAchievementsSubsetTitleResolver.ExtractBaseTitle(item.Title)),
                         baseInfo);
                     MergeOwnershipRow(rowsByAppId, row, preferMetadata: false);
                 }
@@ -491,7 +493,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             RaGameInfoUserProgress overrideGameInfo = null)
         {
             var appId = overrideAppId.GetValueOrDefault(item.GameID);
-            var title = FirstNonEmpty(
+            var title = StringCoalesce.FirstNonBlankTrimmed(
                 overrideTitle,
                 overrideGameInfo?.GameTitle,
                 item.Title,
@@ -505,9 +507,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 ProviderPlatformKey = null,
                 GameName = title,
                 IconUrl = RetroAchievementsAchievementMapper.NormalizeImageUrl(
-                    FirstNonEmpty(overrideGameInfo?.ImageIcon, item.ImageIcon)),
+                    StringCoalesce.FirstNonBlankTrimmed(overrideGameInfo?.ImageIcon, item.ImageIcon)),
                 CoverUrl = RetroAchievementsAchievementMapper.NormalizeImageUrl(
-                    FirstNonEmpty(
+                    StringCoalesce.FirstNonBlankTrimmed(
                         overrideGameInfo?.ImageBoxArt,
                         overrideGameInfo?.ImageTitle,
                         overrideGameInfo?.ImageIngame,
@@ -547,17 +549,17 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
             if (preferMetadata || string.IsNullOrWhiteSpace(existing.GameName))
             {
-                existing.GameName = FirstNonEmpty(row.GameName, existing.GameName);
+                existing.GameName = StringCoalesce.FirstNonBlankTrimmed(row.GameName, existing.GameName);
             }
 
             if (preferMetadata || string.IsNullOrWhiteSpace(existing.IconUrl))
             {
-                existing.IconUrl = FirstNonEmpty(row.IconUrl, existing.IconUrl);
+                existing.IconUrl = StringCoalesce.FirstNonBlankTrimmed(row.IconUrl, existing.IconUrl);
             }
 
             if (preferMetadata || string.IsNullOrWhiteSpace(existing.CoverUrl))
             {
-                existing.CoverUrl = FirstNonEmpty(row.CoverUrl, existing.CoverUrl);
+                existing.CoverUrl = StringCoalesce.FirstNonBlankTrimmed(row.CoverUrl, existing.CoverUrl);
             }
 
             if (row.AchievementUnlocksHint.HasValue &&
@@ -660,19 +662,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (parsed.HasValue)
                 {
                     return parsed;
-                }
-            }
-
-            return null;
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            foreach (var value in values ?? Array.Empty<string>())
-            {
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value.Trim();
                 }
             }
 

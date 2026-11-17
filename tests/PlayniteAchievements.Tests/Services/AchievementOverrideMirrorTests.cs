@@ -21,28 +21,6 @@ namespace PlayniteAchievements.Tests.Services
     public class AchievementOverrideMirrorTests
     {
         [TestMethod]
-        public void StoringOverrides_DropsTheLegacyMirrorMaps()
-        {
-            var body = ExtractMethod(ReadService(), "private static void StoreOverrides(");
-
-            foreach (var mirror in new[]
-            {
-                "AchievementCategoryOverrides",
-                "AchievementCategoryTypeOverrides",
-                "AchievementNotes",
-                "AchievementUnlockedIconOverrides",
-                "AchievementLockedIconOverrides"
-            })
-            {
-                StringAssert.Contains(
-                    body,
-                    "customData." + mirror + " = null;",
-                    $"{mirror} has to be dropped when the record is stored. Left in place, it " +
-                    "folds a cleared value back in on the next save.");
-            }
-        }
-
-        [TestMethod]
         public void TheNormalizer_StillMergesBeforeItRepublishes()
         {
             // The reason the above matters. If this order ever changes - republish first, or drop

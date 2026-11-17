@@ -720,10 +720,10 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
 
-            StringAssert.Contains(store, "GameLogo = ResolveFriendGameIconPath(presentation, row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath)");
-            StringAssert.Contains(store, "GameIconPath = ResolveFriendGameIconPath(presentation, row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = ResolveFriendGameCoverPath(presentation, row.CoverPath)");
+            StringAssert.Contains(store, "GameLogo = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
+            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
         }
 
         [TestMethod]
@@ -809,7 +809,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             // Header banner is downloaded with the normalized cache key and stored as local icon+cover paths.
             StringAssert.Contains(runtime, "var cacheKey = GetProviderGameCacheKey(appId, providerGameKey);");
             StringAssert.Contains(runtime, "DownloadDefinitionGameImageAsync(providerKey, providerGameKey, appId, definition.IconUrl, definition.GameName, cancel, progress)");
-            StringAssert.Contains(runtime, "SaveProviderGameImagePaths(providerKey, cacheKey, appId, localPath, localPath);");
+            StringAssert.Contains(runtime, "SaveFriendGameImagePaths(providerKey, cacheKey, appId, localPath, localPath, ");
             StringAssert.Contains(runtime, "var gameKey = GetProviderGameCacheKey(source.AppId, source.ProviderGameKey)");
             StringAssert.Contains(store, "AND (ProviderGameKey = ? OR ProviderGameId = ?)");
             // The source URL is not persisted into the definition state.
@@ -825,7 +825,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "private static void MergeProviderOnlyDefinitionsIntoTarget");
             StringAssert.Contains(store, "AND NOT EXISTS");
             StringAssert.Contains(store, "target.GameId = ?");
-            StringAssert.Contains(store, "target.ApiName = AchievementDefinitions.ApiName");
+            StringAssert.Contains(store, "target.ApiName = PlatformDefinitions.ApiName");
             Assert.IsFalse(
                 store.Contains("MoveProviderOnlyDefinitionsIfTargetIsEmpty"),
                 "Promotion must merge missing definitions instead of skipping or failing when the target already has definitions.");
@@ -867,7 +867,7 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             // The friend+game view shows the game's full schema with the friend's unlock state
             // joined per definition, not just the rows the friend scrape happened to store.
-            StringAssert.Contains(store, "INNER JOIN AchievementDefinitions ad ON ad.GameId = g.Id");
+            StringAssert.Contains(store, "INNER JOIN \" + AchievementLayerSql.ViewName + @\" ad ON ad.GameId = g.Id");
             StringAssert.Contains(store, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id");
             StringAssert.Contains(store, "AND ua.AchievementDefinitionId = ad.Id");
             StringAssert.Contains(store, "COALESCE(ua.Unlocked, 0) AS Unlocked");
@@ -890,13 +890,17 @@ namespace PlayniteAchievements.SqlNado.Tests
             var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
 
             StringAssert.Contains(store, "var customDataByGameId = new Dictionary<Guid, ResolvedGameCustomData>();");
-            StringAssert.Contains(store, "ApplyCustomDataToFriendAchievement(item, customData);");
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
-            StringAssert.Contains(store, "customData.AchievementCategoryOverrides");
-            StringAssert.Contains(store, "customData.ResolveAchievementOverrides()?.TryGetValue(apiName, out userOverride);");
-            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(categoryOverride)");
-            StringAssert.Contains(store, "customData.GetStoredCategoryKind(item.CategoryLabel)");
+            // Capstone, category kind and note come resolved from the achievement view.
+            StringAssert.Contains(store, "ad.IsCapstone AS IsCapstone,");
+            StringAssert.Contains(store, "ad.CategoryKind AS CategoryKind,");
+            StringAssert.Contains(store, "ad.Note AS Note,");
+            StringAssert.Contains(store, "AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),");
+            // Category art is keyed by the category before the user's rename.
+            StringAssert.Contains(store, "ad.ProviderCategory AS ProviderCategory,");
+            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),");
+            Assert.IsFalse(store.Contains("ApplyCustomDataToFriendAchievement"));
         }
 
         [TestMethod]

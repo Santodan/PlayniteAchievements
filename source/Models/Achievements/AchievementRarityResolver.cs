@@ -46,6 +46,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         private static string FormatRoundedPercent(double rawPercent)
         {
+            // Exactly 0 is a known value (no one has it), so it shows as 0% rather than <1%.
+            if (rawPercent <= 0)
+            {
+                return PercentFormatter.FormatWhole(0);
+            }
+
             if (rawPercent < 1)
             {
                 return PercentFormatter.FormatLessThanWhole(1);

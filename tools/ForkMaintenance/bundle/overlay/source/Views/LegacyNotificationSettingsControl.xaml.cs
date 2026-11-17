@@ -8289,7 +8289,7 @@ namespace PlayniteAchievements.Views
                 }
 
                 // Sync all tags (handles orphan cleanup and re-tagging with new names)
-                tagSyncService.SyncAllTags();
+                tagSyncService.SyncAll();
             }
             catch (Exception ex)
             {

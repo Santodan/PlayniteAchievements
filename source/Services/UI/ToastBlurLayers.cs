@@ -17,10 +17,10 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal static class ToastBlurLayers
     {
-        /// <summary>The bundled template's live blurred background image.</summary>
+        /// <summary>The live blurred background image of <see cref="Views.Controls.ToastCard"/>.</summary>
         public const string LiveImageName = "LiveBlurImage";
 
-        /// <summary>The bundled template's opaque card surface (the glow caster).</summary>
+        /// <summary>The opaque card surface (the glow caster) of <see cref="Views.Controls.ToastCard"/>.</summary>
         public const string CardSurfaceName = "CardSurface";
 
         /// <summary>
@@ -51,12 +51,35 @@ namespace PlayniteAchievements.Services.UI
 
         private static void Hide(ContentPresenter presenter, string name, List<KeyValuePair<UIElement, Visibility>> hidden)
         {
-            if (presenter.ContentTemplate.FindName(name, presenter) is UIElement element &&
+            // By name through the card's visuals: the layers are inside the card control's own
+            // template, which the notification template's name scope does not reach.
+            if (FindNamed(presenter, name) is UIElement element &&
                 element.Visibility == Visibility.Visible)
             {
                 hidden.Add(new KeyValuePair<UIElement, Visibility>(element, element.Visibility));
                 element.SetCurrentValue(UIElement.VisibilityProperty, Visibility.Hidden);
             }
+        }
+
+        private static FrameworkElement FindNamed(DependencyObject node, string name)
+        {
+            var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+            for (var i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(node, i);
+                if (child is FrameworkElement element && string.Equals(element.Name, name, StringComparison.Ordinal))
+                {
+                    return element;
+                }
+
+                var found = FindNamed(child, name);
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            return null;
         }
 
         private sealed class Restore : IDisposable

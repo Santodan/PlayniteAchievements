@@ -57,6 +57,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 // description column under its minimum and put a horizontal scrollbar on every
                 // install. A key left out of this map keeps whatever the markup declared, which
                 // for these is visible - so they have to be named here, not merely omitted.
+                ["EditorApiName"] = false,
                 ["EditorHidden"] = false,
                 ["EditorGoal"] = false,
                 ["EditorCapstone"] = false,
@@ -80,6 +81,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 ["EditorIcon"] = 58,
                 ["EditorName"] = 240,
                 ["EditorDescription"] = 320,
+                ["EditorApiName"] = 180,
                 ["EditorUnlockTime"] = 320,
                 ["EditorHidden"] = 64,
                 ["EditorGoal"] = 64,
@@ -1209,6 +1211,25 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
         }
 
+        /// <summary>Reveals a masked rarity by clicking it.</summary>
+        private void MaskedRarity_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.RevealRarity();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Reveals or re-masks one row's rarity.</summary>
+        private void ToggleRarityRevealButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is AchievementEditorRow row)
+            {
+                row.ToggleRarityReveal();
+            }
+        }
+
         private void IconImage_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!((sender as FrameworkElement)?.DataContext is AchievementEditorRow row) || !row.CanReveal)
@@ -1712,6 +1733,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 case nameof(AchievementEditorRow.DisplayName): target.DisplayName = value; return true;
                 case nameof(AchievementEditorRow.Description): target.Description = value; return true;
+                case nameof(AchievementEditorRow.ApiNameText): target.ApiNameText = value; return true;
                 case nameof(AchievementEditorRow.TimeText): target.TimeText = value; return true;
                 case nameof(AchievementEditorRow.RarityInput): target.RarityInput = value; return true;
                 case nameof(AchievementEditorRow.PointsText): target.PointsText = value; return true;
@@ -1731,6 +1753,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 case nameof(AchievementEditorRow.DisplayName): text = row.DisplayName; break;
                 case nameof(AchievementEditorRow.Description): text = row.Description; break;
+                case nameof(AchievementEditorRow.ApiNameText): text = row.ApiNameText; break;
                 case nameof(AchievementEditorRow.TimeText): text = row.TimeText; break;
                 case nameof(AchievementEditorRow.RarityInput): text = row.RarityInput; break;
                 case nameof(AchievementEditorRow.PointsText): text = row.PointsText; break;

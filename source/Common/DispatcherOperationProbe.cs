@@ -139,14 +139,15 @@ namespace PlayniteAchievements.Common
 
                 if (_methodField?.GetValue(operation) is Delegate method && method.Method != null)
                 {
-                    var type = method.Method.DeclaringType;
-                    // Lambdas compile into nested closure classes; the outer type is the readable one.
-                    while (type != null && type.IsNested && type.Name.StartsWith("<", StringComparison.Ordinal))
+                    var name = DescribeMethod(method.Method);
+
+                    // A timer tick names only DispatcherTimer.FireTick; the work is in its handlers.
+                    if (method.Target is DispatcherTimer timer)
                     {
-                        type = type.DeclaringType;
+                        name += " handlers=" + DescribeTimerHandlers(timer);
                     }
 
-                    return (type?.Name ?? "?") + "." + method.Method.Name;
+                    return name;
                 }
             }
             catch
@@ -155,6 +156,45 @@ namespace PlayniteAchievements.Common
             }
 
             return "?";
+        }
+
+        private static string DescribeMethod(MethodInfo method)
+        {
+            var type = method.DeclaringType;
+            // Lambdas compile into nested closure classes; the outer type is the readable one.
+            while (type != null && type.IsNested && type.Name.StartsWith("<", StringComparison.Ordinal))
+            {
+                type = type.DeclaringType;
+            }
+
+            var assembly = type?.Assembly.GetName().Name ?? "?";
+            return assembly + ":" + (type?.Name ?? "?") + "." + method.Name;
+        }
+
+        private static FieldInfo _tickField;
+        private static bool _tickFieldResolved;
+
+        // The Tick event's backing field is private; read once by reflection.
+        private static string DescribeTimerHandlers(DispatcherTimer timer)
+        {
+            if (!_tickFieldResolved)
+            {
+                _tickFieldResolved = true;
+                _tickField = typeof(DispatcherTimer).GetField("Tick", BindingFlags.Instance | BindingFlags.NonPublic);
+            }
+
+            if (!(_tickField?.GetValue(timer) is Delegate tick))
+            {
+                return "?";
+            }
+
+            var names = new List<string>();
+            foreach (var handler in tick.GetInvocationList())
+            {
+                names.Add(handler.Method != null ? DescribeMethod(handler.Method) : "?");
+            }
+
+            return "[" + string.Join(",", names) + "] interval=" + timer.Interval.TotalMilliseconds.ToString("0") + "ms";
         }
     }
 }

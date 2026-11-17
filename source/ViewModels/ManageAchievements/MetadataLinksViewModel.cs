@@ -106,6 +106,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 fields.Add(ResourceProvider.GetString("LOCPlayAch_Tagging_Area_Text"));
             }
 
+            if (Uses(choices.Order, MetadataField.Order))
+            {
+                fields.Add(ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_AchievementOrder"));
+            }
+
             return string.Join(", ", fields);
         }
 
@@ -124,11 +129,36 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private Guid _choicesGameId;
         private string _choicesProviderKey;
+        private Guid _gameId;
+        private bool _usesMetadata = true;
+
+        /// <summary>
+        /// Whether metadata sources supply this game. Turning it off keeps the game's own choices
+        /// and links, and clears and refreshes its metadata, as the Maintenance menu's command does.
+        /// </summary>
+        public bool UsesMetadata
+        {
+            get => _usesMetadata;
+            set
+            {
+                if (_usesMetadata == value || _gameId == Guid.Empty)
+                {
+                    return;
+                }
+
+                _usesMetadata = value;
+                OnPropertyChanged();
+                PlayniteAchievementsPlugin.Instance?.SetExcludedFromMetadata(new[] { _gameId }, !value);
+            }
+        }
 
         internal void Load(Guid gameId, string servicingProviderKey)
         {
             Rows.Clear();
             var store = _store?.Invoke();
+            _gameId = gameId;
+            _usesMetadata = store?.IsExcludedFromMetadata(gameId) != true;
+            OnPropertyChanged(nameof(UsesMetadata));
             // A platform no source has gets no metadata section.
             if (gameId == Guid.Empty || store == null || !MetadataChoices.TakesSources(servicingProviderKey))
             {

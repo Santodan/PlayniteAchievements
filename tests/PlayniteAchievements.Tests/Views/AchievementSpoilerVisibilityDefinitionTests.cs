@@ -44,11 +44,14 @@ namespace PlayniteAchievements.Tests.Views
                 // nothing to hide is never made revealable by these toggles.
                 "HasTrophyType && (!ShowLockedTrophy || (Hidden && !ShowHiddenTrophy));",
                 "HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));",
+                "HasRarityPercent && (!ShowLockedRarity || (Hidden && !ShowHiddenRarity));",
                 "public bool IsTitleHidden => IsHidden && TitleMaskApplies;",
                 "public bool IsDescriptionHidden => IsHidden && DescriptionMaskApplies;",
                 "public bool IsTrophyHidden => IsHidden && TrophyMaskApplies;",
                 "public bool IsPointsHidden => IsHidden && PointsMaskApplies;",
                 "public string PointsTextResolved => IsPointsHidden ? MaskedValuePlaceholder : PointsText;",
+                "public bool IsRarityHidden => IsHidden && RarityMaskApplies;",
+                "public string GlobalPercentTextResolved => IsRarityHidden ? MaskedValuePlaceholder : GlobalPercentText;",
                 // The trophy resolves to a sentinel like the other fields resolve to placeholders,
                 // so the cell template switches on one property instead of racing triggers.
                 "public string TrophyTypeResolved => IsTrophyHidden ? MaskedTrophyType : TrophyType;",
@@ -58,7 +61,9 @@ namespace PlayniteAchievements.Tests.Views
                 "ShowHiddenTrophy = persisted?.ShowHiddenTrophy ?? true",
                 "ShowHiddenPoints = persisted?.ShowHiddenPoints ?? true",
                 "ShowLockedTrophy = persisted?.ShowLockedTrophy ?? true",
-                "ShowLockedPoints = persisted?.ShowLockedPoints ?? true");
+                "ShowLockedPoints = persisted?.ShowLockedPoints ?? true",
+                "ShowHiddenRarity = persisted?.ShowHiddenRarity ?? true",
+                "ShowLockedRarity = persisted?.ShowLockedRarity ?? true");
 
             // The gate has to name every toggle, or a row masked only on trophy or points would
             // render a placeholder that no click can clear.
@@ -67,7 +72,8 @@ namespace PlayniteAchievements.Tests.Views
                 "|| TitleMaskApplies",
                 "|| DescriptionMaskApplies",
                 "|| TrophyMaskApplies",
-                "|| PointsMaskApplies");
+                "|| PointsMaskApplies",
+                "|| RarityMaskApplies");
         }
 
         [TestMethod]
@@ -218,7 +224,10 @@ namespace PlayniteAchievements.Tests.Views
                 "public bool CanRevealPoints =>",
                 "!Unlocked && HasPoints && (!ShowLockedPoints || (Hidden && !ShowHiddenPoints));",
                 "public bool IsTrophyHidden => CanRevealTrophy && !IsTrophyRevealed;",
-                "public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;");
+                "public bool IsPointsHidden => CanRevealPoints && !IsPointsRevealed;",
+                "public bool CanRevealRarity =>",
+                "!Unlocked && HasRarityPercent && (!ShowLockedRarity || (Hidden && !ShowHiddenRarity));",
+                "public bool IsRarityHidden => CanRevealRarity && !IsRarityRevealed;");
 
             // Seeded from the persisted settings when the row is attached, or the row would keep
             // its own defaults and ignore the Spoilers page entirely.
@@ -229,7 +238,9 @@ namespace PlayniteAchievements.Tests.Views
                 "row.ShowHiddenTrophy = _settings?.Persisted?.ShowHiddenTrophy ?? true;",
                 "row.ShowLockedTrophy = _settings?.Persisted?.ShowLockedTrophy ?? true;",
                 "row.ShowHiddenPoints = _settings?.Persisted?.ShowHiddenPoints ?? true;",
-                "row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;");
+                "row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;",
+                "row.ShowHiddenRarity = _settings?.Persisted?.ShowHiddenRarity ?? true;",
+                "row.ShowLockedRarity = _settings?.Persisted?.ShowLockedRarity ?? true;");
 
             // Reveal state must never mark the editor dirty, so every new reveal property has to be
             // listed as reveal-only.
@@ -241,7 +252,10 @@ namespace PlayniteAchievements.Tests.Views
                 "nameof(AchievementEditorRow.IsTrophyHidden)",
                 "nameof(AchievementEditorRow.IsPointsHidden)",
                 "nameof(AchievementEditorRow.CanRevealTrophy)",
-                "nameof(AchievementEditorRow.CanRevealPoints)");
+                "nameof(AchievementEditorRow.CanRevealPoints)",
+                "nameof(AchievementEditorRow.IsRarityRevealed)",
+                "nameof(AchievementEditorRow.IsRarityHidden)",
+                "nameof(AchievementEditorRow.CanRevealRarity)");
 
             // The header summaries are computed in one pass; a column left out of it would have a
             // toggle that never updates.
@@ -255,7 +269,11 @@ namespace PlayniteAchievements.Tests.Views
                 "OnPropertyChanged(nameof(CanRevealAnyTrophy));",
                 "OnPropertyChanged(nameof(CanRevealAnyPoints));",
                 "OnPropertyChanged(nameof(AreAllTrophiesRevealed));",
-                "OnPropertyChanged(nameof(AreAllPointsRevealed));");
+                "OnPropertyChanged(nameof(AreAllPointsRevealed));",
+                "_canRevealAnyRarity = false;",
+                "if (row.CanRevealRarity)",
+                "OnPropertyChanged(nameof(CanRevealAnyRarity));",
+                "OnPropertyChanged(nameof(AreAllRaritiesRevealed));");
         }
 
         [TestMethod]
@@ -284,14 +302,54 @@ namespace PlayniteAchievements.Tests.Views
                 "Visibility=\"{Binding IsPointsHidden, Converter={StaticResource InverseBoolToVis}}\"",
                 // Converting Header to a template loses the column-picker caption unless it is set.
                 "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Trophy}\"",
-                "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Points}\"");
+                "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Points}\"",
+                // Rarity follows the same shape.
+                "Data.ToggleAllRaritiesRevealCommand",
+                "Data.CanRevealAnyRarity",
+                "Click=\"ToggleRarityRevealButton_Click\"",
+                "PreviewMouseLeftButtonDown=\"MaskedRarity_PreviewMouseLeftButtonDown\"",
+                "Visibility=\"{Binding IsRarityHidden, Converter={StaticResource InverseBoolToVis}}\"",
+                "helpers:ColumnVisibilityHelper.ColumnDisplayName=\"{DynamicResource LOCPlayAch_Column_Rarity}\"");
 
             AssertContainsAll(
                 code,
                 "row.ToggleTrophyReveal();",
                 "row.TogglePointsReveal();",
                 "row.RevealTrophy();",
-                "row.RevealPoints();");
+                "row.RevealPoints();",
+                "row.ToggleRarityReveal();",
+                "row.RevealRarity();");
+        }
+
+        [TestMethod]
+        public void RarityCells_ShowTheUnknownBadgeAndPlaceholderWhileMasked()
+        {
+            var cells = File.ReadAllText(FindRepoFile("source", "Resources", "AchievementCellTemplates.xaml"));
+            var grid = File.ReadAllText(FindRepoFile("source", "Views", "Controls", "AchievementDataGridControl.xaml"));
+
+            // Both rarity templates swap the badge, and the percent reads the resolved text.
+            Assert.AreEqual(
+                2,
+                Regex.Matches(cells, Regex.Escape("<Setter Property=\"Source\" Value=\"{DynamicResource BadgeRarityUnknown}\"/>")).Count,
+                "Each rarity cell template needs the masked badge.");
+            AssertContainsAll(
+                cells,
+                "<TextBlock Text=\"{Binding GlobalPercentTextResolved}\"",
+                "<Setter Property=\"IsRarityHidden\" Value=\"{Binding IsRarityHidden, Mode=OneWay}\"/>");
+            Assert.IsFalse(
+                cells.Contains("Text=\"{Binding GlobalPercentText}\""),
+                "A rarity cell still prints the raw percentage.");
+
+            // The rarity percent column and the three rarity tooltips must not read the raw value either.
+            AssertContainsAll(grid, "<TextBlock Text=\"{Binding GlobalPercentTextResolved}\"");
+            Assert.IsFalse(
+                grid.Contains("Text=\"{Binding GlobalPercentText}\""),
+                "The rarity percent column still prints the raw percentage.");
+            Assert.AreEqual(
+                3,
+                Regex.Matches(grid, Regex.Escape("<DataTrigger Binding=\"{Binding IsRarityHidden}\" Value=\"True\">\r\n                                <Setter Property=\"ToolTip\"")).Count
+                + Regex.Matches(grid, Regex.Escape("<DataTrigger Binding=\"{Binding IsRarityHidden}\" Value=\"True\">\n                                <Setter Property=\"ToolTip\"")).Count,
+                "Each rarity column tooltip needs the masked fallback.");
         }
 
         [TestMethod]
@@ -349,6 +407,8 @@ namespace PlayniteAchievements.Tests.Views
                 "IsChecked=\"{Binding Persisted.ShowLockedTrophy}\"",
                 "IsChecked=\"{Binding Persisted.ShowHiddenPoints}\"",
                 "IsChecked=\"{Binding Persisted.ShowLockedPoints}\"",
+                "IsChecked=\"{Binding Persisted.ShowHiddenRarity}\"",
+                "IsChecked=\"{Binding Persisted.ShowLockedRarity}\"",
                 "IsChecked=\"{Binding Persisted.ShowHiddenSuffix}\"",
                 "IsChecked=\"{Binding Persisted.ShowFriendSpoilers}\"",
                 "Visibility=\"{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}\"");

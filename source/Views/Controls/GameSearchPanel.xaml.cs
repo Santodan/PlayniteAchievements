@@ -50,7 +50,8 @@ namespace PlayniteAchievements.Views.Controls
         private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(GameSearchViewModel.AllowsMultiple) ||
-                e.PropertyName == nameof(GameSearchViewModel.ShowPlatformColumn))
+                e.PropertyName == nameof(GameSearchViewModel.ShowPlatformColumn) ||
+                e.PropertyName == nameof(GameSearchViewModel.ShowRegionColumn))
             {
                 UpdateColumns();
             }
@@ -65,6 +66,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             PickColumn.Visibility = _viewModel?.AllowsMultiple == true ? Visibility.Visible : Visibility.Collapsed;
             PlatformColumn.Visibility = _viewModel?.ShowPlatformColumn == true ? Visibility.Visible : Visibility.Collapsed;
+            RegionColumn.Visibility = _viewModel?.ShowRegionColumn == true ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)

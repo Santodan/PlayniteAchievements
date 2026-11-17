@@ -74,6 +74,9 @@ namespace PlayniteAchievements.Models.Settings
             target.AutoCapstoneCategoryDescriptionTemplate = source.AutoCapstoneCategoryDescriptionTemplate;
             target.AutoCapstoneTemplateHistory = new List<string>(source.AutoCapstoneTemplateHistory ?? new List<string>());
             target.AutoCapstoneAppliedTemplates = source.AutoCapstoneAppliedTemplates;
+            target.AutoCapstoneGameTags = source.AutoCapstoneGameTags;
+            target.AutoCapstoneCategoryTags = source.AutoCapstoneCategoryTags;
+            target.AutoCapstoneAppliedTags = source.AutoCapstoneAppliedTags;
             target.MetadataDefaults = (source.MetadataDefaults ?? MetadataChoices.CreateDefaults()).Clone();
             target.MetadataPlatformChoices = PersistedSettings.ClonePlatformChoices(source.MetadataPlatformChoices);
             target.MetadataChoicesSeeded = source.MetadataChoicesSeeded;
@@ -129,10 +132,10 @@ namespace PlayniteAchievements.Models.Settings
             target.ToastDurationSeconds = source.ToastDurationSeconds;
             target.NotificationDelaySeconds = source.NotificationDelaySeconds;
             target.CaptureDelaySeconds = source.CaptureDelaySeconds;
+            target.CaptureAtUnlockAndAfterDelay = source.CaptureAtUnlockAndAfterDelay;
             target.MaxConcurrentToasts = source.MaxConcurrentToasts;
             target.SingleCustomNotification = source.SingleCustomNotification;
             target.ToastPosition = source.ToastPosition;
-            target.NotificationRenderMode = source.NotificationRenderMode;
             target.EnableControllerVibration = source.EnableControllerVibration;
             target.ControllerVibrationStrengthPercent = source.ControllerVibrationStrengthPercent;
             target.ControllerVibrationDurationMs = source.ControllerVibrationDurationMs;
@@ -154,6 +157,7 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
             target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
             target.UnlockScreenshotDirectory = source.UnlockScreenshotDirectory;
+            target.IconCacheDirectory = source.IconCacheDirectory;
             target.LibraryLinks = LibraryLink.CloneAll(source.LibraryLinks);
             target.ScreenshotResolution = source.ScreenshotResolution;
             target.UnlockScreenshotCleanRarities = source.UnlockScreenshotCleanRarities;
@@ -200,10 +204,9 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenPoints = source.ShowHiddenPoints;
             target.ShowLockedTrophy = source.ShowLockedTrophy;
             target.ShowLockedPoints = source.ShowLockedPoints;
+            target.ShowHiddenRarity = source.ShowHiddenRarity;
+            target.ShowLockedRarity = source.ShowLockedRarity;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
-            target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
-                ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
-                : new HashSet<Guid>();
             target.LockedFallbackIconPath = source.LockedFallbackIconPath;
             target.HiddenFallbackIconPath = source.HiddenFallbackIconPath;
             target.ModernCompactListShowRarityGlow = source.ModernCompactListShowRarityGlow;
@@ -230,11 +233,14 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowOverviewScoreCard1 = source.ShowOverviewScoreCard1;
             target.ShowOverviewScoreCard2 = source.ShowOverviewScoreCard2;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
+            target.ShowSidebarButton = source.ShowSidebarButton;
             target.ShowCompletedProgressColoring = source.ShowCompletedProgressColoring;
             target.UseExophaseForSteamFriendOwnership = source.UseExophaseForSteamFriendOwnership;
             target.ShowFriendSpoilers = source.ShowFriendSpoilers;
             target.FriendsOverviewRecentUnlockLimit = source.FriendsOverviewRecentUnlockLimit;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
+            target.ShowCompactLockedListRarityBar = source.ShowCompactLockedListRarityBar;
+            target.ShowCompactUnlockedListRarityBar = source.ShowCompactUnlockedListRarityBar;
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
             target.CommonGlowTierCleared = source.CommonGlowTierCleared;
@@ -247,7 +253,8 @@ namespace PlayniteAchievements.Models.Settings
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
             target.IconScaleMode = source.IconScaleMode;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
-            target.ProgressBadgeSource = source.ProgressBadgeSource;
+            target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
+            target.ProgressDetailShownCount = source.ProgressDetailShownCount;
             target.FriendNameDisplayMode = source.FriendNameDisplayMode;
             target.EnableAchievementCompactListControl = source.EnableAchievementCompactListControl;
             target.EnableAchievementDataGridControl = source.EnableAchievementDataGridControl;
@@ -269,6 +276,7 @@ namespace PlayniteAchievements.Models.Settings
             target.OverviewMiniShowcase = source.OverviewMiniShowcase?.Clone();
             target.OverviewMiniShowcaseHeight = source.OverviewMiniShowcaseHeight;
             target.ShowOverviewMiniShowcase = source.ShowOverviewMiniShowcase;
+            target.ControlBarStates = source.ControlBarStates;
             target.GridOptions = source.GridOptions?.Clone() ?? new GridOptionsCatalog();
             target.StartPageActivityScope = source.StartPageActivityScope;
             target.StartPageProgressScope = source.StartPageProgressScope;
@@ -321,36 +329,6 @@ namespace PlayniteAchievements.Models.Settings
                 : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
 
             // User Preferences (Survive Cache Clear)
-            target.ExcludedGameIds = source.ExcludedGameIds != null
-                ? new HashSet<Guid>(source.ExcludedGameIds)
-                : new HashSet<Guid>();
-            target.ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
-                ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
-                : new HashSet<Guid>();
-            target.ManualCapstones = source.ManualCapstones != null
-                ? new Dictionary<Guid, string>(source.ManualCapstones)
-                : new Dictionary<Guid, string>();
-            target.AchievementOrderOverrides = source.AchievementOrderOverrides != null
-                ? source.AchievementOrderOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new List<string>(kvp.Value)
-                        : new List<string>())
-                : new Dictionary<Guid, List<string>>();
-            target.AchievementCategoryOverrides = source.AchievementCategoryOverrides != null
-                ? source.AchievementCategoryOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
-            target.AchievementCategoryTypeOverrides = source.AchievementCategoryTypeOverrides != null
-                ? source.AchievementCategoryTypeOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
 
             // Tagging Settings
             target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();

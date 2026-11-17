@@ -287,15 +287,23 @@ namespace PlayniteAchievements.Services
                 : null;
         }
 
+        /// <summary>
+        /// A count of 0 or more, kept without a total so a file or the editor can record progress
+        /// before a total is known; with a total, a count above it is dropped.
+        /// </summary>
         private static int? NormalizeProgressNum(int? num, int? denom)
         {
-            return denom.HasValue &&
-                   denom.Value > 0 &&
-                   num.HasValue &&
-                   num.Value >= 0 &&
-                   num.Value <= denom.Value
-                ? num
-                : null;
+            if (!num.HasValue || num.Value < 0)
+            {
+                return null;
+            }
+
+            if (!denom.HasValue || denom.Value <= 0)
+            {
+                return num;
+            }
+
+            return num.Value <= denom.Value ? num : null;
         }
 
         /// <summary>

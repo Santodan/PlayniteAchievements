@@ -302,6 +302,23 @@ namespace PlayniteAchievements.Models.Settings
             HiddenControlBarItems = items;
         }
 
+        private IReadOnlyList<string> _controlBarItemOrder;
+
+        /// <summary>
+        /// The order of this grid's control bar items (by id, earliest first), on the bar and in
+        /// its Filters panel; null or empty keeps the default order, and an item it does not name
+        /// keeps its default neighbour. Always replaced, never edited in place, so a settings
+        /// snapshot can restore it.
+        /// </summary>
+        [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+        public IReadOnlyList<string> ControlBarItemOrder
+        {
+            get => _controlBarItemOrder;
+            set => SetValue(
+                ref _controlBarItemOrder,
+                value == null || value.Count == 0 ? null : (IReadOnlyList<string>)value.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+        }
+
         public double? RowHeight
         {
             get => _rowHeight;
@@ -325,6 +342,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowColumnHeaders = ShowColumnHeaders;
             target.ShowControlBar = ShowControlBar;
             target.HiddenControlBarItems = HiddenControlBarItems?.ToList();
+            target.ControlBarItemOrder = ControlBarItemOrder?.ToList();
             target.RowHeight = RowHeight;
             target.MaxRows = MaxRows;
             target.Columns = Columns?.Clone() ?? new GridColumnLayoutOptions();
@@ -340,11 +358,13 @@ namespace PlayniteAchievements.Models.Settings
         private AchievementStatusColorMode _statusColor = AchievementStatusColorMode.MissableUnobtainable;
         private bool _colorRarityColumnsByRarity;
         private DateDisplayMode _unlockDateMode = DateDisplayMode.DateAndTime;
-        private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
+        private string _sortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.UnlockTime);
         private bool _sortDescending = true;
         private double? _maxHeight;
         private bool _startInCategoryMode;
         private bool _hideCategorySummaryRow;
+        private bool _inlineDetailsBeforeName;
+        private bool _inlineDetailsBeforeDescription;
 
         public bool UseCoverImages
         {
@@ -426,10 +446,22 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _unlockDateMode, value);
         }
 
-        public CompactListSortMode SortMode
+        /// <summary>
+        /// The default sort's column, by sort member path (see <see cref="GridSortColumns"/>).
+        /// Empty keeps the grid's source order.
+        /// </summary>
+        public string SortColumn
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => _sortColumn;
+            set => SetValue(ref _sortColumn, value ?? GridSortColumns.SourceOrder);
+        }
+
+        // Records saved before column keys hold the sort as an enum; read only, never written.
+        // Public because Playnite's settings serializer reads only public members.
+        [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
+        public CompactListSortMode LegacySortMode
+        {
+            set => _sortColumn = GridSortColumns.FromAchievementMode(value);
         }
 
         public bool SortDescending
@@ -458,6 +490,21 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _hideCategorySummaryRow, value);
         }
 
+        // Show the first detail of the global detail priority (PersistedSettings.ProgressDetails)
+        // that each achievement has, in front of its name.
+        public bool InlineDetailsBeforeName
+        {
+            get => _inlineDetailsBeforeName;
+            set => SetValue(ref _inlineDetailsBeforeName, value);
+        }
+
+        // The same detail, in front of the description.
+        public bool InlineDetailsBeforeDescription
+        {
+            get => _inlineDetailsBeforeDescription;
+            set => SetValue(ref _inlineDetailsBeforeDescription, value);
+        }
+
         public AchievementGridOptions Clone()
         {
             var clone = new AchievementGridOptions();
@@ -469,11 +516,13 @@ namespace PlayniteAchievements.Models.Settings
             clone.StatusColor = StatusColor;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.UnlockDateMode = UnlockDateMode;
-            clone.SortMode = SortMode;
+            clone.SortColumn = SortColumn;
             clone.SortDescending = SortDescending;
             clone.MaxHeight = MaxHeight;
             clone.StartInCategoryMode = StartInCategoryMode;
             clone.HideCategorySummaryRow = HideCategorySummaryRow;
+            clone.InlineDetailsBeforeName = InlineDetailsBeforeName;
+            clone.InlineDetailsBeforeDescription = InlineDetailsBeforeDescription;
             return clone;
         }
     }
@@ -486,13 +535,15 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showMetadataRegion = true;
         private bool _showMetadataTotal;
         private bool _showMetadataPoints;
+        private bool _showMetadataCollection;
+        private bool _showMetadataPrestige;
         private bool _showCompletionGlow = true;
         private bool _colorRarityColumnsByRarity;
         private bool _showNameAboveProgress;
         private bool _showRarityBadgesBelowProgress = true;
         private bool _showCompletionFrame;
         private DateDisplayMode _lastPlayedDateMode = DateDisplayMode.DateAndTime;
-        private GameSummariesSortMode _sortMode = GameSummariesSortMode.RecentUnlock;
+        private string _sortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.RecentUnlock);
         private bool _sortDescending = true;
 
         public bool UseCoverImages
@@ -531,6 +582,20 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showMetadataPoints;
             set => SetValue(ref _showMetadataPoints, value);
+        }
+
+        // Adds the Collection score total to the line under the name.
+        public bool ShowMetadataCollection
+        {
+            get => _showMetadataCollection;
+            set => SetValue(ref _showMetadataCollection, value);
+        }
+
+        // Adds the Prestige score total to the line under the name.
+        public bool ShowMetadataPrestige
+        {
+            get => _showMetadataPrestige;
+            set => SetValue(ref _showMetadataPrestige, value);
         }
 
         public bool ShowCompletionGlow
@@ -576,10 +641,22 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _lastPlayedDateMode, value);
         }
 
-        public GameSummariesSortMode SortMode
+        /// <summary>
+        /// The default sort's column, by sort member path (see <see cref="GridSortColumns"/>).
+        /// Empty keeps the grid's source order (pin order on a pinned-games grid).
+        /// </summary>
+        public string SortColumn
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => _sortColumn;
+            set => SetValue(ref _sortColumn, value ?? GridSortColumns.SourceOrder);
+        }
+
+        // Records saved before column keys hold the sort as an enum; read only, never written.
+        // Public because Playnite's settings serializer reads only public members.
+        [Newtonsoft.Json.JsonProperty(GridSortColumns.LegacySortModeName)]
+        public GameSummariesSortMode LegacySortMode
+        {
+            set => _sortColumn = GridSortColumns.FromGameSummariesMode(value);
         }
 
         public bool SortDescending
@@ -598,13 +675,15 @@ namespace PlayniteAchievements.Models.Settings
             clone.ShowMetadataRegion = ShowMetadataRegion;
             clone.ShowMetadataTotal = ShowMetadataTotal;
             clone.ShowMetadataPoints = ShowMetadataPoints;
+            clone.ShowMetadataCollection = ShowMetadataCollection;
+            clone.ShowMetadataPrestige = ShowMetadataPrestige;
             clone.ShowCompletionGlow = ShowCompletionGlow;
             clone.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
             clone.ShowNameAboveProgress = ShowNameAboveProgress;
             clone.ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress;
             clone.ShowCompletionFrame = ShowCompletionFrame;
             clone.LastPlayedDateMode = LastPlayedDateMode;
-            clone.SortMode = SortMode;
+            clone.SortColumn = SortColumn;
             clone.SortDescending = SortDescending;
             return clone;
         }
@@ -680,6 +759,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityBadgesBelowProgress = true;
         private bool _showMetadataTotal;
         private bool _showMetadataPoints;
+        private bool _showMetadataCollection;
+        private bool _showMetadataPrestige;
         private bool _showTreeOnly;
 
         public GridColumnLayoutOptions Columns
@@ -751,6 +832,20 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _showMetadataPoints, value);
         }
 
+        // Adds the Collection score total to the line under the category name.
+        public bool ShowMetadataCollection
+        {
+            get => _showMetadataCollection;
+            set => SetValue(ref _showMetadataCollection, value);
+        }
+
+        // Adds the Prestige score total to the line under the category name.
+        public bool ShowMetadataPrestige
+        {
+            get => _showMetadataPrestige;
+            set => SetValue(ref _showMetadataPrestige, value);
+        }
+
         // Leaves only the tree guide in the category name cell, so a row without one is blank.
         public bool ShowTreeOnly
         {
@@ -772,6 +867,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowRarityBadgesBelowProgress = ShowRarityBadgesBelowProgress,
                 ShowMetadataTotal = ShowMetadataTotal,
                 ShowMetadataPoints = ShowMetadataPoints,
+                ShowMetadataCollection = ShowMetadataCollection,
+                ShowMetadataPrestige = ShowMetadataPrestige,
                 ShowTreeOnly = ShowTreeOnly
             };
         }
@@ -1385,7 +1482,7 @@ namespace PlayniteAchievements.Models.Settings
                 options.ShowControlBar = false;
                 // The projection's source order (recency, or pin order for the pinned source)
                 // holds until the user picks a sort.
-                options.SortMode = CompactListSortMode.None;
+                options.SortColumn = GridSortColumns.SourceOrder;
                 options.MaxRows = DefaultShowcaseRecentMaxRows;
             }
 

@@ -123,6 +123,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             DataContext = _viewModel;
             InitializeComponent();
 
+            _viewModel.AttachLinkedFileDialog(ShowLinkedFileDialog);
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
@@ -838,7 +839,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             control.UnlinkCommand = _viewModel.UnlinkManualTrackingCommand;
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_Tab_ManualTracking"),
+                ResourceProvider.GetString("LOCPlayAch_ManageAchievements_LinkDefinitions"),
                 control,
                 new WindowOptions
                 {
@@ -879,6 +880,83 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             return linked;
+        }
+
+        /// <summary>
+        /// Opens the Link File window for this game. Settings are stored as they are entered;
+        /// returns true when the window stored, applied or removed a link.
+        /// </summary>
+        private bool ShowLinkedFileDialog()
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var store = plugin?.GameCustomDataStore;
+            var gameId = _viewModel.GameId;
+            if (store == null || gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            string L(string key) => ResourceProvider.GetString(key);
+            var title = L("LOCPlayAch_Title_PluginName");
+            var refreshAfterClose = false;
+            var services = new LinkedFileMappingServices
+            {
+                LoadRecord = () => store.LoadOrDefault(gameId),
+                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
+                LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                Spoilers = SpoilerSettings.From(_settings?.Persisted),
+                SchemaStore = plugin.LinkedFileSchemaStore,
+                // Apply runs the game's ordinary refresh once the window has closed, so the file
+                // is read the way every refresh reads it and what follows a refresh runs too.
+                ApplyNow = () =>
+                {
+                    refreshAfterClose = true;
+                    return null;
+                },
+                BrowseFile = current =>
+                {
+                    var dialog = new System.Windows.Forms.OpenFileDialog
+                    {
+                        Filter = L("LOCPlayAch_LinkedFile_Format_SupportedFiles") +
+                                 " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav|" +
+                                 L("LOCPlayAch_Showcase_AllFiles") + " (*.*)|*.*",
+                        CheckFileExists = true,
+                        Multiselect = false
+                    };
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(current))
+                        {
+                            dialog.InitialDirectory = System.IO.Path.GetDirectoryName(current);
+                            dialog.FileName = System.IO.Path.GetFileName(current);
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                    }
+
+                    return dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK ? dialog.FileName : null;
+                },
+                Confirm = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes,
+                ShowMessage = message => _playniteApi?.Dialogs?.ShowMessage(message, title, MessageBoxButton.OK, MessageBoxImage.Information),
+                AskName = defaultName => PresetNamePrompt.TryAsk(
+                    plugin,
+                    defaultName,
+                    LinkedFileSchema.SanitizeName,
+                    LinkedFileSchema.MaxNameLength,
+                    out var name,
+                    L("LOCPlayAch_LinkedFile_SaveMappingTitle"))
+                    ? name
+                    : null
+            };
+
+            var changed = LinkedFileMappingDialog.Show(Window.GetWindow(this), new LinkedFileMappingViewModel(services));
+            if (refreshAfterClose && _viewModel.RefreshGameCommand?.CanExecute(null) == true)
+            {
+                _viewModel.RefreshGameCommand.Execute(null);
+            }
+
+            return changed;
         }
 
         private void EnsureEditorControl(bool forceRecreate)
@@ -923,6 +1001,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 shareToWorkshop: _viewModel.ShareToWorkshopCommand,
                 importPortable: (mergeCustomAchievements, mergeCsv, beforeReplace) =>
                     _viewModel.ImportPortable(mergeCustomAchievements, mergeCsv, beforeReplace));
+            _editorViewModel.ShowLinkedFileDialog = ShowLinkedFileDialog;
             _editorViewModel.CustomAchievementsSaved += CustomViewModel_CustomAchievementsSaved;
             _editorViewModel.AssignmentsChanged += EditorViewModel_CustomizationPersisted;
             _editorViewModel.IconOverridesSaved += EditorViewModel_IconOverridesSaved;
@@ -1416,6 +1495,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (_categoryControl != null)
             {
                 _categoryControl.SidebarCategoryScopeChanged -= CategoryControl_SidebarCategoryScopeChanged;
+                _categoryControl.Cleanup();
             }
 
             _categoryControl = null;

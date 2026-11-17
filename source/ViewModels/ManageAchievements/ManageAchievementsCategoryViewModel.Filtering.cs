@@ -129,7 +129,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     row.SetFilterScopeFromMembers(apiNames.Count, filteredCount, summaryEffectiveCount);
 
                     // A stored kind is the category's; otherwise it has one only when every member agrees.
-                    var storedKind = ResolveStoredCategoryKind(storedKinds, row.CategoryLabel);
+                    var storedKind = CategoryEditor.ResolveStoredCategoryKind(storedKinds, row.CategoryLabel);
                     var memberKind = CategoryKindHelper.ResolveUnanimous(apiNames
                         .Select(apiName => rowsByApiName.TryGetValue(apiName, out var member) ? member.CategoryKind : null));
                     row.SetKind(storedKind, storedKind != null ? storedKind : memberKind);

@@ -95,6 +95,12 @@ namespace PlayniteAchievements.Models.Settings
         public bool? ExcludedFromSummaries { get; set; }
 
         /// <summary>
+        /// True when no metadata source supplies this game. The game's own metadata choices stay
+        /// stored for when it is included again. Local state: never exported in a .pa package.
+        /// </summary>
+        public bool? ExcludedFromMetadata { get; set; }
+
+        /// <summary>
         /// Values an automatic rule wrote and still owns, one per field. Local state: never
         /// exported in a .pa package.
         /// </summary>
@@ -258,6 +264,13 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public string CustomProviderId { get; set; }
 
+        /// <summary>
+        /// The file this game's unlock status is read from, with the mapping that reads it. The
+        /// mapping travels in the portable package; the path and read status are this machine's
+        /// own, like <see cref="UnlockSounds"/>.
+        /// </summary>
+        public LinkedFileLink LinkedFile { get; set; }
+
         public GameCustomDataFile Clone()
         {
             return new GameCustomDataFile
@@ -266,6 +279,7 @@ namespace PlayniteAchievements.Models.Settings
                 PlayniteGameId = PlayniteGameId,
                 ExcludedFromRefreshes = ExcludedFromRefreshes,
                 ExcludedFromSummaries = ExcludedFromSummaries,
+                ExcludedFromMetadata = ExcludedFromMetadata,
                 RuleClaims = CloneRuleClaims(RuleClaims),
                 UserPinnedFields = UserPinnedFields != null
                     ? new List<string>(UserPinnedFields)
@@ -335,8 +349,25 @@ namespace PlayniteAchievements.Models.Settings
                 CustomAchievements = CustomAchievements != null
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
-                CustomProviderId = CustomProviderId
+                CustomProviderId = CustomProviderId,
+                LinkedFile = LinkedFile?.Clone()
             };
+        }
+
+        /// <summary>
+        /// A schema-7 map for the portable package: a copy of the record's own map when it still
+        /// carries one (not yet normalized), else projected from <see cref="AchievementOverrides"/>,
+        /// which normalized records hold alone. Packages keep the maps for older versions.
+        /// </summary>
+        private Dictionary<string, string> PortableMap(Dictionary<string, string> map, Func<AchievementOverride, string> field)
+        {
+            if (map != null)
+            {
+                return new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+            }
+
+            var projected = AchievementOverride.Project(AchievementOverrides, field);
+            return projected.Count > 0 ? projected : null;
         }
 
         public GameCustomDataPortableFile ToPortable()
@@ -355,9 +386,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementOrder = AchievementOrder != null
                     ? new List<string>(AchievementOrder)
                     : null,
-                AchievementCategoryOverrides = AchievementCategoryOverrides != null
-                    ? new Dictionary<string, string>(AchievementCategoryOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
+                AchievementCategoryOverrides = PortableMap(AchievementCategoryOverrides, o => o.Category),
                 AchievementCategoryTypeOverrides = AchievementCategoryTypeOverrides != null
                     ? new Dictionary<string, string>(AchievementCategoryTypeOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
@@ -377,15 +406,9 @@ namespace PlayniteAchievements.Models.Settings
                 GoalAchievementApiNames = GoalAchievementApiNames != null
                     ? new List<string>(GoalAchievementApiNames)
                     : null,
-                AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
-                    ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
-                AchievementLockedIconOverrides = AchievementLockedIconOverrides != null
-                    ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
-                    : null,
-                AchievementNotes = AchievementNotes != null
-                    ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
-                    : null,
+                AchievementUnlockedIconOverrides = PortableMap(AchievementUnlockedIconOverrides, o => o.UnlockedIconPath),
+                AchievementLockedIconOverrides = PortableMap(AchievementLockedIconOverrides, o => o.LockedIconPath),
+                AchievementNotes = PortableMap(AchievementNotes, o => o.Note),
                 AchievementOverrides = CloneAchievementOverrideMap(AchievementOverrides),
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 RetroAchievementsSelectedSubsetGameIds = RetroAchievementsSelectedSubsetGameIds != null
@@ -406,7 +429,9 @@ namespace PlayniteAchievements.Models.Settings
                     : null,
                 // The provider snapshot is filled by the store at export time; the model has no
                 // access to the custom provider catalog.
-                CustomProviderId = CustomProviderId
+                CustomProviderId = CustomProviderId,
+                // The mapping travels; the file path and read status never do.
+                LinkedFileSchema = LinkedFile?.Schema?.Clone()
             };
         }
 
@@ -481,7 +506,10 @@ namespace PlayniteAchievements.Models.Settings
                 CustomAchievements = portable?.CustomAchievements != null
                     ? portable.CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
-                CustomProviderId = portable?.CustomProviderId
+                CustomProviderId = portable?.CustomProviderId,
+                LinkedFile = portable?.LinkedFileSchema != null
+                    ? new LinkedFileLink { Schema = portable.LinkedFileSchema.Clone() }
+                    : null
             };
         }
 

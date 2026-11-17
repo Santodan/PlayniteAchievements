@@ -115,6 +115,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- v4.3.0 merge
+
 ## 2026-11-17 - v4.2.1.2
 
 - Fixed Capstone not been generated automatically when the setting was enabled

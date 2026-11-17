@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -21,12 +22,11 @@ namespace PlayniteAchievements.Services.Overview
 
     /// <summary>
     /// Slice identities a linked pie exchanges with the overview, independent of the labels
-    /// the chart displays. Provider slices use their provider key.
+    /// the chart displays. Provider slices use their provider key and Completions slices their
+    /// <see cref="ProgressFilterChoices"/> key.
     /// </summary>
     public static class OverviewLinkedSliceKeys
     {
-        public const string Complete = "Complete";
-        public const string Incomplete = "Incomplete";
         public const string Locked = "Locked";
     }
 
@@ -165,6 +165,7 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             var completions = 0;
+            var completionsByGame = new Dictionary<Guid, int>();
             foreach (var game in games)
             {
                 if (!(game.PlayniteGameId is Guid gameId))
@@ -172,12 +173,18 @@ namespace PlayniteAchievements.Services.Overview
                     continue;
                 }
 
-                completions += game.CapstoneTotal > 0
+                var inSpan = game.CapstoneTotal > 0
                     ? (capstonesByGame.TryGetValue(gameId, out var capstones) ? capstones : 0)
                     : (completedGames.Contains(gameId) ? 1 : 0);
+                completions += inSpan;
+                if (inSpan > 0)
+                {
+                    completionsByGame[gameId] = (completionsByGame.TryGetValue(gameId, out var sum) ? sum : 0) + inSpan;
+                }
             }
 
             clipped.CompletionSpan = span;
+            clipped.CompletionsByGame = completionsByGame;
             clipped.Completions = completions;
             clipped.PossibleCompletions = completions;
             clipped.CompletedGames = completedGames.Count;
@@ -491,6 +498,19 @@ namespace PlayniteAchievements.Services.Overview
 
             var games = kept ?? Array.Empty<GameSummaryItem>();
             var snapshot = OverviewDataSnapshot.FromGameSummaries(games);
+
+            // A points score card narrowed by its control bar reads these, so the kept games'
+            // provider points are summed per family as the full library's are.
+            var points = new PlatformScoreTotals();
+            foreach (var game in games)
+            {
+                if (game != null)
+                {
+                    points.AddToFamily(game.PointsFamily, game.PlatformScorePoints, game.PlatformScorePointsTotal);
+                }
+            }
+
+            snapshot.ApplyPlatformScores(points);
             var ids = new HashSet<Guid>(games
                 .Where(game => game?.PlayniteGameId.HasValue == true)
                 .Select(game => game.PlayniteGameId.Value));

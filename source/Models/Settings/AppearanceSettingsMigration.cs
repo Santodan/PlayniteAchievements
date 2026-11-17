@@ -20,6 +20,11 @@ namespace PlayniteAchievements.Models.Settings
     /// <see cref="PersistedSettings.CommonGlowTierCleared"/>. Common could not glow before, and the
     /// old soft-glow default of every tier saved that bit, so without this every existing config
     /// would start glowing Common.
+    ///
+    /// Compact rarity bars: copies a saved <see cref="PersistedSettings.ShowCompactListRarityBar"/>
+    /// into the compact locked and compact unlocked settings where the config does not define
+    /// them. The single setting covered all three lists before the per-list settings existed. A
+    /// saved config carries every key, so the absent key is the gate and no flag is used.
     /// </summary>
     public static class AppearanceSettingsMigration
     {
@@ -41,6 +46,7 @@ namespace PlayniteAchievements.Models.Settings
 
                 var changed = SeedInlineSurfaceTransparency(persisted);
                 changed |= ClearCommonGlowTier(persisted);
+                changed |= SeedCompactRarityBars(persisted);
                 return changed
                     ? root.ToString(Formatting.None)
                     : json;
@@ -108,6 +114,37 @@ namespace PlayniteAchievements.Models.Settings
 
             persisted[flagName] = true;
             return true;
+        }
+
+        /// <summary>
+        /// Writes the saved compact list rarity bar value into each per-list setting the config
+        /// does not define yet.
+        /// </summary>
+        private static bool SeedCompactRarityBars(JObject persisted)
+        {
+            var source = persisted[nameof(PersistedSettings.ShowCompactListRarityBar)];
+            if (source == null || source.Type != JTokenType.Boolean)
+            {
+                return false;
+            }
+
+            var changed = false;
+            foreach (var name in new[]
+            {
+                nameof(PersistedSettings.ShowCompactLockedListRarityBar),
+                nameof(PersistedSettings.ShowCompactUnlockedListRarityBar)
+            })
+            {
+                if (persisted[name] != null)
+                {
+                    continue;
+                }
+
+                persisted[name] = source.Value<bool>();
+                changed = true;
+            }
+
+            return changed;
         }
 
         private static void ClearCommonBit(JObject persisted, string propertyName)

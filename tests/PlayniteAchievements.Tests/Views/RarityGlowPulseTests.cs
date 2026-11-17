@@ -132,6 +132,113 @@ namespace PlayniteAchievements.Tests.Views
             RarityGlowPulse.SetIsActive(element, false);
         });
 
+        [TestMethod]
+        public void PhaseLockedPulseRunsOnTheGlowTickNotAWpfAnimation() => Sta(() =>
+        {
+            var element = Pulse(shared: true);
+            var start = element.Opacity;
+            Pump(200);
+            Assert.IsTrue(Math.Abs(start - element.Opacity) > 0.001, "the glow tick did not advance the pulse");
+            Assert.IsFalse(element.HasAnimatedProperties, "a phase-locked pulse must not run a monitor-rate clock");
+            RarityGlowPulse.SetIsActive(element, false);
+        });
+
+        [TestMethod]
+        public void SuspendedGateLeavesTheCompositionTickAndResumesOnTheLivePhase() => Sta(() =>
+        {
+            var element = Pulse(shared: true);
+            Pump(100);
+            GlowAnimationGate.SetGameRunning(true);
+            Assert.IsFalse(DriverHooked(), "the driver must leave CompositionTarget.Rendering while suspended");
+            var frozen = element.Opacity;
+            Pump(200);
+            Assert.AreEqual(frozen, element.Opacity, 0.0000001);
+
+            GlowAnimationGate.SetGameRunning(false);
+            Assert.IsTrue(DriverHooked());
+            Pump(100);
+            Assert.IsTrue(Math.Abs(frozen - element.Opacity) > 0.001);
+            RarityGlowPulse.SetIsActive(element, false);
+        });
+
+        [TestMethod]
+        public void ExemptTargetKeepsTickingWhileTheGateIsSuspended() => Sta(() =>
+        {
+            var library = Pulse(shared: true);
+            var exempt = new CountingTarget { IgnoresGlowGate = true };
+            GlowAnimationGate.SetGameRunning(true);
+            RayAnimationDriver.Subscribe(exempt);
+            var frozen = library.Opacity;
+            Pump(200);
+            Assert.IsTrue(exempt.Frames > 0, "an exempt target must keep receiving frames");
+            Assert.AreEqual(frozen, library.Opacity, 0.0000001, "non-exempt targets must hold still");
+
+            RayAnimationDriver.Unsubscribe(exempt);
+            Assert.IsFalse(DriverHooked());
+            RarityGlowPulse.SetIsActive(library, false);
+        });
+
+        [TestMethod]
+        public void HeldRateServesEveryFrameTargetsAtEveryFrameAndTheRestAtTheRate() => Sta(() =>
+        {
+            var rated = new CountingTarget { IgnoresGlowGate = true };
+            var everyFrame = new CountingTarget { IgnoresGlowGate = true, TakesEveryHeldFrame = true };
+            RayAnimationDriver.Subscribe(rated);
+            RayAnimationDriver.Subscribe(everyFrame);
+            try
+            {
+                // A held rate below the default leaves the rated target at the default; the
+                // other is served on the frames in between as well.
+                RayAnimationDriver.SetHeldFps(1);
+                Pump(400);
+                Assert.IsTrue(rated.Frames > 0, "a rated target must still receive frames");
+                Assert.IsTrue(
+                    everyFrame.Frames >= rated.Frames,
+                    "every-frame " + everyFrame.Frames + " against rated " + rated.Frames);
+
+                RayAnimationDriver.ClearHeldFps();
+                var ratedBefore = rated.Frames;
+                var everyBefore = everyFrame.Frames;
+                Pump(300);
+                Assert.AreEqual(
+                    rated.Frames - ratedBefore, everyFrame.Frames - everyBefore,
+                    "without a held rate both are served on the same frames");
+            }
+            finally
+            {
+                RayAnimationDriver.ClearHeldFps();
+                RayAnimationDriver.Unsubscribe(rated);
+                RayAnimationDriver.Unsubscribe(everyFrame);
+            }
+        });
+
+        private sealed class CountingTarget : IRayAnimationTarget
+        {
+            public int Frames;
+            public bool WantsRayFrames => true;
+            public bool IgnoresGlowGate { get; set; }
+            public bool TakesEveryHeldFrame { get; set; }
+            public void OnRayFrame() => Frames++;
+        }
+
+        private static bool DriverHooked() => (bool)typeof(RayAnimationDriver)
+            .GetField("_hooked", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+
+        // The driver is process-static and bound to the first dispatcher that subscribes; each
+        // test runs on its own STA thread, so start from an empty driver.
+        private static void ResetDriver()
+        {
+            var flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var subscribers = (System.Collections.IList)typeof(RayAnimationDriver).GetField("Subscribers", flags).GetValue(null);
+            subscribers.Clear();
+            typeof(RayAnimationDriver).GetField("_owner", flags).SetValue(null, null);
+            typeof(RayAnimationDriver).GetField("_hooked", flags).SetValue(null, false);
+            var ticker = typeof(RarityGlowPulse).GetNestedType("PhaseLockedTicker", flags);
+            var instance = ticker.GetField("Instance", flags).GetValue(null);
+            ((System.Collections.IList)ticker.GetField("_elements", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(instance)).Clear();
+        }
+
         private static void Pump(int milliseconds)
         {
             var frame = new DispatcherFrame();
@@ -154,12 +261,17 @@ namespace PlayniteAchievements.Tests.Views
                     window = new Window { Width = 16, Height = 16, Left = -10000, Top = -10000,
                         ShowInTaskbar = false, ShowActivated = false, Content = _root };
                     window.Show();
-                    typeof(RarityGlowPulse).GetMethod("InvalidateSharedClock", BindingFlags.Static | BindingFlags.NonPublic)
-                        .Invoke(null, null);
+                    ResetDriver();
                     action();
                 }
                 catch (Exception exception) { failure = exception; }
-                finally { window?.Close(); _root = null; Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+                finally
+                {
+                    GlowAnimationGate.SetGameRunning(false);
+                    window?.Close();
+                    _root = null;
+                    Dispatcher.CurrentDispatcher.InvokeShutdown();
+                }
             });
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();

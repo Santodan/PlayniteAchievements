@@ -24,6 +24,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <!-- Embedded so the Volume Mixer row for this process carries the plugin's icon. -->
     <ApplicationIcon>helper.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>

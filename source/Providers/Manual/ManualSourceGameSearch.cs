@@ -48,6 +48,6 @@ namespace PlayniteAchievements.Providers.Manual
         }
 
         internal static GameSearchResult ToResult(ManualGameSearchResult result) =>
-            new GameSearchResult(result.SourceGameId, result.Name, result.IconUrl, result.Platforms);
+            new GameSearchResult(result.SourceGameId, result.Name, result.IconUrl, result.Platforms, result.Region);
     }
 }

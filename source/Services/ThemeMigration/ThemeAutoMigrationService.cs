@@ -117,10 +117,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
                                         ? MigrationMode.Limited
                                         : persisted.ThemeMigrationMode,
                                     CustomMigrationSelection.FromSettings(persisted));
-                                if (result.Success)
+                                if (result.Success && result.FilesBackedUp > 0)
                                 {
                                     _logger.Info($"Auto-migrated upgraded theme: {theme.Name}");
                                     migratedThemes.Add(theme.BestDisplayName);
+                                }
+                                else if (result.Success)
+                                {
+                                    _logger.Info($"Upgraded theme needed no changes: {theme.Name}");
                                 }
                                 else
                                 {

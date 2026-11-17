@@ -46,13 +46,11 @@ namespace PlayniteAchievements.Tests.Services
             var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png", locked: "steam_gray.png"));
             var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
 
-            bool changed;
             using (var run = overlay.BeginRun())
             {
-                changed = await run.ApplyAsync(data.Game, data, CancellationToken.None);
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
 
-            Assert.IsTrue(changed);
             Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath);
             Assert.IsNull(data.Achievements[0].LockedIconPath);
             Assert.AreEqual(1, playstation.BeginCount);
@@ -64,7 +62,7 @@ namespace PlayniteAchievements.Tests.Services
             next.PlayniteGameId = data.PlayniteGameId;
             using (var run = overlay.BeginRun())
             {
-                Assert.IsFalse(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+                await run.ApplyAsync(next.Game, next, CancellationToken.None);
             }
         }
 
@@ -106,6 +104,37 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.IsTrue(file.MetadataChoices.SameAs(restored.MetadataChoices));
             Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(file.ToPortable()));
+        }
+
+        [TestMethod]
+        public async Task ExcludedGame_TakesNothingFromAnySource_AndKeepsItsChoices()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Icons)
+            {
+                Rows = { Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png") }
+            };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer", icon: "steam.png"));
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
+            var gameId = data.PlayniteGameId.Value;
+            overlay.Links.SetChoices(gameId, new MetadataChoices { Icons = "PlayStation" });
+
+            Assert.IsTrue(overlay.Links.SetExcludedFromMetadata(gameId, true));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("steam.png", data.Achievements[0].UnlockedIconPath);
+            Assert.AreEqual(0, playstation.BeginCount, "no source is asked");
+            Assert.AreEqual("PlayStation", overlay.Links.GetChoices(gameId).Icons);
+
+            Assert.IsTrue(overlay.Links.SetExcludedFromMetadata(gameId, false));
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath, "included again, the choice applies");
         }
 
         [TestMethod]
@@ -234,7 +263,8 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(10, master.Points, "An achievement's own points are kept.");
             Assert.AreEqual("gold", dragon.TrophyType);
             Assert.AreEqual(50, dragon.Points, "Points the platform lacks come from the source chosen for points.");
-            Assert.AreEqual("bronze", bonus.TrophyType, "An achievement's own trophy type is kept.");
+            Assert.AreEqual("gold", bonus.TrophyType, "The chosen source's trophy type replaces the platform's.");
+            Assert.AreEqual("bronze", bonus.PlatformLayer.TrophyType, "The platform's stays in its layer.");
         }
 
         [TestMethod]
@@ -326,6 +356,88 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public async Task Order_IsTheSourcesListPosition_AndUnmatchedAchievementsHaveNone()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order)
+            {
+                Rows = { Row("p1", "Bonus"), Row("p2", "Master"), Row("p3", "Dragon Slayer") }
+            };
+            var master = Row("ACH_MASTER", "Master");
+            var dragon = Row("ACH_DRAGON", "Dragon Slayer");
+            var other = Row("ACH_OTHER", "Something Else");
+            other.MetadataOrderIndex = 7;
+            var bonus = Row("ACH_BONUS", "Bonus");
+            var data = Game("Steam", master, dragon, other, bonus);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(order: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(0, bonus.MetadataOrderIndex);
+            Assert.AreEqual(1, master.MetadataOrderIndex);
+            Assert.AreEqual(2, dragon.MetadataOrderIndex);
+            Assert.IsNull(other.MetadataOrderIndex, "an achievement the source did not match keeps the platform's order");
+        }
+
+        [TestMethod]
+        public async Task Order_WhenOff_LeavesNoPosition()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order | MetadataField.Text)
+            {
+                Rows = { Row("p1", "Master") }
+            };
+            var master = Row("ACH_MASTER", "Master");
+            var data = Game("Steam", master);
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(text: "PlayStation"));
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.IsNull(master.MetadataOrderIndex);
+        }
+
+        [TestMethod]
+        public async Task Order_FromAFailedSource_KeepsTheStoredPositions()
+        {
+            var playstation = new FakeSource("PlayStation", MetadataField.Order) { FailFetch = true };
+            var data = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_MASTER", "Master"));
+            var storedDragon = Row("ACH_DRAGON", "Dragon Slayer");
+            storedDragon.MetadataOrderIndex = 4;
+            var stored = Game("Steam", storedDragon, Row("ACH_MASTER", "Master"));
+            var overlay = Overlay(new IMetadataProvider[] { playstation }, Choices(order: "PlayStation"), loadStored: _ => stored);
+            overlay.Links.SetUser(data.PlayniteGameId.Value, playstation.Key, "link-PlayStation");
+
+            using (var run = overlay.BeginRun())
+            {
+                await run.ApplyAsync(data.Game, data, CancellationToken.None);
+            }
+
+            Assert.AreEqual(4, data.Achievements[0].MetadataOrderIndex);
+            Assert.IsNull(data.Achievements[1].MetadataOrderIndex);
+        }
+
+        [TestMethod]
+        public void Order_IsOffByDefault_AndForPlatformsNoSourceHas()
+        {
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = new MetadataChoices { Icons = string.Empty }
+            };
+
+            Assert.AreEqual(string.Empty, settings.MetadataDefaults.Order, "a configuration saved before Order existed completes to Off");
+            Assert.AreEqual(string.Empty, new PersistedSettings().ResolveMetadataChoices("Epic").Order);
+            Assert.AreEqual("PlayStation", settings.ResolveMetadataChoices("Steam", new MetadataChoices { Order = "PlayStation" }).Order);
+            Assert.AreEqual(string.Empty, settings.ResolveMetadataChoices("Riot", new MetadataChoices { Order = "PlayStation" }).Order);
+            Assert.IsFalse(new MetadataChoices { Order = string.Empty }.IsEmpty());
+            Assert.IsFalse(new MetadataChoices { Order = "Xbox" }.SameAs(new MetadataChoices()));
+            Assert.AreEqual("Xbox", new MetadataChoices { Order = "Xbox" }.Clone().Order);
+        }
+
+        [TestMethod]
         public void PlatformsWithTheirOwnPointsOrTrophyTypes_TakeNone()
         {
             var settings = new PersistedSettings();
@@ -373,7 +485,8 @@ namespace PlayniteAchievements.Tests.Services
                 CapstoneArt = string.Empty,
                 TrophyTypes = string.Empty,
                 Points = string.Empty,
-                Text = string.Empty
+                Text = string.Empty,
+                Order = string.Empty
             }));
             Assert.AreEqual(MetadataChoices.TrueGaming, steam.Tags);
             Assert.AreEqual(MetadataChoices.PlayStation, steam.CapstoneArt);
@@ -407,7 +520,6 @@ namespace PlayniteAchievements.Tests.Services
             using (var run = overlay.BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
-                run.RestoreOwnIconsWhereDownloadFailed(data, path => false);
             }
 
             Assert.IsTrue(overlay.Links.TryGet(gameId, "PlayStation", out var record));
@@ -416,59 +528,38 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task FailedBorrowedIcon_FallsBackToOwn_AndIsTriedAgainNextRefresh()
+        public async Task BorrowedIcon_GoesToTheMetadataLayer_AndAnUndownloadedOneLeavesTheOwnIcon()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
             {
                 Rows =
                 {
-                    Row("p1", "Dragon Slayer", icon: "https://psn/dragon.png"),
+                    Row("p1", "Dragon Slayer", icon: "psn/dragon.png"),
                     Row("p2", "Curiosity", icon: "https://psn/curiosity.png")
                 }
             };
             var data = Game(
                 "Steam",
-                Row("ACH_DRAGON", "Dragon Slayer", icon: "steam_dragon.png"),
+                Row("ACH_DRAGON", "Dragon Slayer", icon: "steam_dragon.png", locked: "steam_dragon_gray.png"),
                 Row("ACH_CURIOUS", "Curiosity", icon: "steam_curious.png", locked: "steam_curious_gray.png"));
-            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"));
-            bool Undownloaded(string path) => path != null && path.StartsWith("https://", StringComparison.Ordinal);
+            var saver = new FakeIconSaver { Failing = { "p2" } };
+            var overlay = Overlay(new[] { playstation }, Choices(icons: "PlayStation"), iconSaver: saver);
 
             using (var run = overlay.BeginRun())
             {
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
-                data.Achievements[0].UnlockedIconPath = "cache/dragon.png";
-
-                var restored = run.RestoreOwnIconsWhereDownloadFailed(data, Undownloaded);
-
-                CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, restored.ToList());
             }
 
-            Assert.AreEqual("cache/dragon.png", data.Achievements[0].UnlockedIconPath);
-            Assert.AreEqual("steam_curious.png", data.Achievements[1].UnlockedIconPath);
-            Assert.AreEqual("steam_curious_gray.png", data.Achievements[1].LockedIconPath);
-            var gameId = data.PlayniteGameId.Value;
-            CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, overlay.Links.GetIconFallbacks(gameId).ToList());
+            var dragon = data.Achievements[0];
+            Assert.AreEqual(FakeIconSaver.PathOf("PlayStation", "p1"), dragon.UnlockedIconPath);
+            Assert.AreEqual(FakeIconSaver.PathOf("PlayStation", "p1"), dragon.LockedIconPath);
+            Assert.AreEqual("steam_dragon.png", dragon.PlatformLayer.UnlockedIconPath);
+            Assert.AreEqual("steam_dragon_gray.png", dragon.PlatformLayer.LockedIconPath);
 
-            // Next refresh: the download reuses both files, so the fallen-back one is reset to the
-            // borrowed icon and downloaded again; once it arrives nothing is left falling back.
-            var next = Game("Steam", Row("ACH_DRAGON", "Dragon Slayer"), Row("ACH_CURIOUS", "Curiosity"));
-            next.Game = data.Game;
-            next.PlayniteGameId = data.PlayniteGameId;
-            using (var run = overlay.BeginRun())
-            {
-                Assert.IsFalse(await run.ApplyAsync(next.Game, next, CancellationToken.None));
-                next.Achievements[0].UnlockedIconPath = "cache/dragon.png";
-                next.Achievements[1].UnlockedIconPath = "cache/curious.png";
-
-                var retried = run.ResetEarlierIconFallbacks(next);
-
-                CollectionAssert.AreEquivalent(new[] { "ACH_CURIOUS" }, retried.ToList());
-                Assert.AreEqual("https://psn/curiosity.png", next.Achievements[1].UnlockedIconPath);
-                next.Achievements[1].UnlockedIconPath = "cache/curious.png";
-                Assert.AreEqual(0, run.RestoreOwnIconsWhereDownloadFailed(next, Undownloaded).Count);
-            }
-
-            Assert.AreEqual(0, overlay.Links.GetIconFallbacks(gameId).Count);
+            var curious = data.Achievements[1];
+            Assert.AreEqual("steam_curious.png", curious.UnlockedIconPath);
+            Assert.AreEqual("steam_curious_gray.png", curious.LockedIconPath);
+            Assert.IsTrue(curious.MetadataLayer.IsEmpty);
         }
 
         [TestMethod]
@@ -705,7 +796,7 @@ namespace PlayniteAchievements.Tests.Services
 
             using (var run = overlay.BeginRun())
             {
-                Assert.IsTrue(await run.ApplyAsync(next.Game, next, CancellationToken.None));
+                await run.ApplyAsync(next.Game, next, CancellationToken.None);
             }
 
             Assert.AreEqual("https://psn/curiosity.png", next.Achievements[1].UnlockedIconPath);
@@ -1406,7 +1497,8 @@ namespace PlayniteAchievements.Tests.Services
             string capstoneArt = null,
             string trophyTypes = null,
             string points = null,
-            string text = null)
+            string text = null,
+            string order = null)
         {
             var settings = new PersistedSettings();
             settings.MetadataDefaults = new MetadataChoices
@@ -1418,7 +1510,8 @@ namespace PlayniteAchievements.Tests.Services
                 CapstoneArt = capstoneArt ?? string.Empty,
                 TrophyTypes = trophyTypes ?? string.Empty,
                 Points = points ?? string.Empty,
-                Text = text ?? string.Empty
+                Text = text ?? string.Empty,
+                Order = order ?? string.Empty
             };
             return settings;
         }
@@ -1437,11 +1530,40 @@ namespace PlayniteAchievements.Tests.Services
                 MetadataTestStores.Links(_directory, new FakeMetadataStateDatabase()),
                 null,
                 downloadCategoryArt,
-                loadStored,
+                loadStored == null ? null : new Func<Guid, GameAchievementData>(id => AsStoredMetadata(loadStored(id))),
                 iconSaver == null ? null : new SourceIconDownload(iconSaver.SaveAsync),
                 iconSaver == null ? null : new Action<Guid, string>(iconSaver.Delete),
                 englishTitles,
                 iconSaver == null ? null : new Action<IEnumerable<string>>(iconSaver.Sweep));
+        }
+
+        /// <summary>
+        /// A stored game as the cache loads it after an overlay: each row's values are its stored
+        /// metadata layer.
+        /// </summary>
+        private static GameAchievementData AsStoredMetadata(GameAchievementData stored)
+        {
+            foreach (var row in stored?.Achievements ?? new List<AchievementDetail>())
+            {
+                if (row != null && row.MetadataLayer == null)
+                {
+                    row.MetadataLayer = new AchievementLayerValues(
+                        row.DisplayName,
+                        row.Description,
+                        row.UnlockedIconPath,
+                        row.LockedIconPath,
+                        row.Points,
+                        row.TrophyType,
+                        row.Category,
+                        row.CategoryKind,
+                        PlayniteAchievements.Services.Achievements.AchievementTagHelper.StripDerived(row.Tags),
+                        row.GlobalPercentUnlocked,
+                        row.GlobalPercentUnlocked.HasValue ? row.Rarity : (RarityTier?)null,
+                        row.MetadataOrderIndex);
+                }
+            }
+
+            return stored;
         }
 
         /// <summary>Saves each row's icon as C:\saved\&lt;source&gt;\&lt;ApiName&gt;.png, except the ones it is told fail.</summary>
@@ -1556,7 +1678,7 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public async Task SourceIconThatWasNotSaved_KeepsItsAddressForTheGame_AndShowsNoneInTheMatchList()
+        public async Task SourceIconThatWasNotSaved_LeavesTheOwnIcon_AndShowsNoneInTheMatchList()
         {
             var playstation = new FakeSource("PlayStation", MetadataField.Icons)
             {
@@ -1571,7 +1693,7 @@ namespace PlayniteAchievements.Tests.Services
                 await run.ApplyAsync(data.Game, data, CancellationToken.None);
             }
 
-            Assert.AreEqual("https://psn/dragon.png", data.Achievements[0].UnlockedIconPath, "the icon download tries the address again");
+            Assert.AreEqual("steam.png", data.Achievements[0].UnlockedIconPath, "the game's own icon shows until a later refresh saves the source's");
             var snapshot = overlay.Links.Snapshots.Get(data.PlayniteGameId.Value, "PlayStation", "link-PlayStation");
             Assert.IsNull(snapshot.Rows.Single().Icon);
         }

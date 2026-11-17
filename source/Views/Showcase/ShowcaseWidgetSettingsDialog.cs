@@ -157,6 +157,11 @@ namespace PlayniteAchievements.Views.Showcase
                     contentAfterSharedRows: _profileEditor,
                     liveWidget: _sourceWidget);
                 panel.Children.Add(_options);
+                if (_titleBox != null)
+                {
+                    _titleBox.TextChanged += (_, __) => _options.SetHasTitle(!string.IsNullOrWhiteSpace(_titleBox.Text));
+                    _options.SetHasTitle(!string.IsNullOrWhiteSpace(_titleBox.Text));
+                }
             }
             else if (_profileEditor != null)
             {

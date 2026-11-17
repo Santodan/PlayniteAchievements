@@ -440,11 +440,11 @@ namespace PlayniteAchievements.Tests.Views
             Assert.IsFalse(nativeMenus.Contains("ShowcasePinMenuBuilder"));
             Assert.IsFalse(nativeMenus.Contains("LOCPlayAch_Showcase_Title"));
 
-            StringAssert.Contains(options, "AddCollectionChoice(panel, includeAchievementCollections: true)");
+            StringAssert.Contains(options, "AddCollectionChoice(contentRows, includeAchievementCollections: true)");
             // A widget's collection is its own setting, offered by every widget listing games or
             // achievements; only achievement widgets offer achievement collections.
-            StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicBarPanel, includeAchievementCollections: true)");
-            StringAssert.Contains(options, "AddCollectionChoice(gameMosaicBarPanel, includeAchievementCollections: false)");
+            StringAssert.Contains(options, "AddCollectionChoice(achievementMosaicContent, includeAchievementCollections: true)");
+            StringAssert.Contains(options, "AddCollectionChoice(gameMosaicContent, includeAchievementCollections: false)");
             StringAssert.Contains(options, "ShowcaseCollectionType.Achievements");
 
             // Unlock Next ranks during selection, so its criterion replaces the generic sort rows

@@ -12,10 +12,15 @@
       "ColorNamesByRarity": "value",
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "ControlBarItemOrder": {
+        "list": "value"
+      },
       "HiddenControlBarItems": {
         "list": "value"
       },
       "HideCategorySummaryRow": "value",
+      "InlineDetailsBeforeDescription": "value",
+      "InlineDetailsBeforeName": "value",
       "MaxHeight": "value",
       "MaxRows": "value",
       "NameColor": "value",
@@ -23,6 +28,7 @@
       "ShowColumnHeaders": "value",
       "ShowControlBar": "value",
       "ShowRarityGlow": "value",
+      "SortColumn": "value",
       "SortDescending": "value",
       "SortMode": "value",
       "StartInCategoryMode": "value",
@@ -75,7 +81,9 @@
       "RowHeight": "value",
       "ShowColumnHeaders": "value",
       "ShowCompletionGlow": "value",
+      "ShowMetadataCollection": "value",
       "ShowMetadataPoints": "value",
+      "ShowMetadataPrestige": "value",
       "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
@@ -181,6 +189,7 @@
         "list": "value"
       },
       "Kind": "value",
+      "LinkedFileSchema": "LinkedFileSchema",
       "ManualCapstoneApiName": "value",
       "ManualLink": "ManualAchievementLink",
       "MetadataChoices": "MetadataChoices",
@@ -214,6 +223,9 @@
     "GameSummaryGridOptions": {
       "ColorRarityColumnsByRarity": "value",
       "Columns": "GridColumnLayoutOptions",
+      "ControlBarItemOrder": {
+        "list": "value"
+      },
       "HiddenControlBarItems": {
         "list": "value"
       },
@@ -224,13 +236,16 @@
       "ShowCompletionFrame": "value",
       "ShowCompletionGlow": "value",
       "ShowControlBar": "value",
+      "ShowMetadataCollection": "value",
       "ShowMetadataPlatform": "value",
       "ShowMetadataPlaytime": "value",
       "ShowMetadataPoints": "value",
+      "ShowMetadataPrestige": "value",
       "ShowMetadataRegion": "value",
       "ShowMetadataTotal": "value",
       "ShowNameAboveProgress": "value",
       "ShowRarityBadgesBelowProgress": "value",
+      "SortColumn": "value",
       "SortDescending": "value",
       "SortMode": "value",
       "UseCoverImages": "value"
@@ -261,6 +276,29 @@
         "map": "value"
       }
     },
+    "LinkedFileColumnMapping": {
+      "Column": "value",
+      "Field": "value"
+    },
+    "LinkedFileSchema": {
+      "AssumeLocalTime": "value",
+      "Columns": {
+        "list": "LinkedFileColumnMapping"
+      },
+      "CreateUnmatchedRows": "value",
+      "CustomTimeFormat": "value",
+      "Delimiter": "value",
+      "Format": "value",
+      "HasHeader": "value",
+      "Name": "value",
+      "RootPath": "value",
+      "RowElementPath": "value",
+      "SheetName": "value",
+      "TimeFormat": "value",
+      "UnlockedTrueValues": {
+        "list": "value"
+      }
+    },
     "ManualAchievementLink": {
       "AllowUnauthenticatedSchemaFetch": "value",
       "CreatedUtc": "value",
@@ -279,6 +317,7 @@
       "CapstoneArt": "value",
       "Categories": "value",
       "Icons": "value",
+      "Order": "value",
       "Points": "value",
       "Rarity": "value",
       "Tags": "value",

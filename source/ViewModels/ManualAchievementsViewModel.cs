@@ -522,6 +522,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 _refreshService.RebuildProgress += OnRebuildProgress;
 
+                // Linking replaces the game's achievement list. The cache write guard rejects a
+                // payload with no unlocks over cached data that has some, which a different source
+                // with different achievement IDs always is, so the cached data is removed first.
+                // Rollback restores it when the link does not complete.
+                _cacheManager.RemoveGameData(_playniteGame.Id);
+
                 await ExecuteRefreshRequestAsync(
                     BuildManualProviderRefreshRequest(),
                     refreshCts.Token);
@@ -535,9 +541,10 @@ namespace PlayniteAchievements.ViewModels
 
                 if (!TransitionToEditing(link, requireManualProviderData: true, persistInheritedFallback: false))
                 {
-                    var failureMessage = ResolveManualRefreshFailureMessage();
+                    var failureMessage = ResolveManualRefreshFailureMessage()
+                        ?? ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed");
                     Rollback();
-                    await HandleRefreshFailureAsync(failureMessage);
+                    await HandleRefreshFailureAsync(failureMessage, rerunSearch: false);
                     return;
                 }
 
@@ -561,16 +568,10 @@ namespace PlayniteAchievements.ViewModels
                 Rollback();
 
                 _logger?.Error(ex, "Manual achievement refresh failed");
-                if (ex is ManualSourceAuthenticationException authException)
-                {
-                    await HandleRefreshFailureAsync(
-                        ManualSourceAuthentication.ResolveLocalizedMessage(authException),
-                        rerunSearch: false);
-                }
-                else
-                {
-                    await HandleRefreshFailureAsync();
-                }
+                var failureMessage = ex is ManualSourceAuthenticationException authException
+                    ? ManualSourceAuthentication.ResolveLocalizedMessage(authException)
+                    : ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed");
+                await HandleRefreshFailureAsync(failureMessage, rerunSearch: false);
             }
             finally
             {
@@ -613,10 +614,26 @@ namespace PlayniteAchievements.ViewModels
                 throw new InvalidOperationException("Manual provider is not available.");
             }
 
-            await _refreshService.ExecuteRefreshAsync(
+            // Through the same entry point as every refresh, so linking runs what follows any
+            // refresh (metadata, the linked file, capstones, tags). Scoped to the Manual provider
+            // so only the linked definitions are fetched.
+            var entryPoint = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (entryPoint == null)
+            {
+                await _refreshService.ExecuteRefreshAsync(request, new[] { manualProvider }, cancellationToken);
+                return;
+            }
+
+            await entryPoint.ExecuteAsync(
                 request,
-                new[] { manualProvider },
-                cancellationToken);
+                new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = false,
+                    UseProgressWindow = false,
+                    SwallowExceptions = false,
+                    ExternalCancellationToken = cancellationToken,
+                    AuthContext = RefreshAuthContext.FromAuthenticatedProviders(new[] { manualProvider })
+                });
         }
 
         private RefreshRequest BuildManualProviderRefreshRequest()

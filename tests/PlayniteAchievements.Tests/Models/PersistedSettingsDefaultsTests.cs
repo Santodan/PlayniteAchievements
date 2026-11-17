@@ -88,6 +88,184 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void ProgressDetails_DefaultIsRarityTrophyPointsWithOnlyRarityEnabled()
+        {
+            var details = new PersistedSettings().ProgressDetails;
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy, ProgressDetailStyle.Points },
+                details.Select(entry => entry.Style).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { true, false, false },
+                details.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void ProgressDetails_NormalizesPartialAndDuplicateLists()
+        {
+            var settings = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    null,
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = false },
+                    new ProgressDetailEntry { Style = (ProgressDetailStyle)99, Enabled = true }
+                }
+            };
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
+                settings.ProgressDetails.Select(entry => entry.Style).ToArray());
+            // Rarity is always on, even when it was appended as missing.
+            CollectionAssert.AreEqual(
+                new[] { true, true, false },
+                settings.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void ProgressDetails_RarityCannotBeTurnedOff()
+        {
+            var settings = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false }
+                }
+            };
+
+            Assert.IsTrue(settings.ProgressDetails.Single(entry => entry.Style == ProgressDetailStyle.Rarity).Enabled);
+        }
+
+        [TestMethod]
+        public void ProgressDetails_JsonRoundTripReplacesDefaults()
+        {
+            var source = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false }
+                }
+            };
+
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(source);
+            var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<PersistedSettings>(json);
+
+            CollectionAssert.AreEqual(
+                new[] { ProgressDetailStyle.Trophy, ProgressDetailStyle.Points, ProgressDetailStyle.Rarity },
+                loaded.ProgressDetails.Select(entry => entry.Style).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { true, true, true },
+                loaded.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveRaritySpoilerToggles()
+        {
+            var source = new PersistedSettings
+            {
+                ShowHiddenRarity = false,
+                ShowLockedRarity = false
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.IsFalse(copy.ShowHiddenRarity);
+                Assert.IsFalse(copy.ShowLockedRarity);
+            }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveControlBarStates()
+        {
+            var source = new PersistedSettings
+            {
+                ControlBarStates = new Dictionary<string, string> { ["Overview"] = "{\"Activity\":[1]}" }
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("{\"Activity\":[1]}", copy.ControlBarStates["overview"]);
+                Assert.AreNotSame(source.ControlBarStates, copy.ControlBarStates);
+            }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveProgressDetails()
+        {
+            var source = new PersistedSettings
+            {
+                ProgressDetails = new List<ProgressDetailEntry>
+                {
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Points, Enabled = true },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Rarity, Enabled = false },
+                    new ProgressDetailEntry { Style = ProgressDetailStyle.Trophy, Enabled = true }
+                }
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                CollectionAssert.AreEqual(
+                    new[] { ProgressDetailStyle.Points, ProgressDetailStyle.Rarity, ProgressDetailStyle.Trophy },
+                    copy.ProgressDetails.Select(entry => entry.Style).ToArray());
+                CollectionAssert.AreEqual(
+                    new[] { true, true, true },
+                    copy.ProgressDetails.Select(entry => entry.Enabled).ToArray());
+                Assert.AreNotSame(source.ProgressDetails[0], copy.ProgressDetails[0]);
+            }
+        }
+
+        [TestMethod]
+        public void ProgressDetailShownCount_DefaultsToOneAndClampsToStyleCount()
+        {
+            var settings = new PersistedSettings();
+            Assert.AreEqual(1, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 0;
+            Assert.AreEqual(1, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 7;
+            Assert.AreEqual(3, settings.ProgressDetailShownCount);
+
+            settings.ProgressDetailShownCount = 2;
+            Assert.AreEqual(2, settings.ProgressDetailShownCount);
+        }
+
+        [TestMethod]
+        public void ProgressDetailShownCount_SurvivesJsonCloneCopyAndResets()
+        {
+            var source = new PersistedSettings { ProgressDetailShownCount = 3 };
+
+            var loaded = Newtonsoft.Json.JsonConvert.DeserializeObject<PersistedSettings>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(source));
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(3, loaded.ProgressDetailShownCount);
+            Assert.AreEqual(3, clone.ProgressDetailShownCount);
+            Assert.AreEqual(3, target.ProgressDetailShownCount);
+
+            source.ResetDisplaySettingsToDefaults();
+            Assert.AreEqual(1, source.ProgressDetailShownCount);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreservePerSectionCaptureRarities()
         {
             var source = new PersistedSettings
@@ -194,6 +372,28 @@ namespace PlayniteAchievements.Models.Tests
                 CollectionAssert.AreEquivalent(new[] { refreshPreset }, copy.RefreshExclusionFilterPresetIds.ToList());
                 CollectionAssert.AreEquivalent(new[] { summaryPreset }, copy.SummaryExclusionFilterPresetIds.ToList());
                 Assert.AreNotSame(source.RefreshExclusionFilterPresetIds, copy.RefreshExclusionFilterPresetIds);
+            }
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveAutoCapstoneTags()
+        {
+            var source = new PersistedSettings
+            {
+                AutoCapstoneGameTags = "Completion|u-1234abcd",
+                AutoCapstoneCategoryTags = "Missable",
+                AutoCapstoneAppliedTags = "Completion|u-1234abcd\u001fMissable"
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.AreEqual("Completion|u-1234abcd", copy.AutoCapstoneGameTags);
+                Assert.AreEqual("Missable", copy.AutoCapstoneCategoryTags);
+                Assert.AreEqual("Completion|u-1234abcd\u001fMissable", copy.AutoCapstoneAppliedTags);
             }
         }
 
@@ -712,9 +912,9 @@ namespace PlayniteAchievements.Models.Tests
                 ToastDurationSeconds = 8,
                 NotificationDelaySeconds = 0.4,
                 CaptureDelaySeconds = 0.7,
+                CaptureAtUnlockAndAfterDelay = true,
                 MaxConcurrentToasts = 4,
-                ToastPosition = ToastScreenCorner.TopLeft,
-                NotificationRenderMode = NotificationRenderMode.Quality
+                ToastPosition = ToastScreenCorner.TopLeft
             };
 
             var clone = source.Clone();
@@ -773,6 +973,13 @@ namespace PlayniteAchievements.Models.Tests
 
             settings.CaptureDelaySeconds = 120;
             Assert.AreEqual(120, settings.CaptureDelaySeconds);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsCaptureAtUnlockAndAfterDelayOff()
+        {
+            Assert.IsFalse(new PersistedSettings().CaptureAtUnlockAndAfterDelay);
+            Assert.IsFalse(new GameCaptureOverride().CaptureAtUnlockAndAfterDelay);
         }
 
         [TestMethod]
@@ -1792,27 +1999,6 @@ namespace PlayniteAchievements.Models.Tests
                         MigratedAtUtc = new DateTime(2026, 1, 1)
                     }
                 },
-                ExcludedGameIds = new HashSet<Guid> { excludedGameId },
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId },
-                ManualCapstones = new Dictionary<Guid, string> { [gameId] = "capstone" },
-                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
-                {
-                    [gameId] = new List<string> { "first", "second" }
-                },
-                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["first"] = "DLC"
-                    }
-                },
-                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["first"] = "Base"
-                    }
-                },
                 WindowPlacements = new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["overview"] = new WindowPlacementState
@@ -1838,6 +2024,8 @@ namespace PlayniteAchievements.Models.Tests
                 ShowHiddenPoints = false,
                 ShowLockedTrophy = false,
                 ShowLockedPoints = false,
+                ShowHiddenRarity = false,
+                ShowLockedRarity = false,
                 OverviewRecentAchievementsShowRarityGlow = false,
                 OverviewSelectedGameShowRarityGlow = false,
                 ViewAchievementsAchievementGridShowRarityGlow = false,
@@ -1857,8 +2045,11 @@ namespace PlayniteAchievements.Models.Tests
                 ShowOverviewGameMetadataPlaytime = false,
                 ShowOverviewGameMetadataRegion = false,
                 ShowTopMenuBarButton = false,
+                ShowSidebarButton = false,
                 ShowCompletedProgressColoring = false,
                 ShowCompactListRarityBar = false,
+                ShowCompactLockedListRarityBar = false,
+                ShowCompactUnlockedListRarityBar = false,
                 ShowCompletionGlow = false,
                 ShowOverviewGameSummariesGridColumnHeaders = false,
                 ShowOverviewRecentAchievementsGridColumnHeaders = false,
@@ -1880,9 +2071,9 @@ namespace PlayniteAchievements.Models.Tests
                 GridCellAlignment = GridAlignment.Center,
                 GridCellVerticalAlignment = GridVerticalAlignment.Bottom,
                 EnableAchievementDataGridControl = false,
-                OverviewGameSummariesGridSortMode = GameSummariesSortMode.Alphabetical,
+                OverviewGameSummariesGridSortColumn = GridSortColumns.FromGameSummariesMode(GameSummariesSortMode.Alphabetical),
                 OverviewGameSummariesGridSortDescending = false,
-                OverviewSelectedGameGridSortMode = CompactListSortMode.Rarity,
+                OverviewSelectedGameGridSortColumn = GridSortColumns.FromAchievementMode(CompactListSortMode.Rarity),
                 OverviewSelectedGameGridSortDescending = false,
                 AchievementDataGridMaxHeight = 333d,
                 OverviewGameSummariesGridRowHeight = 64d,
@@ -1947,6 +2138,8 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowHiddenPoints, settings.ShowHiddenPoints);
             Assert.AreEqual(defaults.ShowLockedTrophy, settings.ShowLockedTrophy);
             Assert.AreEqual(defaults.ShowLockedPoints, settings.ShowLockedPoints);
+            Assert.AreEqual(defaults.ShowHiddenRarity, settings.ShowHiddenRarity);
+            Assert.AreEqual(defaults.ShowLockedRarity, settings.ShowLockedRarity);
             Assert.AreEqual(defaults.OverviewRecentAchievementsShowRarityGlow, settings.OverviewRecentAchievementsShowRarityGlow);
             Assert.AreEqual(defaults.OverviewSelectedGameShowRarityGlow, settings.OverviewSelectedGameShowRarityGlow);
             Assert.AreEqual(defaults.ViewAchievementsAchievementGridShowRarityGlow, settings.ViewAchievementsAchievementGridShowRarityGlow);
@@ -1968,8 +2161,11 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowOverviewGameMetadataPlaytime, settings.ShowOverviewGameMetadataPlaytime);
             Assert.AreEqual(defaults.ShowOverviewGameMetadataRegion, settings.ShowOverviewGameMetadataRegion);
             Assert.AreEqual(defaults.ShowTopMenuBarButton, settings.ShowTopMenuBarButton);
+            Assert.AreEqual(defaults.ShowSidebarButton, settings.ShowSidebarButton);
             Assert.AreEqual(defaults.ShowCompletedProgressColoring, settings.ShowCompletedProgressColoring);
             Assert.AreEqual(defaults.ShowCompactListRarityBar, settings.ShowCompactListRarityBar);
+            Assert.AreEqual(defaults.ShowCompactLockedListRarityBar, settings.ShowCompactLockedListRarityBar);
+            Assert.AreEqual(defaults.ShowCompactUnlockedListRarityBar, settings.ShowCompactUnlockedListRarityBar);
             Assert.AreEqual(defaults.ShowCompletionGlow, settings.ShowCompletionGlow);
             Assert.AreEqual(defaults.ShowOverviewGameSummariesGridColumnHeaders, settings.ShowOverviewGameSummariesGridColumnHeaders);
             Assert.AreEqual(defaults.ShowOverviewRecentAchievementsGridColumnHeaders, settings.ShowOverviewRecentAchievementsGridColumnHeaders);
@@ -1991,9 +2187,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.GridCellAlignment, settings.GridCellAlignment);
             Assert.AreEqual(defaults.GridCellVerticalAlignment, settings.GridCellVerticalAlignment);
             Assert.AreEqual(defaults.EnableAchievementDataGridControl, settings.EnableAchievementDataGridControl);
-            Assert.AreEqual(defaults.OverviewGameSummariesGridSortMode, settings.OverviewGameSummariesGridSortMode);
+            Assert.AreEqual(defaults.OverviewGameSummariesGridSortColumn, settings.OverviewGameSummariesGridSortColumn);
             Assert.AreEqual(defaults.OverviewGameSummariesGridSortDescending, settings.OverviewGameSummariesGridSortDescending);
-            Assert.AreEqual(defaults.OverviewSelectedGameGridSortMode, settings.OverviewSelectedGameGridSortMode);
+            Assert.AreEqual(defaults.OverviewSelectedGameGridSortColumn, settings.OverviewSelectedGameGridSortColumn);
             Assert.AreEqual(defaults.OverviewSelectedGameGridSortDescending, settings.OverviewSelectedGameGridSortDescending);
             Assert.AreEqual(defaults.AchievementDataGridMaxHeight, settings.AchievementDataGridMaxHeight);
             Assert.AreEqual(defaults.OverviewGameSummariesGridRowHeight, settings.OverviewGameSummariesGridRowHeight);
@@ -2059,14 +2255,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsTrue(settings.FirstTimeSetupCompleted);
             Assert.IsTrue(settings.SeenThemeMigration);
             Assert.AreEqual("2.0", settings.ThemeMigrationVersionCache["theme"].MigratedThemeVersion);
-            Assert.IsTrue(settings.ExcludedGameIds.Contains(excludedGameId));
-            Assert.IsTrue(settings.ExcludedFromSummariesGameIds.Contains(gameId));
-            Assert.AreEqual("capstone", settings.ManualCapstones[gameId]);
-            CollectionAssert.AreEqual(
-                new List<string> { "first", "second" },
-                settings.AchievementOrderOverrides[gameId]);
-            Assert.AreEqual("DLC", settings.AchievementCategoryOverrides[gameId]["first"]);
-            Assert.AreEqual("Base", settings.AchievementCategoryTypeOverrides[gameId]["first"]);
             Assert.AreEqual(900d, settings.WindowPlacements["overview"].Width);
             Assert.IsTrue(settings.WindowPlacements["overview"].IsMaximized);
             Assert.IsTrue(settings.TaggingSettings.EnableTagging);
@@ -2098,9 +2286,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(expected.ToastDurationSeconds, actual.ToastDurationSeconds);
             Assert.AreEqual(expected.NotificationDelaySeconds, actual.NotificationDelaySeconds);
             Assert.AreEqual(expected.CaptureDelaySeconds, actual.CaptureDelaySeconds);
+            Assert.AreEqual(expected.CaptureAtUnlockAndAfterDelay, actual.CaptureAtUnlockAndAfterDelay);
             Assert.AreEqual(expected.MaxConcurrentToasts, actual.MaxConcurrentToasts);
             Assert.AreEqual(expected.ToastPosition, actual.ToastPosition);
-            Assert.AreEqual(expected.NotificationRenderMode, actual.NotificationRenderMode);
         }
     }
 }

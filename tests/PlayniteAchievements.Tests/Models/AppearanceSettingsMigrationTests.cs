@@ -112,6 +112,32 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(true, persisted["CommonGlowTierCleared"].Value<bool>());
         }
 
+        [TestMethod]
+        public void MigrateFromJson_SeedsPerListRarityBars_FromCompactListSetting()
+        {
+            const string json = @"{ ""Persisted"": { ""ShowCompactListRarityBar"": false } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.AreEqual(false, persisted["ShowCompactLockedListRarityBar"].Value<bool>());
+            Assert.AreEqual(false, persisted["ShowCompactUnlockedListRarityBar"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_KeepsPerListRarityBars_WhenAlreadySaved()
+        {
+            const string json =
+                @"{ ""Persisted"": {
+                    ""ShowCompactListRarityBar"": false,
+                    ""ShowCompactLockedListRarityBar"": true,
+                    ""ShowCompactUnlockedListRarityBar"": true } }";
+
+            var persisted = MigratePersisted(json);
+
+            Assert.AreEqual(true, persisted["ShowCompactLockedListRarityBar"].Value<bool>());
+            Assert.AreEqual(true, persisted["ShowCompactUnlockedListRarityBar"].Value<bool>());
+        }
+
         private static JObject MigratePersisted(string json)
         {
             return (JObject)JObject.Parse(AppearanceSettingsMigration.MigrateFromJson(json))["Persisted"];

@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Services.Images
         private readonly ILogger _logger;
         private readonly HttpClientHandler _httpHandler;
         private readonly HttpClient _http;
-        private readonly string _cacheRoot;
+        private readonly IconCacheLocation _location;
         private readonly SemaphoreSlim _downloadGate;
         private readonly SemaphoreSlim _rateLimitedDownloadGate;
         private readonly object _pathWriteLocksSync = new object();
@@ -127,10 +127,15 @@ namespace PlayniteAchievements.Services.Images
         }
 #endif
 
-        public DiskImageService(ILogger logger, string cacheRoot, int downloadConcurrency = 8)
+        public DiskImageService(ILogger logger, string cacheRoot, int downloadConcurrency = 8, IconCacheLocation location = null)
         {
             _logger = logger ?? StaticLogger;
-            _cacheRoot = cacheRoot ?? throw new ArgumentNullException(nameof(cacheRoot));
+            _location = location ?? new IconCacheLocation(cacheRoot ?? throw new ArgumentNullException(nameof(cacheRoot)));
+            _location.RootChanged += Location_RootChanged;
+            if (!_location.IsAvailable)
+            {
+                _writeGate.Close();
+            }
             _downloadGate = new SemaphoreSlim(Math.Max(1, downloadConcurrency), Math.Max(1, downloadConcurrency));
             _rateLimitedDownloadGate = new SemaphoreSlim(8, 8); // Xbox CDN concurrency (increased for EDS with w=128 param)
 
@@ -383,10 +388,38 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
-        private string IconCacheDirectory => Path.Combine(_cacheRoot, "icon_cache");
+        private string IconCacheDirectory => _location.Root;
+
+        private readonly IconCacheWriteGate _writeGate = new IconCacheWriteGate();
+
+        /// <summary>
+        /// Stops and resumes writes into the icon cache. Closed while the cache moves and for a
+        /// session whose custom folder is missing.
+        /// </summary>
+        public IconCacheWriteGate WriteGate => _writeGate;
+
+        /// <summary>The icon cache folder's owner, for services that resolve stored paths.</summary>
+        public IconCacheLocation Location => _location;
+
+        // State keyed by absolute folders under the old root no longer names anything.
+        private void Location_RootChanged(object sender, IconCacheRootChangedEventArgs e)
+        {
+            ClearDefaultCategoryArtSnapshots();
+            _foldersWritten.Clear();
+            _hardLinksUnsupported = false;
+            lock (_linkedOnceSync)
+            {
+                _linkedOnce = null;
+            }
+        }
 
         private void EnsureIconCacheDirectory()
         {
+            if (!_location.IsAvailable)
+            {
+                return;
+            }
+
             try
             {
                 if (!Directory.Exists(IconCacheDirectory))
@@ -437,7 +470,7 @@ namespace PlayniteAchievements.Services.Images
         {
             return string.IsNullOrWhiteSpace(relativePath)
                 ? null
-                : Path.Combine(_cacheRoot, relativePath);
+                : _location.ResolveLogical(relativePath);
         }
 
         internal string GetAchievementIconCachePath(
@@ -449,7 +482,7 @@ namespace PlayniteAchievements.Services.Images
                 gameId,
                 fileStem,
                 variant);
-            return Path.Combine(_cacheRoot, relativePath);
+            return _location.ResolveLogical(relativePath);
         }
 
         // Probes the default cached achievement icon across supported extensions. Downloads with
@@ -518,7 +551,7 @@ namespace PlayniteAchievements.Services.Images
                 gameId,
                 fileStem,
                 variant);
-            return Path.Combine(_cacheRoot, relativePath);
+            return _location.ResolveLogical(relativePath);
         }
 
         // Absolute path for the provider-supplied default category art file. Deterministic per
@@ -532,7 +565,7 @@ namespace PlayniteAchievements.Services.Images
             var relativePath = AchievementIconCachePathBuilder.BuildDefaultCategoryRelativePath(
                 gameId,
                 categoryLabel);
-            var canonicalPath = Path.Combine(_cacheRoot, relativePath);
+            var canonicalPath = _location.ResolveLogical(relativePath);
             AdoptLegacyDefaultCategoryImage(gameId, categoryLabel, canonicalPath);
             return canonicalPath;
         }
@@ -551,8 +584,7 @@ namespace PlayniteAchievements.Services.Images
                 return;
             }
 
-            var legacyPath = Path.Combine(
-                _cacheRoot,
+            var legacyPath = _location.ResolveLogical(
                 AchievementIconCachePathBuilder.BuildLegacyDefaultCategoryRelativePath(gameId, categoryLabel));
             if (string.Equals(legacyPath, canonicalPath, StringComparison.Ordinal))
             {
@@ -582,8 +614,14 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var target = Path.ChangeExtension(canonicalPath, Path.GetExtension(legacy));
+            using (var write = _writeGate.TryEnter())
             try
             {
+                if (write == null)
+                {
+                    return;
+                }
+
                 File.Move(legacy, target);
                 InvalidateDefaultCategoryArtSnapshot(gameId);
             }
@@ -654,6 +692,17 @@ namespace PlayniteAchievements.Services.Images
         /// source is missing or the copy fails.
         /// </summary>
         internal string SaveDefaultCategoryImageFromFile(
+            string gameId,
+            string categoryLabel,
+            string sourcePath)
+        {
+            using (var write = _writeGate.TryEnter())
+            {
+                return write == null ? null : SaveDefaultCategoryImageFromFileCore(gameId, categoryLabel, sourcePath);
+            }
+        }
+
+        private string SaveDefaultCategoryImageFromFileCore(
             string gameId,
             string categoryLabel,
             string sourcePath)
@@ -913,6 +962,21 @@ namespace PlayniteAchievements.Services.Images
             CancellationToken cancel,
             bool overwriteExistingTarget = false)
         {
+            using (var write = _writeGate.TryEnter())
+            {
+                return write == null
+                    ? null
+                    : await GetOrDownloadIconToPathCoreAsync(uri, targetPath, decodeSize, cancel, overwriteExistingTarget).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<string> GetOrDownloadIconToPathCoreAsync(
+            string uri,
+            string targetPath,
+            int decodeSize,
+            CancellationToken cancel,
+            bool overwriteExistingTarget)
+        {
             if (string.IsNullOrWhiteSpace(uri) || string.IsNullOrWhiteSpace(targetPath))
             {
                 return null;
@@ -1090,6 +1154,20 @@ namespace PlayniteAchievements.Services.Images
             byte[] bytes,
             CancellationToken cancel)
         {
+            using (var write = _writeGate.TryEnter())
+            {
+                if (write != null)
+                {
+                    await ReplaceCachedImageBytesCoreAsync(path, bytes, cancel).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private async Task ReplaceCachedImageBytesCoreAsync(
+            string path,
+            byte[] bytes,
+            CancellationToken cancel)
+        {
             if (string.IsNullOrWhiteSpace(path) || bytes == null || bytes.Length == 0)
             {
                 return;
@@ -1185,6 +1263,17 @@ namespace PlayniteAchievements.Services.Images
         /// it is cheap to call on every refresh.
         /// </summary>
         public async Task EnsureIconSquareAsync(string path, int maxDimension, CancellationToken cancel)
+        {
+            using (var write = _writeGate.TryEnter())
+            {
+                if (write != null)
+                {
+                    await EnsureIconSquareCoreAsync(path, maxDimension, cancel).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private async Task EnsureIconSquareCoreAsync(string path, int maxDimension, CancellationToken cancel)
         {
             // WebM keeps its own bytes: WPF can neither decode nor re-encode it.
             if (string.IsNullOrWhiteSpace(path) ||
@@ -1709,6 +1798,16 @@ namespace PlayniteAchievements.Services.Images
         /// </summary>
         internal async Task<int> LinkIdenticalFilesAsync(IEnumerable<string> folders, string label, CancellationToken cancel, bool onlyWhenWritten = true)
         {
+            using (var write = _writeGate.TryEnter())
+            {
+                return write == null
+                    ? 0
+                    : await LinkIdenticalFilesCoreAsync(folders, label, cancel, onlyWhenWritten).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<int> LinkIdenticalFilesCoreAsync(IEnumerable<string> folders, string label, CancellationToken cancel, bool onlyWhenWritten)
+        {
             var roots = folders?.Where(folder => !string.IsNullOrWhiteSpace(folder)).ToList();
             if (_hardLinksUnsupported || roots == null || roots.Count == 0)
             {
@@ -1799,7 +1898,7 @@ namespace PlayniteAchievements.Services.Images
             try
             {
                 var iconCacheRoot = Path.GetFullPath(IconCacheDirectory);
-                var target = Path.GetFullPath(Path.Combine(_cacheRoot, relativeDirectory));
+                var target = Path.GetFullPath(_location.ResolveLogical(relativeDirectory));
 
                 // Refuse to touch anything outside icon_cache, or icon_cache itself.
                 if (!IsPathWithinDirectory(target, iconCacheRoot) || IsSameDirectory(target, iconCacheRoot))
@@ -2170,6 +2269,21 @@ namespace PlayniteAchievements.Services.Images
             CancellationToken cancel,
             bool overwriteExistingTarget = false)
         {
+            using (var write = _writeGate.TryEnter())
+            {
+                return write == null
+                    ? null
+                    : await GetOrCopyLocalIconToPathCoreAsync(localPath, targetPath, decodeSize, cancel, overwriteExistingTarget).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<string> GetOrCopyLocalIconToPathCoreAsync(
+            string localPath,
+            string targetPath,
+            int decodeSize,
+            CancellationToken cancel,
+            bool overwriteExistingTarget)
+        {
             if (string.IsNullOrWhiteSpace(localPath) ||
                 !File.Exists(localPath) ||
                 string.IsNullOrWhiteSpace(targetPath))
@@ -2260,6 +2374,20 @@ namespace PlayniteAchievements.Services.Images
             string targetPath,
             CancellationToken cancel,
             bool overwriteExistingTarget = false)
+        {
+            using (var write = _writeGate.TryEnter())
+            {
+                return write == null
+                    ? null
+                    : await CopyCachedIconCoreAsync(existingPath, targetPath, cancel, overwriteExistingTarget).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<string> CopyCachedIconCoreAsync(
+            string existingPath,
+            string targetPath,
+            CancellationToken cancel,
+            bool overwriteExistingTarget)
         {
             if (string.IsNullOrWhiteSpace(existingPath) ||
                 !File.Exists(existingPath) ||

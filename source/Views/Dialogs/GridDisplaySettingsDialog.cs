@@ -215,9 +215,11 @@ namespace PlayniteAchievements.Views.Dialogs
         {
             var header = new TextBlock
             {
-                Text = Localize("LOCPlayAch_Settings_CategoryGrid")
+                Text = Localize("LOCPlayAch_Settings_CategoryGrid"),
+                FontWeight = FontWeights.Bold
             };
-            header.SetResourceReference(StyleProperty, "SubSectionHeaderStyle");
+            header.SetResourceReference(TextBlock.FontSizeProperty, "PlayAch.FontSize.OptionSectionHeader");
+            header.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");
             header.SetResourceReference(MarginProperty, "PlayAch.Thickness.SubSectionHeading");
             panel.Children.Add(header);
 
@@ -226,15 +228,17 @@ namespace PlayniteAchievements.Views.Dialogs
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            panel.Children.Add(BuildOptionRow(
-                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
-                hideCategoryRowCheckBox));
-
             categoryEditor = new GridOptionsEditor
             {
                 SurfaceKind = GridOptionKind.CategorySummaries,
                 SurfaceKey = categorySurfaceKey
             };
+
+            // Hiding the category grid after a selection is a layout choice, so it leads the
+            // category grid's Layout group.
+            ((IOptionGroups)categoryEditor).Layout.Leading.Children.Add(BuildOptionRow(
+                Localize("LOCPlayAch_Settings_HideCategorySummaryRow"),
+                hideCategoryRowCheckBox));
             panel.Children.Add(categoryEditor);
         }
 
@@ -243,7 +247,7 @@ namespace PlayniteAchievements.Views.Dialogs
         private static UIElement BuildOptionRow(string label, UIElement control)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
 
@@ -251,7 +255,6 @@ namespace PlayniteAchievements.Views.Dialogs
             {
                 Text = label,
                 Margin = new Thickness(0, 0, 8, 0),
-                FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,
                 VerticalAlignment = VerticalAlignment.Center
             };

@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Tests.Localization
             var showcaseFamilies = new (Type Type, string Prefix, string[] Shared)[]
             {
                 (Type: typeof(PlayniteAchievements.Models.Settings.ShowcaseScoreCardArt), Prefix: "ScoreCardArt", Shared: new[] { "GameCover" }),
-                (typeof(PlayniteAchievements.Models.Settings.ShowcaseProfileMedalMode), "ProfileMedalMode", new[] { "Both", "None" }),
+                (typeof(PlayniteAchievements.Models.Settings.ShowcaseProfileMedalMode), "ProfileMedalMode", new[] { "Both", "None", "Points" }),
                 (typeof(PlayniteAchievements.Models.Settings.ShowcasePointsGrouping), "PointsGrouping", new[] { "Game" }),
                 (typeof(PlayniteAchievements.Models.Settings.ShowcaseMosaicSource), "MosaicSource", new[] { "All" }),
                 (typeof(PlayniteAchievements.Models.Settings.UnlockNextCriterion), "UnlockNextCriterion", Array.Empty<string>()),

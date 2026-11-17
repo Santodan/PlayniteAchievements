@@ -148,6 +148,18 @@ namespace PlayniteAchievements.Models.Achievements
             return GetCompletedStartColor(persisted);
         }
 
+        /// <summary>
+        /// The mythic slice's color: the end of the completed gradient that the completed slice
+        /// does not use, so the two finishes stay apart in a pie.
+        /// </summary>
+        public static Color GetMythicColor(PersistedSettings settings = null)
+        {
+            var persisted = settings ?? _activeSettings;
+            return UsesDefaultCompletedColors(persisted)
+                ? GetCompletedStartColor(persisted)
+                : GetCompletedEndColor(persisted);
+        }
+
         public static SolidColorBrush GetCompletedBrush(PersistedSettings settings = null)
         {
             return CreateSolidBrush(GetCompletedColor(settings));
@@ -509,6 +521,18 @@ namespace PlayniteAchievements.Models.Achievements
             // shadow "BadgeCompletedGame" with its static default; consuming this alias via
             // DynamicResource instead resolves the user-customized image at the application scope.
             resources["BadgeRarityCompleted"] = completedBadge;
+            // Runtime-only, like BadgeRarityCompleted: the mythic badge has no static image.
+            resources["BadgeRarityMythic"] = CreateMythicBadgeImage(settings);
+            // Runtime-only alias for a masked rarity, for the same shadowing reason. It follows the
+            // trophy shape when rarity draws as trophies, so a masked row matches its neighbours.
+            var unknownBadge = settings?.UseTrophiesForRarity == true
+                ? TryGetDefaultTrophyImage("TrophyUnknown")
+                : null;
+            unknownBadge = unknownBadge ?? TryGetDefaultImage("BadgeUnknownHexagon");
+            if (unknownBadge != null)
+            {
+                resources["BadgeRarityUnknown"] = unknownBadge;
+            }
             resources["TrophyBronze"] = CreateTrophyImage("TrophyBronze", settings);
             resources["TrophySilver"] = CreateTrophyImage("TrophySilver", settings);
             resources["TrophyGold"] = CreateTrophyImage("TrophyGold", settings);
@@ -695,6 +719,55 @@ namespace PlayniteAchievements.Models.Achievements
             drawingGroup.Children.Add(new GeometryDrawing
             {
                 Geometry = geometry,
+                Brush = TryGetDefaultBrush("ShineOverlay") ?? CreateShineOverlay()
+            });
+
+            var image = new DrawingImage(drawingGroup);
+            if (image.CanFreeze)
+            {
+                image.Freeze();
+            }
+
+            return image;
+        }
+
+        /// <summary>
+        /// The mythic badge, shown for a game with every point earned: a four-point star over the
+        /// outline of a second star, in the completed colors with the completed badge's rim and shine.
+        /// It keeps its star shape when rarity draws as trophies, so it stays distinct from the
+        /// completed trophy.
+        /// </summary>
+        private static DrawingImage CreateMythicBadgeImage(PersistedSettings settings)
+        {
+            var star = TryGetDefaultGeometry("GeoMythicStar");
+            var back = TryGetDefaultGeometry("GeoMythicStarBack");
+            if (star == null || back == null)
+            {
+                return CreateCompletedBadgeImage(settings);
+            }
+
+            var fill = CreateCompletedGradientBrush(settings);
+            var drawingGroup = new DrawingGroup();
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = back,
+                Pen = new Pen(fill, 6)
+                {
+                    LineJoin = PenLineJoin.Round
+                }
+            });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = star,
+                Brush = fill,
+                Pen = new Pen(CreateCompletedRimBrush(settings), 3)
+                {
+                    LineJoin = PenLineJoin.Round
+                }
+            });
+            drawingGroup.Children.Add(new GeometryDrawing
+            {
+                Geometry = star,
                 Brush = TryGetDefaultBrush("ShineOverlay") ?? CreateShineOverlay()
             });
 

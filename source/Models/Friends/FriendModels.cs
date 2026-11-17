@@ -329,10 +329,13 @@ namespace PlayniteAchievements.Models.Friends
             string gameName,
             CancellationToken cancel);
 
+        // mappedToLibrary: the game is one of the current user's Playnite games, whose metadata
+        // layer the user's own metadata overlay owns, so the definition carries platform values only.
         Task<FriendsProviderResult<FriendGameDefinition>> GetFriendGameDefinitionAsync(
             string providerGameKey,
             int appId,
             string gameName,
+            bool mappedToLibrary,
             CancellationToken cancel);
     }
 

@@ -31,21 +31,20 @@ namespace PlayniteAchievements.Services.Achievements
     public struct AchievementSortSpec
     {
         public AchievementSortSpec(CompactListSortMode mode, ListSortDirection direction)
+            : this(GridSortColumns.FromAchievementMode(mode), direction)
         {
-            Mode = mode;
+        }
+
+        /// <param name="sortMemberPath">A grid column's sort member path; empty keeps the source order.</param>
+        public AchievementSortSpec(string sortMemberPath, ListSortDirection direction)
+        {
+            SortMemberPath = GridSortColumns.IsSourceOrder(sortMemberPath) ? null : sortMemberPath;
             Direction = direction;
         }
 
-        public CompactListSortMode Mode { get; }
-
         public ListSortDirection Direction { get; }
 
-        public string SortMemberPath => Mode switch
-        {
-            CompactListSortMode.UnlockTime => nameof(AchievementDisplayItem.UnlockTime),
-            CompactListSortMode.Rarity => nameof(AchievementDisplayItem.RaritySortValue),
-            _ => null
-        };
+        public string SortMemberPath { get; }
 
         public bool PreservesSourceOrder => string.IsNullOrWhiteSpace(SortMemberPath);
     }
@@ -140,20 +139,20 @@ namespace PlayniteAchievements.Services.Achievements
                     settings.CompactLockedListSortMode,
                     settings.CompactLockedListSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.OverviewSelectedGame => new AchievementSortSpec(
-                    settings.OverviewSelectedGameGridSortMode,
+                    settings.OverviewSelectedGameGridSortColumn,
                     settings.OverviewSelectedGameGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 // Default (None) keeps the source order, newest unlock first.
                 AchievementSortSurface.OverviewRecentAchievements => new AchievementSortSpec(
-                    settings.OverviewRecentAchievementsGridSortMode,
+                    settings.OverviewRecentAchievementsGridSortColumn,
                     settings.OverviewRecentAchievementsGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.SingleGame => new AchievementSortSpec(
-                    settings.SingleGameGridSortMode,
+                    settings.SingleGameGridSortColumn,
                     settings.SingleGameGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.AchievementDataGrid => new AchievementSortSpec(
-                    settings.AchievementDataGridSortMode,
+                    settings.AchievementDataGridSortColumn,
                     settings.AchievementDataGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.FriendsOverviewRecentAchievements => new AchievementSortSpec(
-                    settings.FriendsOverviewAchievementsGridSortMode,
+                    settings.FriendsOverviewAchievementsGridSortColumn,
                     settings.FriendsOverviewAchievementsGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 _ => new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending)
             };
@@ -183,17 +182,57 @@ namespace PlayniteAchievements.Services.Achievements
                 configuredSort.PreservesSourceOrder ? (ListSortDirection?)null : configuredSort.Direction);
         }
 
+        /// <summary>
+        /// Resolves a header click, or a Sort By request, into a sort action. A result that
+        /// removes the sort is recorded on <paramref name="sortEvent"/>, so Sort By can show no sort.
+        /// </summary>
         internal static AchievementGridSortAction ResolveGridSortAction(
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
             PersistedSettings settings,
             AchievementSortSurface surface,
-            ListSortDirection? visibleSortDirection = null)
+            ListSortDirection? visibleSortDirection = null,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
         {
+            var action = ResolveGridSortActionCore(
+                clickedSortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                settings,
+                surface,
+                visibleSortDirection,
+                GridSortRequestEventArgs.Of(sortEvent));
+            if (action.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                GridSortRequestEventArgs.MarkReset(sortEvent);
+            }
+
+            return action;
+        }
+
+        private static AchievementGridSortAction ResolveGridSortActionCore(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            AchievementSortSurface surface,
+            ListSortDirection? visibleSortDirection,
+            GridSortRequestEventArgs request)
+        {
+            if (request?.IsReset == true)
+            {
+                return AchievementGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return AchievementGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return AchievementGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetGridInteractionDefaultSort(settings, surface);
@@ -558,19 +597,19 @@ namespace PlayniteAchievements.Services.Achievements
                     propertyName == nameof(PersistedSettings.CompactLockedListSortMode) ||
                     propertyName == nameof(PersistedSettings.CompactLockedListSortDescending),
                 AchievementSortSurface.OverviewSelectedGame =>
-                    propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortDescending),
                 AchievementSortSurface.OverviewRecentAchievements =>
-                    propertyName == nameof(PersistedSettings.OverviewRecentAchievementsGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.OverviewRecentAchievementsGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.OverviewRecentAchievementsGridSortDescending),
                 AchievementSortSurface.SingleGame =>
-                    propertyName == nameof(PersistedSettings.SingleGameGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.SingleGameGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.SingleGameGridSortDescending),
                 AchievementSortSurface.AchievementDataGrid =>
-                    propertyName == nameof(PersistedSettings.AchievementDataGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.AchievementDataGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.AchievementDataGridSortDescending),
                 AchievementSortSurface.FriendsOverviewRecentAchievements =>
-                    propertyName == nameof(PersistedSettings.FriendsOverviewAchievementsGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.FriendsOverviewAchievementsGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.FriendsOverviewAchievementsGridSortDescending),
                 _ => false
             };
@@ -645,16 +684,24 @@ namespace PlayniteAchievements.Services.Achievements
                 return new List<AchievementDetail>();
             }
 
-            return configuredSort.Mode switch
+            switch (configuredSort.SortMemberPath)
             {
-                CompactListSortMode.UnlockTime => configuredSort.Direction == ListSortDirection.Descending
-                    ? GetAvailableAchievements(theme.AchievementsNewestFirst, GetDefaultSelectedGameAchievements(theme))
-                    : GetAvailableAchievements(theme.AchievementsOldestFirst, GetDefaultSelectedGameAchievements(theme)),
-                CompactListSortMode.Rarity => configuredSort.Direction == ListSortDirection.Descending
-                    ? GetAvailableAchievements(theme.AchievementsRarityDesc, GetDefaultSelectedGameAchievements(theme))
-                    : GetAvailableAchievements(theme.AchievementsRarityAsc, GetDefaultSelectedGameAchievements(theme)),
-                _ => GetDefaultSelectedGameAchievements(theme)
-            };
+                case null:
+                    return GetDefaultSelectedGameAchievements(theme);
+                case nameof(AchievementDisplayItem.UnlockTime):
+                    return configuredSort.Direction == ListSortDirection.Descending
+                        ? GetAvailableAchievements(theme.AchievementsNewestFirst, GetDefaultSelectedGameAchievements(theme))
+                        : GetAvailableAchievements(theme.AchievementsOldestFirst, GetDefaultSelectedGameAchievements(theme));
+                case nameof(AchievementDisplayItem.RaritySortValue):
+                    return configuredSort.Direction == ListSortDirection.Descending
+                        ? GetAvailableAchievements(theme.AchievementsRarityDesc, GetDefaultSelectedGameAchievements(theme))
+                        : GetAvailableAchievements(theme.AchievementsRarityAsc, GetDefaultSelectedGameAchievements(theme));
+                default:
+                    return CreateSortedDetailList(
+                        GetDefaultSelectedGameAchievements(theme),
+                        configuredSort.SortMemberPath,
+                        configuredSort.Direction);
+            }
         }
 
         private static List<AchievementDetail> ResolveSelectedGameAchievements(
@@ -666,16 +713,24 @@ namespace PlayniteAchievements.Services.Achievements
                 return new List<AchievementDetail>();
             }
 
-            return configuredSort.Mode switch
+            switch (configuredSort.SortMemberPath)
             {
-                CompactListSortMode.UnlockTime => configuredSort.Direction == ListSortDirection.Descending
-                    ? GetAvailableAchievements(state.AchievementsNewestFirst, GetDefaultSelectedGameAchievements(state))
-                    : GetAvailableAchievements(state.AchievementsOldestFirst, GetDefaultSelectedGameAchievements(state)),
-                CompactListSortMode.Rarity => configuredSort.Direction == ListSortDirection.Descending
-                    ? GetAvailableAchievements(state.AchievementsRarityDesc, GetDefaultSelectedGameAchievements(state))
-                    : GetAvailableAchievements(state.AchievementsRarityAsc, GetDefaultSelectedGameAchievements(state)),
-                _ => GetDefaultSelectedGameAchievements(state)
-            };
+                case null:
+                    return GetDefaultSelectedGameAchievements(state);
+                case nameof(AchievementDisplayItem.UnlockTime):
+                    return configuredSort.Direction == ListSortDirection.Descending
+                        ? GetAvailableAchievements(state.AchievementsNewestFirst, GetDefaultSelectedGameAchievements(state))
+                        : GetAvailableAchievements(state.AchievementsOldestFirst, GetDefaultSelectedGameAchievements(state));
+                case nameof(AchievementDisplayItem.RaritySortValue):
+                    return configuredSort.Direction == ListSortDirection.Descending
+                        ? GetAvailableAchievements(state.AchievementsRarityDesc, GetDefaultSelectedGameAchievements(state))
+                        : GetAvailableAchievements(state.AchievementsRarityAsc, GetDefaultSelectedGameAchievements(state));
+                default:
+                    return CreateSortedDetailList(
+                        GetDefaultSelectedGameAchievements(state),
+                        configuredSort.SortMemberPath,
+                        configuredSort.Direction);
+            }
         }
 
         private static List<AchievementDetail> GetDefaultSelectedGameAchievements(ModernThemeBindings theme)
@@ -756,6 +811,11 @@ namespace PlayniteAchievements.Services.Achievements
                 "SortingName" => ApplyDirection(CompareBySortingName, direction),
                 "ProviderKey" => ApplyDirection(
                     (a, b) => CompareText(a?.ProviderKey, b?.ProviderKey),
+                    direction),
+                "FriendName" => ApplyDirection(
+                    (a, b) => CompareText(
+                        (a as FriendAchievementDisplayItem)?.FriendName,
+                        (b as FriendAchievementDisplayItem)?.FriendName),
                     direction),
                 "CategoryType" => ApplyDirection(CreateTagCountComparison(scope), direction),
                 "CategoryKind" => ApplyDirection(

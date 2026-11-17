@@ -83,6 +83,14 @@ namespace PlayniteAchievements.Services.Refresh
         /// Null leaves provider data as fetched.
         /// </summary>
         internal Metadata.MetadataOverlay MetadataOverlay { get; set; }
+
+        /// <summary>
+        /// Reads the linked files of the games a refresh covers, after its provider work. Runs
+        /// for every current-user refresh request, including one no provider had work for, so a
+        /// game tracked only by you is read by the refreshes that name it. Null skips it.
+        /// </summary>
+        internal Func<LinkedFiles.LinkedFilePassScope, CancellationToken, Task<IReadOnlyList<Guid>>> LinkedFilePass { get; set; }
+
         private int _savedGamesInCurrentRun;
 
         // A refresh that saves many games or scrapes many friend rows fetches many provider web
@@ -460,6 +468,19 @@ namespace PlayniteAchievements.Services.Refresh
                 out cts,
                 out var activeContext))
             {
+                if (_refreshStateManager.IsReservedExclusive)
+                {
+                    _logger.Info("Refresh skipped while the icon cache moves.");
+                    Report(
+                        ResourceProvider.GetString("LOCPlayAch_Settings_IconCache_MoveInProgress"),
+                        0,
+                        1,
+                        operationId: operationId,
+                        mode: mode,
+                        currentGameId: singleGameId);
+                    return false;
+                }
+
                 _logger.Info("Refresh already in progress.");
                 Report(
                     _progressReportingService.GetLastStatus() ?? ResourceProvider.GetString("LOCPlayAch_Status_UpdatingCache"),
@@ -1634,32 +1655,6 @@ namespace PlayniteAchievements.Services.Refresh
                 _logger?.Debug(ex, "Failed to backfill provider key on refreshed game data.");
             }
 
-            // Secondary-source metadata lands on the payload before anything reads it, so the
-            // cache, the icon cache and the memory cache all see one result.
-            // The platform's values are captured first: the overlay writes over them in place.
-            var platformSnapshot = Metadata.DataLayers.Take(data.Achievements);
-            // A refresh while the game is played, or one rebuilt without the network, asks no
-            // source: the game keeps its saved metadata, and the layers recorded with it.
-            var keepsStoredMetadata = metadataRun?.KeepsStored == true || data.KeepStoredMetadata;
-            var metadataIconSourceChanged = false;
-            if (metadataRun != null && data.HasAchievements)
-            {
-                metadataIconSourceChanged = await metadataRun
-                    .ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh, keepStored: data.KeepStoredMetadata)
-                    .ConfigureAwait(false);
-            }
-
-            var metadataByArea = Metadata.DataLayers.ChangedSince(platformSnapshot, data.Achievements);
-            var layers = Metadata.DataLayers.Resolve(
-                platformSnapshot,
-                data.Achievements,
-                metadataByArea,
-                metadataRun?.HasBorrowedCapstone(data.PlayniteGameId.Value) == true);
-            data.PlatformFields = layers.Platform;
-            data.MetadataFields = layers.Metadata;
-
-            data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);
-
             var key = data.PlayniteGameId.Value.ToString();
 
             GameAchievementData previous = null;
@@ -1670,14 +1665,6 @@ namespace PlayniteAchievements.Services.Refresh
             catch (Exception ex)
             {
                 _logger?.Debug(ex, $"Failed to load cached achievement data for '{game?.Name}' before persisting a refresh.");
-            }
-
-            // Saved metadata re-applied without asking a source would read as the platform's own, so
-            // such a refresh keeps the layers the last full one recorded (unknown when none did).
-            if (keepsStoredMetadata)
-            {
-                data.PlatformFields = previous?.PlatformFields;
-                data.MetadataFields = previous?.MetadataFields;
             }
 
             // The cache write is destructive: rows absent from the payload are deleted and a locked
@@ -1726,7 +1713,7 @@ namespace PlayniteAchievements.Services.Refresh
             // When a provider reports which source the achievements came from, a changed
             // key means previously cached icon files (keyed by ApiName) may hold another
             // game's art; force an overwrite so icons follow the new source.
-            var forceRefreshExistingTargets = forceIconRefresh || metadataIconSourceChanged;
+            var forceRefreshExistingTargets = forceIconRefresh;
             if (!forceRefreshExistingTargets &&
                 !string.IsNullOrWhiteSpace(data.ProviderGameKey) &&
                 previous != null &&
@@ -1736,65 +1723,54 @@ namespace PlayniteAchievements.Services.Refresh
                 _logger?.Info($"Provider source for '{game?.Name}' changed from '{previous.ProviderGameKey ?? "(none)"}' to '{data.ProviderGameKey}'; overwriting cached achievement icons.");
             }
 
-            var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
-            var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
-
+            // The platform's own icons are saved first, so its layer holds files whatever a metadata
+            // source shows over them.
             await _achievementIconService.PopulateAchievementIconCacheAsync(
                 data,
-                unlockedIconOverrides,
-                lockedIconOverrides,
                 cancel,
                 (downloaded, total) => _refreshProgressReporter.ReportIconProgress(game, data, downloaded, total, progressScope),
                 forceRefreshExistingTargets: forceRefreshExistingTargets)
                 .ConfigureAwait(false);
 
-            if (metadataRun != null)
+            // Secondary sources build the metadata layer and the payload is resolved over it, so the
+            // cache, the icon cache and the memory cache all see one result. A refresh while the
+            // game is played, or one rebuilt without the network, asks no source: the game keeps its
+            // saved metadata layer.
+            if (metadataRun != null && data.HasAchievements)
             {
-                // Borrowed icons that fell back to the game's own last time try again: their files
-                // hold the own icon, which the pass above keeps when it reuses files.
-                var retried = metadataRun.ResetEarlierIconFallbacks(data);
-                if (retried.Count > 0)
-                {
-                    await _achievementIconService.PopulateAchievementIconCacheAsync(
-                            data,
-                            unlockedIconOverrides,
-                            lockedIconOverrides,
-                            cancel,
-                            forceRefreshExistingTargets: true,
-                            onlyApiNames: retried)
-                        .ConfigureAwait(false);
-                }
+                await metadataRun
+                    .ApplyAsync(game, data, cancel, forceIcons: forceIconRefresh, keepStored: data.KeepStoredMetadata)
+                    .ConfigureAwait(false);
+            }
 
-                // A borrowed icon that did not download falls back to the game's own, as for an
-                // achievement the source has no match for.
-                var restored = metadataRun.RestoreOwnIconsWhereDownloadFailed(data, AchievementIconService.IsHttpIconPath);
-                if (restored.Count > 0)
-                {
-                    // Those achievements show the platform's icon after all.
-                    var borrowedIcons = metadataByArea[CustomizationArea.Icons];
-                    borrowedIcons.ExceptWith(restored);
-                    data.PlatformFields |= CustomizationArea.Icons;
-                    if (borrowedIcons.Count == 0)
-                    {
-                        data.MetadataFields &= ~CustomizationArea.Icons;
-                    }
+            data.PlatformFields = AchievementLayers.AreasFrom(data.Achievements, DataLayer.Platform) |
+                (Metadata.DataLayers.HasCapstone(data.Achievements) ? CustomizationArea.Capstones : CustomizationArea.None);
+            data.MetadataFields = AchievementLayers.AreasFrom(data.Achievements, DataLayer.Metadata) |
+                (metadataRun?.HasBorrowedCapstone(data.PlayniteGameId.Value) == true ? CustomizationArea.Capstones : CustomizationArea.None);
+            data.RaritySource = RaritySourceResolver.ResolveRefreshed(data.RaritySource, data.Achievements);
 
-                    _logger?.Info($"[Metadata] {restored.Count} borrowed icon(s) for '{game?.Name}' did not download; using the game's own.");
-                    await _achievementIconService.PopulateAchievementIconCacheAsync(
-                            data,
-                            unlockedIconOverrides,
-                            lockedIconOverrides,
-                            cancel,
-                            forceRefreshExistingTargets: true,
-                            onlyApiNames: restored)
-                        .ConfigureAwait(false);
-                }
+            // The user's own icons go over the resolved payload; they are custom data, never stored
+            // in a layer of the cache.
+            var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
+            var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
+            if (unlockedIconOverrides?.Count > 0 || lockedIconOverrides?.Count > 0)
+            {
+                await _achievementIconService.PopulateAchievementIconCacheAsync(
+                    data,
+                    unlockedIconOverrides,
+                    lockedIconOverrides,
+                    cancel,
+                    forceRefreshExistingTargets: forceRefreshExistingTargets,
+                    onlyApiNames: new HashSet<string>(
+                        (unlockedIconOverrides?.Keys ?? Enumerable.Empty<string>()).Concat(lockedIconOverrides?.Keys ?? Enumerable.Empty<string>()),
+                        StringComparer.OrdinalIgnoreCase))
+                    .ConfigureAwait(false);
             }
 
             if (!string.IsNullOrWhiteSpace(key))
             {
-                // Persist provider payload as-is. Runtime overlays (capstone/category/order/game reference)
-                // are applied on read and are not written back to cache.
+                // Persist the platform and metadata layers. Custom data (capstones, categories, order,
+                // overrides) is applied on read and never written back to the cache.
 
                 // Canary on the provider payload: once saved, only the bounded in-memory game
                 // cache should hold it. A live count that climbs with each run means the
@@ -2215,6 +2191,8 @@ namespace PlayniteAchievements.Services.Refresh
                     }
                 }
 
+                var linkedOnly = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+                RaiseRequestCompleted(linkedOnly);
                 return;
             }
 
@@ -2225,6 +2203,64 @@ namespace PlayniteAchievements.Services.Refresh
                     targetSelectionCache,
                     externalToken)
                 .ConfigureAwait(false);
+            var linkedChanged = await RunLinkedFilePassAsync(request, resolved, externalToken).ConfigureAwait(false);
+            RaiseRequestCompleted((LastRefreshedGameIds ?? new List<Guid>()).Concat(linkedChanged));
+        }
+
+        /// <summary>
+        /// Raised once every refresh request has run, whoever started it and whether or not a
+        /// provider had work: the games the refresh saved plus the games their linked files
+        /// changed. What has to follow a refresh (capstones, tags) keys off this one event.
+        /// </summary>
+        public event Action<List<Guid>> RequestCompleted;
+
+        private void RaiseRequestCompleted(IEnumerable<Guid> gameIds)
+        {
+            try
+            {
+                RequestCompleted?.Invoke((gameIds ?? Enumerable.Empty<Guid>()).Where(id => id != Guid.Empty).Distinct().ToList());
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "RequestCompleted handler failed.");
+            }
+        }
+
+        /// <summary>Reads the linked files the request covers; returns the games whose data they changed.</summary>
+        private async Task<IReadOnlyList<Guid>> RunLinkedFilePassAsync(
+            RefreshRequest request,
+            RefreshRequestPlanner.ResolvedRequest resolved,
+            CancellationToken externalToken)
+        {
+            var pass = LinkedFilePass;
+            if (pass == null || resolved == null || externalToken.IsCancellationRequested)
+            {
+                return Array.Empty<Guid>();
+            }
+
+            var scope = LinkedFiles.LinkedFilePassScope.FromRequest(
+                resolved.Mode,
+                resolved.SingleGameId ?? request?.SingleGameId,
+                resolved.Options ?? request?.Options,
+                request?.GameIds);
+            if (scope == null)
+            {
+                return Array.Empty<Guid>();
+            }
+
+            try
+            {
+                return await pass(scope, externalToken).ConfigureAwait(false) ?? Array.Empty<Guid>();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[LinkedFile] The refresh pass failed.");
+            }
+
+            return Array.Empty<Guid>();
         }
 
         public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds, CancellationToken externalToken = default)
@@ -2277,6 +2313,20 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             return FormatRefreshCompletionWithModeAndCount(resolved.Mode, payload?.Summary?.GamesRefreshed ?? 0);
+        }
+
+        /// <summary>
+        /// Holds off every refresh, for an operation that must not run beside one. False while a
+        /// refresh runs.
+        /// </summary>
+        public bool TryReserveExclusive()
+        {
+            return _refreshStateManager.TryReserveExclusive();
+        }
+
+        public void ReleaseExclusive()
+        {
+            _refreshStateManager.ReleaseExclusive();
         }
 
         public void CancelCurrentRebuild()

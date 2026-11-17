@@ -10,6 +10,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Controls;
 using static PlayniteAchievements.Views.Showcase.ShowcaseUiText;
 
 namespace PlayniteAchievements.Views.Showcase
@@ -122,7 +123,7 @@ namespace PlayniteAchievements.Views.Showcase
         private UIElement BuildAddLinkRow()
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -242,12 +243,12 @@ namespace PlayniteAchievements.Views.Showcase
                 });
 
                 // IcoFont arrow-up, arrow-down, and trash, as mapped in Playnite's shipped icofont.ttf.
-                AddLinkButton(row, 2, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
+                AddListRowButton(row, 2, "\uEA5E", "LOCPlayAch_Showcase_MoveEarlier", index > 0,
                     () => MoveLink(index, -1));
-                AddLinkButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
+                AddListRowButton(row, 3, "\uEA5B", "LOCPlayAch_Showcase_MoveLater", index < _links.Count - 1,
                     () => MoveLink(index, 1));
 
-                AddLinkButton(row, 4, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
+                AddListRowButton(row, 4, "\uEE09", "LOCPlayAch_Common_Remove", true, () =>
                 {
                     _links.RemoveAt(index);
                     CommitLinks();
@@ -283,7 +284,8 @@ namespace PlayniteAchievements.Views.Showcase
             caption.Visibility = string.IsNullOrEmpty(caption.Text) ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        private void AddLinkButton(Grid row, int column, string glyph, string toolTipKey, bool enabled, Action onClick)
+        // A list row's icon button; the stat list in widget settings shares it.
+        internal static void AddListRowButton(Grid row, int column, string glyph, string toolTipKey, bool enabled, Action onClick)
         {
             // No fixed width: the implicit button padding clipped the glyph out of a 30px box.
             var button = new Button
@@ -323,7 +325,7 @@ namespace PlayniteAchievements.Views.Showcase
         internal static void AddImagePicker(Panel panel, string label, Func<string> read, Action<string> apply, Action onChanged)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -430,7 +432,7 @@ namespace PlayniteAchievements.Views.Showcase
             Action onCommit = null)
         {
             var row = new Grid();
-            row.SetResourceReference(MarginProperty, "PlayAch.Thickness.Bottom.Md");
+            OptionRowLayout.Apply(row);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var labelBlock = CreateLabel(label);
@@ -486,7 +488,6 @@ namespace PlayniteAchievements.Views.Showcase
             var block = new TextBlock
             {
                 Text = text,
-                FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 12, 0, 4)
             };
             block.SetResourceReference(TextBlock.ForegroundProperty, "PlayAch.Brush.Text");

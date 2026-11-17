@@ -597,6 +597,34 @@ namespace PlayniteAchievements.Views.Controls
 
         public AchievementStatusColorMode StatusColor => (AchievementStatusColorMode)GetValue(StatusColorProperty);
 
+        private static readonly IReadOnlyList<ProgressDetailStyle> NoInlineDetails = new ProgressDetailStyle[0];
+
+        private static readonly DependencyPropertyKey InlineNameDetailStylesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(InlineNameDetailStyles), typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(NoInlineDetails));
+
+        /// <summary>
+        /// Identifies the InlineNameDetailStyles dependency property: the global detail priority
+        /// when this grid shows a detail before achievement names, otherwise empty.
+        /// </summary>
+        public static readonly DependencyProperty InlineNameDetailStylesProperty = InlineNameDetailStylesPropertyKey.DependencyProperty;
+
+        public IReadOnlyList<ProgressDetailStyle> InlineNameDetailStyles =>
+            (IReadOnlyList<ProgressDetailStyle>)GetValue(InlineNameDetailStylesProperty);
+
+        private static readonly DependencyPropertyKey InlineDescriptionDetailStylesPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(InlineDescriptionDetailStyles), typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(NoInlineDetails));
+
+        /// <summary>
+        /// Identifies the InlineDescriptionDetailStyles dependency property: the global detail
+        /// priority when this grid shows a detail before descriptions, otherwise empty.
+        /// </summary>
+        public static readonly DependencyProperty InlineDescriptionDetailStylesProperty = InlineDescriptionDetailStylesPropertyKey.DependencyProperty;
+
+        public IReadOnlyList<ProgressDetailStyle> InlineDescriptionDetailStyles =>
+            (IReadOnlyList<ProgressDetailStyle>)GetValue(InlineDescriptionDetailStylesProperty);
+
         /// <summary>
         /// Identifies the ColorRarityColumnsByRarity dependency property.
         /// When true, rarity and rarity percent text in this grid are colored by rarity tier
@@ -716,6 +744,21 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(AllowDisplaySettingsMenuProperty, value);
         }
 
+        /// <summary>
+        /// When false, a category row's menu offers no edit actions (rename, subcategory, merge,
+        /// duplicate, delete), only Manage Categories. Off in the friend grids: they show another
+        /// user's unlocks, and the user's own category layout is not edited from there.
+        /// </summary>
+        public static readonly DependencyProperty AllowCategoryEditingProperty =
+            DependencyProperty.Register(nameof(AllowCategoryEditing), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        public bool AllowCategoryEditing
+        {
+            get => (bool)GetValue(AllowCategoryEditingProperty);
+            set => SetValue(AllowCategoryEditingProperty, value);
+        }
+
         public static readonly DependencyProperty DelayInitialRenderUntilNormalizedProperty =
             DependencyProperty.Register(nameof(DelayInitialRenderUntilNormalized), typeof(bool),
                 typeof(AchievementDataGridControl), new PropertyMetadata(false, OnDelayInitialRenderUntilNormalizedChanged));
@@ -745,6 +788,7 @@ namespace PlayniteAchievements.Views.Controls
             if (d is AchievementDataGridControl control)
             {
                 control.SyncModeToggle();
+                control._sortBinder?.SetBar(control.ControlBar);
             }
         }
 
@@ -752,6 +796,21 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (GridControlBarViewModel)GetValue(ControlBarProperty);
             set => SetValue(ControlBarProperty, value);
+        }
+
+        /// <summary>
+        /// Whether a control bar without a Sort By item gets one. A showcase widget turns this off:
+        /// its item belongs to the widget's adapter, and the widget's settings show or hide it.
+        /// </summary>
+        public static readonly DependencyProperty ProvidesSortSelectorProperty =
+            DependencyProperty.Register(nameof(ProvidesSortSelector), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true,
+                    (d, e) => ((AchievementDataGridControl)d)._sortBinder?.Ensure()));
+
+        public bool ProvidesSortSelector
+        {
+            get => (bool)GetValue(ProvidesSortSelectorProperty);
+            set => SetValue(ProvidesSortSelectorProperty, value);
         }
 
         public static readonly DependencyProperty ShowControlBarProperty =
@@ -1350,11 +1409,19 @@ namespace PlayniteAchievements.Views.Controls
                 _expandAllButton = new GridActionButton(
                     CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"),
                     ExpandAllCategories,
-                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"));
+                    CategoryModeText("LOCPlayAch_Common_ExpandAll", "Expand All"))
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.ExpandAll,
+                    LabelKey = "LOCPlayAch_Common_ExpandAll"
+                };
                 _collapseAllButton = new GridActionButton(
                     CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"),
                     CollapseAllCategories,
-                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"));
+                    CategoryModeText("LOCPlayAch_Common_CollapseAll", "Collapse All"))
+                {
+                    Id = PlayniteAchievements.Models.ShowcaseControlBarItems.CollapseAll,
+                    LabelKey = "LOCPlayAch_Common_CollapseAll"
+                };
             }
 
             if (!ReferenceEquals(_controlBarWithToggle, ControlBar))
@@ -1368,12 +1435,12 @@ namespace PlayniteAchievements.Views.Controls
                 _controlBarWithToggle = ControlBar;
             }
 
-            // The leading zone is empty in the category list, so the pair reads beside the search
-            // box there; visibility is managed by UpdateCollapseControlBarButtons.
-            if (!_controlBarWithToggle.LeadingItems.Contains(_expandAllButton))
+            // The pair leads the bar's items by default, so it reads just after the search box in
+            // the category list; visibility is managed by UpdateCollapseControlBarButtons.
+            if (!_controlBarWithToggle.Items.Contains(_expandAllButton))
             {
-                _controlBarWithToggle.LeadingItems.Add(_expandAllButton);
-                _controlBarWithToggle.LeadingItems.Add(_collapseAllButton);
+                _controlBarWithToggle.Items.Insert(0, _expandAllButton);
+                _controlBarWithToggle.Items.Insert(1, _collapseAllButton);
             }
 
             // Recompute the toggle's auto-hide; ApplyControlBarModeState positions Back/toggle.
@@ -1449,12 +1516,11 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        // Positions the category-mode Back and toggle controls. The toggle stays in the trailing
-        // (right-side) items but changes slot with the mode: directly after the category dropdown
-        // while the flat grid shows it, forming the segmented unit, and directly ahead of the
-        // unlock-state toggles once grouping hides the category dropdowns, so the visible row reads
-        // [Compare] [Mode] [Unlocked] [Locked] [Hidden]. Only the Back button moves to the leading
-        // zone, left of the search box, while in category mode.
+        // Sets the category-mode toggle's default slot among the bar's items; a saved item order
+        // overrides it. The toggle sits directly after the category dropdown while the flat grid
+        // shows that dropdown on the bar, forming the segmented unit. Otherwise (grouping hides the
+        // category dropdowns, or they sit in the Filters panel) it sits directly ahead of the
+        // unlock-state toggles, so the row reads [Compare] [Mode] [Unlocked] [Locked] [Hidden].
         private void UpdateModeControlPlacement(bool grouping)
         {
             var bar = _controlBarWithToggle;
@@ -1474,18 +1540,22 @@ namespace PlayniteAchievements.Views.Controls
             // ObservableCollection.Move's target index and a fresh Insert expect.
             var others = bar.Items.Where(item => !ReferenceEquals(item, _modeToggle)).ToList();
 
+            // Sort By stays the bar's last item, so the toggle's fallback slot is just ahead of it.
+            var sortIndex = others.FindIndex(item => item is GridSortSelector);
+            var end = sortIndex >= 0 ? sortIndex : others.Count;
+
             int target;
-            if (grouping)
+            if (grouping || ControlBarHost.IsInFilterPanel(_connectedCategoryFilter))
             {
-                // The category dropdowns are hidden, so the toggle sits just ahead of the
-                // unlock-state toggles, leaving Compare on its left.
+                // The category dropdowns are hidden or in the Filters panel, so the toggle sits
+                // just ahead of the unlock-state toggles, leaving Compare on its left.
                 var firstToggleFilter = others.FindIndex(item => item is GridToggleFilter);
-                target = firstToggleFilter >= 0 ? firstToggleFilter : others.Count;
+                target = firstToggleFilter >= 0 ? firstToggleFilter : end;
             }
             else
             {
                 var anchor = _connectedCategoryFilter == null ? -1 : others.IndexOf(_connectedCategoryFilter);
-                target = anchor >= 0 ? anchor + 1 : others.Count;
+                target = anchor >= 0 ? anchor + 1 : end;
             }
 
             var current = bar.Items.IndexOf(_modeToggle);
@@ -1504,12 +1574,14 @@ namespace PlayniteAchievements.Views.Controls
         // empty space. Runs after the per-item visibility pass, which is what it keys off.
         private void SyncSegmentedUnit()
         {
-            // Joined only while both show: a Display Settings choice can hide either one.
+            // Joined only while both show side by side: a Display Settings choice can hide either
+            // one, and the category dropdown usually sits in the Filters panel, away from the toggle.
             var connected =
                 _modeToggle?.EffectiveIsVisible == true &&
                 _connectedCategoryFilter?.EffectiveIsVisible == true &&
                 !ControlBarHost.IsItemHidden(_modeToggle) &&
-                !ControlBarHost.IsItemHidden(_connectedCategoryFilter);
+                !ControlBarHost.IsItemHidden(_connectedCategoryFilter) &&
+                !ControlBarHost.IsInFilterPanel(_connectedCategoryFilter);
 
             if (_connectedCategoryFilter != null)
             {
@@ -1532,8 +1604,8 @@ namespace PlayniteAchievements.Views.Controls
 
             bar.Items.Remove(_modeToggle);
             bar.LeadingItems.Remove(_modeToggle);
-            bar.LeadingItems.Remove(_expandAllButton);
-            bar.LeadingItems.Remove(_collapseAllButton);
+            bar.Items.Remove(_expandAllButton);
+            bar.Items.Remove(_collapseAllButton);
             foreach (var item in bar.Items)
             {
                 if (item is GridMultiSelectFilter filter)
@@ -1541,9 +1613,9 @@ namespace PlayniteAchievements.Views.Controls
                     filter.IsVisible = true;
                     filter.ConnectedRight = false;
                 }
-                else if (item is GridToggleFilter toggle)
+                else if (item is GridToggleFilter || item is GridSortSelector)
                 {
-                    toggle.IsVisible = true;
+                    item.IsVisible = true;
                 }
             }
 
@@ -1585,6 +1657,11 @@ namespace PlayniteAchievements.Views.Controls
                 {
                     // The Unlocked/Locked/Hidden toggles filter achievements, so hide them in the
                     // category list (rows are categories) but restore them flat and when drilled in.
+                    item.IsVisible = !list;
+                }
+                else if (item is GridSortSelector)
+                {
+                    // Sort By orders achievements; the category list sorts by its own headers.
                     item.IsVisible = !list;
                 }
                 else if (item is GridMultiSelectFilter filter)
@@ -1689,7 +1766,43 @@ namespace PlayniteAchievements.Views.Controls
                     .OfType<CategorySummaryItem>()
                     .Any(c => c.HasChildCategories);
 
+            SeedCollapsedCategories();
             ApplyCategoryNameFilter();
+        }
+
+        // Parent categories already met, so a rebuild never re-collapses one the user expanded.
+        private readonly HashSet<string> _seededCategoryPaths =
+            new HashSet<string>(CategoryPathHelper.LabelComparer);
+
+        private string CategoriesCollapsedStateKey => ResolveStartInCategoryModeOptionsId() + ".CategoriesCollapsed";
+
+        // Whether this surface's last Expand All / Collapse All was Collapse All.
+        private bool CategoriesStartCollapsed() =>
+            !string.IsNullOrEmpty(
+                PlayniteAchievements.Services.Showcase.ShowcaseControlBarStateStore.Instance.LoadSurface(
+                    CategoriesCollapsedStateKey));
+
+        private void SaveCategoriesStartCollapsed(bool collapsed) =>
+            PlayniteAchievements.Services.Showcase.ShowcaseControlBarStateStore.Instance.SaveSurface(
+                CategoriesCollapsedStateKey,
+                collapsed ? "1" : null);
+
+        // A parent category met for the first time starts collapsed when the surface last chose
+        // Collapse All. Rows the user toggles afterwards keep their own state.
+        private void SeedCollapsedCategories()
+        {
+            var collapse = CategoriesStartCollapsed();
+            foreach (var category in
+                (_allCategorySummaries ?? Enumerable.Empty<GameSummaryItem>()).OfType<CategorySummaryItem>())
+            {
+                if (category.HasChildCategories &&
+                    !string.IsNullOrEmpty(category.CategoryPath) &&
+                    _seededCategoryPaths.Add(category.CategoryPath) &&
+                    collapse)
+                {
+                    _collapsedCategoryPaths.Add(category.CategoryPath);
+                }
+            }
         }
 
         /// <summary>
@@ -1937,12 +2050,14 @@ namespace PlayniteAchievements.Views.Controls
                 }
             }
 
+            SaveCategoriesStartCollapsed(true);
             ApplyCategoryNameFilter();
         }
 
         private void ExpandAllCategories()
         {
             _collapsedCategoryPaths.Clear();
+            SaveCategoriesStartCollapsed(false);
             ApplyCategoryNameFilter();
         }
 
@@ -2028,16 +2143,6 @@ namespace PlayniteAchievements.Views.Controls
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
-        /// <summary>
-        /// Path navigation: returns to the category list rather than drilling into the hop. The
-        /// list is the map and holds every node, so it is one click from there to anywhere - and
-        /// coming back lands on the same scroll position the user drilled in from.
-        /// </summary>
-        private void NavigateToAncestorInList(int depth)
-        {
-            DrillToPath(null);
-        }
-
         /// <summary>Navigates to an ancestor of the current path, or to the root when null.</summary>
         public void DrillToPath(string path)
         {
@@ -2078,7 +2183,7 @@ namespace PlayniteAchievements.Views.Controls
             DrilledCategory = drill ? CategoryPathHelper.ToDisplayPath(DrilledPath) : null;
             DrilledCategoryPath = drill ? DrilledPath : null;
             DrilledCategorySegments = drill
-                ? CategoryPathSegment.Build(_drillPath, NavigateToAncestorInList)
+                ? CategoryPathSegment.Build(_drillPath)
                 : null;
 
             ApplyCategoryPaneLayout();
@@ -2498,6 +2603,11 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             var menu = new ContextMenu();
+            if (AllowCategoryEditing && AppendCategoryEditActions(menu, gameId, summary.CategoryPath ?? summary.CategoryLabel))
+            {
+                menu.Items.Add(new Separator());
+            }
+
             menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(
                 this,
                 "LOCPlayAch_ManageAchievements_Category_Context_ManageCategories",
@@ -2512,6 +2622,52 @@ namespace PlayniteAchievements.Views.Controls
             menu.Placement = PlacementMode.MousePoint;
             menu.IsOpen = true;
             return true;
+        }
+
+        /// <summary>
+        /// The same actions the Manage Categories row menu offers, run headless over a snapshot of
+        /// the game's categories taken as the menu opens. The tab defers its library catch-up to
+        /// teardown; here each applied edit pays it at once, since there is no teardown to wait
+        /// for, and tells an open Manage window on this game to reload.
+        /// </summary>
+        private bool AppendCategoryEditActions(ContextMenu menu, Guid gameId, string categoryLabel)
+        {
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var overrides = plugin?.AchievementOverridesService;
+            var dataService = plugin?.AchievementDataService;
+            if (overrides == null || dataService == null)
+            {
+                return false;
+            }
+
+            var logger = PluginLogger.GetLogger(nameof(AchievementDataGridControl));
+            CategoryEditSnapshot snapshot;
+            try
+            {
+                snapshot = CategoryEditSnapshotLoader.Load(
+                    gameId,
+                    dataService,
+                    () => plugin.Settings?.Persisted,
+                    plugin.GameCustomDataStore);
+            }
+            catch (Exception ex)
+            {
+                logger?.Error(ex, $"Failed loading the category snapshot for gameId={gameId}.");
+                return false;
+            }
+
+            var editor = new CategoryEditor(overrides, () => plugin.Settings?.Persisted, logger, plugin.GameCustomDataStore);
+            return CategoryRowActionsMenuBuilder.Append(
+                menu,
+                this,
+                editor,
+                snapshot,
+                categoryLabel,
+                outcome =>
+                {
+                    AchievementRowOptionsMenuBuilder.NotifySummaryRowsChanged(gameId);
+                    OpenEditorRegistry.NotifyBackgroundWrite(gameId);
+                });
         }
 
         private bool TryResolveCategoryGameId(CategorySummaryItem summary, out Guid gameId)
@@ -2554,7 +2710,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void SortDrilledAchievements(DataGridSortingEventArgs e)
         {
-            if (e?.Column == null || string.IsNullOrWhiteSpace(e.Column.SortMemberPath))
+            // A Sort By reset has no column; it clears the sort like the third header click.
+            var isReset = GridSortRequestEventArgs.Of(e)?.IsReset == true;
+            if (!isReset && (e?.Column == null || string.IsNullOrWhiteSpace(e.Column.SortMemberPath)))
             {
                 return;
             }
@@ -2723,6 +2881,8 @@ namespace PlayniteAchievements.Views.Controls
             remove => RemoveHandler(RowPreviewMouseLeftButtonDownEvent, value);
         }
 
+        private readonly GridSortSelectorBinder _sortBinder;
+
         public AchievementDataGridControl()
         {
             InitializeComponent();
@@ -2736,6 +2896,13 @@ namespace PlayniteAchievements.Views.Controls
                     new System.Windows.Data.Binding(nameof(ResolvedCategoryColumnSettingsKey)) { Source = this });
             }
 
+            _sortBinder = new GridSortSelectorBinder(
+                AchievementsDataGrid,
+                e => DataGrid_Sorting(AchievementsDataGrid, e),
+                () => ProvidesSortSelector,
+                column => _columnPersistence?.IsListedInColumnMenu(column) ?? true,
+                GridSortColumns.Achievement);
+            _sortBinder.SetBar(ControlBar);
             RarityAppearanceHelper.BindAnimateRarityGlows(this, AnimateRarityGlowsProperty);
             RarityAppearanceHelper.BindSoftGlowTiers(this, SoftGlowTiersProperty);
             RarityAppearanceHelper.BindRayGlowTiers(this, RayGlowTiersProperty);
@@ -2775,7 +2942,13 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
-        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e) => SyncSegmentedUnit();
+        // Showing or hiding the Filters button moves the category dropdown between the panel and
+        // the bar, which moves the toggle's default slot with it.
+        private void ControlBarHost_ShownItemsChanged(object sender, EventArgs e)
+        {
+            UpdateModeControlPlacement(IsCategoryGroupingEffective());
+            SyncSegmentedUnit();
+        }
 
         // The bar leaves out the items this grid's Display Settings hide.
         private void UpdateControlBarOptions()
@@ -2839,6 +3012,13 @@ namespace PlayniteAchievements.Views.Controls
                     DefaultGameImageColumnWidth,
                     MinimumGameImageColumnWidth,
                     MaximumGameImageColumnWidth);
+
+                // One game's achievements all share the game, so its header and Sort By offer no
+                // sort there, matching the surface's default sort choices.
+                gameColumn.CanUserSort = !GridOptionsCatalog.TryResolveAchievementId(ColumnSettingsKey, out var surfaceId) ||
+                    Views.Settings.Controls.GridDisplaySurfaces
+                        .Resolve(Views.Settings.Controls.GridOptionKind.Achievement, surfaceId)
+                        .ShowGameColumnSortChoice;
             }
 
             var friendAvatarColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "FriendAvatarColumn") as DataGridTemplateColumn;
@@ -3121,7 +3301,8 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             if (string.IsNullOrEmpty(e.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.GridOptions))
+                e.PropertyName == nameof(PersistedSettings.GridOptions) ||
+                e.PropertyName == nameof(PersistedSettings.ProgressDetails))
             {
                 RefreshAppearance();
             }
@@ -3202,6 +3383,21 @@ namespace PlayniteAchievements.Views.Controls
             SetValue(NameColorPropertyKey, record?.NameColor ?? AchievementNameColorSource.None);
             SetValue(TagDisplayPropertyKey, record?.TagDisplay ?? AchievementTagDisplay.Icons);
             SetValue(StatusColorPropertyKey, record?.StatusColor ?? AchievementStatusColorMode.MissableUnobtainable);
+            RefreshInlineDetails(record);
+        }
+
+        // The order is the global detail priority; the grid's record only says which spots show it.
+        private void RefreshInlineDetails(AchievementGridOptions record)
+        {
+            var beforeName = record?.InlineDetailsBeforeName == true;
+            var beforeDescription = record?.InlineDetailsBeforeDescription == true;
+            var styles = beforeName || beforeDescription
+                ? ProgressDetailOrder.EnabledStyles(
+                    PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ProgressDetails ?? ProgressDetailOrder.Default())
+                : NoInlineDetails;
+
+            SetValue(InlineNameDetailStylesPropertyKey, beforeName ? styles : NoInlineDetails);
+            SetValue(InlineDescriptionDetailStylesPropertyKey, beforeDescription ? styles : NoInlineDetails);
         }
 
         // Reads without creating: GetAchievement would add a record for every unknown key.
@@ -3261,7 +3457,9 @@ namespace PlayniteAchievements.Views.Controls
             if (string.IsNullOrEmpty(e.PropertyName) ||
                 e.PropertyName == nameof(AchievementGridOptions.NameColor) ||
                 e.PropertyName == nameof(AchievementGridOptions.TagDisplay) ||
-                e.PropertyName == nameof(AchievementGridOptions.StatusColor))
+                e.PropertyName == nameof(AchievementGridOptions.StatusColor) ||
+                e.PropertyName == nameof(AchievementGridOptions.InlineDetailsBeforeName) ||
+                e.PropertyName == nameof(AchievementGridOptions.InlineDetailsBeforeDescription))
             {
                 RefreshAppearance();
             }
@@ -3317,7 +3515,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             (_rowPrepareCounter ?? (_rowPrepareCounter = new RowPrepareCounter(
                 Services.Logging.PluginLogger.GetLogger(nameof(AchievementDataGridControl)),
-                ColumnSettingsKey))).RowPrepared(Dispatcher);
+                ColumnSettingsKey))).RowPrepared(Dispatcher, e.Row);
             ApplyFixedRowHeight(e.Row);
             ApplyRowHighlight(e.Row);
         }
@@ -3906,6 +4104,13 @@ namespace PlayniteAchievements.Views.Controls
 
             if (e.Handled || UseExternalSorting)
             {
+                return;
+            }
+
+            if (GridSortRequestEventArgs.Of(e)?.IsReset == true)
+            {
+                DataGridSortingHelper.HandleSorting(sender, e, AchievementsDataGrid);
+                RestorePreSortOrder();
                 return;
             }
 

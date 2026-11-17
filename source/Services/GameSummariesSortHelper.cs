@@ -17,40 +17,26 @@ namespace PlayniteAchievements.Services
     public readonly struct GameSummariesSortSpec
     {
         public GameSummariesSortSpec(GameSummariesSortMode mode, ListSortDirection direction)
+            : this(GridSortColumns.FromGameSummariesMode(mode), direction)
         {
-            Mode = mode;
+        }
+
+        /// <param name="sortMemberPath">
+        /// A grid column's sort member path; empty keeps the source order (pin order on a
+        /// pinned-games grid).
+        /// </param>
+        public GameSummariesSortSpec(string sortMemberPath, ListSortDirection direction)
+        {
+            SortMemberPath = GridSortColumns.IsSourceOrder(sortMemberPath) ? null : sortMemberPath;
             Direction = direction;
         }
 
-        public GameSummariesSortMode Mode { get; }
-
         public ListSortDirection Direction { get; }
 
-        public string SortMemberPath => Mode switch
-        {
-            GameSummariesSortMode.RecentUnlock => nameof(GameSummaryItem.LastUnlockUtc),
-            GameSummariesSortMode.LastPlayed => nameof(GameSummaryItem.LastPlayed),
-            GameSummariesSortMode.TotalAchievements => nameof(GameSummaryItem.TotalAchievements),
-            GameSummariesSortMode.Progress => nameof(GameSummaryItem.Progression),
-            GameSummariesSortMode.Alphabetical => "SortingName",
-            GameSummariesSortMode.PinOrder => null,
-            GameSummariesSortMode.DateAdded => nameof(GameSummaryItem.Added),
-            GameSummariesSortMode.ReleaseDate => nameof(GameSummaryItem.ReleaseDate),
-            GameSummariesSortMode.Playtime => nameof(GameSummaryItem.PlaytimeSeconds),
-            GameSummariesSortMode.Remaining => nameof(GameSummaryItem.RemainingAchievements),
-            _ => nameof(GameSummaryItem.LastUnlockUtc)
-        };
+        public string SortMemberPath { get; }
 
-        public string IndicatorSortMemberPath => Mode switch
-        {
-            GameSummariesSortMode.RecentUnlock => null,
-            GameSummariesSortMode.LastPlayed => nameof(GameSummaryItem.LastPlayed),
-            GameSummariesSortMode.TotalAchievements => nameof(GameSummaryItem.TotalAchievements),
-            GameSummariesSortMode.Progress => nameof(GameSummaryItem.Progression),
-            GameSummariesSortMode.Alphabetical => "SortingName",
-            GameSummariesSortMode.Playtime => nameof(GameSummaryItem.PlaytimeSeconds),
-            _ => null
-        };
+        /// <summary>The column that shows the default sort's arrow.</summary>
+        public string IndicatorSortMemberPath => SortMemberPath;
     }
 
     internal enum GameSummariesGridSortActionKind
@@ -121,12 +107,12 @@ namespace PlayniteAchievements.Services
             return surface switch
             {
                 GameSummariesSortSurface.FriendsOverview => new GameSummariesSortSpec(
-                    settings.FriendsOverviewGameSummariesGridSortMode,
+                    settings.FriendsOverviewGameSummariesGridSortColumn,
                     settings.FriendsOverviewGameSummariesGridSortDescending
                         ? ListSortDirection.Descending
                         : ListSortDirection.Ascending),
                 _ => new GameSummariesSortSpec(
-                    settings.OverviewGameSummariesGridSortMode,
+                    settings.OverviewGameSummariesGridSortColumn,
                     settings.OverviewGameSummariesGridSortDescending
                         ? ListSortDirection.Descending
                         : ListSortDirection.Ascending)
@@ -140,10 +126,10 @@ namespace PlayniteAchievements.Services
             return surface switch
             {
                 GameSummariesSortSurface.FriendsOverview =>
-                    propertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesGridSortDescending),
                 _ =>
-                    propertyName == nameof(PersistedSettings.OverviewGameSummariesGridSortMode) ||
+                    propertyName == nameof(PersistedSettings.OverviewGameSummariesGridSortColumn) ||
                     propertyName == nameof(PersistedSettings.OverviewGameSummariesGridSortDescending)
             };
         }
@@ -190,16 +176,61 @@ namespace PlayniteAchievements.Services
             Sort(items, sort.SortMemberPath, sort.Direction);
         }
 
+        /// <summary>Sorts by a grid column's sort member path; empty keeps the source order.</summary>
+        public static void SortByColumn(List<GameSummaryItem> items, string sortColumn, ListSortDirection direction)
+        {
+            var sort = new GameSummariesSortSpec(sortColumn, direction);
+            Sort(items, sort.SortMemberPath, sort.Direction);
+        }
+
+        /// <summary>
+        /// Resolves a header click, or a Sort By request, into a sort action. A result that
+        /// removes the sort is recorded on <paramref name="sortEvent"/>, so Sort By can show no sort.
+        /// </summary>
         internal static GameSummariesGridSortAction ResolveGridSortAction(
             string clickedSortMemberPath,
             string currentSortPath,
             ListSortDirection? currentSortDirection,
             PersistedSettings settings,
-            GameSummariesSortSurface surface = GameSummariesSortSurface.Overview)
+            GameSummariesSortSurface surface = GameSummariesSortSurface.Overview,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
         {
+            var action = ResolveGridSortActionCore(
+                clickedSortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                settings,
+                surface,
+                GridSortRequestEventArgs.Of(sortEvent));
+            if (action.Kind == GameSummariesGridSortActionKind.ResetToDefault)
+            {
+                GridSortRequestEventArgs.MarkReset(sortEvent);
+            }
+
+            return action;
+        }
+
+        private static GameSummariesGridSortAction ResolveGridSortActionCore(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            GameSummariesSortSurface surface,
+            GridSortRequestEventArgs request)
+        {
+            if (request?.IsReset == true)
+            {
+                return GameSummariesGridSortAction.ResetToDefault();
+            }
+
             if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
             {
                 return GameSummariesGridSortAction.None();
+            }
+
+            if (request != null)
+            {
+                return GameSummariesGridSortAction.ApplySort(clickedSortMemberPath, request.Direction.Value);
             }
 
             var configuredSort = GetConfiguredDefaultSort(settings, surface);

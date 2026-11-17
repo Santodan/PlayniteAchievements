@@ -77,6 +77,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override void RefreshTiles()
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            // Unlock Next ranks its own tiles, so it offers no Sort By.
+            var sort = _controlBarSlot.Adapter.EnableSort();
+            MosaicSortChoices.BindAchievementSelector(
+                sort,
+                ShowcaseWidgetOptions.GetMosaicSort(Projection?.Instance),
+                ShowcaseWidgetOptions.GetMosaicSortDescending(Projection?.Instance),
+                RefreshTiles);
+            sort.IsVisible = ShowcaseWidgetOptions.GetMosaicSource(Projection?.Instance) != ShowcaseMosaicSource.UnlockNext;
             _controlBarSlot.UpdateShownBar(Projection?.Instance);
             ControlBar = _controlBarSlot.ShownBar;
 
@@ -101,18 +109,20 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>
-        /// Applies the widget's configured sort over the projected tiles. None preserves the
-        /// source order the mosaic's Source produced, so sorting stays an opt-in re-arrangement
-        /// of one widget rather than a re-projection of the dashboard.
+        /// Applies the control bar's Sort By, which starts at the widget's configured sort, over
+        /// the projected tiles. Unsorted preserves the source order the mosaic's Source produced,
+        /// so sorting stays an opt-in re-arrangement of one widget rather than a re-projection of
+        /// the dashboard.
         /// </summary>
         private IEnumerable<AchievementDisplayItem> OrderAchievements(
             IEnumerable<AchievementDisplayItem> achievements)
         {
-            var spec = new AchievementSortSpec(
-                ShowcaseWidgetOptions.GetMosaicSort(Projection?.Instance),
-                ShowcaseWidgetOptions.GetMosaicSortDescending(Projection?.Instance)
-                    ? ListSortDirection.Descending
-                    : ListSortDirection.Ascending);
+            var spec = MosaicSortChoices.TryGetBarSort(
+                    _controlBarSlot.Adapter?.SortSelector,
+                    out CompactListSortMode barMode,
+                    out var barDirection)
+                ? new AchievementSortSpec(barMode, barDirection)
+                : new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending);
             // Unlock Next ranks during selection and hides the sort rows, so a sort stored while
             // another source was selected must not re-arrange its tiles.
             if (spec.PreservesSourceOrder ||

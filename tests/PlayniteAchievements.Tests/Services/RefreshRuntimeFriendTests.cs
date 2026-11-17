@@ -667,6 +667,61 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_FullLibraryFriend_TellsDefinitionFetchWhichGamesAreMapped()
+        {
+            var cache = new FakeFriendCache
+            {
+                ProviderGamesMappedToPlayniteLibrary = false
+            };
+            var friends = new FakeFriendsProvider("Steam")
+            {
+                FriendsToReturn = new List<FriendIdentity> { MakeFriend("1") },
+                OwnedGamesToReturn = new List<FriendGameOwnership>
+                {
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 100,
+                        PlayniteGameId = Guid.NewGuid(),
+                        PlaytimeForeverMinutes = 1,
+                        AchievementUnlocksHint = 1
+                    },
+                    new FriendGameOwnership
+                    {
+                        ProviderKey = "Steam",
+                        ExternalUserId = "1",
+                        AppId = 200,
+                        PlaytimeForeverMinutes = 1,
+                        AchievementUnlocksHint = 1
+                    }
+                },
+                AchievementRowsToReturn = new List<FriendAchievementRow>
+                {
+                    new FriendAchievementRow { ApiName = "A", DisplayName = "A", Unlocked = true }
+                }
+            };
+            SeedCachedFriends(cache, "Steam", "1");
+
+            await CreateRuntime(cache)
+                .RefreshAsync(
+                    new IDataProvider[] { new FakeDataProvider("Steam", friends) },
+                    new FriendRefreshOptions
+                    {
+                        Scope = FriendRefreshScope.Full
+                    },
+                    reportProgress: null)
+                .ConfigureAwait(false);
+
+            // A mapped game's metadata layer is the user's own overlay's, so its fetch is told to
+            // skip SteamHunters; a provider-only game's fetch is not.
+            var mapped = friends.DefinitionMappedByAppId;
+            Assert.AreEqual(2, mapped.Count);
+            Assert.IsTrue(mapped[100]);
+            Assert.IsFalse(mapped[200]);
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_FullLibraryFriend_SkipsProviderOnlyOwnershipForNoAchievementsDefinition()
         {
             var cache = new FakeFriendCache
@@ -2810,9 +2865,6 @@ namespace PlayniteAchievements.Services.Tests
             public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
                 new FriendsOverviewData();
 
-            public FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit) =>
-                new FriendsOverviewData();
-
             public IReadOnlyList<CurrentUserGameLabel> CurrentUserGameLabels { get; set; } =
                 new List<CurrentUserGameLabel>();
 
@@ -3095,6 +3147,7 @@ namespace PlayniteAchievements.Services.Tests
             private int _currentAchievementCalls;
             private int _maxConcurrentAchievementCalls;
             private readonly List<int> _definitionAppIds = new List<int>();
+            private readonly Dictionary<int, bool> _definitionMappedByAppId = new Dictionary<int, bool>();
             private readonly List<string> _networkCallOrder = new List<string>();
 
             public FakeFriendsProvider(string providerKey)
@@ -3128,6 +3181,18 @@ namespace PlayniteAchievements.Services.Tests
             public int GetFriendGameDefinitionCalls => _getFriendGameDefinitionCalls;
             public int MaxConcurrentOwnershipCalls => _maxConcurrentOwnershipCalls;
             public int MaxConcurrentAchievementCalls => _maxConcurrentAchievementCalls;
+            // The mappedToLibrary flag each definition fetch was given, keyed by app id.
+            public IReadOnlyDictionary<int, bool> DefinitionMappedByAppId
+            {
+                get
+                {
+                    lock (_definitionAppIds)
+                    {
+                        return new Dictionary<int, bool>(_definitionMappedByAppId);
+                    }
+                }
+            }
+
             public IReadOnlyList<int> DefinitionAppIds
             {
                 get
@@ -3308,6 +3373,7 @@ namespace PlayniteAchievements.Services.Tests
                 string providerGameKey,
                 int appId,
                 string gameName,
+                bool mappedToLibrary,
                 CancellationToken cancel)
             {
                 Interlocked.Increment(ref _getFriendGameDefinitionCalls);
@@ -3315,6 +3381,7 @@ namespace PlayniteAchievements.Services.Tests
                 lock (_definitionAppIds)
                 {
                     _definitionAppIds.Add(appId);
+                    _definitionMappedByAppId[appId] = mappedToLibrary;
                 }
 
                 return Task.FromResult(FriendsProviderResult<FriendGameDefinition>.FromData(new FriendGameDefinition

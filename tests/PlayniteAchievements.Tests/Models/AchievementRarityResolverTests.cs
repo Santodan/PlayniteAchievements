@@ -83,7 +83,17 @@ namespace PlayniteAchievements.Tests.Models
             {
                 Assert.AreEqual("<1%", AchievementRarityResolver.FormatPercent(0.99));
                 Assert.AreEqual("<1%", AchievementRarityResolver.FormatPercent(0.5));
-                Assert.AreEqual("<1%", AchievementRarityResolver.FormatPercent(0.0));
+                Assert.AreEqual("<1%", AchievementRarityResolver.FormatPercent(0.01));
+            });
+        }
+
+        [TestMethod]
+        public void FormatPercent_EnabledShowsZeroAsZero()
+        {
+            WithRounding(() =>
+            {
+                Assert.AreEqual("0%", AchievementRarityResolver.FormatPercent(0.0));
+                Assert.AreEqual("0%", AchievementRarityResolver.FormatWholePercent(0.0));
             });
         }
 

@@ -72,13 +72,11 @@ namespace PlayniteAchievements.Views.Showcase
                 ? Localize("LOCPlayAch_Column_Cover")
                 : EnumValueName("LOCPlayAch_Showcase_ScoreCardArt_", value);
 
-        // Both and None reuse the shared strings rather than adding identical ones.
-        public static string ProfileMedalModeName(ShowcaseProfileMedalMode value) =>
-            value == ShowcaseProfileMedalMode.Both
-                ? Localize("LOCPlayAch_Common_Both")
-                : value == ShowcaseProfileMedalMode.None
-                ? Localize("LOCPlayAch_Common_None")
-                : EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", value);
+        // A profile medal row's name; Points reuses the column string.
+        public static string ProfileMedalRowName(ProgressDetailStyle style) =>
+            style == ProgressDetailStyle.Points
+                ? Localize("LOCPlayAch_Column_Points")
+                : EnumValueName("LOCPlayAch_Showcase_ProfileMedalMode_", style);
 
         // Every mode reuses a shared label: the completions stat, or the dimension's own name.
         public static string PieModeName(ShowcasePieMode value)

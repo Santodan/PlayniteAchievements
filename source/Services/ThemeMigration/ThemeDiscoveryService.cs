@@ -52,6 +52,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
             public bool HasBackup { get; set; }
             public bool NeedsMigration { get; set; }
             public bool CouldNotScan { get; set; }
+
+            /// <summary>
+            /// True when the theme already targets PlayniteAchievements and uses legacy
+            /// controls or LegacyData bindings that Full or Custom migration can modernize.
+            /// </summary>
+            public bool ModernizeOnly { get; set; }
             public string CurrentThemeVersion { get; set; }
             public string CachedMigratedThemeVersion { get; set; }
             public bool UpgradedSinceLastMigration { get; set; }
@@ -137,7 +143,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         ThemeYamlVersionReader.TryReadThemeName(themeDir, out displayName);
 
                         // Check if theme contains legacy references that still need migration.
-                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport) = CheckIfNeedsMigration(themeDir);
+                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport, hasLegacyPlayniteAchievementsReference, originalNativeTheme) = ScanTheme(themeDir, _logger, _useForkContentCache?.Invoke() == true);
+
+                        // A theme that already targets PlayniteAchievements through legacy controls can be modernized.
+                        // Fullscreen themes only support Limited migration, which has nothing to change for them.
+                        var modernizeOnly = originalNativeTheme && hasLegacyPlayniteAchievementsReference;
+                        var isFullscreenTheme = string.Equals(subDir, "Fullscreen", StringComparison.OrdinalIgnoreCase);
 
                         // Compare against cached migrated version (optional)
                         string cachedVersion = null;
@@ -163,8 +174,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
                             // PlayniteAchievementsSantodan in one file and still keep legacy
                             // SuccessStory/old-PA gates in another. Native support should not
                             // suppress migration when any migratable reference remains.
-                            NeedsMigration = needsMigration,
+                            NeedsMigration = (!originalNativeTheme && needsMigration) || (modernizeOnly && !isFullscreenTheme),
                             CouldNotScan = couldNotScan,
+                            ModernizeOnly = modernizeOnly,
                             CurrentThemeVersion = currentVersion,
                             CachedMigratedThemeVersion = cachedVersion,
                             UpgradedSinceLastMigration = upgradedSinceLastMigration
@@ -277,14 +289,18 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Checks if a theme directory contains migratable legacy references.
+        /// Scans a theme directory for migratable legacy references, native PlayniteAchievements
+        /// support, and legacy PlayniteAchievements controls or bindings.
         /// </summary>
-        private (bool needsMigration, bool couldNotScan, bool hasNativePlayniteAchievementsSupport) CheckIfNeedsMigration(string themePath)
+        internal static (bool needsMigration, bool couldNotScan, bool hasNativePlayniteAchievementsSupport, bool hasLegacyPlayniteAchievementsReference, bool originalNativeTheme) ScanTheme(string themePath, ILogger logger, bool useForkContentCache = false)
         {
             int filesRead = 0;
             int filesSkipped = 0;
             bool foundMigratableReference = false;
             bool foundNativePlayniteAchievementsSupport = false;
+            bool foundLegacyPlayniteAchievementsReference = false;
+            bool foundOriginalNativeSupport = false;
+            bool needsForkRepair = false;
 
             try
             {
@@ -299,7 +315,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for XAML files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for XAML files in {themePath}");
                 }
 
                 try
@@ -308,7 +324,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for PS1 files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for PS1 files in {themePath}");
                 }
 
                 try
@@ -317,7 +333,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
                 catch (Exception ex)
                 {
-                    _logger.Debug(ex, $"Could not search for CS files in {themePath}");
+                    logger?.Debug(ex, $"Could not search for CS files in {themePath}");
                 }
 
                 // Remove duplicates and filter out backup folder
@@ -334,22 +350,33 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     {
                         var content = File.ReadAllText(file);
                         filesRead++;
-                        var analysis = AnalyzeThemeContentForCaller(content);
+                        foundOriginalNativeSupport |= content.IndexOf("PlayniteAchievements_", StringComparison.Ordinal) >= 0;
+                        needsForkRepair |= ContainsForkRepairReference(content);
+
+                        var analysis = useForkContentCache
+                            ? AnalyzeThemeContent(content)
+                            : (migratable: ContainsMigratableReference(content), native: ContainsNativePlayniteAchievementsSupport(content));
 
                         if (analysis.native)
                         {
                             foundNativePlayniteAchievementsSupport = true;
                         }
 
+                        if (ContainsLegacyPlayniteAchievementsReference(content))
+                        {
+                            foundLegacyPlayniteAchievementsReference = true;
+                        }
+
                         if (analysis.migratable)
                         {
                             foundMigratableReference = true;
                         }
+
                     }
                     catch (Exception ex)
                     {
                         filesSkipped++;
-                        _logger.Debug(ex, $"Could not read file while checking theme: {file}");
+                        logger?.Debug(ex, $"Could not read file while checking theme: {file}");
                     }
                 }
 
@@ -359,17 +386,44 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 // This handles the case where the theme is currently running and files are locked
                 if (filesRead == 0 && filesSkipped > 0)
                 {
-                    _logger.Warn($"Could not read any files in theme (likely currently running): {themePath}");
-                    return (true, true, false); // Conservative: assume it needs migration, mark as could not scan
+                    logger?.Warn($"Could not read any files in theme (likely currently running): {themePath}");
+                    return (true, true, false, false, false); // Conservative: assume it needs migration, mark as could not scan
                 }
 
-                return (foundMigratableReference, false, foundNativePlayniteAchievementsSupport);
+                return (foundMigratableReference, false, foundNativePlayniteAchievementsSupport, foundLegacyPlayniteAchievementsReference,
+                    foundOriginalNativeSupport && !foundNativePlayniteAchievementsSupport && !needsForkRepair);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Failed to check if theme needs migration: {themePath}");
-                return (true, true, false); // Conservative: assume it needs migration on error, mark as could not scan
+                logger?.Error(ex, $"Failed to check if theme needs migration: {themePath}");
+                return (true, true, false, false, false); // Conservative: assume it needs migration on error, mark as could not scan
             }
+        }
+
+        private static bool ContainsLegacyPlayniteAchievementsReference(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                return false;
+            }
+
+            foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
+            {
+                if (content.IndexOf($"PlayniteAchievements_{controlName}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
+            {
+                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool ContainsMigratableReference(string content)
@@ -379,6 +433,40 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 return false;
             }
 
+            if (ContainsForkRepairReference(content)) return true;
+
+            if (content.IndexOf("SuccessStoryFullscreenHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("playnite-successstory-plugin", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("SSHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("SuccessStory", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("\uE820", StringComparison.Ordinal) >= 0 ||
+                content.IndexOf("&#xE820;", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
+            {
+                if (content.IndexOf($"SuccessStory_{controlName}", StringComparison.Ordinal) >= 0 ||
+                    Regex.IsMatch(content, GetStandaloneControlNamePattern(controlName)))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
+            {
+                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsForkRepairReference(string content)
+        {
             // Themes built for the original PlayniteAchievements fork use that source name in
             // PluginStatus gates. PluginStatus resolves extension IDs, so those gates must be
             // rewritten for the Santodan extension ID.
@@ -407,35 +495,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 return true;
             }
 
+            if (ThemeMigrationService.NeedsLocalProviderCompatibility(content)) return true;
             if (ThemeMigrationService.NeedsPs5TrophyProgressMigration(content)) return true;
             if (ThemeMigrationService.NeedsPs5RankMigration(content)) return true;
-
-            if (content.IndexOf("SuccessStoryFullscreenHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                content.IndexOf("playnite-successstory-plugin", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                content.IndexOf("SSHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                content.IndexOf("SuccessStory", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                content.IndexOf("\uE820", StringComparison.Ordinal) >= 0 ||
-                content.IndexOf("&#xE820;", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
-            {
-                if (content.IndexOf($"SuccessStory_{controlName}", StringComparison.Ordinal) >= 0 ||
-                    Regex.IsMatch(content, GetStandaloneControlNamePattern(controlName)))
-                {
-                    return true;
-                }
-            }
-
-            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
-            {
-                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
-                {
-                    return true;
-                }
-            }
 
             return false;
         }

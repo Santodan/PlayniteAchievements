@@ -17,7 +17,49 @@ namespace PlayniteAchievements.Services.Database
         // v20: metadata state tables (MetadataApplied, MetadataCoverage, MetadataSourceSnapshots,
         // MetadataSourcePages) hold the applied metadata links, per-source snapshots and source
         // page slugs.
-        public const int SchemaVersion = 20;
+        // v21: PlatformDefinitions.MetadataOrder holds each achievement's position in the list
+        // of the metadata source chosen for order.
+        // v22: the platform's definitions table is PlatformDefinitions, AchievementMetadataLayer
+        // holds what metadata sources supplied, AchievementOverrides carries the whole custom
+        // layer, and AchievementDefinitions is the view resolving custom over metadata over
+        // platform, which the plugin and other add-ons read.
+        public const int SchemaVersion = 22;
+
+        /// <summary>The plugin's one database: platform data, metadata and custom data.</summary>
+        internal const string DatabaseFileName = "achievement_cache.db";
+
+        /// <summary>
+        /// Every table of the platform and metadata layers, children first. Clearing these clears
+        /// the platform data of every game, and the metadata stored against it, while the custom
+        /// data tables, their mirror and the capture index stay.
+        /// </summary>
+        internal static readonly IReadOnlyList<string> PlatformAndMetadataTables = new[]
+        {
+            "AchievementMetadataLayer",
+            "MetadataApplied",
+            "MetadataCoverage",
+            "MetadataSourceSnapshots",
+            "MetadataSourcePages",
+            "UserAchievements",
+            "UserGameProgress",
+            "PlatformDefinitions",
+            "Games",
+            "Users",
+            "FriendOwnership",
+            "ProviderGameDefinitionState"
+        };
+
+        /// <summary>Deletes every row of <see cref="PlatformAndMetadataTables"/> in one transaction.</summary>
+        internal static void ClearPlatformAndMetadata(SQLiteDatabase db)
+        {
+            db.RunTransaction(() =>
+            {
+                foreach (var table in PlatformAndMetadataTables)
+                {
+                    db.ExecuteNonQuery("DELETE FROM " + table + ";");
+                }
+            });
+        }
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -38,6 +80,7 @@ namespace PlayniteAchievements.Services.Database
             db.ExecuteNonQuery("PRAGMA synchronous = NORMAL;");
             db.ExecuteNonQuery("PRAGMA foreign_keys = ON;");
             db.ExecuteNonQuery("PRAGMA temp_store = MEMORY;");
+            RenameDefinitionsToPlatformDefinitions(db);
 
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS CacheMetadata (
                 Key TEXT PRIMARY KEY NOT NULL,
@@ -81,7 +124,7 @@ namespace PlayniteAchievements.Services.Database
                 LastUpdatedUtc TEXT NOT NULL
             );");
 
-            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementDefinitions (
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS PlatformDefinitions (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 GameId INTEGER NOT NULL,
                 ApiName TEXT NOT NULL COLLATE NOCASE,
@@ -100,6 +143,7 @@ namespace PlayniteAchievements.Services.Database
                 GlobalPercentUnlocked REAL NULL,
                 Rarity TEXT NOT NULL DEFAULT 'Common',
                 ProgressMax INTEGER NULL,
+                MetadataOrder INTEGER NULL,
                 CreatedUtc TEXT NOT NULL,
                 UpdatedUtc TEXT NOT NULL,
                 FOREIGN KEY (GameId) REFERENCES Games(Id) ON DELETE CASCADE,
@@ -107,7 +151,7 @@ namespace PlayniteAchievements.Services.Database
             );");
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_AchievementDefinitions_GameId
-                ON AchievementDefinitions (GameId);");
+                ON PlatformDefinitions (GameId);");
 
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS UserGameProgress (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,7 +193,7 @@ namespace PlayniteAchievements.Services.Database
                 LastUpdatedUtc TEXT NOT NULL,
                 CreatedUtc TEXT NOT NULL,
                 FOREIGN KEY (UserGameProgressId) REFERENCES UserGameProgress(Id) ON DELETE CASCADE,
-                FOREIGN KEY (AchievementDefinitionId) REFERENCES AchievementDefinitions(Id) ON DELETE CASCADE,
+                FOREIGN KEY (AchievementDefinitionId) REFERENCES PlatformDefinitions(Id) ON DELETE CASCADE,
                 UNIQUE (UserGameProgressId, AchievementDefinitionId)
             );");
 
@@ -278,6 +322,35 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        /// <summary>
+        /// Before v22 the platform's definitions were the AchievementDefinitions table. That name is
+        /// now the resolved view other add-ons read, so the table is renamed; SQLite rewrites the
+        /// foreign keys, indexes and triggers that point at it.
+        /// </summary>
+        private void RenameDefinitionsToPlatformDefinitions(SQLiteDatabase db)
+        {
+            var isTable = db.ExecuteScalar<long>(
+                "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = 'AchievementDefinitions';") > 0;
+            if (!isTable)
+            {
+                return;
+            }
+
+            ExecuteSafe(db, "PRAGMA legacy_alter_table = OFF;");
+            // AchievementDefinitions is still the table here, and DROP VIEW on a table name fails.
+            foreach (var view in AchievementLayerSql.AllViewNames.Where(name => name != AchievementLayerSql.ViewName))
+            {
+                ExecuteSafe(db, "DROP VIEW IF EXISTS " + view + ";");
+            }
+
+            string backupPath = null;
+            ExecuteSchemaChangeWithBackup(
+                db,
+                "ALTER TABLE AchievementDefinitions RENAME TO PlatformDefinitions;",
+                ref backupPath,
+                "Renamed AchievementDefinitions to PlatformDefinitions.");
+        }
+
         private void ExecuteSafe(SQLiteDatabase db, string sql)
         {
             try
@@ -345,6 +418,25 @@ namespace PlayniteAchievements.Services.Database
             EnsureAchievementOverridesTable(db);
             EnsureMetadataStateTables(db);
             EnsureMetadataStateIndexes(db);
+            EnsureAchievementLayers(db);
+        }
+
+        /// <summary>
+        /// Creates the metadata layer table and its delete trigger, and recreates the view that
+        /// resolves it over the definitions. Runs once the definitions table is verified.
+        /// </summary>
+        private void EnsureAchievementLayers(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateGameStateTableSql);
+            ExecuteSafe(db, "DROP TABLE IF EXISTS AchievementCategoryKinds;");
+            ExecuteSafe(db, AchievementLayerSql.CreateCategoriesTableSql);
+            ExecuteSafe(db, AchievementLayerSql.CreateCapturesTableSql);
+            foreach (var sql in AchievementLayerSql.RecreateViewSql())
+            {
+                ExecuteSafe(db, sql);
+            }
         }
 
         private void EnsureFriendOwnershipTable(SQLiteDatabase db)
@@ -380,8 +472,8 @@ namespace PlayniteAchievements.Services.Database
                 ON FriendOwnership (LastScrapedUtc, LastScrapeStatus);");
         }
 
-        // Derived mirror of the per-game achievement filter lists stored in game_custom_data.db
-        // (a separate SQLite file the summary queries cannot join to). Fully resynced from
+        // Derived mirror of the per-game custom data records in the GameCustomData table, flattened
+        // into rows the views and summary queries can join. Fully resynced from
         // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
         // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
         // anti-join probe.
@@ -398,12 +490,42 @@ namespace PlayniteAchievements.Services.Database
         /// </remarks>
         private void EnsureAchievementOverridesTable(SQLiteDatabase db)
         {
+            // Derived state the startup resync rebuilds, so a table from before the custom layer
+            // columns is dropped rather than altered.
+            var existing = GetColumnNames(db, "AchievementOverrides");
+            if (existing.Count > 0 && !existing.Contains("IsAuthored"))
+            {
+                ExecuteSafe(db, "DROP TABLE AchievementOverrides;");
+            }
+
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementOverrides (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 ApiName TEXT NOT NULL COLLATE NOCASE,
+                DisplayName TEXT NULL,
+                Description TEXT NULL,
                 Points INTEGER NULL,
                 TrophyType TEXT NULL COLLATE NOCASE,
+                Category TEXT NULL,
+                Tags TEXT NULL,
+                Hidden INTEGER NULL,
+                Cleared INTEGER NOT NULL DEFAULT 0,
+                Note TEXT NULL,
+                GoalOrder INTEGER NULL,
+                CustomOrder INTEGER NULL,
+                UnlockedIconPath TEXT NULL,
+                LockedIconPath TEXT NULL,
+                UnlockTimeUtc TEXT NULL,
+                CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
+                IsAuthored INTEGER NOT NULL DEFAULT 0,
+                Unlocked INTEGER NOT NULL DEFAULT 0,
+                ProgressNum INTEGER NULL,
+                ProgressDenom INTEGER NULL,
+                ScaledPoints INTEGER NULL,
+                CategoryKind TEXT NULL,
+                GlobalPercentUnlocked REAL NULL,
+                Rarity TEXT NULL,
+                IsCapstone INTEGER NOT NULL DEFAULT 0,
                 IsFiltered INTEGER NOT NULL DEFAULT 0,
                 IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
                 UpdatedUtc TEXT NOT NULL,
@@ -502,7 +624,7 @@ namespace PlayniteAchievements.Services.Database
         {
             ExecuteSafe(
                 db,
-                "UPDATE AchievementDefinitions " +
+                "UPDATE PlatformDefinitions " +
                 "SET Category = 'Default' " +
                 "WHERE Category IS NULL OR TRIM(Category) = '';");
         }
@@ -510,7 +632,7 @@ namespace PlayniteAchievements.Services.Database
         private string ReconcileSchema(SQLiteDatabase db)
         {
             var backupPath = default(string);
-            var definitionColumns = GetColumnNames(db, "AchievementDefinitions");
+            var definitionColumns = GetColumnNames(db, "PlatformDefinitions");
 
             if (!definitionColumns.Contains("unlockediconpath"))
             {
@@ -518,7 +640,7 @@ namespace PlayniteAchievements.Services.Database
                 {
                     ExecuteSchemaChangeWithBackup(
                         db,
-                        "ALTER TABLE AchievementDefinitions RENAME COLUMN IconUnlockedPath TO UnlockedIconPath;",
+                        "ALTER TABLE PlatformDefinitions RENAME COLUMN IconUnlockedPath TO UnlockedIconPath;",
                         ref backupPath,
                         "Renamed IconUnlockedPath to UnlockedIconPath.");
                 }
@@ -526,28 +648,29 @@ namespace PlayniteAchievements.Services.Database
                 {
                     ExecuteSchemaChangeWithBackup(
                         db,
-                        "ALTER TABLE AchievementDefinitions RENAME COLUMN IconPath TO UnlockedIconPath;",
+                        "ALTER TABLE PlatformDefinitions RENAME COLUMN IconPath TO UnlockedIconPath;",
                         ref backupPath,
                         "Renamed IconPath to UnlockedIconPath.");
                 }
             }
 
-            definitionColumns = GetColumnNames(db, "AchievementDefinitions");
-            EnsureColumn(db, "AchievementDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
+            definitionColumns = GetColumnNames(db, "PlatformDefinitions");
+            EnsureColumn(db, "PlatformDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
             var hadTags = definitionColumns.Contains("Tags");
-            EnsureColumn(db, "AchievementDefinitions", "Tags", "TEXT NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "CategoryKind", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "Tags", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "CategoryKind", "TEXT NULL", definitionColumns, ref backupPath);
             if (!hadTags && definitionColumns.Contains("CategoryType"))
             {
                 SplitLegacyCategoryTypes(db);
             }
 
-            EnsureColumn(db, "AchievementDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "Rarity", "TEXT NOT NULL DEFAULT 'Common'", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "Rarity", "TEXT NOT NULL DEFAULT 'Common'", definitionColumns, ref backupPath);
+            EnsureColumn(db, "PlatformDefinitions", "MetadataOrder", "INTEGER NULL", definitionColumns, ref backupPath);
 
             ClearRetroAchievementsWinConditionCapstones(db, ref backupPath);
 
@@ -987,7 +1110,7 @@ namespace PlayniteAchievements.Services.Database
             try
             {
                 values = db.Load<LegacyCategoryTypeRow>(
-                        "SELECT DISTINCT CategoryType AS Value FROM AchievementDefinitions;")
+                        "SELECT DISTINCT CategoryType AS Value FROM PlatformDefinitions;")
                     .Select(row => row?.Value)
                     .Where(value => !string.IsNullOrWhiteSpace(value))
                     .ToList();
@@ -1011,7 +1134,7 @@ namespace PlayniteAchievements.Services.Database
                 try
                 {
                     db.ExecuteNonQuery(
-                        "UPDATE AchievementDefinitions SET Tags = ?, CategoryKind = ? WHERE CategoryType = ?;",
+                        "UPDATE PlatformDefinitions SET Tags = ?, CategoryKind = ? WHERE CategoryType = ?;",
                         tags == null ? (object)DBNull.Value : tags,
                         kind == null ? (object)DBNull.Value : kind,
                         value);
@@ -1069,7 +1192,7 @@ namespace PlayniteAchievements.Services.Database
         private void ClearRetroAchievementsWinConditionCapstones(SQLiteDatabase db, ref string backupPath)
         {
             const string matchSql =
-                @"SELECT COUNT(1) FROM AchievementDefinitions ad
+                @"SELECT COUNT(1) FROM PlatformDefinitions ad
                   INNER JOIN Games g ON g.Id = ad.GameId
                   WHERE ad.IsCapstone = 1 AND g.ProviderKey = 'RetroAchievements';";
 
@@ -1091,7 +1214,7 @@ namespace PlayniteAchievements.Services.Database
 
             ExecuteSchemaChangeWithBackup(
                 db,
-                @"UPDATE AchievementDefinitions
+                @"UPDATE PlatformDefinitions
                   SET IsCapstone = 0
                   WHERE IsCapstone = 1
                     AND GameId IN (SELECT Id FROM Games WHERE ProviderKey = 'RetroAchievements');",
@@ -1137,17 +1260,18 @@ namespace PlayniteAchievements.Services.Database
         {
             var missing = new List<string>();
 
-            var definitionColumns = GetColumnNames(db, "AchievementDefinitions");
-            EnsureRequiredColumn(definitionColumns, "UnlockedIconPath", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "LockedIconPath", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "Points", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "ScaledPoints", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "Category", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "Tags", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "CategoryKind", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
-            EnsureRequiredColumn(definitionColumns, "Rarity", "AchievementDefinitions", missing);
+            var definitionColumns = GetColumnNames(db, "PlatformDefinitions");
+            EnsureRequiredColumn(definitionColumns, "UnlockedIconPath", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "LockedIconPath", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Points", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "ScaledPoints", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Category", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Tags", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "CategoryKind", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "TrophyType", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "IsCapstone", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Rarity", "PlatformDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "MetadataOrder", "PlatformDefinitions", missing);
 
             // Verify ProviderKey column exists in Games and Users tables (migration from ProviderName)
             var gamesColumns = GetColumnNames(db, "Games");

@@ -20,7 +20,9 @@ namespace PlayniteAchievements.Providers.BattleNet
             new[]
             {
                 new ProviderOverrideChoice(BattleNetGameTitle.Wow.ToString(), "World of Warcraft"),
-                new ProviderOverrideChoice(BattleNetGameTitle.Sc2.ToString(), "StarCraft II")
+                new ProviderOverrideChoice(BattleNetGameTitle.Sc2.ToString(), "StarCraft II"),
+                new ProviderOverrideChoice(BattleNetGameTitle.WowClassic.ToString(), "World of Warcraft Classic"),
+                new ProviderOverrideChoice(BattleNetGameTitle.WowForever.ToString(), "World of Warcraft: Forever")
             },
             "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice");
 

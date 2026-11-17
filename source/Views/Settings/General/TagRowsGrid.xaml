@@ -22,7 +22,7 @@
 
             <!-- One tag. IsChecked is one-way and the click sets the value, and the name commits on
                  LostFocus: a two-way toggle inside a grid cell can be reverted by the grid's
-                 close-time CancelEdit. -->
+                 close-time CancelEdit. An empty name box shows the default name it stands for. -->
             <DataTemplate x:Key="TagCellTemplate">
                 <!-- The name box fills whatever width its column has. -->
                 <DockPanel VerticalAlignment="Center"
@@ -32,8 +32,33 @@
                               Click="TagEnabled_Click"
                               VerticalAlignment="Center"
                               Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
-                    <TextBox Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             VerticalAlignment="Center"/>
+                    <Grid VerticalAlignment="Center">
+                        <TextBox x:Name="NameTextBox"
+                                 Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Padding="6,4"
+                                 VerticalContentAlignment="Center"/>
+                        <TextBlock Text="{Binding DefaultDisplayName}"
+                                   VerticalAlignment="Center"
+                                   Margin="9,0,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ElementName=NameTextBox, Path=Text}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ElementName=NameTextBox, Path=Text}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
                 </DockPanel>
             </DataTemplate>
 

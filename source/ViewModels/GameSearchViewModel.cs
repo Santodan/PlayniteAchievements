@@ -110,6 +110,9 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>True when any result lists platforms, so the platform column is worth its width.</summary>
         public bool ShowPlatformColumn => Results.Any(item => item.Platforms != null);
 
+        /// <summary>True when any result names a regional release, so the region column is worth its width.</summary>
+        public bool ShowRegionColumn => Results.Any(item => item.Region != null);
+
         public bool CanAccept => GetSelection().Count > 0;
 
         public RelayCommand SearchCommand { get; }
@@ -259,6 +262,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 OnPropertyChanged(nameof(ShowPlatformColumn));
+                OnPropertyChanged(nameof(ShowRegionColumn));
                 StatusMessage = Results.Count > 0
                     ? string.Format(
                         FormattingCulture.Current,
@@ -325,6 +329,7 @@ namespace PlayniteAchievements.ViewModels
 
             LinkText = string.Empty;
             OnPropertyChanged(nameof(ShowPlatformColumn));
+            OnPropertyChanged(nameof(ShowRegionColumn));
         }
 
         public void CancelSearch()
@@ -393,6 +398,7 @@ namespace PlayniteAchievements.ViewModels
             Results.Clear();
             SelectedItem = null;
             OnPropertyChanged(nameof(ShowPlatformColumn));
+            OnPropertyChanged(nameof(ShowRegionColumn));
         }
 
         private static async Task<GameSearchResult> DescribeAsync(IGameSearchSource source, string id, CancellationToken ct)
@@ -445,6 +451,8 @@ namespace PlayniteAchievements.ViewModels
         public string IconUrl => Result.IconUrl;
 
         public string Platforms => Result.Platforms;
+
+        public string Region => Result.Region;
 
         public bool IsChecked
         {

@@ -659,6 +659,315 @@ split, and any change between one window and several is not guaranteed to land i
 load. A group opacity (fade, zoom) also cannot be reproduced per layer: each layer faded separately lets
 the background show through the text mid-fade.
 
+## The thumbnail probe
+
+```powershell
+tools\capture-harness\bin\ThumbnailProbe.exe [--presenter noredirect|layered] [--dump <dir>]
+tools\capture-harness\bin\TemplateBench.exe --game 4000 --thumbnail [--software] [--tiny-animation]
+```
+
+`ThumbnailProbe` shows a card (translucent fill, blurred glow, shadowed text) in a DWM-composited WPF
+window over a solid backdrop, captures the screen, cloaks the window, and shows its DWM thumbnail
+(`DwmRegisterThumbnail`) in a second window that has no surface of its own
+(`WS_EX_NOREDIRECTIONBITMAP`, or layered with a colour key).
+`TemplateBench --thumbnail` does the same with the real card: the card window stays cloaked for the whole
+run, and entrance and exit move the thumbnail's destination rectangle from a thread that waits on
+`DwmFlush`, with no WPF frame involved.
+
+Measured 2026-11-13 on a 60 Hz virtual display (2880x1920) against `GameLoad --work 4000` (about 102 fps
+alone), card scale 1, medians of 3 cycles.
+The recorder missed updates in every run, so `changed/s` is a lower bound.
+
+| mode | entrance | hold | exit | game fps in hold |
+|---|---|---|---|---|
+| window, GPU priority normal (Performance) | 21.8/s | 10.3/s | 25.0/s | 98-102 |
+| window, GPU priority realtime (Quality) | 36.6/s | 29.3/s | 43.0/s | 90-97 |
+| thumbnail, normal | 43.7/s | 9.7/s | 36.1/s | 101-102 |
+| thumbnail, normal, card window `--software` | 59.0/s | 16.2/s | 53.6/s | 101-103 |
+| thumbnail, realtime | 46.7/s | 29.6/s | 46.9/s | 95-96 |
+
+What it established:
+
+- A thumbnail of the cloaked card window matches the window itself on screen: 0 of 582,400 pixels
+  differ at rest and after moving the destination by (37, 53), with either presenter kind. Per-pixel
+  alpha is kept, and the thumbnail's opacity property fades it.
+- Moving the thumbnail costs the game nothing and does not wait in the GPU queue behind it, since this
+  process issues no GPU work for the motion.
+- The hold is unchanged by the thumbnail: its frames still come from WPF.
+- At realtime priority the game cost of the hold comes from redrawing the card, not from presenting.
+  With the card still and a 6 px square animating in the window corner (`--tiny-animation`, about 59
+  frames/s) the game held 101.9-102.3 fps against 103.5 with nothing animating; with the card's own
+  animations running (about 42 frames/s) it held 96.3-96.7. Card scale 2 measured the same as scale 1.
+- A card window rendered in software (`--software`) leaves the game untouched but its hold is limited by
+  the CPU: 16.2/s at scale 1, 3.3/s at scale 2.
+
+Limits: a virtual 60 Hz display, where the game is composed by DWM in every case, so nothing here
+prices a game leaving independent flip, and nothing is measured at 165 Hz.
+The pacing thread sets whole-pixel positions at the time it wakes; residual against the ideal curve
+(`--truth`) is not measured for it.
+
+### The plugin's presenter and hold layers: `TemplateBench --presenter [--hold-layers]`
+
+```powershell
+tools\capture-harness\bin\TemplateBench.exe --game 2500 --presenter [--hold-layers [--early-layers]]
+    [--recorder-priority 5] [--no-capture] [--layers-compare --snapshot <prefix>]
+```
+
+`--presenter` drives the plugin's own `ToastThumbnailPresenter`: the card window stays cloaked, the slide
+storyboards run on the service's empty motion stand-in, and the service mirrors the stand-in's transform
+and opacity onto the thumbnail from a pump that waits on `DwmFlush`.
+`--hold-layers` also calls the service's `BeginHoldLayersAsync` / `EndHoldLayersAsync` around the hold: the
+cards' backgrounds and content are shown from two software-rendered layer windows (`ToastHoldLayers`) over
+the card window, which holds its animated images on a still and hides everything but what is drawn behind
+the card.
+`--recorder-priority 5` runs the capture child at the realtime GPU class, so it is not starved by the
+game; read cadence from such a run and game fps from a `--no-capture` one.
+`--layers-compare` captures the card on screen before and after the split.
+
+Measured 2026-11-13 on the 165 Hz display (2560x1440) against `GameLoad --work 2500` (about 112 fps alone),
+the user's settings (animated WebM background, border glow pulse, card rays), card scale 1, medians of 3
+cycles. Desktop updates arrived at about 105-110 per second in every run, so that is the ceiling for
+`changed/s`.
+
+| mode | entrance | hold | exit | game fps in hold | game worst frame |
+|---|---|---|---|---|---|
+| window, GPU priority normal (Performance) | 28.1/s | 8.5/s | 25.4/s | 111.6-112.0 | 9.5 ms |
+| window, GPU priority realtime (Quality) | 78.0/s | 40.7/s | 76.0/s | 105.8 | 15.5 ms |
+| presenter, normal | 89.6/s | 8.8/s | 92.2/s | - | - |
+| presenter and hold layers, normal | - | 59.0/s | 94.7/s | 109.3-109.5 | 9.7-9.9 ms |
+| presenter and hold layers, normal, `--no-rays` | - | 65.0/s | - | 109.5 | 9.7 ms |
+| presenter and hold layers with a rays layer, normal | - | 56.7/s | - | 111.6 | 10.3 ms |
+
+The entrance of a `--hold-layers` run is left out: the bench disposes the previous cycle's layer windows
+right before it, which a wave does only after its exit.
+
+What it established:
+
+- With the card still in its window, WPF raised `CompositionTarget.Rendering` about 3 times a second
+  under the game, and a slide mirrored from that event stepped at that rate (entrance 3.0/s). Stepped from
+  a thread that waits on `DwmFlush` and posts to the dispatcher, it reached 78-93/s at normal priority.
+- WPF presents every window of the process from one render thread. A software-rendered background layer
+  beside hardware layers reached the screen 3.3 times a second at normal priority, the rate of the starved
+  hardware frames; with both layers in software it reached 59/s.
+- Splitting layers does not lower the cost of the realtime class: three hardware windows cost the game
+  about 8 fps of 112 against about 6 for the one window.
+- The layers match the single window on screen. With hardware content: 1 level on about 11,500 pixels
+  and at most 7 levels on three corner pixels, measured while the background video differed between the
+  two captures. With software content: at most 10 levels, in the soft shadows around text and icons.
+- An animated image stops decoding when its `Image` is not visible, so the background layer must not hide
+  the template's zero-size decoding image.
+- Without card rays the border glow's pulse is reproduced by the main thumbnail's opacity and the card
+  window draws nothing during the hold (`mainStill=True, pulsePresented=True` in the log line).
+
+- The rows above the last were taken with the card's rays left in the hardware card window, which then
+  kept redrawing (`mainStill=False`). With the rays in a third software layer drawn under the card
+  window (a second thumbnail of the card window is registered after it, since thumbnails stack in
+  registration order), the card window draws nothing during the hold, the longest gap between updates
+  fell from 124 ms to 50 ms, and the game held 111.6 fps against 112.2 with the card hidden.
+
+Measured 2026-11-14 on the same display and load, with three changes in the plugin: the layers are built
+before the entrance (`--early-layers` calls `PrepareHoldLayers` there), the slide is sampled into a motion
+track that the frame pump's thread shows at every composition, and a card with a still opaque background
+image is split as well.
+Medians of 3 cycles; the game with the card hidden ran at 112.4-112.7 fps in the `--no-capture` runs.
+
+| mode | entrance | hold | exit | game fps in hold | game worst frame |
+|---|---|---|---|---|---|
+| animated WebM background, presenter and early layers | 90.3/s | 56.7/s | 88.5/s | 111.5 | 9.6 ms |
+| the same with `--still-background` | 83.6/s | 57.3/s | 90.9/s | 111.5 | 10.2 ms |
+| `--still-background`, presenter without layers | 94.7/s | 8.3/s | 93.9/s | - | - |
+| still PNG background, presenter and early layers | 96.0/s | 44.8/s | 91.9/s | 111.6 | 9.5 ms |
+| still PNG background, presenter without layers | 93.3/s | 8.5/s | 93.8/s | - | - |
+
+- Building the layers took 70 to 185 ms of the UI thread.
+  Built before the entrance they were shown 0 to 7 ms into the hold (`Hold layers: shown N ms into the
+  hold`); built at the settle with the 400 ms wait they were shown about 400 ms in.
+- Built while the card slid in (`--layers-mid-slide`), the entrance fell to 61.9/s with a longest gap of
+  150.9 ms, though the pump thread stepped the thumbnail every 11 ms at most (`Presenter track:
+  steps=33 maxGapMs=11.0`).
+  Creating the windows held the thumbnail on screen whichever thread moved it.
+- Built before the entrance with the motion still stepped on the UI thread, the entrance reached
+  45.9-48.3/s with gaps of 165 ms: the UI thread was up to 380 ms late for a frame while the new windows
+  loaded.
+  Stepped from the pump thread it reached 90.3-92.8/s with a longest gap of 20-34 ms.
+- Seeking a begun, paused storyboard to sample it raises its `Completed` event on a later tick.
+  The slide ignores a `Completed` that arrives before its clock has run the duration.
+- With the wait before the layers are shown set to 0, none of the 30 compositions captured after the
+  split was missing content (6 cycles under the game, `--layers-compare`); the plugin waits 100 ms.
+- `--layers-compare` also renders the card as the clip sampler does (`TryRenderToastItemBytes`, effects
+  stripped, rays hidden) from the card window before the split and from the layer windows after it.
+  The two matched except where the card animates between the captures: 694 of 111,584 pixels on the
+  still PNG card, along the countdown bar and in the animated icon.
+
+What sets the hold's rate, measured 2026-11-14 with no game and under `GameLoad --work 2500`
+(card window 634x392 px, medians of 3 cycles):
+
+- The background video file is 50 frames a second (`DefaultDuration` 20 ms).
+  With every glow animation off (`--still-background --no-pulse`; the layers still play the video) the
+  hold changed 49.4 times a second.
+  `--no-pulse` switches `AnimateRarityGlows` off, which stops the rays as well as the pulse.
+- The glow pulse is read on the frame pump's thread (`MainOpacitySource`): 165 steps a second with no
+  game and 107 under it, longest gap 7.8 and 11.3 ms, of which about 20 a second changed the
+  thumbnail's 8-bit opacity (`Presenter pulse: steps=825 maxGapMs=7.7 levels=98` over 5 s).
+- The rays are invalidated by `RayAnimationDriver` at 30 a second.
+  At 60 (`--ray-fps 60`) the still PNG card's hold went from 43.2 to 60.0 changed/s with no game and
+  from 42.8 to 56.6 under it, longest gap 56.2 to 46.9 ms; at 165 it reached 59.8.
+  The WebM card measured 56.8 and 55.8.
+  The process took the same processor time at 30 and 60 (about 1.22 and 1.25 s per second with the WebM
+  card, 1.03 and 1.03 with the PNG card; 0.80 and 0.57 without rays) and the game ran at 111.5-111.7
+  fps in all four.
+  The plugin sets 60 while the rays rest in their layer (`SetHeldFps`).
+- The same card in one hardware window without the presenter took about 1.08 s of processor time per
+  second, and 0.48 with the presenter and no rays.
+
+With the held rate in the plugin: WebM card 148.1 / 59.0 / 144.1 with no game and 87.3 / 58.0 / 92.8
+under it; PNG card 147.6 / 59.4 / 147.1 and 93.1 / 56.8 / 92.3; game 111.5 fps in the hold for both.
+
+#### The rays' cost
+
+Measured 2026-11-14, same display, card window 634x392 px, no game unless noted.
+Processor time is the bench process's, sampled once a second through a 10 s hold (`--no-capture`).
+
+The card's own burst (224 arrows in 6 copies, slot 550x92 DIP) was most of a resting card's cost, in every
+mode:
+
+| hidden with | layers, WebM card | one hardware window |
+|---|---|---|
+| nothing | 1.23 s/s | 1.08 s/s |
+| `--no-icon-rays` (the icon's burst, 32 arrows) | 1.25 s/s | 1.08 s/s |
+| `--no-card-rays` | 0.91 s/s | 0.35 s/s |
+| `--no-rays` | 0.80 s/s | 0.48 s/s |
+
+- The UI thread's share was 0.15-0.3 ms a redraw; the rest was WPF filling the geometry.
+- With only the narrowest copy drawn the burst cost about nothing (0.93 s/s); with three of the six, 1.14.
+  `EdgeMode.Aliased` changed nothing (1.22).
+  The quads of the wide copies (width multiples 9.0 to 2.1) each overlap several neighbours inside one
+  nonzero geometry.
+- Each copy drawn as 16 geometries of quads that do not overlap each other took 1.00 s/s, with a
+  brighter picture where quads overlap; the same inside an opacity group, which restores the picture,
+  1.19.
+- With the rays invalidated at every frame (`--ray-fps 165`, still PNG card) the hold reached 59.4
+  changed/s as drawn, 82.9 split into sets, 119.3 with one copy and 156.2 without the card burst.
+
+`RayQuadRasterizer` fills the same picture into a bitmap on the UI thread (`RarityRayBurst.IsRasterized`,
+set on the card burst in the bundled template): each quad edge is clipped against the quads near it in
+the loop, and what is left, the union's outline, is summed as signed areas.
+`RayQuadRasterizerTests` compares it with a `RenderTargetBitmap` of the geometry: mean difference
+0.07-0.13 levels of 255 a channel, at most 19 on a pixel, after offsetting by (1/16, 1/32) px, the offset at
+which WPF's own fill differed least.
+It took 1.4-1.5 ms a redraw for a 593x129 px bitmap (2.5 ms before the clipping stopped at the quads whose
+boxes meet).
+`--ray-geometry` puts every burst back on geometry.
+
+Two more things kept the content layer redrawing with its 15 effects run again each time
+(`--content-no-effects` removes them: hold 164.3 changed/s on both cards, against 93.6 and 83.2):
+
+- the pulse of the card's glow, which is hidden in that layer and animates its effect's opacity at every
+  frame (`--content-no-pulse` with `BENCH_PULSES=hidden` stops only it: 162.6 on the WebM card; stopping
+  only the visible icon halo's pulse, 83.2);
+- the hidden backing copy of an animated background, an `ImageBrush` on the shared bitmap, at each of the
+  video's frames (with the pulse stopped and the brush kept, the WebM card held 104.0; the PNG card 164.8).
+
+`ToastLayer` stops the pulse and takes the image brush off every hidden element of a layer window.
+Collapsing the decoding `Image` in the content and rays layers (`--layers-stop-decode`) changed nothing.
+
+With all of it, medians of 3 cycles (entrance / hold / exit, changed/s):
+
+| card | no game | under `GameLoad --work 2500` | game fps in hold | process |
+|---|---|---|---|---|
+| WebM | 150.8 / 161.8 / 148.6 | 94.3 / 79.8 / 88.7 | 110.1, worst frame 9.6 ms | 0.80 s/s |
+| still PNG | 147.2 / 164.6 / 147.3 | 93.6 / 76.2 / 92.0 | 109.8, worst frame 9.9 ms | 0.58 s/s |
+| WebM, `--ray-geometry` | 149.1 / 59.0 / 142.9 | - | - | 1.17 s/s |
+| one hardware window, WebM | - | - | - | 0.58 s/s (1.08 on geometry) |
+
+- Under the game the desktop was presented 105-110 times a second in the hold and the recorder missed
+  557 to 694 of the updates over the three cycles, so the hold's changed/s there is a lower bound.
+- The glow pulse was stepped 103 times a second under the game (`Presenter pulse: steps=517` over 5 s).
+- The game ran at 111.5 fps in the hold while the card changed 57 times a second (the rows above this
+  section) and at 110.1 with it changing at the display's rate.
+- The icon's burst is served 60 times a second while the card rests and the card's burst at every frame
+  (`RayAnimationDriver.SetHeldFps`, `IRayAnimationTarget.TakesEveryHeldFrame`); at 30 for the icon's the
+  hold measured 159.0 and 164.4.
+- Serving the two bursts on alternate frames changed nothing (91.6 against 92.1, before the pulse was
+  stopped).
+
+#### Cards without a background image, and blurred cards
+
+A card is split when the lowest thing its `ToastLayer.Role` `Surface` and `Background` elements draw is
+opaque (`ToastLayer.CanSplit`).
+The bundled template marks its card surface `Surface` and a blurred card's live image and tint `Background`,
+so the background layer shows the surface where no image covers it, without the glow of the element it
+sits in.
+The bench gives the popup brushes a Playnite theme supplies (`PlayAch.Brush.PopupSurface`, opaque here);
+with a translucent one a card without an image rests as one window.
+
+Measured 2026-11-14 on the 60 Hz virtual display (card window 951x588 px) under `GameLoad --work 4000`,
+medians of 3 cycles, hold changed/s and the game's fps in the hold (`--no-capture`):
+
+| card | one window | layers |
+|---|---|---|
+| no background image | 12.4/s, game 99.0 | 59.0/s, game 99.9 |
+| blurred background, no live image | 12.2/s, game 99.6 | 59.4/s, game 100.0 |
+| WebM background | - | 58.4/s |
+
+- With no game the two held at 59.2-59.4 and 59.7 of 60.
+- `--layers-compare` snapshots of both cards before and after the split show the same picture; the sampler's
+  render from the layers has the surface under the content.
+- The bench does not start `ToastLiveBackdrop`, so a blurred card here is its tint over the surface.
+  The live image reaching the background layer, and the card's own window standing still while it changes
+  (`ToastLayer.ReleaseHiddenImages`), are not measured.
+
+#### The card control, the hand-over, and waves of several cards
+
+Measured 2026-11-14 on the 60 Hz virtual display (one card's window 951x588 px).
+
+`controls:ToastCard` (Themes/Generic.xaml) carries the rays, glow, surface and background with their
+`ToastLayer` roles; the bundled template is the control around its content.
+`--compare` of the previous bundled template against it: 0 of 559,188 pixels differ on the WebM, still PNG,
+no-image and blurred cards.
+A five-line theme template built on the control was split and held 59.7/s under `GameLoad --work 4000`; one
+with a plain `Border` root logs `Hold layers: not split, the template marks no element ...` and held 0.0/s
+(nothing in it animates).
+
+The hand-over when the wave comes to rest, `--layers-compare` under `GameLoad --work 4000`, the most pixels
+of any of the 30 compositions after it that differ by more than 16 levels from the one before it:
+
+| path | runs |
+|---|---|
+| layers built at the hold: glow held at its peak there, rays change hands | 57,198 / 57,212 / 13,405 |
+| layers built before the entrance: glow held and rays shown from their layer before the reveal | 7,262 / 7,268 / 7,791 |
+
+The second row is what the card's own animation changes in that time.
+In the first the saved composition shows the glow brighter than before the hand-over.
+
+Waves of several cards (`--cards N`), hold changed/s with no game unless noted:
+
+| | 1 card | 2 cards | 4 cards |
+|---|---|---|---|
+| one window under `GameLoad --work 4000` | 12.4 | 6.0 | 1.0 |
+| layers, as first measured (WebM, under the game) | 59.0 | 38.2 | 32.0 |
+| layers now, still PNG | 59.8 | 57.2 | 42.8-44.4 |
+| layers now, WebM | 59.6 | 42.6 | 40.0-42.6 |
+
+- Building the layers took 118-166 ms for one card and 255-1609 ms for two to four when first measured, and
+  187-414 ms for four after the changes below.
+- With four cards: the icon halos' pulses and the icons' rays, in the content layer, each had the
+  content's effects run again around every icon.
+  Marked `ToastLayer.Role` `Underlay`, they are shown with the background: four cards without rays then held
+  56.2-56.8, where with the halos pulsing in the content layer they held 48.2.
+- The icon's burst rasterized (`IsRasterized`): icon rays alone, four cards, 42.8 to 47.0-55.8.
+- One card's burst took 2.1-3.0 ms a frame at this size (fill 1.9 ms, bitmap 881x193).
+  The driver fills the bursts of a tick across threads (`IRayBatchTarget`); the hold with four cards' card
+  rays alone stayed at 39.4-43.2 with WPF's frame callback at 30 a second, so the fill is not what holds it.
+  Drawing the bitmaps unfiltered changed nothing (44.4, 40.0).
+  What a frame of four card bursts spends its time on is not measured.
+
+Limits: the whole wave pipeline (`ShowWaveAsync`) is not run by the bench, only the methods named above.
+The sampler's ray layer taken from the rays window (`ComputeLayeredRayDelta`) and the glow scale taken
+from the presented pulse are not exercised by the bench.
+A card without a background image is not split: its card surface is drawn inside the glow's element in
+the card window, which the presented pulse would dim along with the glow.
+
 ## The composer probe
 
 ```powershell

@@ -268,6 +268,74 @@ namespace PlayniteAchievements.Views.Helpers
             return new RestoreScope(restores);
         }
 
+        /// <summary>
+        /// Shows each animated image under <paramref name="root"/> as a still of the frame it is on,
+        /// until the returned scope is disposed, when it shows the live image again at whatever
+        /// frame that has reached. A decoder shared with other images keeps running for them
+        /// (pausing one Image does not stop a shared player), so the still is what stops this
+        /// root from being redrawn by every frame. UI thread only.
+        /// </summary>
+        internal static IDisposable HoldCurrentFrames(DependencyObject root)
+        {
+            var restores = new List<Action>();
+            ForEachImage(root, target =>
+            {
+                if (!(target is System.Windows.Controls.Image image))
+                {
+                    return;
+                }
+
+                if (image.GetValue(FrameClockProperty) is AnimationClock clock)
+                {
+                    // A clock-driven image owns its frames; pausing the clock holds the frame.
+                    if (clock.Controller != null && !clock.IsPaused)
+                    {
+                        clock.Controller.Pause();
+                        restores.Add(() => clock.Controller.Resume());
+                    }
+
+                    return;
+                }
+
+                if (!(image.Source is System.Windows.Media.Imaging.WriteableBitmap live))
+                {
+                    return;
+                }
+
+                var still = live.Clone();
+                still.Freeze();
+                image.SetCurrentValue(System.Windows.Controls.Image.SourceProperty, still);
+                restores.Add(() =>
+                {
+                    if (ReferenceEquals(image.Source, still))
+                    {
+                        image.SetCurrentValue(System.Windows.Controls.Image.SourceProperty, live);
+                    }
+                });
+            });
+
+            return new RestoreScope(restores);
+        }
+
+        /// <summary>
+        /// How many Images under <paramref name="root"/> that were given a Uri have a source. Two
+        /// trees built from the same template and data have loaded alike when the counts match;
+        /// a Uri that never resolves stays empty in both.
+        /// </summary>
+        internal static int LoadedCountUnder(DependencyObject root)
+        {
+            var loaded = 0;
+            ForEachImage(root, target =>
+            {
+                if (target is System.Windows.Controls.Image image && image.Source != null &&
+                    GetUri(image) != null)
+                {
+                    loaded++;
+                }
+            });
+            return loaded;
+        }
+
         private sealed class RestoreScope : IDisposable
         {
             private List<Action> _restores;

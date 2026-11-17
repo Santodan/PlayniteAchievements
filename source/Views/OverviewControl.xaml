@@ -645,11 +645,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
                                        Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
-                                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
+                                       Style="{StaticResource PlayAch.TextBlock.SectionHeaderStyle}"/>
                             <Button Grid.Column="1"
                                     Style="{StaticResource HeaderControlBarToggleStyle}"
                                     Tag="{Binding ShowOverviewGameSummariesGridControlBar}"
@@ -800,54 +796,34 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0"
-                                        Orientation="Horizontal"
+                            <controls:FlexibleRowPanel Grid.Column="0"
                                         VerticalAlignment="Center">
 
                                 <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
-                                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                        TextTrimming="CharacterEllipsis"
-                                        VerticalAlignment="Center"
-                                        MouseLeftButtonUp="GameNameBreadcrumb_Click">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Cursor" Value="Arrow"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsSelectedGameDrilledIntoCategory}" Value="True">
-                                                    <Setter Property="Cursor" Value="Hand"/>
-                                                    <Setter Property="TextDecorations" Value="Underline"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                        Style="{StaticResource PlayAch.TextBlock.BreadcrumbRootStyle}"
+                                        Tag="{Binding IsSelectedGameDrilledIntoCategory}"
+                                        MouseLeftButtonUp="GameNameBreadcrumb_Click"/>
 
                                 <TextBlock Text=" > "
-                                        FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                                        VerticalAlignment="Center"
+                                        Style="{StaticResource PlayAch.TextBlock.HeaderSubtleStyle}"
                                         Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}"/>
 
                                 <ItemsControl ItemsSource="{Binding DrilledCategorySegments, ElementName=GameAchievementsGrid}"
                                         ItemTemplate="{StaticResource PlayAch.CategoryPathSegmentTemplate}"
                                         VerticalAlignment="Center"
+                                        controls:FlexibleRowPanel.Fill="True"
                                         Visibility="{Binding IsSelectedGameDrilledIntoCategory, Converter={StaticResource BoolToVis}}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal"/>
+                                            <controls:CategoryPathPanel/>
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
 
                                 <TextBlock Text="{Binding SelectedGameHeaderText}"
+                                        Style="{StaticResource PlayAch.TextBlock.HeaderSubtleStyle}"
                                         FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                        Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
-                                        VerticalAlignment="Center"/>
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"/>
 
                                 <Button x:Name="ClearGameSelectionButton"
                                         Content="✕"
@@ -855,7 +831,7 @@
                                         Click="ClearGameSelection_Click"
                                         Margin="10,0,0,0"/>
 
-                            </StackPanel>
+                            </controls:FlexibleRowPanel>
 
                             <Button Grid.Column="1"
                                     Style="{StaticResource HeaderControlBarToggleStyle}"

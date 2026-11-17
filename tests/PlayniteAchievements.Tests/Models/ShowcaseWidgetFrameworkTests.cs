@@ -731,5 +731,23 @@ namespace PlayniteAchievements.Tests.Models
                 ShowcaseInfoPanelPosition.Right,
                 ShowcaseWidgetOptions.GetInfoPanelPosition(instance));
         }
+
+        [TestMethod]
+        public void VerticalAlignment_ReadsTheFallbackWhileUnsetAndTheValueOnceSet()
+        {
+            var instance = new ShowcaseWidgetInstanceSettings { Kind = ShowcaseWidgetKind.Statistics };
+
+            Assert.AreEqual(
+                ShowcaseVerticalAlignment.Top,
+                ShowcaseWidgetOptions.GetVerticalAlignment(instance, ShowcaseVerticalAlignment.Top));
+            Assert.AreEqual(ShowcaseVerticalAlignment.Center, ShowcaseWidgetOptions.GetVerticalAlignment(instance));
+
+            ShowcaseWidgetOptions.SetVerticalAlignment(instance, ShowcaseVerticalAlignment.Bottom);
+
+            Assert.AreEqual(
+                ShowcaseVerticalAlignment.Bottom,
+                ShowcaseWidgetOptions.GetVerticalAlignment(instance, ShowcaseVerticalAlignment.Top));
+            Assert.AreEqual(ShowcaseVerticalAlignment.Bottom, ShowcaseWidgetOptions.GetVerticalAlignment(instance));
+        }
     }
 }

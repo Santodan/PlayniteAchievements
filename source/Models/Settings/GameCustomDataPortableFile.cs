@@ -115,6 +115,12 @@ namespace PlayniteAchievements.Models.Settings
         /// </summary>
         public CustomProviderDefinition CustomProvider { get; set; }
 
+        /// <summary>
+        /// The mapping that reads the game's linked file, so a recipient can attach their own
+        /// file to it. The package never carries the file path.
+        /// </summary>
+        public LinkedFileSchema LinkedFileSchema { get; set; }
+
         public GameCustomDataPortableFile Clone()
         {
             return new GameCustomDataPortableFile
@@ -185,7 +191,8 @@ namespace PlayniteAchievements.Models.Settings
                     ? CustomAchievements.ConvertAll(item => item?.Clone()).FindAll(item => item != null)
                     : null,
                 CustomProviderId = CustomProviderId,
-                CustomProvider = CustomProvider?.Clone()
+                CustomProvider = CustomProvider?.Clone(),
+                LinkedFileSchema = LinkedFileSchema?.Clone()
             };
         }
     }

@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.PlayniteGameId = playniteGameId;
             normalized.ExcludedFromRefreshes = normalized.ExcludedFromRefreshes == true ? true : (bool?)null;
             normalized.ExcludedFromSummaries = normalized.ExcludedFromSummaries == true ? true : (bool?)null;
+            normalized.ExcludedFromMetadata = normalized.ExcludedFromMetadata == true ? true : (bool?)null;
             normalized.RuleClaims = NormalizeRuleClaims(normalized.RuleClaims);
             normalized.UserPinnedFields = NormalizeRuleFieldList(normalized.UserPinnedFields);
             normalized.UseSeparateLockedIconsOverride = normalized.UseSeparateLockedIconsOverride == true ? true : (bool?)null;
@@ -101,8 +102,8 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
             normalized.AchievementNotes = AchievementNoteHelper.NormalizeNoteMap(normalized.AchievementNotes);
-            // Schema 8 fold: the parallel maps above become one record per achievement. Both
-            // shapes are then kept in sync, so a writer targeting either is still correct.
+            // Schema 8 fold: the parallel maps above become one record per achievement, and the
+            // maps are dropped. Only portable packages still carry them, for older versions.
             var legacyTypesByCategory = CollectLegacyTypesByCategory(
                 splitLegacyTypes ? normalized.AchievementOverrides : null,
                 normalized.AchievementCategoryOverrides,
@@ -117,17 +118,18 @@ namespace PlayniteAchievements.Services.GameCustomData
                 normalized.AchievementNotes,
                 normalized.AchievementUnlockedIconOverrides,
                 normalized.AchievementLockedIconOverrides));
-            normalized.AchievementCategoryOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.Category);
+            normalized.AchievementCategoryOverrides = null;
             normalized.AchievementCategoryTypeOverrides = null;
             normalized.AchievementCategoryKinds = LegacyCategoryTypes.PromoteKinds(normalized.AchievementCategoryKinds, legacyTypesByCategory);
-            normalized.AchievementNotes = ProjectOverrideField(normalized.AchievementOverrides, o => o.Note);
-            normalized.AchievementUnlockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.UnlockedIconPath);
-            normalized.AchievementLockedIconOverrides = ProjectOverrideField(normalized.AchievementOverrides, o => o.LockedIconPath);
+            normalized.AchievementNotes = null;
+            normalized.AchievementUnlockedIconOverrides = null;
+            normalized.AchievementLockedIconOverrides = null;
             normalized.NotificationAppearanceOverride =
                 NormalizeNotificationAppearanceOverride(normalized.NotificationAppearanceOverride);
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
+            normalized.LinkedFile = NormalizeLinkedFile(normalized.LinkedFile, normalized.ManualLink != null, normalized.CustomAchievements);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -204,6 +206,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             normalized.CustomAchievements = NormalizeCustomAchievements(normalized.CustomAchievements, splitLegacyTypes);
             normalized.CustomProviderId = NormalizeCustomProviderId(normalized.CustomProviderId, normalized.CustomAchievements);
             normalized.CustomProvider = NormalizeCustomProviderSnapshot(normalized.CustomProvider, normalized.CustomProviderId);
+            normalized.LinkedFileSchema = NormalizeLinkedFileSchema(normalized.LinkedFileSchema, normalized.ManualLink != null, normalized.CustomAchievements);
             PruneOrphanedCustomAchievementReferences(normalized);
             return normalized;
         }
@@ -217,6 +220,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             return data.ExcludedFromRefreshes == true ||
                    data.ExcludedFromSummaries == true ||
+                   data.ExcludedFromMetadata == true ||
                    // A claim alone must survive: it holds the status to restore when the rule lets go.
                    (data.RuleClaims != null && data.RuleClaims.Count > 0) ||
                    (data.UserPinnedFields != null && data.UserPinnedFields.Count > 0) ||
@@ -259,7 +263,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.MetadataChoices?.IsEmpty() == false ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFile != null;
         }
 
         public static bool HasPortableData(GameCustomDataPortableFile data)
@@ -300,7 +305,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.NotificationAppearanceOverride != null ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFileSchema != null;
         }
 
         /// <summary>
@@ -357,7 +363,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                    data.NotificationAppearanceOverride != null ||
                    data.ManualLink != null ||
                    (data.CustomAchievements != null && data.CustomAchievements.Count > 0) ||
-                   !string.IsNullOrWhiteSpace(data.CustomProviderId);
+                   !string.IsNullOrWhiteSpace(data.CustomProviderId) ||
+                   data.LinkedFile?.Schema != null;
         }
 
         public static GameCustomDataFile MergePreferExisting(GameCustomDataFile existing, GameCustomDataFile legacy)
@@ -378,6 +385,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 PlayniteGameId = existing.PlayniteGameId != Guid.Empty ? existing.PlayniteGameId : legacy.PlayniteGameId,
                 ExcludedFromRefreshes = existing.ExcludedFromRefreshes ?? legacy.ExcludedFromRefreshes,
                 ExcludedFromSummaries = existing.ExcludedFromSummaries ?? legacy.ExcludedFromSummaries,
+                ExcludedFromMetadata = existing.ExcludedFromMetadata ?? legacy.ExcludedFromMetadata,
                 RuleClaims = GameCustomDataFile.CloneRuleClaims(existing.RuleClaims ?? legacy.RuleClaims),
                 UserPinnedFields = existing.UserPinnedFields != null
                     ? new List<string>(existing.UserPinnedFields)
@@ -486,7 +494,9 @@ namespace PlayniteAchievements.Services.GameCustomData
                 // Follows whichever side supplied the custom achievements it belongs to.
                 CustomProviderId = existing.CustomAchievements != null && existing.CustomAchievements.Count > 0
                     ? existing.CustomProviderId
-                    : legacy.CustomProviderId
+                    : legacy.CustomProviderId,
+                // No legacy source ever carried a linked file.
+                LinkedFile = existing.LinkedFile?.Clone()
             };
         }
 
@@ -1516,6 +1526,70 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
+        /// A link to a file is kept on any game, since reading it can create the game's custom
+        /// achievements. A mapping without a file only has meaning while the game is
+        /// custom-tracked or has custom achievements, so it is dropped otherwise and never keeps
+        /// an empty row alive. The mapping is normalized like any package model; the path and
+        /// read status are local state.
+        /// </summary>
+        private static LinkedFileLink NormalizeLinkedFile(
+            LinkedFileLink link,
+            bool hasManualLink,
+            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        {
+            var schema = link?.HasFilePath == true && link.Schema != null
+                ? LinkedFileSchema.Normalize(link.Schema)
+                : NormalizeLinkedFileSchema(link?.Schema, hasManualLink, customAchievements);
+            if (schema == null)
+            {
+                return null;
+            }
+
+            return new LinkedFileLink
+            {
+                FilePath = NormalizeString(link.FilePath),
+                Schema = schema,
+                LastReadUtc = link.LastReadUtc,
+                LastReadStatus = NormalizeString(link.LastReadStatus),
+                Pairings = NormalizeLinkedFilePairings(link.Pairings)
+            };
+        }
+
+        /// <summary>Keys trimmed and blank keys dropped; "" stays as a row paired with nothing.</summary>
+        private static Dictionary<string, string> NormalizeLinkedFilePairings(Dictionary<string, string> pairings)
+        {
+            if (pairings == null || pairings.Count == 0)
+            {
+                return null;
+            }
+
+            var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in pairings)
+            {
+                var key = pair.Key?.Trim();
+                if (!string.IsNullOrEmpty(key))
+                {
+                    normalized[key] = pair.Value?.Trim() ?? string.Empty;
+                }
+            }
+
+            return normalized.Count == 0 ? null : normalized;
+        }
+
+        private static LinkedFileSchema NormalizeLinkedFileSchema(
+            LinkedFileSchema schema,
+            bool hasManualLink,
+            IReadOnlyCollection<CustomAchievementDefinition> customAchievements)
+        {
+            if (schema == null || (!hasManualLink && (customAchievements == null || customAchievements.Count == 0)))
+            {
+                return null;
+            }
+
+            return LinkedFileSchema.Normalize(schema);
+        }
+
+        /// <summary>
         /// A custom provider assignment only has meaning while the game has custom achievements, so
         /// the id is dropped otherwise and never keeps an empty row alive.
         /// </summary>
@@ -1957,15 +2031,23 @@ namespace PlayniteAchievements.Services.GameCustomData
                 : null;
         }
 
+        /// <summary>
+        /// A count of 0 or more, kept without a total so a file or the editor can record progress
+        /// before a total is known; with a total, a count above it is dropped.
+        /// </summary>
         private static int? NormalizeProgressNum(int? num, int? denom)
         {
-            return denom.HasValue &&
-                   denom.Value > 0 &&
-                   num.HasValue &&
-                   num.Value >= 0 &&
-                   num.Value <= denom.Value
-                ? num
-                : null;
+            if (!num.HasValue || num.Value < 0)
+            {
+                return null;
+            }
+
+            if (!denom.HasValue || denom.Value <= 0)
+            {
+                return num;
+            }
+
+            return num.Value <= denom.Value ? num : null;
         }
 
         private static string NormalizeRarity(string value)

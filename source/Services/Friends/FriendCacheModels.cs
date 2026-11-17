@@ -339,6 +339,12 @@ namespace PlayniteAchievements.Services.Friends
         public Guid? PlayniteGameId { get; set; }
         public long PlaytimeForeverMinutes { get; set; }
         public DateTime? LastPlayedUtc { get; set; }
+
+        /// <summary>
+        /// Whether the link came from the friend's own game list or carries playtime, as opposed
+        /// to one made only by scraping their achievements for the game.
+        /// </summary>
+        public bool OwnershipConfirmed { get; set; }
     }
 
     internal interface IFriendCacheManager
@@ -443,7 +449,8 @@ namespace PlayniteAchievements.Services.Friends
         /// <summary>
         /// Loads the friends/games/links lists in full plus achievement rows for only the given
         /// scopes, for incremental snapshot patching. Derived lists stay empty; the caller
-        /// splices and re-derives. See SqlNadoCacheStore.LoadFriendsOverviewPatchData.
+        /// splices and re-derives. A scope naming a friend and no game loads that friend's
+        /// unlocked rows for all their games. See SqlNadoCacheStore.LoadFriendsOverviewPatchData.
         /// </summary>
         FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes);
 
@@ -463,8 +470,6 @@ namespace PlayniteAchievements.Services.Friends
         /// snapshot itself carries unlocked rows only.
         /// </summary>
         FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope);
-
-        FriendsOverviewData LoadFriendRecentUnlocksData(int recentLimit);
 
         // Current-user games (with the servicing provider label stored at scan time) used to resolve a
         // friend's games against the local library without re-deriving platform from Source/Platform.

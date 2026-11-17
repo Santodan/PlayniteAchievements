@@ -132,6 +132,24 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         }
 
         [TestMethod]
+        public void GetRelocalizedName_RenamesTheFormerManualTagNames()
+        {
+            var catalog = new DefaultTagNameCatalog(null);
+
+            Assert.AreEqual(
+                "[PA] Manual Tracking",
+                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Manual Achievements", "[PA] Manual Tracking"));
+            Assert.AreEqual(
+                "[PA] Manual Tracking",
+                catalog.GetRelocalizedName(TagType.ManualAchievements, "[PA] Custom Tracking", "[PA] Manual Tracking"));
+            Assert.AreEqual(
+                "[PA] Source Override",
+                catalog.GetRelocalizedName(TagType.CustomSource, "[PA] Custom Source", "[PA] Source Override"));
+            Assert.IsNull(catalog.GetRelocalizedName(TagType.LinkedFile, "[PA] Custom Tracking", "[PA] Linked File"),
+                "a former name belongs to its own kind only");
+        }
+
+        [TestMethod]
         public void GetRelocalizedName_HealsKnownDefaultToCurrentDefault()
         {
             WriteLocale("en_US.xaml", EnglishXaml);
@@ -184,6 +202,14 @@ namespace PlayniteAchievements.Services.Tagging.Tests
         {
             foreach (TagType tagType in Enum.GetValues(typeof(TagType)))
             {
+                if (TaggingSettings.RetiredKinds.Contains(tagType))
+                {
+                    Assert.IsFalse(DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType) ||
+                                   DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null,
+                        $"{tagType} is retired and has no name source.");
+                    continue;
+                }
+
                 var isStatus = DefaultTagNameCatalog.StatusResourceKeys.ContainsKey(tagType);
                 var isArea = DefaultTagNameCatalog.GetAreaResourceKeys(tagType) != null;
                 Assert.IsTrue(isStatus ^ isArea, $"{tagType} needs exactly one name source.");

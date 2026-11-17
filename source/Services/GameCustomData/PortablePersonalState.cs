@@ -54,6 +54,9 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             portable.CustomAchievements?.ForEach(Strip);
+
+            // The linked file mapping is curation and stays. The package type carries no file
+            // path or read status by construction, so there is nothing of the user's own to strip.
         }
 
         /// <summary>
@@ -86,12 +89,31 @@ namespace PlayniteAchievements.Services.GameCustomData
                 ? new List<string>(current.GoalAchievementApiNames)
                 : null;
 
+            // Nor whether the game takes metadata, which is this machine's choice.
+            imported.ExcludedFromMetadata = current.ExcludedFromMetadata;
+
             // The package never carries the game's sound pack, so the local one stays.
             imported.UnlockSounds = current.UnlockSounds?.Clone();
 
             // Nor its notification behavior or capture settings, which are this machine's own.
             imported.NotificationBehaviorOverride = current.NotificationBehaviorOverride?.Clone();
             imported.CaptureOverride = current.CaptureOverride?.Clone();
+
+            // A package carries the file mapping but never the file: the path and read status
+            // stay with this machine, and a package without a mapping does not remove the link.
+            if (current.LinkedFile != null)
+            {
+                if (imported.LinkedFile == null)
+                {
+                    imported.LinkedFile = current.LinkedFile.Clone();
+                }
+                else
+                {
+                    imported.LinkedFile.FilePath = current.LinkedFile.FilePath;
+                    imported.LinkedFile.LastReadUtc = current.LinkedFile.LastReadUtc;
+                    imported.LinkedFile.LastReadStatus = current.LinkedFile.LastReadStatus;
+                }
+            }
 
             // Rule ownership belongs with the exclusion flags it describes, which stay local.
             imported.RuleClaims = GameCustomDataFile.CloneRuleClaims(current.RuleClaims);

@@ -330,6 +330,31 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Resolve_CaptureAtUnlockAndAfterDelay_FollowsGlobalUntilTheGameHasItsOwnCaptures()
+        {
+            var settings = MakeSettings(enableUnlockScreenshots: true);
+            settings.CaptureDelaySeconds = 3;
+            settings.CaptureAtUnlockAndAfterDelay = true;
+
+            var global = ProviderNotificationPolicy.Resolve(settings, "Steam").Captures;
+            Assert.IsTrue(global.CaptureAtUnlockAndAfterDelay);
+            Assert.IsTrue(global.Clone().CaptureAtUnlockAndAfterDelay);
+
+            var gameData = new GameCustomDataFile
+            {
+                CaptureOverride = new GameCaptureOverride
+                {
+                    EnableUnlockScreenshots = true,
+                    CaptureDelaySeconds = 3
+                }
+            };
+
+            Assert.IsFalse(
+                ProviderNotificationPolicy.Resolve(settings, "Steam", gameData).Captures.CaptureAtUnlockAndAfterDelay,
+                "a game with its own captures replaces the global value outright");
+        }
+
+        [TestMethod]
         public void CrossesProgressInterval_ZeroPercent_EveryAdvance()
         {
             Assert.IsTrue(ProviderNotificationPolicy.CrossesProgressInterval(3, 4, 1000, 0));

@@ -18,6 +18,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.RPCS3
 {
@@ -564,7 +565,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             try
             {
-                var iconDirectory = Path.Combine(_pluginUserDataPath, "icon_cache", "rpcs3", npCommId);
+                var iconDirectory = Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), "rpcs3", npCommId);
                 if (Directory.Exists(iconDirectory) &&
                     Directory.EnumerateFiles(iconDirectory, "TROP*.PNG").Any())
                 {
@@ -1434,7 +1435,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             try
             {
-                var cacheDirectory = Path.Combine(_pluginUserDataPath, "icon_cache", "rpcs3", normalizedNpCommId);
+                var cacheDirectory = Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), "rpcs3", normalizedNpCommId);
                 var cachedTrpPath = Path.Combine(cacheDirectory, "TROPHY.TRP");
                 var changed = !File.Exists(cachedTrpPath) || !File.ReadAllBytes(cachedTrpPath).SequenceEqual(trpBytes ?? Array.Empty<byte>());
                 if (changed)

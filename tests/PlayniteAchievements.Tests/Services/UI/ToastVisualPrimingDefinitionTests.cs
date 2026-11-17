@@ -19,8 +19,9 @@ namespace PlayniteAchievements.Tests.Services.UI
         public void BackgroundPrime_RequestsTheDecodeSizeTheTemplateAsksFor()
         {
             var service = ReadToastService();
-            var template = File.ReadAllText(FindRepoFile(
-                "source", "Resources", "DefaultTemplates", "AchievementToast.xaml"));
+            // The background's decoding host is part of controls:ToastCard, whose template is in
+            // the assembly's theme dictionary.
+            var template = File.ReadAllText(FindRepoFile("source", "Themes", "Generic.xaml"));
 
             var primeMatch = Regex.Match(service, @"PrimeBackgroundDecodePixel\s*=\s*(\d+)\s*;");
             Assert.IsTrue(primeMatch.Success, "PrimeBackgroundDecodePixel is no longer declared.");

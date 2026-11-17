@@ -23,7 +23,7 @@ using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Services.UI
 {
-    internal sealed class ToastNotificationService : IDisposable
+    internal sealed partial class ToastNotificationService : IDisposable
     {
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
@@ -135,6 +135,10 @@ namespace PlayniteAchievements.Services.UI
         // Per-wave rasterization surfaces for the track sampler, one per card; created with the
         // recorder, dropped in the wave's finally. Null while no wave is recording tracks.
         private Dictionary<AchievementToastViewModel, CardRenderScratch> _trackRenderScratch;
+
+        // The layers a held wave is shown from, which the track sampler then reads its cards
+        // from in place of the wave's own window. Null whenever that window is live.
+        private ToastHoldLayers _activeSampleLayers;
         // Shadow-layer captures this wave (each costs two with-effect renders); reported in the
         // sampling summary — a number near the sample count means the recapture guard failed.
         private int _waveShadowCaptureCount;
@@ -144,6 +148,21 @@ namespace PlayniteAchievements.Services.UI
         private int _wavePrimedSubmitCount;
         private FrameworkElement _activeSlideHost;
         private TranslateTransform _activeSlideTransform;
+
+        // A wave shown through a thumbnail presenter keeps its card still inside the cloaked window:
+        // the entrance and exit storyboards then animate this empty stand-in beside the card's host,
+        // and the presenter applies the stand-in's transform and opacity to the thumbnail. Null when
+        // the card's own host carries the motion, as it does without a presenter.
+        private FrameworkElement _activeMotionHost;
+        private ToastThumbnailPresenter _activePresenter;
+        private EventHandler _activePresenterTick;
+
+        // Per-frame work of a presented wave runs off this instead of CompositionTarget.Rendering.
+        private DwmFramePump _activeFramePump;
+
+        // The border glow's pulse while a split wave's own window stands still at the pulse's peak:
+        // the presenter dims that window's thumbnail by it instead.
+        private HoldPulse _activeHoldPulse;
         // Frame counter attached for a running slide's span. It does no work beyond counting: the slide
         // itself is a WPF storyboard, and this exists only so the [Toast] Slide line can still report the
         // cadence the motion actually got.
@@ -251,6 +270,7 @@ namespace PlayniteAchievements.Services.UI
             IReadOnlyList<AchievementToastViewModel> wave,
             DateTime? soundPlayedUtc,
             DateTime? surfaceCaptureUtc,
+            DateTime? unlockCaptureUtc,
             string soundFilePath = null,
             double? soundFileGain = null,
             int? soundAlignmentDelayMs = null,
@@ -272,6 +292,7 @@ namespace PlayniteAchievements.Services.UI
                         CaptureTimelineClock.UtcNow,
                         soundPlayedUtc,
                         surfaceCaptureUtc,
+                        unlockCaptureUtc,
                         soundFilePath,
                         soundFileGain,
                         soundAlignmentDelayMs,
@@ -438,7 +459,8 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return UnlockScreenshotVariantPolicy.Resolve(
-                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted, gameData)
+                ResolveRarity(args), IsCompletionUnlock(args), args.ProviderKey, persisted, gameData,
+                bypassRarity: args.IsTestFire)
                 != ScreenshotVariants.None;
         }
 
@@ -867,17 +889,16 @@ namespace PlayniteAchievements.Services.UI
         /// Never disposes or mutates the base bitmap — the save pipeline owns it via the capture
         /// task.
         /// <para>
-        /// Contract the caller relies on: every card is rasterized SYNCHRONOUSLY, before this
-        /// method's first await. The caller invokes it without awaiting, so the rendering happens
-        /// while the wave is settled and the window alive, and only the blit onto the base frame is
-        /// deferred — which is what lets a delayed capture be waited on without holding the toast
-        /// on screen. Do not introduce an await ahead of the render loop.
+        /// Two steps. <see cref="RenderWaveToastOverlaysAsync"/> rasterizes native cards immediately,
+        /// while the wave is settled and the window alive. <see cref="BlitWaveToastOverlaysAsync"/>
+        /// then waits for a base frame and composites the cards onto it, which is what lets a
+        /// delayed capture be waited on without holding the toast on screen. One render feeds
+        /// every capture set of the wave: with both an unlock and a delayed set, the cards are
+        /// rasterized once and blitted onto each base in turn.
         /// </para>
         /// </summary>
-        private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> ComposeWaveWithToastAsync(
-            WaveScreenshotPlan plan, Window window, bool isTestFire,
-            Task<System.Drawing.Bitmap> baseCaptureTask,
-            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask)
+        private async Task<WaveToastOverlays> RenderWaveToastOverlaysAsync(
+            WaveScreenshotPlan plan, Window window, bool isTestFire)
         {
             var withToastVms = plan.Items
                 .Where(i => (i.Variants & ScreenshotVariants.WithToast) != 0)
@@ -888,11 +909,11 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            // The base capture is deliberately NOT awaited yet. With a capture delay configured it
-            // is still pending, and the cards must be rendered from the live window now, while the
-            // wave is settled and laid out at its final size — waiting first would either render
-            // them against a window on its way out or hold the toast on screen for the delay.
-            // Only the blit at the end needs the base frame.
+            // No base capture is awaited here. With a capture delay configured it is still
+            // pending, and the cards must be rendered from the live window now, while the wave is
+            // settled and laid out at its final size — waiting first would either render them
+            // against a window on its way out or hold the toast on screen for the delay. Only the
+            // blit needs the base frame.
 
             // Geometry for placing cards into the base capture: the corner math runs against the
             // anchor rect (game client rect, or the work area for the out-of-game test fire) and
@@ -973,76 +994,125 @@ namespace PlayniteAchievements.Services.UI
                 overlays.Add((vm, overlay, rect, blur));
             }
 
-            // Now the base frame is needed. With a capture delay this is where the wait actually
-            // happens, off the display path — the cards above are already rasterized, so the toast
-            // is free to hold, slide out and close while this waits.
-            var baseBitmap = baseCaptureTask != null
-                ? await baseCaptureTask.ConfigureAwait(true)
-                : null;
-            // Items with a buffered anchor frame composite onto it instead of the shared live
-            // capture; the corner mapping scales through each bitmap's own dimensions, so the two
-            // may differ in size (screenshot cap vs recording cap) without drifting.
-            var anchorFrames = anchorFramesTask != null
-                ? await anchorFramesTask.ConfigureAwait(true)
-                : null;
-            if (baseBitmap == null && anchorFrames == null)
-            {
-                foreach (var entry in overlays)
-                {
-                    entry.Overlay?.Dispose();
-                }
+            return new WaveToastOverlays { Items = overlays, CapturePhys = capturePhys };
+        }
 
+        /// <summary>
+        /// The rendered cards of one wave, with the rect the base capture covers. Owned by the
+        /// last <see cref="BlitWaveToastOverlaysAsync"/> call made with them, which disposes them.
+        /// </summary>
+        private sealed class WaveToastOverlays
+        {
+            public List<(AchievementToastViewModel Vm, System.Drawing.Bitmap Overlay, System.Drawing.Rectangle Rect, ToastBlurPatch Blur)> Items;
+            public System.Drawing.Rectangle CapturePhys;
+        }
+
+        /// <summary>
+        /// Composites the rendered cards onto one capture set's base frame, returning an
+        /// independent clone per item. Waits for <paramref name="after"/> first when given, so two
+        /// sets sharing the overlays never touch them concurrently. Disposes the overlays when
+        /// <paramref name="disposeOverlays"/> is set, on every outcome.
+        /// </summary>
+        private async Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> BlitWaveToastOverlaysAsync(
+            WaveToastOverlays rendered,
+            Task<System.Drawing.Bitmap> baseCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask,
+            Task after,
+            bool disposeOverlays)
+        {
+            if (rendered == null)
+            {
                 return null;
             }
 
-            // Pool: GDI+ clone + composite per item. This completes before the save pipeline takes
-            // the base capture and the anchor frames, so nothing touches those bitmaps concurrently.
-            return await Task.Run(() =>
+            var overlays = rendered.Items;
+            var capturePhys = rendered.CapturePhys;
+            try
             {
-                var byVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
-                foreach (var entry in overlays)
+                if (after != null)
                 {
-                    var source = anchorFrames != null && anchorFrames.TryGetValue(entry.Vm, out var frame)
-                        ? frame
-                        : baseBitmap;
-                    if (source == null)
-                    {
-                        entry.Overlay?.Dispose();
-                        continue;
-                    }
-
                     try
                     {
-                        // Clone(rect, format) preserves the capture's pixel format; new Bitmap(Image)
-                        // would convert it and change the alpha semantics.
-                        var full = new System.Drawing.Rectangle(0, 0, source.Width, source.Height);
-                        var clone = source.Clone(full, source.PixelFormat);
-                        if (entry.Overlay != null)
-                        {
-                            try
-                            {
-                                CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger?.Debug(ex, "Toast card composite failed; with-notification shot omits the toast.");
-                            }
-                        }
-
-                        byVm[entry.Vm] = clone;
+                        await after.ConfigureAwait(true);
                     }
                     catch (Exception ex)
                     {
-                        _logger?.Debug(ex, "Base capture clone failed; with-notification shot skipped for one item.");
+                        _logger?.Debug(ex, "Earlier with-notification composite failed; continuing with this set.");
                     }
-                    finally
+                }
+
+                // Now the base frame is needed. With a capture delay this is where the wait
+                // actually happens, off the display path — the cards are already rasterized, so
+                // the toast is free to hold, slide out and close while this waits.
+                var baseBitmap = baseCaptureTask != null
+                    ? await baseCaptureTask.ConfigureAwait(true)
+                    : null;
+                // Items with a buffered anchor frame composite onto it instead of the shared live
+                // capture; the corner mapping scales through each bitmap's own dimensions, so the
+                // two may differ in size (screenshot cap vs recording cap) without drifting.
+                var anchorFrames = anchorFramesTask != null
+                    ? await anchorFramesTask.ConfigureAwait(true)
+                    : null;
+                if (baseBitmap == null && anchorFrames == null)
+                {
+                    return null;
+                }
+
+                // Pool: GDI+ clone + composite per item. This completes before the save pipeline
+                // takes the base capture and the anchor frames, so nothing touches those bitmaps
+                // concurrently.
+                return await Task.Run(() =>
+                {
+                    var byVm = new Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>();
+                    foreach (var entry in overlays)
+                    {
+                        var source = anchorFrames != null && anchorFrames.TryGetValue(entry.Vm, out var frame)
+                            ? frame
+                            : baseBitmap;
+                        if (source == null)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            // Clone(rect, format) preserves the capture's pixel format; new
+                            // Bitmap(Image) would convert it and change the alpha semantics.
+                            var full = new System.Drawing.Rectangle(0, 0, source.Width, source.Height);
+                            var clone = source.Clone(full, source.PixelFormat);
+                            if (entry.Overlay != null)
+                            {
+                                try
+                                {
+                                    CompositeToastOverlay(clone, entry.Overlay, entry.Rect, capturePhys, entry.Blur);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger?.Debug(ex, "Toast card composite failed; with-notification shot omits the toast.");
+                                }
+                            }
+
+                            byVm[entry.Vm] = clone;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "Base capture clone failed; with-notification shot skipped for one item.");
+                        }
+                    }
+
+                    return byVm.Count > 0 ? byVm : null;
+                }).ConfigureAwait(true);
+            }
+            finally
+            {
+                if (disposeOverlays)
+                {
+                    foreach (var entry in overlays)
                     {
                         entry.Overlay?.Dispose();
                     }
                 }
-
-                return byVm.Count > 0 ? byVm : null;
-            }).ConfigureAwait(true);
+            }
         }
 
         /// <summary>
@@ -1244,8 +1314,11 @@ namespace PlayniteAchievements.Services.UI
             CardRenderScratch scratch, Func<int, byte[]> takeBuffer, bool applyHostOpacity,
             double captureScale, string probeCase,
             out byte[] pixels, out int width, out int height,
-            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false)
+            out int cardWPhys, out int cardHPhys, bool keepCardSurface = false,
+            FrameworkElement renderFrom = null, FrameworkElement renderOver = null)
         {
+            // renderFrom, then renderOver on top of it, are drawn in place of the container, which
+            // still gives the geometry: the same card's containers in a held wave's layer windows.
             pixels = null;
             width = 0;
             height = 0;
@@ -1287,7 +1360,7 @@ namespace PlayniteAchievements.Services.UI
                 // it. Only the still-image composites bake it in here; the clip track records it
                 // per sample instead and replays it at export, because its pixels are held frozen
                 // for a slide storyboard's whole span — which is exactly when a fade runs.
-                var hostOpacity = applyHostOpacity ? _activeSlideHost?.Opacity ?? 1d : 1d;
+                var hostOpacity = applyHostOpacity ? MotionHost()?.Opacity ?? 1d : 1d;
 
                 // The container's offset within its parent panel: zero for a single-card wave and
                 // for the first card of a stack, non-zero below that. Read before any temporary
@@ -1305,18 +1378,20 @@ namespace PlayniteAchievements.Services.UI
                 var rtb = ResolveRenderTarget(scratch, pw, ph, dpiX, dpiY);
                 var buffer = takeBuffer(stride * ph);
                 var direct = CanRenderDirect(offset);
+                var source = renderFrom ?? container;
 
                 // Saved outputs blur their own frame under a blurred card, so its live background
                 // stays out of every render here (see ToastBlurLayers).
                 double renderMs;
                 using (ToastBlurLayers.HideForOutput(container, keepCardSurface))
+                using (ToastBlurLayers.HideForOutput(renderFrom, keepCardSurface))
                 {
                     renderMs = direct
-                        ? RenderCardDirect(rtb, container, hostOpacity, buffer, stride)
-                        : RenderCardViaBrush(rtb, container, local, offset, hostOpacity, buffer, stride);
+                        ? RenderCardDirect(rtb, source, hostOpacity, buffer, stride, renderOver)
+                        : RenderCardViaBrush(rtb, source, local, offset, hostOpacity, buffer, stride, renderOver);
                 }
 
-                if (ToastCaptureProbe.Enabled && direct)
+                if (ToastCaptureProbe.Enabled && direct && renderFrom == null)
                 {
                     ProbeAgainstBrushRender(
                         container, local, offset, hostOpacity, pw, ph, dpiX, dpiY, stride,
@@ -1384,7 +1459,7 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardDirect(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            double hostOpacity, byte[] buffer, int stride)
+            double hostOpacity, byte[] buffer, int stride, FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var previousOpacity = container.Opacity;
@@ -1399,6 +1474,11 @@ namespace PlayniteAchievements.Services.UI
             {
                 rtb.Clear();
                 rtb.Render(container);
+                if (over != null)
+                {
+                    // A second render draws over what the target already holds.
+                    rtb.Render(over);
+                }
             }
             finally
             {
@@ -1429,7 +1509,8 @@ namespace PlayniteAchievements.Services.UI
         /// </summary>
         private static double RenderCardViaBrush(
             System.Windows.Media.Imaging.RenderTargetBitmap rtb, FrameworkElement container,
-            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride)
+            Size local, Vector offset, double hostOpacity, byte[] buffer, int stride,
+            FrameworkElement over = null)
         {
             var fading = hostOpacity < 1d;
             var started = Stopwatch.GetTimestamp();
@@ -1450,6 +1531,17 @@ namespace PlayniteAchievements.Services.UI
                     Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
                 };
                 dc.DrawRectangle(brush, null, new Rect(0, 0, local.Width, local.Height));
+                if (over != null)
+                {
+                    dc.DrawRectangle(
+                        new VisualBrush(over)
+                        {
+                            Stretch = Stretch.Fill,
+                            ViewboxUnits = BrushMappingMode.Absolute,
+                            Viewbox = new Rect(offset.X, offset.Y, local.Width, local.Height),
+                        },
+                        null, new Rect(0, 0, local.Width, local.Height));
+                }
 
                 if (fading)
                 {
@@ -1633,10 +1725,14 @@ namespace PlayniteAchievements.Services.UI
             // it. One read covers every card — the whole surface slides as one.
             var slideXPhys = (_activeSlideTransform?.X ?? 0d) * pxPerDipX;
             var slideYPhys = (_activeSlideTransform?.Y ?? 0d) * pxPerDipY;
-            var hostOpacity = Math.Max(0d, Math.Min(1d, _activeSlideHost?.Opacity ?? 1d));
+            var hostOpacity = Math.Max(0d, Math.Min(1d, MotionHost()?.Opacity ?? 1d));
             // A zoom scales the host about the card's center; recorded like the opacity so export can
             // replay it, since the card pixels are rendered without the host's transform.
             var hostScale = SlideHostScale()?.ScaleX ?? 1d;
+
+            // A held wave's own window stands still under its layers, so the cards are read from
+            // the layer windows: the background's container with the content's drawn over it.
+            var layers = _activeSampleLayers;
 
             for (var i = 0; i < toastItems.Count; i++)
             {
@@ -1649,6 +1745,11 @@ namespace PlayniteAchievements.Services.UI
 
                 var scratch = GetCardScratch(vm);
                 var glowScale = ComputeGlowScale(scratch, hostOpacity);
+                if (layers != null && _activeHoldPulse != null)
+                {
+                    // The glow is held at its peak in the window while the presenter pulses it.
+                    glowScale *= _activeHoldPulse.Scale();
+                }
 
                 // The clip draws its own blur under a blurred card; the card's place in its frame
                 // does not change across the wave, so it is measured once.
@@ -1722,7 +1823,19 @@ namespace PlayniteAchievements.Services.UI
                 var effects = new List<KeyValuePair<FrameworkElement, Effect>>();
                 var rayBursts = new List<Views.Controls.RarityRayBurst>();
                 CollectEffects(container, effects, rayBursts);
+                var layerUnder = layers?.CardContainer(layers.Background, i);
+                var layerOver = layers?.CardContainer(layers.Content, i);
+                var layerRays = layers?.CardContainer(layers.Rays, i);
+                var layered = layerUnder != null && layerOver != null;
+                var layerEffects = new List<KeyValuePair<FrameworkElement, Effect>>();
+                if (layered)
+                {
+                    CollectEffects(layerUnder, layerEffects);
+                    CollectEffects(layerOver, layerEffects);
+                }
+
                 StripEffects(effects);
+                StripEffects(layerEffects);
                 HideRayBursts(rayBursts);
                 byte[] pixels;
                 int pw, ph, cardWPhys, cardHPhys;
@@ -1732,11 +1845,13 @@ namespace PlayniteAchievements.Services.UI
                     rendered = TryRenderToastItemBytes(
                         window, container, scratch, len => recorder.RentBuffer(vm, len),
                         applyHostOpacity: false, captureScale, probeCase: null,
-                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys);
+                        out pixels, out pw, out ph, out cardWPhys, out cardHPhys,
+                        renderFrom: layered ? layerUnder : null, renderOver: layered ? layerOver : null);
                 }
                 finally
                 {
                     RestoreRayBursts(rayBursts);
+                    RestoreEffects(layerEffects);
                     RestoreEffects(effects);
                 }
 
@@ -1752,7 +1867,8 @@ namespace PlayniteAchievements.Services.UI
                 // (Re)capture the halo when its inputs changed: the card's pixel size, or the set
                 // of effect instances (a trigger swapping the neutral shadow for the rarity glow).
                 // Rate-limited — the capture is the expensive path this design exists to avoid.
-                if (effects.Count > 0 &&
+                // Not from a held window, whose card is hidden: the halo it gave before stands.
+                if (!layered && effects.Count > 0 &&
                     elapsedMs - scratch.LastShadowCaptureMs >= ShadowRecaptureMinIntervalMs &&
                     (pw != scratch.ShadowW || ph != scratch.ShadowH ||
                      !SameEffectSignature(scratch.ShadowEffectSignature, effects)))
@@ -1771,13 +1887,17 @@ namespace PlayniteAchievements.Services.UI
                 byte[] rayDelta = null;
                 var rayW = 0;
                 var rayH = 0;
-                if (rayBursts.Count > 0 &&
+                if ((layered ? layerRays != null : rayBursts.Count > 0) &&
                     _runningSlideStoryboard == null &&
                     elapsedMs - scratch.LastRayCaptureMs >= RayLayerBaseIntervalMs * toastItems.Count)
                 {
-                    rayDelta = ComputeRayLayerDelta(
-                        recorder, window, container, vm, pixels, pw, ph, captureScale,
-                        out rayW, out rayH);
+                    rayDelta = layered
+                        ? ComputeLayeredRayDelta(
+                            recorder, window, container, layerRays, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH)
+                        : ComputeRayLayerDelta(
+                            recorder, window, container, vm, pixels, pw, ph, captureScale,
+                            out rayW, out rayH);
                     if (rayDelta != null)
                     {
                         scratch.LastRayCaptureMs = elapsedMs;
@@ -1841,6 +1961,56 @@ namespace PlayniteAchievements.Services.UI
             rayW = rw;
             rayH = rh;
             return withRays;
+        }
+
+        /// <summary>
+        /// The ray-burst difference layer of a held wave's card: its rays, rendered alone from
+        /// the rays layer's container, where this tick's bare render does not cover them. Equal
+        /// to what <see cref="ComputeRayLayerDelta"/> takes from a live card, whose rays are
+        /// drawn behind it. Null when the render fails or the sizes disagree.
+        /// </summary>
+        private byte[] ComputeLayeredRayDelta(
+            ToastOverlayTrackRecorder recorder, Window window, FrameworkElement container,
+            FrameworkElement raysContainer, AchievementToastViewModel vm, byte[] barePixels,
+            int pw, int ph, double captureScale, out int rayW, out int rayH)
+        {
+            rayW = 0;
+            rayH = 0;
+            if (!TryRenderToastItemBytes(
+                    window, container, scratch: null, len => recorder.RentBuffer(vm, len),
+                    applyHostOpacity: false, captureScale, probeCase: null,
+                    out var rays, out var rw, out var rh, out _, out _, renderFrom: raysContainer))
+            {
+                return null;
+            }
+
+            if (rw != pw || rh != ph || rays.Length != barePixels.Length)
+            {
+                recorder.ReturnRentedBuffer(vm, rays);
+                return null;
+            }
+
+            KeepWhereUncovered(rays, barePixels);
+            rayW = rw;
+            rayH = rh;
+            return rays;
+        }
+
+        /// <summary>
+        /// Leaves of <paramref name="under"/> what shows once <paramref name="cover"/> is drawn
+        /// over it. Both premultiplied BGRA of one size: each channel is scaled by the
+        /// transparency of the cover's pixel.
+        /// </summary>
+        internal static void KeepWhereUncovered(byte[] under, byte[] cover)
+        {
+            for (var i = 0; i + 3 < under.Length && i + 3 < cover.Length; i += 4)
+            {
+                var keep = 255 - cover[i + 3];
+                under[i] = (byte)((under[i] * keep) / 255);
+                under[i + 1] = (byte)((under[i + 1] * keep) / 255);
+                under[i + 2] = (byte)((under[i + 2] * keep) / 255);
+                under[i + 3] = (byte)((under[i + 3] * keep) / 255);
+            }
         }
 
         /// <summary>
@@ -2627,9 +2797,23 @@ namespace PlayniteAchievements.Services.UI
             // Stamped even when no screenshot is planned: a clip can be cut with screenshots
             // switched off entirely, and it still anchors here.
             var waveNotifyDelayed = wave[0].NotifyReadyAtUtc != default(DateTime);
+            var waveStartUtc = CaptureTimelineClock.UtcNow;
             var surfaceCaptureUtc = captureDelaySeconds > 0 || waveNotifyDelayed
-                ? CaptureTimelineClock.UtcNow.AddSeconds(captureDelaySeconds)
+                ? waveStartUtc.AddSeconds(captureDelaySeconds)
                 : (DateTime?)null;
+
+            // With a capture delay and the both-captures option, the wave produces two capture
+            // sets. The unlock set is exactly what a capture delay of zero would produce: aimed at
+            // the wave start when a notification delay held the wave, otherwise unscheduled and
+            // free to use the buffered unlock frames. The delayed set is the one described above.
+            // The unlock set is saved first, so it takes the normal file names and the delayed
+            // set lands on the duplicate names.
+            var dualCapture = captureDelaySeconds > 0 &&
+                (_activeWaveCaptures?.CaptureAtUnlockAndAfterDelay
+                    ?? _settings?.Persisted?.CaptureAtUnlockAndAfterDelay
+                    ?? false);
+            var unlockCaptureUtc = dualCapture && waveNotifyDelayed ? waveStartUtc : (DateTime?)null;
+            var primaryCaptureUtc = dualCapture ? unlockCaptureUtc : surfaceCaptureUtc;
 
             // Feeds every variant: clean saves it as-is, framed composites the frame onto it, and
             // with-notification composites each item's rendered card onto a copy of it.
@@ -2639,10 +2823,18 @@ namespace PlayniteAchievements.Services.UI
             // which is safe because a running game is captured per-window and the toast is a
             // separate window; the monitor capture that would catch the card is retrigger-only,
             // and retriggers never delay.
+            //
+            // baseCaptureTask is the wave's only set, or the unlock set when there are two;
+            // delayedCaptureTask is the second set and null otherwise.
             Task<System.Drawing.Bitmap> baseCaptureTask = null;
+            Task<System.Drawing.Bitmap> delayedCaptureTask = null;
             if (plan != null)
             {
-                baseCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, surfaceCaptureUtc);
+                baseCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, primaryCaptureUtc);
+                if (dualCapture)
+                {
+                    delayedCaptureTask = StartWaveSurfaceCaptureAsync(waveIsTestFire, surfaceCaptureUtc);
+                }
             }
 
             // Per-item buffered anchor frames: when a recording session covers this wave and no
@@ -2650,9 +2842,10 @@ namespace PlayniteAchievements.Services.UI
             // moment decoded out of the rolling buffer rather than the (possibly much later)
             // instant the toast fired. Items the buffer cannot answer for fall back to the shared
             // live capture above. Skipped whenever a delay applies — a delayed capture
-            // deliberately depicts a different instant, and the clip anchors there with it.
+            // deliberately depicts a different instant, and the clip anchors there with it. The
+            // unlock set of a two-set wave qualifies on the same terms as an undelayed wave.
             Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask = null;
-            if (plan != null && !waveIsTestFire && !surfaceCaptureUtc.HasValue && _captureAnchorFrame != null)
+            if (plan != null && !waveIsTestFire && !primaryCaptureUtc.HasValue && _captureAnchorFrame != null)
             {
                 anchorFramesTask = StartWaveAnchorFramesCapture(plan);
             }
@@ -2664,7 +2857,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, null);
+                    _ = SaveWaveScreenshotSetsAsync(
+                        plan, baseCaptureTask, anchorFramesTask, null, delayedCaptureTask, null);
                 }
 
                 // A windowless wave still owes the recording side its liveness bump and, in the
@@ -2672,7 +2866,7 @@ namespace PlayniteAchievements.Services.UI
                 // UnlockRecordingService.WouldRequestClip), the anchor instant the screenshots
                 // depict — instead of letting that clip burn its full silence budget and fall
                 // back to the unlock anchor.
-                RaiseWaveDisplayed(wave, null, surfaceCaptureUtc);
+                RaiseWaveDisplayed(wave, null, surfaceCaptureUtc, unlockCaptureUtc);
                 return;
             }
 
@@ -2705,6 +2899,7 @@ namespace PlayniteAchievements.Services.UI
             if (_disposed)
             {
                 DisposeCaptureTask(baseCaptureTask);
+                DisposeCaptureTask(delayedCaptureTask);
                 DisposeAnchorFramesTask(anchorFramesTask);
                 return;
             }
@@ -2726,14 +2921,16 @@ namespace PlayniteAchievements.Services.UI
             // at the pop-up. Absorb the overlap here, ahead of the chime, so the chime and the
             // reveal shift together and their alignment holds; bounded, so a stuck capture costs
             // latency, never the wave. A delayed capture runs after the card is on screen and
-            // never overlaps the pop-up in the first place.
-            if (baseCaptureTask != null && captureDelaySeconds <= 0)
+            // never overlaps the pop-up in the first place. The unlock set of a two-set wave is an
+            // undelayed capture, so it is absorbed here as well.
+            if (baseCaptureTask != null && (captureDelaySeconds <= 0 || dualCapture))
             {
                 await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                     .ConfigureAwait(true);
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
+                    DisposeCaptureTask(delayedCaptureTask);
                     DisposeAnchorFramesTask(anchorFramesTask);
                     return;
                 }
@@ -2767,6 +2964,7 @@ namespace PlayniteAchievements.Services.UI
                 if (_disposed)
                 {
                     DisposeCaptureTask(baseCaptureTask);
+                    DisposeCaptureTask(delayedCaptureTask);
                     DisposeAnchorFramesTask(anchorFramesTask);
                     return;
                 }
@@ -2783,6 +2981,9 @@ namespace PlayniteAchievements.Services.UI
             var window = PlayniteUiProvider.CreateBorderlessTopmostWindow(
                 _api,
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+
+            // The card shows over a running game, while the glow gate holds library glows still.
+            GlowAnimationGate.SetIsExempt(window, true);
             _activeWindow = window;
             _activeDwmComposed = visible;
             if (_activeDwmComposed)
@@ -2798,7 +2999,23 @@ namespace PlayniteAchievements.Services.UI
             _activeCardSurface = items;
             _activeSlideHost = slideHost;
             _activeSlideTransform = slideTransform;
-            window.Content = slideHost;
+            _activeMotionHost = null;
+            if (_activeDwmComposed && ToastThumbnailPresenter.IsSupported && WaveMotionIsPresentable())
+            {
+                // The motion's stand-in shares the card host's layout slot, so the two have the
+                // same size and a pivot measured on one holds for the other.
+                var motionHost = ToastSurfaceFactory.BuildSlideHost(null, out var motionTransform);
+                var root = new Grid { IsHitTestVisible = false };
+                root.Children.Add(motionHost);
+                root.Children.Add(slideHost);
+                _activeMotionHost = motionHost;
+                _activeSlideTransform = motionTransform;
+                window.Content = root;
+            }
+            else
+            {
+                window.Content = slideHost;
+            }
 
             // Resolve the anchor the toast follows. The toast is realized Per-Monitor-V2 and positioned
             // in physical pixels relative to that anchor, so it renders crisply on whatever monitor the
@@ -2884,6 +3101,8 @@ namespace PlayniteAchievements.Services.UI
             SizeChangedEventHandler onHoldSurfaceSized = null;
             ToastLiveBackdrop liveBackdrop = null;
             ToastOverlayTrackRecorder trackRecorder = null;
+            ToastHoldLayers holdLayers = null;
+            var needsPerMonitorWindow = false;
             // Overlay-track sampling stats for the wave's diagnostic line: the composed frames the
             // sampler saw against the samples it actually took is what shows the cadence landing where
             // the recording frame rate asks for it rather than aliasing to half of it.
@@ -2903,7 +3122,7 @@ namespace PlayniteAchievements.Services.UI
                 // WM_DPICHANGED through WPF's shared DPI state in this system-aware host process,
                 // which has been observed to rescale sibling windows and hard-crash the process on
                 // single-monitor high-DPI setups.
-                var needsPerMonitorWindow = systemScale > 0 &&
+                needsPerMonitorWindow = systemScale > 0 &&
                     Math.Abs(_activeMonitorScale - systemScale) >= DpiSettleTolerance;
                 _logger?.Info(
                     $"[Toast] Fire: wave={waveSequence}, monitorScale={_activeMonitorScale:0.###}, " +
@@ -2934,14 +3153,15 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 PlaceWindow(window, "preshow");
-                if (_settings?.Persisted?.NotificationRenderMode == NotificationRenderMode.Quality)
-                {
-                    ToastGpuPriority.Raise();
-                }
                 window.Show();
                 if (_activeDwmComposed)
                 {
                     ToastWindowSurface.SetCloaked(window, true);
+                }
+
+                if (_activeMotionHost != null)
+                {
+                    StartPresenter(window, needsPerMonitorWindow);
                 }
 
                 // Moving the per-monitor window onto the target monitor raises WM_DPICHANGED
@@ -2991,6 +3211,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     liveBackdrop = ToastLiveBackdrop.TryStart(
                         window, items, _activeIsGame ? _activeReferenceHwnd : IntPtr.Zero, out var blurSkipped);
+                    if (liveBackdrop != null && _activePresenter != null)
+                    {
+                        liveBackdrop.Motion = PresentedMotion;
+                    }
+
                     if (blurSkipped != null)
                     {
                         _logger?.Info($"[Toast] Blur: not started ({blurSkipped}).");
@@ -3025,7 +3250,25 @@ namespace PlayniteAchievements.Services.UI
                     slideHost.Visibility = Visibility.Visible;
                 }
 
-                EngageMotionCache(_activeSlideHost, window);
+                if (_activePresenter == null)
+                {
+                    EngageMotionCache(_activeSlideHost, window);
+                }
+
+                // The hold's layers are built here, ahead of the entrance, so they have loaded
+                // and presented by the time the cards rest; at the settle instead when the
+                // background's image has not arrived yet. Building them took 70 to 140 ms of the
+                // UI thread (TemplateBench --early-layers), which the card spends still cloaked.
+                // Built while the card slid in, the slide stood still on screen for 150 ms,
+                // though the presenter was stepped every composition.
+                var recordsTrack = _activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
+                    cardItems.Any(vm => vm.NeedsOverlayTrack);
+                if (visible)
+                {
+                    holdLayers = PrepareHoldLayers(
+                        window, items, cardItems, template, needsPerMonitorWindow, ahead: true);
+                }
+
                 var warmFrames = await WaitForComposedFramesAsync(WarmFrameCount, WarmFrameTimeoutMs)
                     .ConfigureAwait(true);
                 if (_disposed)
@@ -3051,9 +3294,9 @@ namespace PlayniteAchievements.Services.UI
                 // presented before the next begins and the slide starts against a drained
                 // composition queue, at the price of two composed frames of extra latency. Game
                 // anchor only — a test fire out of game has no video — and only with recordings
-                // enabled, since nothing else consumes a track. Progress waves never own a clip.
-                if (_activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
-                    cardItems.Any(vm => vm.NeedsOverlayTrack))
+                // enabled, since nothing else consumes a track. Progress waves never own a clip,
+                // so they skip the track entirely.
+                if (recordsTrack)
                 {
                     trackRecorder = new ToastOverlayTrackRecorder(
                         _logger, TrackSampleIntervalMs(),
@@ -3143,7 +3386,7 @@ namespace PlayniteAchievements.Services.UI
                         }
                     };
                     trackRenderWatch = renderWatch;
-                    CompositionTarget.Rendering += onTrackSample;
+                    HookFrame(onTrackSample);
 
                     // The ray-burst glow invalidates at its own fixed default rate; sampling above it
                     // stores duplicate ray frames with beat-dependent phase, which plays back as
@@ -3183,8 +3426,8 @@ namespace PlayniteAchievements.Services.UI
                 // rather than an observation, so the recorder never waits on the capture to plan a
                 // window.
                 RaiseWaveDisplayed(
-                    cardItems, soundPlayedUtc, surfaceCaptureUtc, soundFilePath, soundFileGain,
-                    soundAlignmentMs, soundPlaybackId);
+                    cardItems, soundPlayedUtc, surfaceCaptureUtc, unlockCaptureUtc, soundFilePath,
+                    soundFileGain, soundAlignmentMs, soundPlaybackId);
 
                 // Layout and placement are final: verify a lone card actually settled on its corner.
                 ReportSettledCornerDrift(window, cardItems);
@@ -3193,21 +3436,32 @@ namespace PlayniteAchievements.Services.UI
                 // so each item's card renders at its final laid-out size. Cards render on the UI
                 // thread (live visuals); the clones and blits run on the thread pool.
                 Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> toastCompositeTask = null;
+                Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> delayedCompositeTask = null;
                 if (plan != null && plan.NeedsToastComposite)
                 {
-                    // Deliberately not awaited. The call rasterizes every card synchronously before
-                    // its first await — which is why it has to run here, with the wave settled and
-                    // the window alive — and defers only the blit onto the base frame. Awaiting it
-                    // would park the hold, countdown and slide-out behind a delayed capture and
-                    // leave the toast on screen for the length of the delay.
-                    toastCompositeTask = ComposeWaveWithToastAsync(
-                        plan, window, waveIsTestFire, baseCaptureTask, anchorFramesTask);
+                    // The cards are rasterized synchronously here, with the wave settled and the
+                    // window alive. The blits are deliberately not awaited: awaiting them would
+                    // park the hold, countdown and slide-out behind a delayed capture and leave
+                    // the toast on screen for the length of the delay.
+                    var rendered = await RenderWaveToastOverlaysAsync(plan, window, waveIsTestFire);
+                    toastCompositeTask = BlitWaveToastOverlaysAsync(
+                        rendered, baseCaptureTask, anchorFramesTask, null,
+                        disposeOverlays: delayedCaptureTask == null);
+                    if (delayedCaptureTask != null)
+                    {
+                        delayedCompositeTask = BlitWaveToastOverlaysAsync(
+                            rendered, delayedCaptureTask, null, toastCompositeTask,
+                            disposeOverlays: true);
+                    }
                 }
 
                 if (plan != null)
                 {
-                    _ = SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask);
+                    _ = SaveWaveScreenshotSetsAsync(
+                        plan, baseCaptureTask, anchorFramesTask, toastCompositeTask,
+                        delayedCaptureTask, delayedCompositeTask);
                     baseCaptureTask = null;
+                    delayedCaptureTask = null;
                     anchorFramesTask = null;
                 }
 
@@ -3222,7 +3476,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // While the card rests, only its own bounds take clicks; the travel room passes them
                 // to the game. Re-applied if the cards resize during the hold.
-                if (_activeDwmComposed && _activeCardSurface != null)
+                if (_activeDwmComposed && _activePresenter == null && _activeCardSurface != null)
                 {
                     ToastWindowSurface.SetHitRegion(window, _activeCardSurface, HitRegionAllowanceDip);
                     onHoldSurfaceSized = (s, e) =>
@@ -3253,7 +3507,7 @@ namespace PlayniteAchievements.Services.UI
                             // Ignore transient placement failures (e.g. window closing).
                         }
                     };
-                    CompositionTarget.Rendering += onRendering;
+                    HookFrame(onRendering);
                 }
 
                 var durationMs = EffectiveDurationSeconds() * 1000;
@@ -3274,7 +3528,38 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast countdown animation failed.");
                 }
 
+                // While the cards rest, an animated background plays from a layer of its own and
+                // the wave's own window stands still. A track recorder then samples the cards
+                // from the layers (SampleWaveTracks).
+                var holdWatch = Stopwatch.StartNew();
+                holdLayers = await BeginHoldLayersAsync(
+                    window, items, cardItems, template, needsPerMonitorWindow, holdLayers)
+                    .ConfigureAwait(true);
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (holdLayers != null)
+                {
+                    // The content layer's bar is the one seen, and picks up where the bar under
+                    // it has got to; a held window's own bar stops there.
+                    AnimateCountdownBars(holdLayers.Content, remainingMs, holdWatch.Elapsed.TotalMilliseconds);
+                    StopCountdownBars(window);
+                }
+
+                // What is left of the hold after building the layers and before handing back.
+                var handBackMs = holdLayers != null ? HoldLayerHandBackMs : 0;
+                remainingMs = Math.Max(0, remainingMs - (int)holdWatch.ElapsedMilliseconds - handBackMs);
                 var endedHidden = await HoldWaveAsync(remainingMs).ConfigureAwait(true);
+                if (holdLayers != null)
+                {
+                    await EndHoldLayersAsync(window, holdLayers, handBackMs).ConfigureAwait(true);
+                    if (_disposed)
+                    {
+                        return;
+                    }
+                }
 
                 // The hold is over, so the bar has reached (or is a skewed frame from) empty;
                 // detach its clock so nothing but the slide animates through the slide-out.
@@ -3282,7 +3567,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                     onRendering = null;
                 }
 
@@ -3305,7 +3590,11 @@ namespace PlayniteAchievements.Services.UI
                 {
                     // Realize the slide-out's motion cache at rest, where it matches the live card,
                     // a frame before the slide-out starts timing itself.
-                    EngageMotionCache(_activeSlideHost, window);
+                    if (_activePresenter == null)
+                    {
+                        EngageMotionCache(_activeSlideHost, window);
+                    }
+
                     await WaitForComposedFramesAsync(1, WarmFrameTimeoutMs).ConfigureAwait(true);
                     if (_disposed)
                     {
@@ -3318,7 +3607,7 @@ namespace PlayniteAchievements.Services.UI
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                     onTrackSample = null;
                     RayAnimationDriver.ClearSamplingFps();
                 }
@@ -3357,16 +3646,17 @@ namespace PlayniteAchievements.Services.UI
                 // Null after the save pipeline takes ownership; disposes the pending captures when
                 // the wave aborts (dispose, exception) before the hand-off.
                 DisposeCaptureTask(baseCaptureTask);
+                DisposeCaptureTask(delayedCaptureTask);
                 DisposeAnchorFramesTask(anchorFramesTask);
 
                 if (onRendering != null)
                 {
-                    CompositionTarget.Rendering -= onRendering;
+                    UnhookFrame(onRendering);
                 }
 
                 if (onTrackSample != null)
                 {
-                    CompositionTarget.Rendering -= onTrackSample;
+                    UnhookFrame(onTrackSample);
                 }
 
                 if (onHoldSurfaceSized != null && _activeCardSurface != null)
@@ -3382,6 +3672,7 @@ namespace PlayniteAchievements.Services.UI
 
                 // Unconditional: waves are sequential, so this only ever clears this wave's rate.
                 RayAnimationDriver.ClearSamplingFps();
+                RayAnimationDriver.ClearHeldFps();
 
                 // Finalize and hand the recorded card tracks to the recording service. The raw
                 // pixels are already captured, so this safely outlives window.Close() below.
@@ -3390,9 +3681,16 @@ namespace PlayniteAchievements.Services.UI
                     trackRecorder != null ? cardItems.Where(vm => vm.NeedsFramedClip).ToList() : null);
 
                 StopActiveSlide();
+                StopPresenter();
+                _activeSampleLayers = null;
+                _activeHoldPulse = null;
+                _preHeldPulses = null;
+                _mainRaysHiddenAhead = null;
+                holdLayers?.Dispose();
                 _activeCardSurface = null;
                 _trackRenderScratch = null;
                 _activeSlideHost = null;
+                _activeMotionHost = null;
                 _activeSlideTransform = null;
                 _activeReferenceHwnd = IntPtr.Zero;
                 _activeIsGame = false;
@@ -3409,7 +3707,6 @@ namespace PlayniteAchievements.Services.UI
                 {
                 }
 
-                ToastGpuPriority.Restore();
                 if (ReferenceEquals(_activeWindow, window))
                 {
                     _activeWindow = null;
@@ -3598,14 +3895,16 @@ namespace PlayniteAchievements.Services.UI
             foreach (var vm in wave)
             {
                 // Each variant is gated independently by its own per-variant rarity threshold and
-                // completion bypass. The policy ANDs the screenshots master switch into each
-                // variant flag. A wave never mixes games, so the first item's game data serves all.
+                // completion bypass; a retrigger skips the thresholds. The policy ANDs the
+                // screenshots master switch into each variant flag. A wave never mixes games, so
+                // the first item's game data serves all.
                 var variants = UnlockScreenshotVariantPolicy.Resolve(
                     vm.Rarity,
                     vm.IsGameCompleted || vm.IsCompletionAchievement || vm.IsCapstone,
                     vm.ProviderKey,
                     persisted,
-                    gameData);
+                    gameData,
+                    bypassRarity: vm.IsTestFire);
 
                 if (variants != ScreenshotVariants.None)
                 {
@@ -3751,11 +4050,33 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Saves all requested screenshot variants for a wave. Starts on the UI thread
-        /// (fire-and-forget from the toast pipeline): framed composites render on the dispatcher
-        /// at Background priority so the toast animation stays smooth, and all PNG/file I/O is
-        /// offloaded to the thread pool. Owns disposal of the base capture and every per-item
-        /// with-notification composite.
+        /// Saves a wave's capture sets in order: the only or unlock set, then the delayed set when
+        /// the wave has one. The second save starts after the first has written its files, so the
+        /// first set takes the normal file names and the second the duplicate names.
+        /// </summary>
+        private async Task SaveWaveScreenshotSetsAsync(
+            WaveScreenshotPlan plan,
+            Task<System.Drawing.Bitmap> baseCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> anchorFramesTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> toastCompositeTask,
+            Task<System.Drawing.Bitmap> delayedCaptureTask,
+            Task<Dictionary<AchievementToastViewModel, System.Drawing.Bitmap>> delayedCompositeTask)
+        {
+            await SaveWaveScreenshotsAsync(plan, baseCaptureTask, anchorFramesTask, toastCompositeTask)
+                .ConfigureAwait(true);
+            if (delayedCaptureTask != null)
+            {
+                await SaveWaveScreenshotsAsync(plan, delayedCaptureTask, null, delayedCompositeTask)
+                    .ConfigureAwait(true);
+            }
+        }
+
+        /// <summary>
+        /// Saves all requested screenshot variants for one capture set of a wave. Starts on the UI
+        /// thread: framed composites render on the dispatcher at Background priority so the toast
+        /// animation stays smooth, and all PNG/file I/O is offloaded to the thread pool. Owns
+        /// disposal of the base capture and every per-item with-notification composite. Completes
+        /// once the files are written.
         /// </summary>
         private async Task SaveWaveScreenshotsAsync(
             WaveScreenshotPlan plan,
@@ -3857,7 +4178,7 @@ namespace PlayniteAchievements.Services.UI
                 baseBitmap = null;
                 toastByVm = null;
                 anchorFrames = null;
-                _ = Task.Run(() =>
+                await Task.Run(() =>
                 {
                     try
                     {
@@ -3946,7 +4267,7 @@ namespace PlayniteAchievements.Services.UI
                         DisposeAll(toasts);
                         DisposeAll(frames);
                     }
-                });
+                }).ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -4240,6 +4561,8 @@ namespace PlayniteAchievements.Services.UI
                 ToastWindowPlacer.SetZOrderAbove(window, _activeReferenceHwnd);
             }
 
+            // A presented wave's thumbnail window takes the new rectangle and z-order in the same pass.
+            UpdatePresenter();
             return placed;
         }
 
@@ -4760,12 +5083,23 @@ namespace PlayniteAchievements.Services.UI
                     return;
                 }
 
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 try
                 {
                     if (ReferenceEquals(_activeWindow, window))
                     {
-                        ToastWindowSurface.SetCloaked(window, false);
+                        if (_activePresenter != null)
+                        {
+                            // The window stays cloaked; its thumbnail is what appears, at the
+                            // motion's held start.
+                            _activePresenter.Reveal();
+                            UpdatePresenter();
+                        }
+                        else
+                        {
+                            ToastWindowSurface.SetCloaked(window, false);
+                        }
+
                         var release = _releaseHeldSlide;
                         _releaseHeldSlide = null;
                         release?.Invoke();
@@ -4778,7 +5112,7 @@ namespace PlayniteAchievements.Services.UI
 
                 started.TrySetResult(true);
             };
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             return started.Task;
         }
 
@@ -4819,7 +5153,7 @@ namespace PlayniteAchievements.Services.UI
             var storyboard = ToastMotionStoryboardFactory.Build(
                 motion, entering, _activeMotionPlan.Feel, durationMs, offset);
 
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             var scale = SlideHostScale();
             var fades = motion == ToastMotion.Fade || motion == ToastMotion.Zoom;
@@ -4890,11 +5224,21 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        /// <summary>
+        /// The element the entrance and exit animate: the presenter's stand-in when the wave has
+        /// one, otherwise the card's own host.
+        /// </summary>
+        private FrameworkElement MotionHost()
+        {
+            return _activeMotionHost ?? _activeSlideHost;
+        }
+
         /// <summary>The scale at index 0 of the slide host's transform group, or null.</summary>
         private ScaleTransform SlideHostScale()
         {
-            return (_activeSlideHost?.RenderTransform as TransformGroup)?.Children.Count > 0
-                ? ((TransformGroup)_activeSlideHost.RenderTransform).Children[0] as ScaleTransform
+            var host = MotionHost();
+            return (host?.RenderTransform as TransformGroup)?.Children.Count > 0
+                ? ((TransformGroup)host.RenderTransform).Children[0] as ScaleTransform
                 : null;
         }
 
@@ -4914,10 +5258,20 @@ namespace PlayniteAchievements.Services.UI
 
             try
             {
+                // A stand-in host does not contain the card and may already hold the motion's
+                // start; the card's own host has the same layout slot and no transform.
+                var reference = ReferenceEquals(host, _activeMotionHost) && _activeSlideHost != null
+                    ? _activeSlideHost
+                    : host;
+                if (reference.ActualWidth <= 0 || reference.ActualHeight <= 0)
+                {
+                    return;
+                }
+
                 var center = card.TranslatePoint(
-                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), host);
+                    new Point(card.ActualWidth / 2d, card.ActualHeight / 2d), reference);
                 host.RenderTransformOrigin = new Point(
-                    center.X / host.ActualWidth, center.Y / host.ActualHeight);
+                    center.X / reference.ActualWidth, center.Y / reference.ActualHeight);
             }
             catch (InvalidOperationException)
             {
@@ -5099,7 +5453,7 @@ namespace PlayniteAchievements.Services.UI
             double durationMs, bool travels, string label, bool holdAtStart = false)
         {
             StopActiveSlide();
-            var host = _activeSlideHost;
+            var host = MotionHost();
             var transform = _activeSlideTransform;
             if (host == null || transform == null)
             {
@@ -5164,6 +5518,9 @@ namespace PlayniteAchievements.Services.UI
             // frames before that are not the slide's, so they are neither driven nor counted.
             var held = holdAtStart;
             var tickFailed = false;
+            // What the presenter shows of this slide between UI frames (SampleMotionTrack).
+            ToastThumbnailPresenter.MotionTrack track = null;
+            var trackMisses = 0;
             EventHandler tick = (s, e) =>
             {
                 if (held || !ticks.TryAdvance(e, out _))
@@ -5176,12 +5533,31 @@ namespace PlayniteAchievements.Services.UI
                     try
                     {
                         // At its end the card shows its rest, so the base values can return there too.
-                        if (clock.Elapsed.TotalMilliseconds >= durationMs)
+                        var elapsed = clock.Elapsed;
+                        if (elapsed.TotalMilliseconds >= durationMs)
                         {
                             RestoreRestBase();
                         }
 
-                        driving = DriveSlideByClock(storyboard, host, clock.Elapsed, durationMs);
+                        driving = DriveSlideByClock(storyboard, host, elapsed, durationMs);
+
+                        // The track must be where the storyboard is. Twice in a row, since WPF can
+                        // show the base value in place of the animated one for a single frame.
+                        if (track != null && driving)
+                        {
+                            if (track.Agrees(elapsed.TotalMilliseconds, PresentedMotion(), host.Opacity))
+                            {
+                                trackMisses = 0;
+                            }
+                            else if (++trackMisses >= 2)
+                            {
+                                track = null;
+                                EndMotionTrack();
+                                _logger?.Info(
+                                    $"[Toast] Presenter: the {label} motion's track left the storyboard " +
+                                    $"at {elapsed.TotalMilliseconds:0} ms; the UI thread steps it.");
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -5214,8 +5590,23 @@ namespace PlayniteAchievements.Services.UI
             // or invalidates stands down so the slide gets the whole frame budget. Completed
             // releases it at the slide's natural end (attached before Begin — later subscribers
             // never reach the running clock); StopActiveSlide backstops every cut-short path.
-            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow);
-            storyboard.Completed += (s, e) => DisposeSlideQuiet();
+            _activeSlideQuiet = new SlideQuietScope(host, _activeWindow, _activeSlideHost, _activePresenter == null);
+            storyboard.Completed += (s, e) =>
+            {
+                // Sampling the motion track seeks the storyboard close to its end, and WPF then
+                // raises Completed on a later tick. A driven storyboard reaches its real end only
+                // once the clock has run the duration.
+                if (driving && clock.Elapsed.TotalMilliseconds < durationMs)
+                {
+                    return;
+                }
+
+                DisposeSlideQuiet();
+                if (ReferenceEquals(_runningSlideStoryboard, storyboard))
+                {
+                    EndMotionTrack();
+                }
+            };
 
             // A held entrance seeds its START instead, until it reaches its end. Recorded in Playnite:
             // for a frame after Begin/Pause and again at the first seek, WPF can drop the animated
@@ -5228,7 +5619,7 @@ namespace PlayniteAchievements.Services.UI
                 _restoreRestBase = () => transform.Y = restDip;
             }
 
-            CompositionTarget.Rendering += tick;
+            HookFrame(tick);
             try
             {
                 storyboard.Begin(host, isControllable: true);
@@ -5236,6 +5627,8 @@ namespace PlayniteAchievements.Services.UI
                 {
                     storyboard.Pause(host);
                     driving = true;
+                    track = SampleMotionTrack(storyboard, host, durationMs, clock);
+                    _activePresenter?.PlayTrack(track);
                     if (held)
                     {
                         _releaseHeldSlide = () =>
@@ -5262,7 +5655,7 @@ namespace PlayniteAchievements.Services.UI
                 // tree. Land the card where the slide would have left it rather than mid-travel.
                 _logger?.Debug(ex, "Toast slide storyboard failed to start; snapping to the slide's end.");
                 DisposeSlideQuiet();
-                CompositionTarget.Rendering -= tick;
+                UnhookFrame(tick);
                 _activeSlideTick = null;
                 _runningSlideStoryboard = null;
                 RestoreRestBase();
@@ -5692,13 +6085,24 @@ namespace PlayniteAchievements.Services.UI
             private IDisposable _gate;
             private bool _disposed;
 
-            public SlideQuietScope(FrameworkElement host, Window window)
+            /// <param name="host">The element the motion animates.</param>
+            /// <param name="cardHost">
+            /// The element holding the card, when that is not <paramref name="host"/> (a presented
+            /// wave): the stand-downs apply to the card.
+            /// </param>
+            public SlideQuietScope(FrameworkElement host, Window window, FrameworkElement cardHost = null, bool cacheHost = true)
             {
+                host = cardHost ?? host;
                 _host = host;
                 _gate = RenderQuietGate.Engage();
 
-                // Normally engaged a frame earlier; this covers a motion started without that.
-                EngageMotionCache(host, window);
+                // Normally engaged a frame earlier; this covers a motion started without that. A
+                // card shown through a presenter does not move inside its window, so it has
+                // nothing to cache.
+                if (cacheHost)
+                {
+                    EngageMotionCache(host, window);
+                }
 
                 try
                 {
@@ -5785,7 +6189,7 @@ namespace PlayniteAchievements.Services.UI
 
             if (_activeSlideTick != null)
             {
-                CompositionTarget.Rendering -= _activeSlideTick;
+                UnhookFrame(_activeSlideTick);
                 _activeSlideTick = null;
             }
 
@@ -5797,12 +6201,13 @@ namespace PlayniteAchievements.Services.UI
             // ignored and the card could never be nudged back to rest.
             var storyboard = _runningSlideStoryboard;
             _runningSlideStoryboard = null;
-            if (storyboard != null && _activeSlideHost != null)
+            var motionHost = MotionHost();
+            if (storyboard != null && motionHost != null)
             {
                 try
                 {
-                    storyboard.Stop(_activeSlideHost);
-                    storyboard.Remove(_activeSlideHost);
+                    storyboard.Stop(motionHost);
+                    storyboard.Remove(motionHost);
                 }
                 catch (Exception ex)
                 {
@@ -5813,6 +6218,66 @@ namespace PlayniteAchievements.Services.UI
             // Outside the guard: a slide that reached its final frame already unhooked itself and
             // reported, so this is a no-op for it and only a genuinely cut-short slide reports here.
             ReportActiveSlide("stopped");
+            EndMotionTrack();
+        }
+
+        // The spacing of a motion track's samples. The presenter reads between two samples in a
+        // straight line.
+        private const double MotionTrackStepMs = 2d;
+
+        /// <summary>
+        /// Samples a begun, paused storyboard into a track for the presenter: the motion host's
+        /// transform and opacity every <see cref="MotionTrackStepMs"/> of the storyboard's run,
+        /// read by seeking it, and timed by <paramref name="clock"/>, the clock the storyboard
+        /// itself is seeked to each frame. The presenter then shows the motion from the frame
+        /// pump's thread at every DWM composition, so a UI thread that is late for a frame does
+        /// not hold the card where it was. Leaves the storyboard at its start. Null when the wave
+        /// has no presenter or the storyboard cannot be seeked.
+        /// </summary>
+        private ToastThumbnailPresenter.MotionTrack SampleMotionTrack(
+            Storyboard storyboard, FrameworkElement host, double durationMs, Stopwatch clock)
+        {
+            if (_activePresenter == null || !ReferenceEquals(host, _activeMotionHost) || durationMs <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var count = Math.Max(2, (int)Math.Ceiling(durationMs / MotionTrackStepMs) + 1);
+                var stepMs = durationMs / (count - 1);
+                var motions = new Matrix[count];
+                var opacities = new double[count];
+                // Short of the end itself, where a seek would complete the storyboard.
+                var lastMs = durationMs - 0.05;
+                for (var i = 0; i < count; i++)
+                {
+                    storyboard.SeekAlignedToLastTick(
+                        host, TimeSpan.FromMilliseconds(Math.Min(i * stepMs, lastMs)), TimeSeekOrigin.BeginTime);
+                    motions[i] = PresentedMotion();
+                    opacities[i] = host.Opacity;
+                }
+
+                storyboard.SeekAlignedToLastTick(host, TimeSpan.Zero, TimeSeekOrigin.BeginTime);
+                return new ToastThumbnailPresenter.MotionTrack(motions, opacities, stepMs, clock);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Toast motion track could not be sampled; the UI thread steps the motion.");
+                return null;
+            }
+        }
+
+        /// <summary>Returns the presenter to the motion host's own transform and opacity.</summary>
+        private void EndMotionTrack()
+        {
+            var presenter = _activePresenter;
+            var stepped = presenter?.EndTrack();
+            if (stepped != null)
+            {
+                _logger?.Info($"[Toast] Presenter track: {stepped}");
+                UpdatePresenter();
+            }
         }
 
         /// <summary>
@@ -6084,7 +6549,7 @@ namespace PlayniteAchievements.Services.UI
         /// easing) comes from the themeable PlayAch.Storyboard.ToastCountdown storyboard; its duration
         /// is always the toast's runtime display time so the bar depletes exactly as it dismisses.
         /// </summary>
-        private void AnimateCountdownBars(DependencyObject root, int milliseconds)
+        private void AnimateCountdownBars(DependencyObject root, int milliseconds, double elapsedMs = 0d)
         {
             var duration = TimeSpan.FromMilliseconds(Math.Max(1, milliseconds));
             foreach (var bar in FindCountdownBars(root))
@@ -6102,7 +6567,17 @@ namespace PlayniteAchievements.Services.UI
                 // At the display's rate rather than an inherited process-wide default
                 // (AnimationFrameRate), which another extension can lower.
                 AnimationFrameRate.Apply(animation);
-                scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                if (elapsedMs > 0)
+                {
+                    // A bar that joins a countdown already under way starts where that has got to.
+                    var clock = animation.CreateClock();
+                    scale.ApplyAnimationClock(ScaleTransform.ScaleXProperty, clock);
+                    clock.Controller?.Seek(TimeSpan.FromMilliseconds(elapsedMs), TimeSeekOrigin.BeginTime);
+                }
+                else
+                {
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                }
             }
         }
 
@@ -6209,8 +6684,6 @@ namespace PlayniteAchievements.Services.UI
             catch
             {
             }
-
-            ToastGpuPriority.Restore();
         }
     }
 }

@@ -391,71 +391,20 @@ namespace PlayniteAchievements.Providers.GameJolt
         }
 
         /// <summary>
-        /// Fetches a same-origin URL from inside the currently loaded page via <c>fetch()</c>, polling a
-        /// window sentinel for the result (the SDK's EvaluateScriptAsync does not await promises). Returns
-        /// the exact response body, avoiding the content-negotiation and text-rendering pitfalls of a
-        /// top-level navigation. Requires the view to already be on the gamejolt.com origin.
+        /// Fetches a same-origin URL from inside the currently loaded page via <see cref="InPageFetch"/>.
+        /// Returns the exact response body, avoiding the content-negotiation and text-rendering pitfalls
+        /// of a top-level navigation. Requires the view to already be on the gamejolt.com origin.
         /// </summary>
         private async Task<string> FetchViaPageScriptAsync(IWebView view, string url, CancellationToken ct)
         {
-            var kickoff =
-                "(function(){try{window.__gjR=undefined;" +
-                "fetch('" + url + "',{headers:{'Accept':'application/json'},credentials:'include'})" +
-                ".then(function(r){return r.text();})" +
-                ".then(function(t){window.__gjR=t;})" +
-                ".catch(function(){window.__gjR='__ERR__';});return true;}" +
-                "catch(e){window.__gjR='__ERR__';return false;}})()";
-
-            try
+            var result = await InPageFetch.FetchAsync(view, url, ct, accept: "application/json").ConfigureAwait(false);
+            if (result == null)
             {
-                await view.EvaluateScriptAsync(kickoff).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[GameJolt] in-page fetch kickoff failed");
+                _logger?.Warn($"[GameJolt] in-page fetch failed or timed out for {url}");
                 return null;
             }
 
-            for (var attempt = 0; attempt < 40; attempt++)
-            {
-                ct.ThrowIfCancellationRequested();
-                await Task.Delay(250, ct).ConfigureAwait(false);
-
-                object result;
-                try
-                {
-                    var eval = await view
-                        .EvaluateScriptAsync("(typeof window.__gjR==='undefined')?'__PENDING__':window.__gjR")
-                        .ConfigureAwait(false);
-                    if (eval?.Success != true || eval.Result == null)
-                    {
-                        continue;
-                    }
-
-                    result = eval.Result;
-                }
-                catch
-                {
-                    continue;
-                }
-
-                var value = Convert.ToString(result);
-                if (value == "__PENDING__")
-                {
-                    continue;
-                }
-
-                if (value == "__ERR__")
-                {
-                    _logger?.Warn($"[GameJolt] in-page fetch errored for {url}");
-                    return null;
-                }
-
-                return value;
-            }
-
-            _logger?.Warn($"[GameJolt] in-page fetch timed out for {url}");
-            return null;
+            return result.Body;
         }
 
         private static bool LooksLikeCompleteJson(string text)

@@ -44,7 +44,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 DropIndicator = CategoryDropInsertLine,
                 DragCountPopup = CategoryDragCountPopup,
                 DragCountText = CategoryDragCountText,
-                IsReorderableItem = item => item is ManageAchievementsCategoryMetadataItem,
+                // A drop resolves its gap against the neighbouring rows, which a filter hides, so
+                // dragging waits until the filter is cleared.
+                IsReorderableItem = item => item is ManageAchievementsCategoryMetadataItem && ViewModel?.CanReorder != false,
                 ExtractDragKeys = items => items
                     .OfType<ManageAchievementsCategoryMetadataItem>()
                     .Select(item => item.CategoryLabel)
@@ -74,9 +76,58 @@ namespace PlayniteAchievements.Views.ManageAchievements
             });
 
             viewModel.CategoryRowsMoved += (_, labels) => RestoreCategoryManagerSelectionByLabels(labels);
+            viewModel.FilterChanged += ViewModel_FilterChanged;
+            AttachFilter();
         }
 
         private ManageAchievementsCategoryViewModel ViewModel => DataContext as ManageAchievementsCategoryViewModel;
+
+        /// <summary>Releases the filter and its subscription; the window calls it when the tab is torn down.</summary>
+        internal void Cleanup()
+        {
+            if (ViewModel != null)
+            {
+                ViewModel.FilterChanged -= ViewModel_FilterChanged;
+            }
+
+            var view = System.Windows.Data.CollectionViewSource.GetDefaultView(ViewModel?.CategoryRows);
+            if (view != null)
+            {
+                view.Filter = null;
+            }
+        }
+
+        /// <summary>
+        /// Points the grid's collection view at the view model's filter predicate, so narrowing the
+        /// list never touches the rows behind it: every persist path walks CategoryRows as the
+        /// game's complete, ordered list.
+        /// </summary>
+        private void AttachFilter()
+        {
+            var view = System.Windows.Data.CollectionViewSource.GetDefaultView(ViewModel?.CategoryRows);
+            if (view != null)
+            {
+                view.Filter = candidate => ViewModel?.MatchesFilter(candidate as ManageAchievementsCategoryMetadataItem) != false;
+            }
+        }
+
+        private void ViewModel_FilterChanged(object sender, EventArgs e)
+        {
+            // A few dozen rows at most: a plain refresh costs less than retesting row by row.
+            System.Windows.Data.CollectionViewSource.GetDefaultView(ViewModel?.CategoryRows)?.Refresh();
+        }
+
+        private void MultiSelectFilter_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            MultiSelectFilterMenu.Open(button, button?.DataContext as PlayniteAchievements.ViewModels.Items.GridMultiSelectFilter);
+        }
+
+        private void ClearFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            FilterTextBox.Clear();
+            FilterTextBox.Focus();
+        }
 
         internal void SelectManageCategoriesSubTab()
         {
@@ -372,7 +423,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 .Select(candidate => candidate.CategoryLabel)
                 .ToList();
             var targetRows = CategoryFilterMenuBuilder.BuildRows(validTargets);
-            var itemStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, targetRows);
+            var itemStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(this);
             foreach (var targetRow in targetRows)
             {
                 subcategoryMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
@@ -411,7 +462,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     .Select(candidate => candidate.CategoryLabel)
                     .ToList();
                 var mergeTargetRows = CategoryFilterMenuBuilder.BuildRows(mergeTargets);
-                var mergeStyle = CategoryFilterMenuBuilder.ResolveItemStyle(this, mergeTargetRows);
+                var mergeStyle = CategoryFilterMenuBuilder.ResolveActionItemStyle(this);
                 foreach (var mergeTargetRow in mergeTargetRows)
                 {
                     mergeMenu.Items.Add(CategoryFilterMenuBuilder.CreateActionItem(
@@ -471,6 +522,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 return;
             }
 
+            // The copy has to be visible to be selected, and a filter may hide it.
+            ViewModel.ClearFilters();
             DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
             if (created.Count == 1)
             {
@@ -527,6 +580,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
             {
                 return;
             }
+
+            // The new row has to be visible for its rename box to take focus.
+            ViewModel.ClearFilters();
 
             DataGridRowReorderBehavior.CancelPendingDrag(CategoryManagerDataGrid);
             FocusCategoryRenameBox(label);
@@ -657,6 +713,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 AddCategoryButton,
                 ResetCategoryMetadataButton,
                 OpenCategoryImagesFolderButton,
+                FilterTextBox,
+                ClearFilterButton,
+                CategoryFilterButton,
+                KindFilterButton,
                 CategoryManagerDataGrid
             };
 

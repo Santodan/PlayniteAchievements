@@ -708,6 +708,7 @@ namespace PlayniteAchievements.Views
             _generalSettingsTab?.Dispose();
             _notificationsSettingsTab?.Dispose();
             _workshopSettingsTab?.Dispose();
+            _metadataSettingsTab?.Dispose();
             _legacyNotificationSettingsControl?.Dispose();
         }
 

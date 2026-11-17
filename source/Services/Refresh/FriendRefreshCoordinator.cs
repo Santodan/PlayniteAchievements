@@ -39,6 +39,7 @@ namespace PlayniteAchievements.Services.Refresh
         private readonly AchievementIconService _achievementIconService;
         private readonly PlayniteAchievements.Providers.ProviderRegistry _providerRegistry;
         private readonly IReadOnlyList<IDataProvider> _providers;
+        private readonly SteamExophaseOwnershipSupplement _steamOwnershipSupplement;
 
         internal FriendRefreshCoordinator(
             IPlayniteAPI api,
@@ -56,6 +57,13 @@ namespace PlayniteAchievements.Services.Refresh
             _achievementIconService = achievementIconService;
             _providerRegistry = providerRegistry;
             _providers = providers;
+            _steamOwnershipSupplement = new SteamExophaseOwnershipSupplement(
+                settings,
+                providerRegistry,
+                providers,
+                cacheService as IFriendCacheManager,
+                LoadCurrentUserGameLabelsForFriendMatching,
+                logger);
         }
 
         internal void PromoteMatchingProviderOnlyFriendGame(IDataProvider provider, GameAchievementData data)
@@ -124,7 +132,7 @@ namespace PlayniteAchievements.Services.Refresh
                 return payload;
             }
 
-            options = NormalizeOptions(options);
+            options = options?.Clone() ?? new FriendRefreshOptions();
             var providers = (providerScope ?? Array.Empty<IDataProvider>())
                 .Where(provider => provider?.Friends != null)
                 .ToList();
@@ -464,17 +472,10 @@ namespace PlayniteAchievements.Services.Refresh
                 RosterSource = "provider"
             };
 
-            var preparationResult = await friendsProvider.BeginRefreshAsync(cancel).ConfigureAwait(false);
-            if (preparationResult?.Success != true)
+            if (!await BeginProviderRefreshAsync(friendsProvider, context, payload, "Friend roster refresh", cancel).ConfigureAwait(false))
             {
-                _logger?.Debug($"Friend roster refresh skipped for {providerKey}: {preparationResult?.ErrorMessage ?? "provider unavailable"}");
-                MarkAuthFailure(payload, providerKey, preparationResult?.AuthRequired == true);
                 return context;
             }
-
-            context.Preparation = preparationResult.Data ?? new FriendsRefreshPreparation();
-            context.CanContinue = true;
-            payload.FriendSummary.ProvidersProcessed++;
 
             var friendsResult = await friendsProvider.GetFriendsAsync(cancel).ConfigureAwait(false);
             if (friendsResult?.Success != true)
@@ -490,6 +491,31 @@ namespace PlayniteAchievements.Services.Refresh
             context.ScopedFriends = context.Friends;
             payload.FriendSummary.FriendsFetched += context.Friends.Count;
             return context;
+        }
+
+        // Starts the provider's refresh session. On success stores the preparation on the context,
+        // marks it continuable and counts the provider as processed; on failure logs the skip and
+        // records an auth failure when the provider demanded authentication.
+        private async Task<bool> BeginProviderRefreshAsync(
+            IFriendsProvider friendsProvider,
+            FriendProviderRefreshContext context,
+            RebuildPayload payload,
+            string refreshLabel,
+            CancellationToken cancel)
+        {
+            var providerKey = context.ProviderKey;
+            var preparationResult = await friendsProvider.BeginRefreshAsync(cancel).ConfigureAwait(false);
+            if (preparationResult?.Success != true)
+            {
+                _logger?.Debug($"{refreshLabel} skipped for {providerKey}: {preparationResult?.ErrorMessage ?? "provider unavailable"}");
+                MarkAuthFailure(payload, providerKey, preparationResult?.AuthRequired == true);
+                return false;
+            }
+
+            context.Preparation = preparationResult.Data ?? new FriendsRefreshPreparation();
+            context.CanContinue = true;
+            payload.FriendSummary.ProvidersProcessed++;
+            return true;
         }
 
         private int SaveFriendList(FriendProviderRefreshContext context, RebuildPayload payload)
@@ -686,7 +712,7 @@ namespace PlayniteAchievements.Services.Refresh
             {
                 Provider = friendsProvider,
                 ProviderKey = providerKey,
-                DiscoverUnowned = FriendRefreshWorkPolicy.ShouldDiscoverUnowned(providerKey, options),
+                DiscoverUnowned = options?.DiscoversProviderOnlyGames() == true,
                 MaxDegreeOfParallelism = ResolveFriendRefreshParallelism()
             };
             // The game-centric candidate builder reads the fresh, hint-bearing ownership snapshot for
@@ -699,18 +725,11 @@ namespace PlayniteAchievements.Services.Refresh
                 : null;
 
             progress?.ReportLoadingFriends(providerKey, providerIndex, providerTotal);
-            var preparationResult = await friendsProvider.BeginRefreshAsync(cancel).ConfigureAwait(false);
-            if (preparationResult?.Success != true)
+            if (!await BeginProviderRefreshAsync(friendsProvider, context, payload, "Friends refresh", cancel).ConfigureAwait(false))
             {
-                _logger?.Debug($"Friends refresh skipped for {providerKey}: {preparationResult?.ErrorMessage ?? "provider unavailable"}");
-                MarkAuthFailure(payload, providerKey, preparationResult?.AuthRequired == true);
                 progress?.ReportProviderRosterLoaded(providerKey);
                 return context;
             }
-
-            context.Preparation = preparationResult.Data ?? new FriendsRefreshPreparation();
-            context.CanContinue = true;
-            payload.FriendSummary.ProvidersProcessed++;
 
             var currentUserLabels = LoadCurrentUserGameLabelsForFriendMatching();
             context.CurrentUserLabels = currentUserLabels;
@@ -823,7 +842,6 @@ namespace PlayniteAchievements.Services.Refresh
                     context.Provider,
                     context.ProviderKey,
                     friend,
-                    ResolveMergedExophaseFriendForSteamOwnership(context.ProviderKey, friend.ExternalUserId),
                     options,
                     payload,
                     payloadLock,
@@ -918,7 +936,7 @@ namespace PlayniteAchievements.Services.Refresh
                     // Recent scope: skip games the ownership step positively confirmed unchanged since
                     // the last successful scrape.
                     if (isRecent &&
-                        context.RecencyFreshKeys.Contains(BuildRecencyGameKey(friend.ExternalUserId, key)))
+                        context.RecencyFreshKeys.Contains(BuildFriendProviderGameKey(friend.ExternalUserId, key)))
                     {
                         continue;
                     }
@@ -1067,7 +1085,7 @@ namespace PlayniteAchievements.Services.Refresh
                     var beforeRecencyFilter = candidates.Count;
                     candidates = candidates
                         .Where(candidate => !context.RecencyFreshKeys.Contains(
-                            BuildRecencyGameKey(candidate.Friend?.ExternalUserId, GetProviderGameCacheKey(candidate))))
+                            BuildFriendProviderGameKey(candidate.Friend?.ExternalUserId, GetProviderGameCacheKey(candidate))))
                         .ToList();
                     context.CandidatesSkippedRecencyFresh += Math.Max(0, beforeRecencyFilter - candidates.Count);
 
@@ -1189,238 +1207,10 @@ namespace PlayniteAchievements.Services.Refresh
             MaybeFlushFriendInvalidations(friendInvalidationBatch, invalidationFlushState, force: true);
         }
 
-        private async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> GetOwnedGamesForFriendRefreshAsync(
-            IFriendsProvider friendsProvider,
-            string providerKey,
-            FriendIdentity friend,
-            string exophaseSteamOwnershipUserId,
-            IReadOnlyList<CurrentUserGameLabel> currentUserLabels,
-            RateLimiter limiter,
-            CancellationToken cancel)
-        {
-            var ownershipResult = await limiter.ExecuteWithRetryAsync(
-                () => friendsProvider.GetOwnedGamesAsync(friend, cancel),
-                FriendRefreshWorkPolicy.IsTransientError,
-                cancel).ConfigureAwait(false);
-            if (ownershipResult?.Success != true)
-            {
-                return ownershipResult;
-            }
-
-            var augmentedResult = await TryGetExophaseSteamFriendOwnershipAsync(
-                providerKey,
-                friend,
-                exophaseSteamOwnershipUserId,
-                ownershipResult.Data,
-                currentUserLabels,
-                limiter,
-                cancel).ConfigureAwait(false);
-            if (augmentedResult != null)
-            {
-                // Exophase only adds games; completeness is still the Steam list's.
-                augmentedResult.IsPartial = ownershipResult.IsPartial;
-            }
-
-            return augmentedResult ?? ownershipResult;
-        }
-
-        private async Task<FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>> TryGetExophaseSteamFriendOwnershipAsync(
-            string providerKey,
-            FriendIdentity steamFriend,
-            string exophaseUserId,
-            IReadOnlyList<FriendGameOwnership> knownSteamOwnership,
-            IReadOnlyList<CurrentUserGameLabel> currentUserLabels,
-            RateLimiter limiter,
-            CancellationToken cancel)
-        {
-            if (!string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase) ||
-                string.IsNullOrWhiteSpace(steamFriend?.ExternalUserId) ||
-                string.IsNullOrWhiteSpace(exophaseUserId))
-            {
-                return null;
-            }
-
-            var source = ResolveExophaseSteamOwnershipSource();
-            if (source == null)
-            {
-                return null;
-            }
-
-            try
-            {
-                // Reuse the labels resolved once during provider preparation instead of
-                // re-materializing the whole current-user library (and the Playnite games list)
-                // for every friend; fall back to a fresh load only if they were not supplied.
-                var resolvedLabels = currentUserLabels ?? LoadCurrentUserGameLabelsForFriendMatching();
-                var exophaseResult = await limiter.ExecuteWithRetryAsync(
-                    () => source.GetSteamOwnedGamesAsync(exophaseUserId, resolvedLabels, knownSteamOwnership, cancel),
-                    FriendRefreshWorkPolicy.IsTransientError,
-                    cancel).ConfigureAwait(false);
-                if (exophaseResult?.Success != true)
-                {
-                    _logger?.Debug(
-                        $"Exophase Steam ownership augmentation unavailable for Steam friend {steamFriend.ExternalUserId} " +
-                        $"via Exophase/{exophaseUserId}: {exophaseResult?.ErrorMessage ?? "provider unavailable"}. Keeping Steam ownership.");
-                    return null;
-                }
-
-                var steamMappings = _friendCache?.LoadFriendGameMappings("Steam") ??
-                                    new List<FriendGameMapping>();
-                var mapped = SteamExophaseFriendOwnershipMapper.MapToSteamOwnership(
-                    steamFriend.ExternalUserId,
-                    exophaseResult.Data,
-                    steamMappings,
-                    currentUserLabels);
-                if (mapped.Ownership.Count == 0)
-                {
-                    _logger?.Debug(
-                        $"Exophase Steam ownership augmentation produced no extra Steam-mapped rows for Steam friend {steamFriend.ExternalUserId} " +
-                        $"via Exophase/{exophaseUserId} (incoming={mapped.IncomingCount}, skipped={mapped.SkippedCount}). Keeping Steam ownership.");
-                    return null;
-                }
-
-                var combined = MergeSteamOwnershipWithSupplement(knownSteamOwnership, mapped.Ownership);
-                var baseCount = knownSteamOwnership?.Count ?? 0;
-                var addedCount = combined.Count - baseCount;
-                if (addedCount <= 0)
-                {
-                    _logger?.Debug(
-                        $"Exophase Steam ownership augmentation found no new Steam AppIDs for Steam friend {steamFriend.ExternalUserId} " +
-                        $"via Exophase/{exophaseUserId} (incoming={mapped.IncomingCount}, mapped={mapped.Ownership.Count}, skipped={mapped.SkippedCount}).");
-                    return null;
-                }
-
-                _logger?.Info(
-                    $"Augmented Steam friend ownership with Exophase for Steam friend {steamFriend.ExternalUserId} " +
-                    $"via Exophase/{exophaseUserId}: steamBase={baseCount}, incoming={mapped.IncomingCount}, " +
-                    $"mapped={mapped.Ownership.Count}, added={addedCount}, skipped={mapped.SkippedCount}.");
-                return FriendsProviderResult<IReadOnlyList<FriendGameOwnership>>.FromData(combined);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(
-                    ex,
-                    $"Exophase Steam ownership augmentation failed for Steam friend {steamFriend.ExternalUserId} " +
-                    $"via Exophase/{exophaseUserId}. Keeping Steam ownership.");
-                return null;
-            }
-        }
-
-        private static IReadOnlyList<FriendGameOwnership> MergeSteamOwnershipWithSupplement(
-            IReadOnlyList<FriendGameOwnership> steamOwnership,
-            IReadOnlyList<FriendGameOwnership> supplementalOwnership)
-        {
-            var merged = new List<FriendGameOwnership>();
-            var seenAppIds = new HashSet<int>();
-
-            foreach (var item in steamOwnership ?? Array.Empty<FriendGameOwnership>())
-            {
-                if (item == null)
-                {
-                    continue;
-                }
-
-                if (item.AppId > 0)
-                {
-                    seenAppIds.Add(item.AppId);
-                }
-
-                merged.Add(item);
-            }
-
-            foreach (var item in supplementalOwnership ?? Array.Empty<FriendGameOwnership>())
-            {
-                if (item == null)
-                {
-                    continue;
-                }
-
-                if (item.AppId > 0 && !seenAppIds.Add(item.AppId))
-                {
-                    continue;
-                }
-
-                merged.Add(item);
-            }
-
-            return merged;
-        }
-
-        private string ResolveMergedExophaseFriendForSteamOwnership(string providerKey, string externalUserId)
-        {
-            if (!string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase) ||
-                string.IsNullOrWhiteSpace(externalUserId) ||
-                !ShouldUseExophaseForSteamFriendOwnership())
-            {
-                return null;
-            }
-
-            var persisted = _settings?.Persisted;
-            var group = persisted?.GetFriendMergeGroupForAccount("Steam", externalUserId);
-            var exophaseMember = group?.Members?
-                .FirstOrDefault(member => string.Equals(member?.ProviderKey, "Exophase", StringComparison.OrdinalIgnoreCase));
-            if (string.IsNullOrWhiteSpace(exophaseMember?.ExternalUserId))
-            {
-                return null;
-            }
-
-            var exophaseFriend = persisted.GetFriendSetting("Exophase", exophaseMember.ExternalUserId);
-            return exophaseFriend == null ||
-                   exophaseFriend.IsIgnored ||
-                   string.IsNullOrWhiteSpace(exophaseFriend.ExternalUserId)
-                ? null
-                : exophaseFriend.ExternalUserId.Trim();
-        }
-
-        private bool ShouldUseExophaseForSteamFriendOwnership()
-        {
-            return _settings?.Persisted?.UseExophaseForSteamFriendOwnership == true &&
-                   IsProviderEnabledForFriendOwnership("Exophase") &&
-                   ResolveExophaseSteamOwnershipSource() != null;
-        }
-
-        private bool IsProviderEnabledForFriendOwnership(string providerKey)
-        {
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                return false;
-            }
-
-            if (_providerRegistry != null)
-            {
-                return _providerRegistry.IsProviderEnabled(providerKey);
-            }
-
-            try
-            {
-                var provider = _providers?
-                    .FirstOrDefault(item => string.Equals(item?.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase));
-                var settings = provider?.GetSettings();
-                return settings == null || settings.IsEnabled;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed to resolve provider enabled state for {providerKey}.");
-                return false;
-            }
-        }
-
-        private ISteamFriendOwnershipSupplementSource ResolveExophaseSteamOwnershipSource()
-        {
-            return _providers?
-                .FirstOrDefault(provider => string.Equals(provider?.ProviderKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-                ?.Friends as ISteamFriendOwnershipSupplementSource;
-        }
-
         private async Task<bool> RefreshOwnershipItemAsync(
             IFriendsProvider friendsProvider,
             string providerKey,
             FriendIdentity friend,
-            string exophaseSteamOwnershipUserId,
             FriendRefreshOptions options,
             RebuildPayload payload,
             object payloadLock,
@@ -1437,11 +1227,14 @@ namespace PlayniteAchievements.Services.Refresh
             }
 
             var limiter = CreateScanRateLimiter();
-            var ownershipResult = await GetOwnedGamesForFriendRefreshAsync(
-                friendsProvider,
+            var providerOwnershipResult = await limiter.ExecuteWithRetryAsync(
+                () => friendsProvider.GetOwnedGamesAsync(friend, cancel),
+                FriendRefreshWorkPolicy.IsTransientError,
+                cancel).ConfigureAwait(false);
+            var ownershipResult = await _steamOwnershipSupplement.SupplementAsync(
                 providerKey,
                 friend,
-                exophaseSteamOwnershipUserId,
+                providerOwnershipResult,
                 currentUserLabels,
                 limiter,
                 cancel).ConfigureAwait(false);
@@ -1476,11 +1269,10 @@ namespace PlayniteAchievements.Services.Refresh
                 payload.FriendSummary.OwnershipPagesRefreshed++;
             }
 
-            var scopedOwnedGames = ScopeOwnedGamesForRefresh(ownershipResult.Data, options);
-            var ownedGames = FilterOwnedGamesForProviderRefresh(providerKey, scopedOwnedGames);
+            var ownedGames = ScopeOwnedGamesForRefresh(ownershipResult.Data, options);
             StampPlayniteGameIdsFromCurrentUserLabels(ownedGames, currentUserLabelIndex);
             _logger?.Debug(
-                $"[RefreshPerf] phase=friend.ownership.provider provider={providerKey} friend={friend.ExternalUserId} returned={ownershipResult.Data?.Count ?? 0} scoped={scopedOwnedGames?.Count ?? 0} filtered={ownedGames.Count} scope={options?.Scope}.");
+                $"[RefreshPerf] phase=friend.ownership.provider provider={providerKey} friend={friend.ExternalUserId} returned={ownershipResult.Data?.Count ?? 0} scoped={ownedGames.Count} scope={options?.Scope}.");
             // Retain the fresh, hint-bearing ownership snapshot for the game-centric candidate builder.
             // The list is non-null for every scope that fetches ownership (see PrepareProviderRefreshAsync).
             if (ownershipSnapshots != null)
@@ -1523,7 +1315,7 @@ namespace PlayniteAchievements.Services.Refresh
                     {
                         lock (recencyFreshKeys)
                         {
-                            recencyFreshKeys.Add(BuildRecencyGameKey(friend.ExternalUserId, cacheKey));
+                            recencyFreshKeys.Add(BuildFriendProviderGameKey(friend.ExternalUserId, cacheKey));
                         }
                     }
                 }
@@ -1592,7 +1384,7 @@ namespace PlayniteAchievements.Services.Refresh
                 var staleProviderOnly = snapshot.Ownership
                     .Where(item => item != null &&
                                    !IsPlayniteLibraryFriendGame(context.ProviderKey, item) &&
-                                   !context.RecencyFreshKeys.Contains(BuildRecencyGameKey(
+                                   !context.RecencyFreshKeys.Contains(BuildFriendProviderGameKey(
                                        snapshot.Friend.ExternalUserId,
                                        GetProviderGameCacheKey(item))))
                     .ToList();
@@ -1745,37 +1537,31 @@ namespace PlayniteAchievements.Services.Refresh
             // zero-unlock unowned games from persisting definition rows, a provider-only Games row, or
             // images. Mapped, explicitly-targeted, positive-hint and legacy-key-migration games stay
             // eager (the in-place key rename must run unconditionally).
-            if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
+            var eagerKeys = new List<string>();
+            var deferredKeys = new List<string>();
+            foreach (var key in dueProviderGameKeys)
             {
-                var eagerKeys = new List<string>();
-                var deferredKeys = new List<string>();
-                foreach (var key in dueProviderGameKeys)
-                {
-                    var owners = ownershipByKey.TryGetValue(key, out var rows) ? rows : null;
-                    var mustFetchEagerly =
-                        owners == null ||
-                        legacyKeyedGameKeySet.Contains(key) ||
-                        owners.Any(item => item != null &&
-                            (IsPlayniteLibraryFriendGame(providerKey, item) ||
-                             FriendRefreshWorkPolicy.IsExplicitProviderGameTarget(options, item.AppId, item.ProviderGameKey) ||
-                             FriendRefreshWorkPolicy.HasPositiveUnlockHint(item)));
-                    (mustFetchEagerly ? eagerKeys : deferredKeys).Add(key);
-                }
-
-                plan.DueProviderGameKeys = eagerKeys;
-                plan.DeferredProviderGameKeys = deferredKeys;
+                var owners = ownershipByKey.TryGetValue(key, out var rows) ? rows : null;
+                var mustFetchEagerly =
+                    owners == null ||
+                    legacyKeyedGameKeySet.Contains(key) ||
+                    owners.Any(item => item != null &&
+                        (IsPlayniteLibraryFriendGame(providerKey, item) ||
+                         FriendRefreshWorkPolicy.IsExplicitProviderGameTarget(options, item.AppId, item.ProviderGameKey) ||
+                         FriendRefreshWorkPolicy.HasPositiveUnlockHint(item)));
+                (mustFetchEagerly ? eagerKeys : deferredKeys).Add(key);
             }
 
-            // Provider-only probe scrapes only happen for providers that guard zero-unlock games; count
-            // exactly the items the probe loop below will visit so the definitions total stays exact.
-            if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
-            {
-                var discovered = new HashSet<string>(providerGameKeys, StringComparer.OrdinalIgnoreCase);
-                plan.ProbeItemCount = snapshots.Sum(snapshot => snapshot.Ownership.Count(item =>
-                    FriendRefreshWorkPolicy.HasProviderGameIdentity(item) &&
-                    discovered.Contains(GetProviderGameCacheKey(item)) &&
-                    !IsPlayniteLibraryFriendGame(providerKey, item)));
-            }
+            plan.DueProviderGameKeys = eagerKeys;
+            plan.DeferredProviderGameKeys = deferredKeys;
+
+            // Count exactly the provider-only items the probe loop below will visit so the definitions
+            // total stays exact.
+            var discovered = new HashSet<string>(providerGameKeys, StringComparer.OrdinalIgnoreCase);
+            plan.ProbeItemCount = snapshots.Sum(snapshot => snapshot.Ownership.Count(item =>
+                FriendRefreshWorkPolicy.HasProviderGameIdentity(item) &&
+                discovered.Contains(GetProviderGameCacheKey(item)) &&
+                !IsPlayniteLibraryFriendGame(providerKey, item)));
 
             return plan;
         }
@@ -1919,11 +1705,8 @@ namespace PlayniteAchievements.Services.Refresh
                     if (noAchievementDefinitionKeys.Contains(probeGameKey))
                     {
                         noAchievementProbeSkips++;
-                        if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
-                        {
-                            progress?.ReportDefinitionCheckCompleted(
-                                ResolveOwnershipGameName(new[] { item }, providerKey, probeGameKey));
-                        }
+                        progress?.ReportDefinitionCheckCompleted(
+                            ResolveOwnershipGameName(new[] { item }, providerKey, probeGameKey));
 
                         continue;
                     }
@@ -1942,13 +1725,9 @@ namespace PlayniteAchievements.Services.Refresh
                         ensureDefinitionAsync).ConfigureAwait(false);
                     // Provider-only probes are network scrapes counted in the definitions total (see
                     // ComputeUnownedDefinitionPlan); report one completion each so the bar advances
-                    // through them. Gated on the same guard used to count them so total and completions
-                    // stay in lockstep.
-                    if (FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
-                    {
-                        progress?.ReportDefinitionCheckCompleted(
-                            ResolveOwnershipGameName(new[] { item }, providerKey, GetProviderGameCacheKey(item)));
-                    }
+                    // through them, so total and completions stay in lockstep.
+                    progress?.ReportDefinitionCheckCompleted(
+                        ResolveOwnershipGameName(new[] { item }, providerKey, GetProviderGameCacheKey(item)));
                     MaybeFlushFriendInvalidations(friendInvalidationBatch, invalidationFlushState);
 
                     if (!shouldContinue)
@@ -2005,12 +1784,13 @@ namespace PlayniteAchievements.Services.Refresh
             var sample = ownershipRows?.FirstOrDefault(item => item != null);
             var appId = Math.Max(0, sample?.AppId ?? 0);
             var gameName = ResolveOwnershipGameName(ownershipRows, providerKey, providerGameKey);
+            var mappedToLibrary = ownershipRows?.Any(item => item != null && IsPlayniteLibraryFriendGame(providerKey, item)) == true;
             progress?.ReportDefinitionCheckActive(gameName);
 
             await limiter.DelayBeforeNextAsync(cancel).ConfigureAwait(false);
             _logger?.Info($"[FriendRefresh] Fetching game definition {fetchLogLabel} for {providerKey}/{providerGameKey} ('{gameName}').");
             var definitionResult = await limiter.ExecuteWithRetryAsync(
-                () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, cancel),
+                () => friendsProvider.GetFriendGameDefinitionAsync(providerGameKey, appId, gameName, mappedToLibrary, cancel),
                 FriendRefreshWorkPolicy.IsTransientError,
                 cancel).ConfigureAwait(false);
 
@@ -2077,8 +1857,7 @@ namespace PlayniteAchievements.Services.Refresh
         {
             if (friendsProvider == null ||
                 friend == null ||
-                ownership == null ||
-                !FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey))
+                ownership == null)
             {
                 return true;
             }
@@ -2492,11 +2271,7 @@ namespace PlayniteAchievements.Services.Refresh
                     return;
                 }
 
-                var writeImages = _friendCache.SaveProviderGameImagePaths(providerKey, cacheKey, appId, localPath, localPath);
-                if (writeImages?.Success != true)
-                {
-                    _logger?.Warn($"Failed to save friend game header image paths for {providerKey}/{cacheKey}: {writeImages?.ErrorMessage}");
-                }
+                SaveFriendGameImagePaths(providerKey, cacheKey, appId, localPath, localPath, "friend game header image");
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
@@ -2535,7 +2310,8 @@ namespace PlayniteAchievements.Services.Refresh
             var gameName = !string.IsNullOrWhiteSpace(source.GameName) ? source.GameName : gameKey;
             try
             {
-                var result = await PopulateFriendGameImageCacheWithSteamFallbackAsync(
+                var result = await _achievementIconService
+                    .PopulateFriendGameImageCacheWithSteamFallbackAsync(
                         providerKey,
                         gameKey,
                         source,
@@ -2547,11 +2323,7 @@ namespace PlayniteAchievements.Services.Refresh
                     return;
                 }
 
-                var writeImages = _friendCache.SaveProviderGameImagePaths(providerKey, gameKey, source.AppId, result.IconPath, result.CoverPath);
-                if (writeImages?.Success != true)
-                {
-                    _logger?.Warn($"Failed to save unowned game image paths for {providerKey}/{gameKey}: {writeImages?.ErrorMessage}");
-                }
+                SaveFriendGameImagePaths(providerKey, gameKey, source.AppId, result.IconPath, result.CoverPath, "unowned game image");
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
@@ -2560,140 +2332,19 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
-        private async Task<FriendGameImageCacheResult> PopulateFriendGameImageCacheWithSteamFallbackAsync(
+        private void SaveFriendGameImagePaths(
             string providerKey,
             string gameKey,
-            FriendGameOwnership source,
-            CancellationToken cancel,
-            Action onImageResolved)
+            int appId,
+            string iconPath,
+            string coverPath,
+            string imageKind)
         {
-            var result = await _achievementIconService
-                .PopulateFriendGameImageCacheAsync(
-                    providerKey,
-                    gameKey,
-                    source?.IconUrl,
-                    source?.CoverUrl,
-                    cancel,
-                    onImageResolved)
-                .ConfigureAwait(false);
-
-            if (!FriendRefreshWorkPolicy.ShouldTrySteamGameImageFallback(providerKey, source))
+            var writeImages = _friendCache.SaveProviderGameImagePaths(providerKey, gameKey, appId, iconPath, coverPath);
+            if (writeImages?.Success != true)
             {
-                return result;
+                _logger?.Warn($"Failed to save {imageKind} paths for {providerKey}/{gameKey}: {writeImages?.ErrorMessage}");
             }
-
-            var missingIcon = string.IsNullOrWhiteSpace(result?.IconPath);
-            var missingCover = string.IsNullOrWhiteSpace(result?.CoverPath);
-            if (!missingIcon && !missingCover)
-            {
-                return result;
-            }
-
-            if (!missingIcon && missingCover)
-            {
-                var heroResult = await TryPopulateSteamFriendGameImageFallbackAsync(
-                        providerKey,
-                        gameKey,
-                        iconUrl: null,
-                        coverUrl: SteamImageUrls.LibraryHero(source.AppId),
-                        sourceIconUrl: source.IconUrl,
-                        sourceCoverUrl: source.CoverUrl,
-                        cancel: cancel)
-                    .ConfigureAwait(false);
-                result = MergeFriendGameImageResults(result, heroResult);
-                missingCover = string.IsNullOrWhiteSpace(result?.CoverPath);
-            }
-
-            missingIcon = string.IsNullOrWhiteSpace(result?.IconPath);
-            if (!missingIcon && !missingCover)
-            {
-                return result;
-            }
-
-            var storeFallback = await SteamImageUrls
-                .GetStoreFallbackAsync(source.AppId, cancel, _logger)
-                .ConfigureAwait(false);
-            if (storeFallback == null)
-            {
-                return result;
-            }
-
-            var storeResult = await TryPopulateSteamFriendGameImageFallbackAsync(
-                    providerKey,
-                    gameKey,
-                    iconUrl: missingIcon ? storeFallback.IconUrl : null,
-                    coverUrl: missingCover ? storeFallback.CoverUrl : null,
-                    sourceIconUrl: source.IconUrl,
-                    sourceCoverUrl: source.CoverUrl,
-                    cancel: cancel)
-                .ConfigureAwait(false);
-            return MergeFriendGameImageResults(result, storeResult);
-        }
-
-        private async Task<FriendGameImageCacheResult> TryPopulateSteamFriendGameImageFallbackAsync(
-            string providerKey,
-            string gameKey,
-            string iconUrl,
-            string coverUrl,
-            string sourceIconUrl,
-            string sourceCoverUrl,
-            CancellationToken cancel)
-        {
-            var fallbackIconUrl = FriendRefreshWorkPolicy.IsDistinctCacheableImageSource(iconUrl, sourceIconUrl) ? iconUrl : null;
-            var fallbackCoverUrl = FriendRefreshWorkPolicy.IsDistinctCacheableImageSource(coverUrl, sourceCoverUrl) ? coverUrl : null;
-            if (string.IsNullOrWhiteSpace(fallbackIconUrl) && string.IsNullOrWhiteSpace(fallbackCoverUrl))
-            {
-                return null;
-            }
-
-            return await _achievementIconService
-                .PopulateFriendGameImageCacheAsync(
-                    providerKey,
-                    gameKey,
-                    fallbackIconUrl,
-                    fallbackCoverUrl,
-                    cancel,
-                    onImageResolved: null)
-                .ConfigureAwait(false);
-        }
-
-        private static FriendGameImageCacheResult MergeFriendGameImageResults(
-            FriendGameImageCacheResult primary,
-            FriendGameImageCacheResult fallback)
-        {
-            if (fallback == null)
-            {
-                return primary;
-            }
-
-            if (primary == null)
-            {
-                return fallback;
-            }
-
-            return new FriendGameImageCacheResult
-            {
-                IconPath = FirstNonBlank(primary.IconPath, fallback.IconPath),
-                CoverPath = FirstNonBlank(primary.CoverPath, fallback.CoverPath)
-            };
-        }
-
-        private static string FirstNonBlank(params string[] values)
-        {
-            if (values == null)
-            {
-                return null;
-            }
-
-            foreach (var value in values)
-            {
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    return value;
-                }
-            }
-
-            return null;
         }
 
         private async Task<bool> RefreshAchievementCandidateAsync(
@@ -3308,21 +2959,13 @@ namespace PlayniteAchievements.Services.Refresh
                 .ToList();
         }
 
-        private static IReadOnlyList<FriendGameOwnership> FilterOwnedGamesForProviderRefresh(
-            string providerKey,
-            IReadOnlyList<FriendGameOwnership> ownedGames)
-        {
-            return ownedGames ?? Array.Empty<FriendGameOwnership>();
-        }
-
         private bool ShouldSkipProviderOnlyZeroUnlocks(
             string providerKey,
             FriendRefreshCandidate candidate,
             FriendsProviderResult<FriendGameAchievements> scrapeResult,
             FriendGameAchievements achievements)
         {
-            return FriendRefreshWorkPolicy.ShouldGuardProviderOnlyZeroUnlocks(providerKey) &&
-                   scrapeResult?.Success == true &&
+            return scrapeResult?.Success == true &&
                    candidate?.Friend != null &&
                    FriendRefreshWorkPolicy.HasProviderGameIdentity(candidate.AppId, candidate.ProviderGameKey) &&
                    !IsPlayniteLibraryFriendGame(providerKey, candidate) &&
@@ -3448,21 +3091,11 @@ namespace PlayniteAchievements.Services.Refresh
                 : (appId > 0 ? appId.ToString() : null);
         }
 
-        private static string BuildRecencyGameKey(string externalUserId, string providerGameCacheKey)
-        {
-            return BuildFriendProviderGameKey(externalUserId, providerGameCacheKey);
-        }
-
         private static string BuildFriendProviderGameKey(string externalUserId, string providerGameCacheKey)
         {
             return (externalUserId?.Trim() ?? string.Empty) + (char)31 + (providerGameCacheKey ?? string.Empty);
         }
 
-
-        private FriendRefreshOptions NormalizeOptions(FriendRefreshOptions options)
-        {
-            return options?.Clone() ?? new FriendRefreshOptions();
-        }
 
         private static bool RequiresAnyOwnershipRefresh(
             IEnumerable<FriendProviderRefreshContext> contexts,

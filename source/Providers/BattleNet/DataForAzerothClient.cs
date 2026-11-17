@@ -77,8 +77,12 @@ namespace PlayniteAchievements.Providers.BattleNet
         public const string SiteDomain = "dataforazeroth.com";
         public const string BaseUrl = "https://www.dataforazeroth.com/";
 
-        /// <summary>The address the site's own bundle loads its dynamic index from.</summary>
+        /// <summary>The retail dynamic index, also used to check whether the site gate is cleared.</summary>
         public const string IndexUrl = BaseUrl + "retail/dynamic/index.json";
+
+        /// <summary>A version's dynamic index, the address the site's own bundle loads it from.</summary>
+        internal static string BuildIndexUrl(WowVersion version) =>
+            BaseUrl + (version ?? WowVersion.Retail).DataForAzerothPath + "/dynamic/index.json";
 
         /// <summary>The cookie the gate currently checks. Used for diagnostics only - cookies are
         /// selected by domain, so a renamed or added cookie keeps working.</summary>
@@ -141,18 +145,34 @@ namespace PlayniteAchievements.Providers.BattleNet
         }
 
         /// <summary>
-        /// The smallest rarity map treated as complete. The live map holds tens of thousands of
-        /// entries, so anything far below that is a truncated or substituted payload rather than
-        /// data worth caching. Settable so tests can work with small fixtures.
+        /// Overrides the smallest rarity map treated as complete, which otherwise comes from the
+        /// version (<see cref="WowVersion.MinimumDataForAzerothRarityEntries"/>). A map far below the
+        /// version's scale is a truncated or substituted payload rather than data worth caching.
+        /// Settable so tests can work with small fixtures.
         /// </summary>
-        internal int MinimumPlausibleRarityEntries { get; set; } = 1000;
+        internal int? MinimumPlausibleRarityEntries { get; set; }
 
         /// <summary>
         /// Loads the global rarity map: resolve the rotating rarity document from the dynamic index,
         /// then fetch it. Never throws for a gated or broken site - the status says which.
         /// </summary>
-        public async Task<DataForAzerothRarityResult> LoadRarityAsync(CancellationToken ct)
+        public Task<DataForAzerothRarityResult> LoadRarityAsync(CancellationToken ct) =>
+            LoadRarityAsync(WowVersion.Retail, ct);
+
+        /// <summary>
+        /// Loads one version's rarity map. The site gate, cookies and backoff are shared across
+        /// versions, since one check covers the whole site.
+        /// </summary>
+        public async Task<DataForAzerothRarityResult> LoadRarityAsync(WowVersion version, CancellationToken ct)
         {
+            version = version ?? WowVersion.Retail;
+            if (string.IsNullOrEmpty(version.DataForAzerothPath))
+            {
+                return new DataForAzerothRarityResult(DataForAzerothStatus.Failed, null);
+            }
+
+            var indexUrl = BuildIndexUrl(version);
+            var minimumEntries = MinimumPlausibleRarityEntries ?? version.MinimumDataForAzerothRarityEntries;
             await _loadGate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -163,13 +183,13 @@ namespace PlayniteAchievements.Providers.BattleNet
                 }
 
                 var index = await RateLimiter.ExecuteWithRetryAsync(
-                    async () => await GetJsonAsync<DataForAzerothDynamicIndex>(IndexUrl, ct).ConfigureAwait(false),
+                    async () => await GetJsonAsync<DataForAzerothDynamicIndex>(indexUrl, ct).ConfigureAwait(false),
                     BattleNetApiClient.IsTransientError,
                     ct).ConfigureAwait(false);
 
                 if (string.IsNullOrWhiteSpace(index?.AchievementsRarity))
                 {
-                    _logger?.Warn($"{LogPrefix} The dynamic index did not include achievementsrarity; rarity unavailable this run.");
+                    _logger?.Warn($"{LogPrefix} The {version.DataForAzerothPath} dynamic index did not include achievementsrarity; rarity unavailable this run.");
                     return new DataForAzerothRarityResult(DataForAzerothStatus.Failed, null);
                 }
 
@@ -186,10 +206,10 @@ namespace PlayniteAchievements.Providers.BattleNet
                     return new DataForAzerothRarityResult(DataForAzerothStatus.Failed, null);
                 }
 
-                if (map.Count < MinimumPlausibleRarityEntries)
+                if (map.Count < minimumEntries)
                 {
                     _logger?.Warn(
-                        $"{LogPrefix} The rarity document held only {map.Count} entries, far below the expected size; " +
+                        $"{LogPrefix} The {version.DataForAzerothPath} rarity document held only {map.Count} entries, far below the expected size; " +
                         "treating it as incomplete rather than caching it.");
                     return new DataForAzerothRarityResult(DataForAzerothStatus.Failed, null);
                 }

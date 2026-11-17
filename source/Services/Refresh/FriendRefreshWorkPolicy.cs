@@ -28,18 +28,6 @@ namespace PlayniteAchievements.Services.Refresh
     /// </summary>
     internal static class FriendRefreshWorkPolicy
     {
-        internal static bool ShouldTrySteamGameImageFallback(string providerKey, FriendGameOwnership source)
-        {
-            return source?.AppId > 0 &&
-                   string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase);
-        }
-
-        internal static bool IsDistinctCacheableImageSource(string candidate, string original)
-        {
-            return DiskImageService.IsCacheableImageSource(candidate) &&
-                   !string.Equals(candidate?.Trim(), original?.Trim(), StringComparison.OrdinalIgnoreCase);
-        }
-
         internal static bool HasPositiveUnlockHint(FriendGameOwnership ownership)
         {
             return ownership?.AchievementUnlocksHint > 0;
@@ -221,12 +209,8 @@ namespace PlayniteAchievements.Services.Refresh
                 return false;
             }
 
-            return options.Scope == FriendRefreshScope.Custom && RequiresOwnershipMapping(providerKey);
-        }
-
-        internal static bool RequiresOwnershipMapping(string providerKey)
-        {
-            return string.Equals(providerKey, "Exophase", StringComparison.OrdinalIgnoreCase);
+            return options.Scope == FriendRefreshScope.Custom &&
+                   string.Equals(providerKey, "Exophase", StringComparison.OrdinalIgnoreCase);
         }
 
         // Providers whose friend ownership items carry no inline PlayniteGameId and match the
@@ -259,12 +243,6 @@ namespace PlayniteAchievements.Services.Refresh
             }
         }
 
-        internal static bool ShouldDiscoverUnowned(string providerKey, FriendRefreshOptions options)
-        {
-            return options?.DiscoversProviderOnlyGames() == true &&
-                   SupportsProviderOnlyFriendDetails(providerKey);
-        }
-
         // Providers whose provider-only friend games get their icon/cover from the achievements-page
         // header banner (downloaded during the definition fetch). The generic profile-thumbnail
         // download must be skipped for them: SaveProviderGameImagePaths lets a non-null value win via
@@ -272,18 +250,6 @@ namespace PlayniteAchievements.Services.Refresh
         internal static bool PrefersDefinitionHeaderBannerImages(string providerKey)
         {
             return string.Equals(providerKey, "Exophase", StringComparison.OrdinalIgnoreCase);
-        }
-
-        internal static bool ShouldGuardProviderOnlyZeroUnlocks(string providerKey)
-        {
-            return SupportsProviderOnlyFriendDetails(providerKey);
-        }
-
-        internal static bool SupportsProviderOnlyFriendDetails(string providerKey)
-        {
-            return string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(providerKey, "Exophase", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(providerKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool HasAnyUnlockedFriendAchievements(FriendGameAchievements achievements)

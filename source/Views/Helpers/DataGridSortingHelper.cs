@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows.Controls;
 using System.Windows.Data;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -14,7 +15,8 @@ namespace PlayniteAchievements.Views.Helpers
         /// Handles the DataGrid.Sorting event with uniform tri-state sort direction toggling.
         /// Sets e.Handled to true, toggles the sort direction, clears other columns' sort indicators,
         /// and returns the computed sort direction for the caller to apply. The cycle is
-        /// unsorted -> ascending -> descending -> unsorted.
+        /// unsorted -> ascending -> descending -> unsorted. A <see cref="GridSortRequestEventArgs"/>
+        /// sets its direction instead, and a reset request clears the sort.
         /// </summary>
         /// <param name="sender">The object that raised the Sorting event (typically a DataGrid or wrapper control).</param>
         /// <param name="e">The DataGridSortingEventArgs.</param>
@@ -29,6 +31,15 @@ namespace PlayniteAchievements.Views.Helpers
         {
             e.Handled = true;
 
+            var request = GridSortRequestEventArgs.Of(e);
+            var targetGrid = dataGrid ?? (sender as DataGrid);
+            if (request?.IsReset == true)
+            {
+                ClearSortIndicators(targetGrid);
+                GridSortRequestEventArgs.MarkReset(e);
+                return null;
+            }
+
             var column = e.Column;
             if (column == null || string.IsNullOrEmpty(column.SortMemberPath))
             {
@@ -36,7 +47,11 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             ListSortDirection? sortDirection = ListSortDirection.Ascending;
-            if (column.SortDirection == ListSortDirection.Ascending)
+            if (request != null)
+            {
+                sortDirection = request.Direction;
+            }
+            else if (column.SortDirection == ListSortDirection.Ascending)
             {
                 sortDirection = ListSortDirection.Descending;
             }
@@ -46,7 +61,6 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             // Clear all columns' sort direction on the DataGrid if provided
-            var targetGrid = dataGrid ?? (sender as DataGrid);
             if (clearOtherColumns)
             {
                 ClearSortIndicators(targetGrid);
@@ -55,6 +69,10 @@ namespace PlayniteAchievements.Views.Helpers
             if (sortDirection.HasValue)
             {
                 column.SortDirection = sortDirection;
+            }
+            else
+            {
+                GridSortRequestEventArgs.MarkReset(e);
             }
 
             return sortDirection;

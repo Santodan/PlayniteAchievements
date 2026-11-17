@@ -186,6 +186,13 @@ namespace PlayniteAchievements.Services.UI
         /// Each blurred card's on-screen rect in physical pixels (its template root, which excludes
         /// the glow room around it), and their union.
         /// </summary>
+        /// <summary>
+        /// A transform, in window DIPs, between where a card is laid out in the window and where it
+        /// is shown: set for a wave presented through a thumbnail, whose card stays at rest in the
+        /// window while its thumbnail moves. Null when the window shows the card itself.
+        /// </summary>
+        public Func<Matrix> Motion { get; set; }
+
         private bool MeasureCards(out System.Drawing.Rectangle union)
         {
             union = System.Drawing.Rectangle.Empty;
@@ -214,6 +221,12 @@ namespace PlayniteAchievements.Services.UI
                 // it is drawn.
                 var bounds = root.TransformToAncestor(_window)
                     .TransformBounds(new Rect(0, 0, root.ActualWidth, root.ActualHeight));
+                var motion = Motion;
+                if (motion != null)
+                {
+                    bounds = Rect.Transform(bounds, motion());
+                }
+
                 var screen = new System.Drawing.Rectangle(
                     windowPhys.X + (int)Math.Round(bounds.X * pxPerDipX),
                     windowPhys.Y + (int)Math.Round(bounds.Y * pxPerDipY),

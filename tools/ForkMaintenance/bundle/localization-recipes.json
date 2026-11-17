@@ -18,14 +18,19 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_FriendsOverview_ClearUnowned_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eDaten von nicht im Besitz befindlichen Spielen des Freundes entfernen?\r\n\r\nHiermit werden zwischengespeicherte Daten für {0:N0} Spiele gelöscht, die nur der Freund besitzt.\r\n\r\nDaten für in Besitz befindliche Spiele bleiben erhalten.\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_LinkedFile_UnlinkConfirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_LinkedFile_UnlinkConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink the file from this game?\n\nThe mapping is removed from this game. Saved mappings and recorded unlocks are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_LinkedFile_UnlinkConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink the file from this game?\r\n\r\nThe mapping is removed from this game. Saved mappings and recorded unlocks are kept.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_ManageAchievements_Custom_ResetConfirm",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Custom_ResetConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eReset all achievement customization for this game?\n\nAchievements from the platform are loaded again afterwards. This cannot be undone.\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Custom_ResetConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eReset all achievement customization for this game?\r\n\r\nAchievements from the platform are loaded again afterwards. This cannot be undone.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eManuelle Verfolgung aktivieren?\n\nDurch die manuelle Verfolgung können zwischengespeicherte Erfolgsdaten von \"{0}\" ersetzt werden.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eManuelle Verfolgung aktivieren?\r\n\r\nDurch die manuelle Verfolgung können zwischengespeicherte Erfolgsdaten von \"{0}\" ersetzt werden.\u003c/sys:String\u003e"
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable custom tracking?\n\nCustom tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable custom tracking?\r\n\r\nCustom tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm",
@@ -36,6 +41,16 @@
                             "key":  "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\n\nThis also deletes the manual link and the achievements it produced. This cannot be undone.\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\r\n\r\nThis also deletes the manual link and the achievements it produced. This cannot be undone.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearAllData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearAllData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all data for {0}?\n\nAchievements, unlocks, metadata and everything you changed are removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearAllData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all data for {0}?\r\n\r\nAchievements, unlocks, metadata and everything you changed are removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearCustomData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearCustomData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear custom data for {0}?\n\nEverything you changed is removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearCustomData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear custom data for {0}?\r\n\r\nEverything you changed is removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_ClearData_ConfirmSelected",
@@ -51,6 +66,16 @@
                             "key":  "LOCPlayAch_Menu_ClearFriend_Confirm",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearFriend_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eZwischengespeicherte Erfolgsdaten von \"{0}\" entfernen?\n\nDiese werden bei der nächsten Freundesaktualisierung erneut  geladen.\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearFriend_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eZwischengespeicherte Erfolgsdaten von \"{0}\" entfernen?\r\n\r\nDiese werden bei der nächsten Freundesaktualisierung erneut  geladen.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearMetadata_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearMetadata_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear metadata for {0}?\n\nValues from metadata sources are removed and downloaded again. Metadata links you set are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearMetadata_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear metadata for {0}?\r\n\r\nValues from metadata sources are removed and downloaded again. Metadata links you set are kept.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearPlatformData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearPlatformData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear platform data for {0}?\n\nAchievements, unlocks and metadata are removed until the next refresh downloads them again. Your changes are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearPlatformData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear platform data for {0}?\r\n\r\nAchievements, unlocks and metadata are removed until the next refresh downloads them again. Your changes are kept.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_Exclude_ConfirmSelected",
@@ -69,8 +94,8 @@
                         },
                         {
                             "key":  "LOCPlayAch_Menu_UnlinkAchievements_Confirm",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eErfolgsverknüpfungen für \"{0}\" aufheben?\n\nDadurch wird die manuelle Verknüpfung, Freischaltzeiten und zwischengespeicherte Daten des Spiels entfernt.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eErfolgsverknüpfungen für \"{0}\" aufheben?\r\n\r\nDadurch wird die manuelle Verknüpfung, Freischaltzeiten und zwischengespeicherte Daten des Spiels entfernt.\u003c/sys:String\u003e"
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\n\nThis removes the chosen achievement list and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\r\n\r\nThis removes the chosen achievement list and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Settings_CompressImages_Confirm",
@@ -91,11 +116,6 @@
                             "key":  "LOCPlayAch_Settings_Epic_AltAuthInstructions",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_Epic_AltAuthInstructions\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003e1. Nach Öffnen des Standardbrowsers bei Epic anmelden\n2. Nach Anmeldung den Wert für \"authorizationCode\" auf der Seite kopieren\n3. Wert im nachfolgenden Dialog einfügen\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_Epic_AltAuthInstructions\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003e1. Nach Öffnen des Standardbrowsers bei Epic anmelden\r\n2. Nach Anmeldung den Wert für \"authorizationCode\" auf der Seite kopieren\r\n3. Wert im nachfolgenden Dialog einfügen\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eWenn aktiviert: Manuelle Verknüpfungen verwenden die Exophase-Anmeldung und können lokalisierte Erfolgstexte abfragen. \nWenn deaktiviert: Keine Anmeldung erforderlich, jedoch können Texte in Englisch vorliegen.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eWenn aktiviert: Manuelle Verknüpfungen verwenden die Exophase-Anmeldung und können lokalisierte Erfolgstexte abfragen. \r\nWenn deaktiviert: Keine Anmeldung erforderlich, jedoch können Texte in Englisch vorliegen.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Settings_ProviderAuth",
@@ -352,6 +372,11 @@
                             "key":  "LOCPlayAch_Error_NotifySubscribers",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Error_NotifySubscribers\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eFailed to notify subscribers.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Filter_Complete",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Filter_Complete\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eComplete\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Filter_CompletenessSelectorPlaceholder",
@@ -1114,6 +1139,11 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Label_Trophies\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eTrophies:\u003c/sys:String\u003e"
                         },
                         {
+                            "key":  "LOCPlayAch_LinkedFile_UnlinkConfirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_LinkedFile_UnlinkConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink the file from this game?\n\nThe mapping is removed from this game. Saved mappings and recorded unlocks are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_LinkedFile_UnlinkConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink the file from this game?\r\n\r\nThe mapping is removed from this game. Saved mappings and recorded unlocks are kept.\u003c/sys:String\u003e"
+                        },
+                        {
                             "key":  "LOCPlayAch_LocalFolder_AmbiguousNotification",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_LocalFolder_AmbiguousNotification\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eMultiple local folders were found for \"{0}\" (Steam App ID {1}). The Local provider is currently using: {2}. Open Game Options to choose a different folder if needed. Candidates found: {3}.\u003c/sys:String\u003e"
@@ -1150,18 +1180,8 @@
                         },
                         {
                             "key":  "LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable manual tracking?\n\nManual tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable manual tracking?\r\n\r\nManual tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\n\nCached achievement data is kept.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\r\n\r\nCached achievement data is kept.\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\n\nThis also deletes the manual link and the achievements it produced. This cannot be undone.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all custom data for \"{0}\"?\r\n\r\nThis also deletes the manual link and the achievements it produced. This cannot be undone.\u003c/sys:String\u003e"
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable custom tracking?\n\nCustom tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_Manual_ReplaceProviderWarning\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable custom tracking?\r\n\r\nCustom tracking can replace this game\u0027s cached achievement data from {0}.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_ManageAchievements_Overrides_ExclusionHint",
@@ -1289,19 +1309,29 @@
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_ManageAchievements_UseExophase\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUse Exophase for this game\u003c/sys:String\u003e"
                         },
                         {
-                            "key":  "LOCPlayAch_Menu_ClearData_ConfirmSelected",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearData_ConfirmSelected\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear data for {0} selected games?\n\nThis deletes their cached achievements, icons, and any manual links and unlock times.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearData_ConfirmSelected\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear data for {0} selected games?\r\n\r\nThis deletes their cached achievements, icons, and any manual links and unlock times.\u003c/sys:String\u003e"
+                            "key":  "LOCPlayAch_Menu_ClearAllData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearAllData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all data for {0}?\n\nAchievements, unlocks, metadata and everything you changed are removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearAllData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear all data for {0}?\r\n\r\nAchievements, unlocks, metadata and everything you changed are removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e"
                         },
                         {
-                            "key":  "LOCPlayAch_Menu_ClearData_ConfirmSingle",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearData_ConfirmSingle\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear data for \"{0}\"?\n\nThis deletes its cached achievements, icons, and any manual link and unlock times.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearData_ConfirmSingle\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear data for \"{0}\"?\r\n\r\nThis deletes its cached achievements, icons, and any manual link and unlock times.\u003c/sys:String\u003e"
+                            "key":  "LOCPlayAch_Menu_ClearCustomData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearCustomData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear custom data for {0}?\n\nEverything you changed is removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearCustomData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear custom data for {0}?\r\n\r\nEverything you changed is removed, including any chosen achievement list. This cannot be undone.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_ClearFriend_Confirm",
                             "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearFriend_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear cached achievement data for {0}?\n\nIt is fetched again on the next friend refresh.\u003c/sys:String\u003e",
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearFriend_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear cached achievement data for {0}?\r\n\r\nIt is fetched again on the next friend refresh.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearMetadata_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearMetadata_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear metadata for {0}?\n\nValues from metadata sources are removed and downloaded again. Metadata links you set are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearMetadata_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear metadata for {0}?\r\n\r\nValues from metadata sources are removed and downloaded again. Metadata links you set are kept.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Menu_ClearPlatformData_Confirm",
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearPlatformData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear platform data for {0}?\n\nAchievements, unlocks and metadata are removed until the next refresh downloads them again. Your changes are kept.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_ClearPlatformData_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear platform data for {0}?\r\n\r\nAchievements, unlocks and metadata are removed until the next refresh downloads them again. Your changes are kept.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_DisableRealtimeNotification",
@@ -1312,16 +1342,6 @@
                             "key":  "LOCPlayAch_Menu_EnableRealtimeNotification",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_EnableRealtimeNotification\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eEnable real-time notifications\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_Menu_Exclude_ConfirmSelected",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_Exclude_ConfirmSelected\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExclude {0} selected games and clear their data?\n\nThis hides them from the achievements view and deletes their cached data and manual links.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_Exclude_ConfirmSelected\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExclude {0} selected games and clear their data?\r\n\r\nThis hides them from the achievements view and deletes their cached data and manual links.\u003c/sys:String\u003e"
-                        },
-                        {
-                            "key":  "LOCPlayAch_Menu_Exclude_ConfirmSingle",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_Exclude_ConfirmSingle\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExclude \"{0}\" and clear its data?\n\nThis hides the game from the achievements view and deletes its cached data and manual link.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_Exclude_ConfirmSingle\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eExclude \"{0}\" and clear its data?\r\n\r\nThis hides the game from the achievements view and deletes its cached data and manual link.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_ExophaseSlug_Empty",
@@ -1545,8 +1565,8 @@
                         },
                         {
                             "key":  "LOCPlayAch_Menu_UnlinkAchievements_Confirm",
-                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\n\nThis removes the manual link and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e",
-                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\r\n\r\nThis removes the manual link and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e"
+                            "baseXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\n\nThis removes the chosen achievement list and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e",
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Menu_UnlinkAchievements_Confirm\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eUnlink achievements for \"{0}\"?\r\n\r\nThis removes the chosen achievement list and deletes its unlock times and this game\u0027s cached data.\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Menu_ViewRefreshProgress",
@@ -1682,6 +1702,26 @@
                             "key":  "LOCPlayAch_Settings_BattleNet_WowRegion",
                             "baseXml":  null,
                             "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_BattleNet_WowRegion\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eRegion\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_Cache_ProgressClearing",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_Cache_ProgressClearing\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClearing cached achievement data...\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_CachedAchievementData_ClearDescription",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CachedAchievementData_ClearDescription\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eClear cached achievement data. The next refresh rebuilds it.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_CachedAchievementData_Description",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CachedAchievementData_Description\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eAchievement data cached from your platforms. Clearing it does not touch icon files.\u003c/sys:String\u003e"
+                        },
+                        {
+                            "key":  "LOCPlayAch_Settings_CachedAchievementData_Title",
+                            "baseXml":  null,
+                            "desiredXml":  "\u003csys:String x:Key=\"LOCPlayAch_Settings_CachedAchievementData_Title\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" xmlns:sys=\"clr-namespace:System;assembly=mscorlib\"\u003eCached Achievement Data\u003c/sys:String\u003e"
                         },
                         {
                             "key":  "LOCPlayAch_Settings_CompressImages_Confirm",

@@ -567,11 +567,9 @@ namespace PlayniteAchievements.Services.Images
 
         private string GetRootDirectory()
         {
-            // The disk image cache root is <PluginUserDataPath>\icon_cache; notification
-            // images live beside it so game-cache pruning never touches them.
-            return Path.Combine(
-                Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
-                RootFolderName);
+            // Kept in the plugin data folder, outside the icon cache, so icon-cache clears, moves
+            // and per-game pruning never touch these images.
+            return Path.Combine(_diskImageService.Location.PluginDataRoot, RootFolderName);
         }
 
         private string GetSlotDirectory(NotificationImageOwner owner)

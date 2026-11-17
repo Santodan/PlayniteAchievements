@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.Controls.FriendSummariesGridControl"
+<controls:SummaryGridControlBase x:Class="PlayniteAchievements.Views.Controls.FriendSummariesGridControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
@@ -255,4 +255,4 @@
         </DataGrid.Columns>
     </DataGrid>
     </Grid>
-</UserControl>
+</controls:SummaryGridControlBase>

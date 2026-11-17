@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Services.UI
             DateTime shownUtc,
             DateTime? soundPlayedUtc,
             DateTime? surfaceCaptureUtc,
+            DateTime? unlockCaptureUtc = null,
             string soundFilePath = null,
             double? soundFileGain = null,
             int? soundAlignmentDelayMs = null,
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.Services.UI
             ShownUtc = shownUtc;
             SoundPlayedUtc = soundPlayedUtc;
             SurfaceCaptureUtc = surfaceCaptureUtc;
+            UnlockCaptureUtc = unlockCaptureUtc;
             SoundFilePath = soundFilePath;
             SoundFileGain = soundFileGain;
             SoundAlignmentDelayMs = soundAlignmentDelayMs;
@@ -88,5 +90,14 @@ namespace PlayniteAchievements.Services.UI
         /// Null when neither delay is configured, which keeps clips unlock-anchored.
         /// </summary>
         public DateTime? SurfaceCaptureUtc { get; }
+
+        /// <summary>
+        /// For a wave that captures both at the unlock and after the capture delay: the instant
+        /// its unlock set is aimed at, which is what <see cref="SurfaceCaptureUtc"/> would be with
+        /// a capture delay of zero. The wave start when a notification delay held the wave, null
+        /// otherwise (the unlock clip then stays unlock-anchored). Always null for a wave with one
+        /// capture set.
+        /// </summary>
+        public DateTime? UnlockCaptureUtc { get; }
     }
 }

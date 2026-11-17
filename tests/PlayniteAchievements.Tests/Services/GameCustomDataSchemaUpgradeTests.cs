@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Services.Tests
                 // And the authorship is actually still there, at its post-fold home.
                 Assert.AreEqual("ach_final", after.Capstones.Single().ApiName);
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, after.AchievementOrder.ToList());
-                Assert.AreEqual("a note", after.AchievementNotes["ach_one"]);
+                Assert.AreEqual("a note", AchievementOverride.Project(after.AchievementOverrides, o => o.Note)["ach_one"]);
             }
             finally
             {
@@ -133,8 +133,56 @@ namespace PlayniteAchievements.Services.Tests
             {
                 Assert.AreEqual(0, new GameCustomDataStore(tempDir).UpgradeStoredRecordsToCurrentSchema());
                 Assert.IsFalse(
-                    File.Exists(Path.Combine(tempDir, "game_custom_data.db")),
+                    File.Exists(Path.Combine(tempDir, "achievement_cache.db")),
                     "A fresh install has nothing to upgrade and should not be given a database for it.");
+            }
+            finally
+            {
+                TryDeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void TheSeparateCustomDataFile_IsMovedIntoTheOneDatabase_ReplacingAStaleTable()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                // The separate custom data file an earlier version wrote.
+                var legacyPath = Path.Combine(tempDir, "game_custom_data.db");
+                using (var legacy = new SQLiteDatabase(legacyPath))
+                {
+                    legacy.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
+                    legacy.ExecuteNonQuery(
+                        "INSERT INTO GameCustomData VALUES (?, ?, '');",
+                        gameId.ToString("D"),
+                        Serialize(new GameCustomDataFile
+                        {
+                            PlayniteGameId = gameId,
+                            SchemaVersion = CurrentSchemaVersion,
+                            AchievementOrder = new List<string> { "kept" }
+                        }));
+                }
+
+                // A table of the same name a still older version left in the main database.
+                var mainPath = Path.Combine(tempDir, "achievement_cache.db");
+                using (var main = new SQLiteDatabase(mainPath))
+                {
+                    main.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL, ExcludedFromRefreshes INTEGER NOT NULL DEFAULT 0);");
+                    main.ExecuteNonQuery("INSERT INTO GameCustomData (PlayniteGameId, PayloadJson, UpdatedUtc) VALUES (?, '{}', '');", Guid.NewGuid().ToString("D"));
+                }
+
+                var store = new GameCustomDataStore(tempDir);
+                Assert.AreEqual(mainPath, store.DatabasePath);
+                CollectionAssert.AreEqual(new[] { "kept" }, store.LoadOrDefault(gameId).AchievementOrder.ToArray());
+                Assert.AreEqual(1, store.LoadAll().Count, "the stale rows are replaced, not merged");
+                Assert.IsFalse(File.Exists(legacyPath), "the separate file moves into the backups");
+                Assert.AreEqual(1, Directory.GetDirectories(tempDir, "customdata-file-*", SearchOption.AllDirectories).Length);
+
+                // The next start finds nothing to move.
+                Assert.AreEqual(1, new GameCustomDataStore(tempDir).LoadAll().Count);
             }
             finally
             {
@@ -174,7 +222,7 @@ namespace PlayniteAchievements.Services.Tests
                 CollectionAssert.AreEqual(
                     new[] { "ach_one", "ach_two" },
                     reloaded.AchievementOrder.ToArray());
-                Assert.AreEqual("a note", reloaded.AchievementNotes["ach_one"]);
+                Assert.AreEqual("a note", AchievementOverride.Project(reloaded.AchievementOverrides, o => o.Note)["ach_one"]);
             }
             finally
             {

@@ -1,5 +1,39 @@
 # Fork maintenance bundle
 
+## v4.3.0 integration - 2026-11-17
+
+Integrated upstream v4.3.0 (`804cf50d641d7b68dd5c23dbbe6b104114deb8a0`)
+and set the fork extension and helper versions to `4.3.0.1`. Resolved 19 shared
+source/test conflicts while preserving the fork's Local menus, custom polling,
+notification capture, settings, database hooks, and theme adapters. Adapted the
+fork tagging call to upstream's SyncAll API. Native theme modernization coexists
+with mixed-theme, Solaris Local-list, PS5 progress/rank, and existing-backup
+repairs. Existing fork Overview filters now use upstream's stable progress keys,
+with upstream control-bar state taking precedence after it has been saved.
+Removed newline-only localization overrides so upstream's changed wording and
+removed keys survive. Retained English labels still referenced by fork controls.
+
+The required Release rebuild passed with zero errors (four warning emissions,
+two distinct compiler warnings). The full regression suite passed: 6,078 passed,
+eight skipped, no failures. After the final theme/filter adjustments, 272 focused
+tests passed and the Release rebuild passed again. All three PS5 recovery,
+progress-bridge, and achievement-state scripts passed. Updated test assumptions
+for the shared Points label, four-component fork helper version, and invariant
+numeric rarity fixtures; the latter had generated invalid JSON on decimal-comma
+systems. No unrelated Battle.net production behavior was changed.
+
+Refreshed the bundle explicitly against v4.3.0. Clean preflight and actual replay
+passed in an isolated checkout of that exact commit: 230 overlays, three
+localization recipes, all component hashes, and replay protected-file checks.
+All 391 captured paths matched byte for byte; all 39 localization dictionaries
+matched by entry. Working README, add-on identity and installer manifest hashes
+remain unchanged; only the authorized extension version changed among protected
+files. The pending upstream merge parent is retained, with no staged changes,
+commit or push. Live Playnite checks for settings, account switching, unlock
+notifications/captures, custom data and theme behavior remain pending. No package
+was installed and historical validation snapshots were not changed.
+
+
 ## PS5 detail header correction when reopening hidden panels - 2026-11-15
 
 Preserve the progress adapter's `IsVisibleChanged` subscription alongside its

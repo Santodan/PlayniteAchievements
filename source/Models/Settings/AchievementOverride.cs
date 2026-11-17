@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Models.Settings
@@ -86,6 +87,76 @@ namespace PlayniteAchievements.Models.Settings
         /// provider fact, so either value can be an override, and only an explicit one is stored.
         /// </summary>
         public bool? Hidden { get; set; }
+
+        /// <summary>
+        /// The custom layer this record supplies: its text, points, trophy type, category, tags and
+        /// hidden flag, with each Clear flag read as a cleared field. A value wins over its Clear
+        /// flag, except for tags, where ClearTags removes every assigned tag. Icons and unlock time
+        /// are applied apart from the layers.
+        /// </summary>
+        public PlayniteAchievements.Models.Achievements.AchievementLayerValues ToLayer()
+        {
+            var cleared = PlayniteAchievements.Models.Achievements.AchievementField.None;
+            if (ClearDescription) cleared |= PlayniteAchievements.Models.Achievements.AchievementField.Description;
+            if (ClearTrophyType) cleared |= PlayniteAchievements.Models.Achievements.AchievementField.TrophyType;
+            if (ClearTags || (Tags != null && string.IsNullOrWhiteSpace(Tags)))
+            {
+                cleared |= PlayniteAchievements.Models.Achievements.AchievementField.Tags;
+            }
+
+            return new PlayniteAchievements.Models.Achievements.AchievementLayerValues(
+                displayName: DisplayName,
+                description: Description,
+                points: Points,
+                trophyType: TrophyType,
+                category: Category,
+                tags: ClearTags ? null : Tags,
+                hidden: Hidden,
+                cleared: cleared);
+        }
+
+        /// <summary>
+        /// Applies this record's unlock time to an unlocked row, the one override field kept outside
+        /// the layers because a live unlock changes a loaded row's time. Unlock status itself stays
+        /// provider-owned, and a manually tracked game records its own times, so neither is touched.
+        /// A stored timestamp wins over the cleared state.
+        /// </summary>
+        public void ApplyUnlockTimeTo(PlayniteAchievements.Models.Achievements.IAchievementOverrideTarget target, bool hasManualLink)
+        {
+            if (target == null || !target.Unlocked || hasManualLink)
+            {
+                return;
+            }
+
+            if (UnlockTimeUtc.HasValue)
+            {
+                target.UnlockTimeUtc = UnlockTimeUtc;
+            }
+            else if (ClearUnlockTime)
+            {
+                target.UnlockTimeUtc = null;
+            }
+        }
+
+        /// <summary>
+        /// One field of each record, keyed by ApiName, leaving out records with no value for it.
+        /// </summary>
+        public static Dictionary<string, string> Project(
+            IReadOnlyDictionary<string, AchievementOverride> overrides,
+            Func<AchievementOverride, string> field)
+        {
+            var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in overrides ?? new Dictionary<string, AchievementOverride>())
+            {
+                var value = pair.Value == null ? null : field(pair.Value);
+                if (!string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(value))
+                {
+                    projected[pair.Key.Trim()] = value.Trim();
+                }
+            }
+
+            return projected;
+        }
 
         /// <summary>
         /// True when no member carries a value, so the record can be pruned rather than stored

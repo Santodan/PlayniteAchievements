@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using PlayniteAchievements.Services.Images;
 
 namespace PlayniteAchievements.Providers.Minecraft
 {
@@ -23,18 +24,22 @@ namespace PlayniteAchievements.Providers.Minecraft
         // Items whose texture is a variant, and blocks whose plain name has no texture.
         private static readonly string[] TextureSuffixes = { string.Empty, "_00", "_standby", "_side", "_front", "_top" };
 
-        private readonly string _cacheFolder;
+        private readonly string _pluginUserDataPath;
+        private string _resolvedForFolder;
         private readonly ILogger _logger;
         private readonly Dictionary<IReadOnlyList<MinecraftResourceSource>, Dictionary<string, string>> _resolved =
             new Dictionary<IReadOnlyList<MinecraftResourceSource>, Dictionary<string, string>>();
 
         public MinecraftIconExtractor(string pluginUserDataPath, ILogger logger)
         {
-            _cacheFolder = string.IsNullOrWhiteSpace(pluginUserDataPath)
-                ? null
-                : Path.Combine(pluginUserDataPath, "icon_cache", "minecraft");
+            _pluginUserDataPath = pluginUserDataPath;
             _logger = logger;
         }
+
+        // Read on every lookup, so a move of the icon cache takes effect at once.
+        private string CacheFolder => string.IsNullOrWhiteSpace(_pluginUserDataPath)
+            ? null
+            : Path.Combine(IconCacheLocation.CurrentRootOrDefault(_pluginUserDataPath), "minecraft");
 
         /// <summary>
         /// The cached icon file for a namespaced item id, or null when no source has its texture.
@@ -42,9 +47,17 @@ namespace PlayniteAchievements.Providers.Minecraft
         /// </summary>
         public string GetIconPath(string itemId, float? customModelData, IReadOnlyList<MinecraftResourceSource> sourcesByPriority)
         {
-            if (_cacheFolder == null || string.IsNullOrWhiteSpace(itemId) || sourcesByPriority == null)
+            var cacheFolder = CacheFolder;
+            if (cacheFolder == null || string.IsNullOrWhiteSpace(itemId) || sourcesByPriority == null)
             {
                 return null;
+            }
+
+            // Paths resolved before the icon cache moved name the old folder.
+            if (!string.Equals(_resolvedForFolder, cacheFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                _resolved.Clear();
+                _resolvedForFolder = cacheFolder;
             }
 
             // Lookups are per source list: each instance has its own game jar and mods.
@@ -96,7 +109,7 @@ namespace PlayniteAchievements.Providers.Minecraft
 
                     // Cached by texture, so two items drawn with the same texture share one file.
                     var relative = entry.Substring("assets/".Length).Replace('/', Path.DirectorySeparatorChar);
-                    var target = Path.Combine(_cacheFolder, relative);
+                    var target = Path.Combine(CacheFolder, relative);
                     if (File.Exists(target) && File.GetLastWriteTimeUtc(target) >= source.StampUtc)
                     {
                         return target;
@@ -127,7 +140,7 @@ namespace PlayniteAchievements.Providers.Minecraft
             }
 
             var relative = model.ModelId.Replace(':', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar) + ".png";
-            var target = Path.Combine(_cacheFolder, "rendered", relative);
+            var target = Path.Combine(CacheFolder, "rendered", relative);
             var newestSource = sources.Count == 0 ? DateTime.MinValue : sources.Max(source => source.StampUtc);
             if (File.Exists(target) && File.GetLastWriteTimeUtc(target) >= newestSource)
             {

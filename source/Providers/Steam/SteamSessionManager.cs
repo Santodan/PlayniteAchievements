@@ -28,6 +28,9 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly ILogger _logger;
 
         private const string CommunityEditInfoUrl = "https://steamcommunity.com/my/edit/info";
+        // Plain text on the community origin: the auth probe opens it, then reads the edit-info
+        // page with an in-page fetch so the page itself is never rendered.
+        private const string CommunityAnchorUrl = "https://steamcommunity.com/robots.txt";
 
         // Temporary state for interactive login dialog coordination
         private SteamWebAuthSession _authResult;
@@ -292,10 +295,19 @@ namespace PlayniteAchievements.Providers.Steam
                 ct.ThrowIfCancellationRequested();
                 await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
-                    await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
-                    finalUrl = view.GetCurrentAddress();
-                    await Task.Delay(2000, ct).ConfigureAwait(false);
-                    html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    try
+                    {
+                        await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
+                        finalUrl = view.GetCurrentAddress();
+                        await Task.Delay(2000, ct).ConfigureAwait(false);
+                        html = await view.GetPageSourceAsync().ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        // The view is shared for the refresh; the page's scripts stop here.
+                        await view.LeavePageAsync().ConfigureAwait(false);
+                    }
+
                     return true;
                 }, ct).ConfigureAwait(false);
             }
@@ -331,6 +343,14 @@ namespace PlayniteAchievements.Providers.Steam
                 ct.ThrowIfCancellationRequested();
                 return await _offscreenViews.WithNavigableViewAsync(async view =>
                 {
+                    // A complete session from the fetch is final; anything else is confirmed by
+                    // loading the page, as the probe always did.
+                    var fetched = await TryResolveWebAuthSessionByFetchAsync(view, ct).ConfigureAwait(false);
+                    if (fetched?.IsComplete == true)
+                    {
+                        return fetched;
+                    }
+
                     _logger?.Debug($"[SteamAuth] Navigating to {CommunityEditInfoUrl} to resolve web auth session...");
                     try
                     {
@@ -381,7 +401,38 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
-        private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view)
+        /// <summary>
+        /// The web auth session from the edit-info page read with an in-page fetch from
+        /// <see cref="CommunityAnchorUrl"/>; null when the fetch failed or was sent to sign-in. The
+        /// values the parser reads (g_steamID, the webapi tokens) are server-rendered, so the
+        /// fetched source carries them without the page's scripts running.
+        /// </summary>
+        private async Task<SteamWebAuthSession> TryResolveWebAuthSessionByFetchAsync(IWebView view, CancellationToken ct)
+        {
+            try
+            {
+                await view.NavigateAndWaitAsync(CommunityAnchorUrl, timeoutMs: 15000).ConfigureAwait(false);
+                var response = await InPageFetch.FetchAsync(view, CommunityEditInfoUrl, ct, 15000).ConfigureAwait(false);
+                if (response == null || !response.IsSuccess || !IsCommunityEditInfoUrl(response.Url))
+                {
+                    return null;
+                }
+
+                return await ResolveWebAuthSessionFromViewAsync(view, response.Body).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[SteamAuth] Edit-info fetch failed; loading the page instead.");
+                return null;
+            }
+        }
+
+        /// <param name="source">The page source when already read; otherwise the view's page is read.</param>
+        private async Task<SteamWebAuthSession> ResolveWebAuthSessionFromViewAsync(IWebView view, string source = null)
         {
             if (view == null)
             {
@@ -391,15 +442,17 @@ namespace PlayniteAchievements.Providers.Steam
             var cookies = view.GetCookies();
             var hasSessionCookies = HasSteamSessionCookies(cookies);
             var cookieSteamId = TryExtractSteamId64FromCookies(cookies);
-            string source = null;
 
-            try
+            if (source == null)
             {
-                source = await view.GetPageSourceAsync().ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
+                try
+                {
+                    source = await view.GetPageSourceAsync().ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
+                }
             }
 
             var session = SteamWebAuthParser.Parse(source, cookieSteamId, hasSessionCookies);

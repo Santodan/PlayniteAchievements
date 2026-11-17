@@ -7,7 +7,8 @@ namespace PlayniteAchievements.Views.Converters
     /// <summary>
     /// A control bar item's width: its own (values[0]), or, while the bar fills its width
     /// (values[1] true), the bar's width (values[2]) less the item's left margin, so a lone item
-    /// spans a settings row.
+    /// spans a settings row. Inside the Filters panel every filter takes the panel's column width
+    /// (values[3], when set), so the rows line up.
     /// </summary>
     public sealed class ControlBarItemWidthConverter : IMultiValueConverter
     {
@@ -16,6 +17,11 @@ namespace PlayniteAchievements.Views.Converters
 
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
+            if (values?.Length > 3 && values[3] is double panelWidth && !double.IsNaN(panelWidth) && panelWidth > 0)
+            {
+                return panelWidth;
+            }
+
             var own = values?.Length > 0 && values[0] is double width ? width : double.NaN;
             if (values?.Length > 2 && values[1] is bool fills && fills &&
                 values[2] is double barWidth && barWidth > ItemMargin)

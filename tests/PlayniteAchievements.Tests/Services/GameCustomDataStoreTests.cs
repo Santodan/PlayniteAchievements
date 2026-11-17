@@ -422,9 +422,9 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
-                Assert.AreEqual(2, loaded.AchievementNotes.Count);
-                Assert.AreEqual("second note\nline", loaded.AchievementNotes["ach_one"]);
-                Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, loaded.AchievementNotes["ach_long"].Length);
+                Assert.AreEqual(2, AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note).Count);
+                Assert.AreEqual("second note\nline", AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note)["ach_one"]);
+                Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, AchievementOverride.Project(loaded.AchievementOverrides, o => o.Note)["ach_long"].Length);
                 Assert.AreEqual("second note\nline", GameCustomDataLookup.GetAchievementNote(gameId, "ACH_ONE", store: store));
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
@@ -728,11 +728,11 @@ namespace PlayniteAchievements.Services.Tests
                 var imported = importResult.ImportedData;
                 Assert.IsNotNull(imported);
                 Assert.IsFalse(importResult.HasIgnoredPackageImages);
-                Assert.IsTrue(imported.AchievementUnlockedIconOverrides[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".png")));
-                Assert.IsTrue(imported.AchievementLockedIconOverrides[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".locked.png")));
-                Assert.AreEqual("package note", imported.AchievementNotes[apiName]);
-                Assert.IsTrue(File.Exists(imported.AchievementUnlockedIconOverrides[apiName]));
-                Assert.IsTrue(File.Exists(imported.AchievementLockedIconOverrides[apiName]));
+                Assert.IsTrue(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".png")));
+                Assert.IsTrue(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".locked.png")));
+                Assert.AreEqual("package note", AchievementOverride.Project(imported.AchievementOverrides, o => o.Note)[apiName]);
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)[apiName]));
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)[apiName]));
                 AssertProviderOverride(imported, "Steam", "480");
             }
             finally
@@ -800,9 +800,9 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(imported.ExcludedFromSummaries == true);
                 Assert.IsTrue(imported.CapstonesMaterialized);
                 Assert.AreEqual("imported-capstone", imported.Capstones.Single().ApiName);
-                Assert.AreEqual("https://example.com/new-unlocked.png", imported.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/new-locked.png", imported.AchievementLockedIconOverrides["ach_one"]);
-                Assert.AreEqual("imported note", imported.AchievementNotes["ach_one"]);
+                Assert.AreEqual("https://example.com/new-unlocked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]);
+                Assert.AreEqual("https://example.com/new-locked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_one"]);
+                Assert.AreEqual("imported note", AchievementOverride.Project(imported.AchievementOverrides, o => o.Note)["ach_one"]);
                 AssertProviderOverride(imported, "Steam", "480");
                 Assert.IsNull(imported.UseSeparateLockedIconsOverride);
             }
@@ -881,11 +881,11 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsNotNull(imported);
                 Assert.IsTrue(importResult.HasIgnoredPackageImages);
                 Assert.AreEqual(1, importResult.IgnoredPackageImageCount);
-                Assert.AreEqual(1, imported.AchievementUnlockedIconOverrides.Count);
-                Assert.AreEqual(1, imported.AchievementLockedIconOverrides.Count);
-                Assert.IsTrue(File.Exists(imported.AchievementUnlockedIconOverrides["ach_one"]));
-                Assert.IsTrue(File.Exists(imported.AchievementLockedIconOverrides["ach_two"]));
-                Assert.IsFalse(imported.AchievementUnlockedIconOverrides.ContainsKey("missing_api"));
+                Assert.AreEqual(1, AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath).Count);
+                Assert.AreEqual(1, AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath).Count);
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]));
+                Assert.IsTrue(File.Exists(AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_two"]));
+                Assert.IsFalse(AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath).ContainsKey("missing_api"));
             }
             finally
             {
@@ -1090,7 +1090,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(legacyOnly.UseSeparateLockedIconsOverride == true);
                 Assert.AreEqual("legacy-only-capstone", legacyOnly.Capstones.Single().ApiName);
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, legacyOnly.AchievementOrder);
-                Assert.AreEqual("Main", legacyOnly.AchievementCategoryOverrides["ach_one"]);
+                Assert.AreEqual("Main", legacyOnly.AchievementOverrides["ach_one"].Category);
                 Assert.IsNull(legacyOnly.AchievementOverrides["ach_one"].LegacyCategoryType);
                 Assert.AreEqual("Singleplayer", legacyOnly.AchievementOverrides["ach_one"].Tags);
                 CollectionAssert.AreEqual(new[] { "ach_one" }, legacyOnly.FilteredAchievementApiNames);
@@ -1153,13 +1153,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 store.AttachRuntimeSettings(settings);
 
-                Assert.AreEqual(0, settings.Persisted.ExcludedGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.ExcludedFromSummariesGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.SeparateLockedIconEnabledGameIds.Count);
-                Assert.AreEqual(0, settings.Persisted.ManualCapstones.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementOrderOverrides.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementCategoryOverrides.Count);
-                Assert.AreEqual(0, settings.Persisted.AchievementCategoryTypeOverrides.Count);
+                Assert.IsNotNull(settings.Persisted);
             }
             finally
             {
@@ -1198,54 +1192,10 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.IsNotNull(imported);
                 Assert.AreEqual(gameId, imported.PlayniteGameId);
-                Assert.AreEqual("https://example.com/unlocked.png", imported.AchievementUnlockedIconOverrides["ach_one"]);
-                Assert.AreEqual("https://example.com/locked.png", imported.AchievementLockedIconOverrides["ach_one"]);
+                Assert.AreEqual("https://example.com/unlocked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.UnlockedIconPath)["ach_one"]);
+                Assert.AreEqual("https://example.com/locked.png", AchievementOverride.Project(imported.AchievementOverrides, o => o.LockedIconPath)["ach_one"]);
                 Assert.IsFalse(imported.ExcludedFromRefreshes.HasValue);
                 Assert.IsFalse(imported.ExcludedFromSummaries.HasValue);
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
-        public void GetExcludedSummaryGameIds_UsesDatabaseAsSourceOfTruthButKeepsFallbackForUnmigratedGames()
-        {
-            var tempDir = CreateTempDirectory();
-            var fallbackOverriddenGameId = Guid.NewGuid();
-            var fallbackOnlyGameId = Guid.NewGuid();
-            var databaseOnlyGameId = Guid.NewGuid();
-
-            try
-            {
-                var store = new GameCustomDataStore(tempDir);
-                var fallbackSettings = new PersistedSettings
-                {
-                    ExcludedFromSummariesGameIds = new HashSet<Guid>
-                    {
-                        fallbackOverriddenGameId,
-                        fallbackOnlyGameId
-                    }
-                };
-
-                store.Save(fallbackOverriddenGameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = fallbackOverriddenGameId,
-                    UseSeparateLockedIconsOverride = true
-                });
-                store.Save(databaseOnlyGameId, new GameCustomDataFile
-                {
-                    PlayniteGameId = databaseOnlyGameId,
-                    ExcludedFromSummaries = true
-                });
-
-                var excluded = GameCustomDataLookup.GetExcludedSummaryGameIds(fallbackSettings, store);
-
-                Assert.IsFalse(excluded.Contains(fallbackOverriddenGameId));
-                Assert.IsTrue(excluded.Contains(fallbackOnlyGameId));
-                Assert.IsTrue(excluded.Contains(databaseOnlyGameId));
-                Assert.AreEqual(2, excluded.Count);
             }
             finally
             {
@@ -1287,52 +1237,6 @@ namespace PlayniteAchievements.Services.Tests
             {
                 DeleteDirectory(tempDir);
             }
-        }
-
-        [TestMethod]
-        public void PersistedSettingsSerialization_OmitsRuntimeProjectedCustomDataFields()
-        {
-            var gameId = Guid.NewGuid();
-            var persisted = new PersistedSettings
-            {
-                GlobalLanguage = "english",
-                ExcludedGameIds = new HashSet<Guid> { gameId },
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId },
-                SeparateLockedIconEnabledGameIds = new HashSet<Guid> { gameId },
-                ManualCapstones = new Dictionary<Guid, string>
-                {
-                    [gameId] = "capstone"
-                },
-                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
-                {
-                    [gameId] = new List<string> { "ach_one" }
-                },
-                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = "Category"
-                    }
-                },
-                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
-                {
-                    [gameId] = new Dictionary<string, string>
-                    {
-                        ["ach_one"] = "DLC"
-                    }
-                }
-            };
-
-            var json = JsonConvert.SerializeObject(persisted);
-
-            Assert.IsTrue(json.Contains(nameof(PersistedSettings.GlobalLanguage)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ExcludedGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ExcludedFromSummariesGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.SeparateLockedIconEnabledGameIds)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.ManualCapstones)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementOrderOverrides)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementCategoryOverrides)));
-            Assert.IsFalse(json.Contains(nameof(PersistedSettings.AchievementCategoryTypeOverrides)));
         }
 
         [TestMethod]

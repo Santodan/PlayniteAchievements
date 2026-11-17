@@ -45,7 +45,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "RefreshSelectedGameHeaderCounts();",
                 "The adopted row carries updated counts, so the header still has to be refreshed.");
             Assert.IsFalse(
-                shortCircuit.Contains("_selectedGameControlBar.ResetFilters()"),
+                shortCircuit.Contains("_selectedGameControlBar.Reset"),
                 "Resetting filters on a rebuild is what silently cleared the user's per-game " +
                 "filters roughly twenty times a minute while they were editing.");
             Assert.IsFalse(

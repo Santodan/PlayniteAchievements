@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,21 +8,24 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Views.Settings.Controls;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.Views.Settings.Metadata
 {
     /// <summary>
-    /// Metadata settings: Auto capstone section. Hosts the auto capstone generation toggle and the text
-    /// templates auto capstones are titled and described with, plus the Apply action that brings
-    /// existing capstones in line.
+    /// Metadata settings: Auto capstone section. Hosts the auto capstone generation toggle, the
+    /// text templates auto capstones are titled and described with, and the global tags each
+    /// kind of auto capstone carries. Saving applies the templates and tags to existing capstones.
     /// </summary>
-    public partial class AutoCapstoneSettingsSection : UserControl
+    public partial class AutoCapstoneSettingsSection : UserControl, IDisposable
     {
         private readonly PlayniteAchievementsSettings _settings;
         private readonly PlayniteAchievementsPlugin _plugin;
+        private readonly PersistedSettingsSubscription _persistedSubscription;
 
         public AutoCapstoneSettingsSection()
         {
@@ -33,6 +37,11 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
+            _persistedSubscription = new PersistedSettingsSubscription(
+                _settings,
+                OnPersistedPropertyChanged,
+                UpdateTagTexts);
+            UpdateTagTexts();
 
             // Grouped under Game and Category headers, so the rows reuse the generic column labels.
             var gameRows = new[]
@@ -54,6 +63,82 @@ namespace PlayniteAchievements.Views.Settings.Metadata
         private const string DescriptionLabelKey = "LOCPlayAch_Common_Description";
 
         public IReadOnlyList<AutoCapstoneTemplateRow> TemplateRows { get; }
+
+        public static readonly DependencyProperty GameTagsTextProperty =
+            DependencyProperty.Register(nameof(GameTagsText), typeof(string),
+                typeof(AutoCapstoneSettingsSection), new PropertyMetadata(string.Empty));
+
+        /// <summary>Summary text for the whole-game capstone tag picker.</summary>
+        public string GameTagsText
+        {
+            get => (string)GetValue(GameTagsTextProperty);
+            set => SetValue(GameTagsTextProperty, value);
+        }
+
+        public static readonly DependencyProperty CategoryTagsTextProperty =
+            DependencyProperty.Register(nameof(CategoryTagsText), typeof(string),
+                typeof(AutoCapstoneSettingsSection), new PropertyMetadata(string.Empty));
+
+        /// <summary>Summary text for the category capstone tag picker.</summary>
+        public string CategoryTagsText
+        {
+            get => (string)GetValue(CategoryTagsTextProperty);
+            set => SetValue(CategoryTagsTextProperty, value);
+        }
+
+        private void GameTagsButton_Click(object sender, RoutedEventArgs e) => OpenTagMenu(sender as Button, wholeGame: true);
+
+        private void CategoryTagsButton_Click(object sender, RoutedEventArgs e) => OpenTagMenu(sender as Button, wholeGame: false);
+
+        // The session's own tag list, so a tag added on the Tags page before saving is offered.
+        private void OpenTagMenu(Button button, bool wholeGame)
+        {
+            AutoCapstoneTagSelectorMenu.Open(
+                button,
+                _settings?.Persisted?.ResolveAchievementTags(),
+                () => wholeGame ? _settings?.Persisted?.AutoCapstoneGameTags : _settings?.Persisted?.AutoCapstoneCategoryTags,
+                value =>
+                {
+                    var persisted = _settings?.Persisted;
+                    if (persisted == null)
+                    {
+                        return;
+                    }
+
+                    if (wholeGame)
+                    {
+                        persisted.AutoCapstoneGameTags = value;
+                    }
+                    else
+                    {
+                        persisted.AutoCapstoneCategoryTags = value;
+                    }
+                },
+                UpdateTagTexts);
+        }
+
+        private void OnPersistedPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e?.PropertyName == nameof(PersistedSettings.AutoCapstoneGameTags) ||
+                e?.PropertyName == nameof(PersistedSettings.AutoCapstoneCategoryTags) ||
+                e?.PropertyName == nameof(PersistedSettings.AchievementTags))
+            {
+                UpdateTagTexts();
+            }
+        }
+
+        private void UpdateTagTexts()
+        {
+            var persisted = _settings?.Persisted;
+            var definitions = persisted?.ResolveAchievementTags();
+            GameTagsText = AutoCapstoneTagSelectorMenu.Format(definitions, persisted?.AutoCapstoneGameTags);
+            CategoryTagsText = AutoCapstoneTagSelectorMenu.Format(definitions, persisted?.AutoCapstoneCategoryTags);
+        }
+
+        public void Dispose()
+        {
+            _persistedSubscription?.Dispose();
+        }
 
         private void TemplateTextBox_LostFocus(object sender, RoutedEventArgs e)
         {

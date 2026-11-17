@@ -78,6 +78,8 @@ namespace PlayniteAchievements
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementMarkerToggle _achievementMarkerToggle;
         private readonly AchievementDataService _achievementDataService;
+        private readonly Services.LinkedFiles.LinkedFileSchemaStore _linkedFileSchemaStore;
+        private Services.LinkedFiles.LinkedFileSyncService _linkedFileSyncService;
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCacheManager;
@@ -136,6 +138,7 @@ namespace PlayniteAchievements
         private readonly ToastNotificationService _toastNotifications;
         private readonly Services.Recording.UnlockRecordingService _unlockRecordings;
         private readonly Services.Captures.CaptureLibraryService _captureLibraryService;
+        private Services.Captures.CaptureIndexSync _captureIndexSync;
 
         /// <summary>
         /// Started process ids of currently running games (from OnGameStarted), used to identify
@@ -186,8 +189,9 @@ namespace PlayniteAchievements
 
         /// <summary>
         /// Games added to the library but not yet refreshed. Held until OnLibraryUpdated so the
-        /// refresh (and its tag-sync write) lands after Playnite's post-import metadata download;
-        /// a Tags field already holding a managed tag makes that download skip the field.
+        /// refresh (and its tag and feature sync write) lands after Playnite's post-import metadata
+        /// download; a Tags or Features field already holding a managed item makes that download
+        /// skip the field.
         /// </summary>
         private readonly object _pendingNewGamesGate = new object();
         private readonly HashSet<Guid> _pendingNewGameIds = new HashSet<Guid>();
@@ -220,6 +224,8 @@ namespace PlayniteAchievements
         public AutoCapstoneAuthoring AutoCapstoneAuthoring => _autoCapstoneAuthoring;
         public AchievementMarkerToggle AchievementMarkerToggle => _achievementMarkerToggle;
         public AchievementDataService AchievementDataService => _achievementDataService;
+        public Services.LinkedFiles.LinkedFileSchemaStore LinkedFileSchemaStore => _linkedFileSchemaStore;
+        public Services.LinkedFiles.LinkedFileSyncService LinkedFileSyncService => _linkedFileSyncService;
         public MemoryImageService ImageService => _imageService;
         public DiskImageService DiskImageService => _diskImageService;
         public RayTrackService RayTrackService => _rayTrackService;
@@ -1025,6 +1031,8 @@ namespace PlayniteAchievements
                     _settingsViewModel = new PlayniteAchievementsSettingsViewModel(this);
                 }
 
+                InitializeIconCacheLocation(pluginUserDataPath);
+
                 AchievementRarityResolver.RoundDisplayPercentages =
                     _settingsViewModel?.Settings?.Persisted?.RoundRarityPercentages ?? false;
 
@@ -1047,6 +1055,7 @@ namespace PlayniteAchievements
                 // User-defined custom providers resolve through static hooks so the registry and
                 // the icon converter stay free of the store type (both are linked into the tests).
                 _customProviderStore = new Services.CustomProviders.CustomProviderStore(pluginUserDataPath, _logger);
+                _linkedFileSchemaStore = new Services.LinkedFiles.LinkedFileSchemaStore(pluginUserDataPath, _logger);
                 ProviderRegistry.CustomProviderResolver = ResolveCustomProviderVisuals;
                 Views.Converters.ProviderIconConverter.CustomGeometryResolver = id => _customProviderStore?.GetGeometry(id);
                 Views.Converters.ProviderIconConverter.CustomGeometryVersionResolver = id => _customProviderStore?.GetVersion(id) ?? 0;
@@ -1115,7 +1124,7 @@ namespace PlayniteAchievements
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
                 using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                 {
-                    _diskImageService = new DiskImageService(_logger, pluginUserDataPath);
+                    _diskImageService = new DiskImageService(_logger, pluginUserDataPath, location: _iconCacheLocation);
                     CategoryDefaultImageResolver.DiskImageServiceAccessor = () => _diskImageService;
                     _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     GameSummaryArtResolver.ManagedCustomIconServiceAccessor = () => _managedCustomIconService;
@@ -1159,6 +1168,7 @@ namespace PlayniteAchievements
                                 : System.Threading.Tasks.Task.FromResult<IList<AchievementDetail>>(null),
                         usedIcons => _refreshService.IconService.DeleteUnusedMetadataListFolders(usedIcons));
                     _cacheManager = _refreshService.Cache;
+                    InitializeIconCacheRelocation();
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
                     _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
@@ -1245,6 +1255,18 @@ namespace PlayniteAchievements
                         hasActiveSnapshotPublisher: () => _startPageDataCoordinator?.HasActivePublisher == true);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
 
+                    // Linked files are read after each refresh's provider work, for the games it covers.
+                    _linkedFileSyncService = new Services.LinkedFiles.LinkedFileSyncService(
+                        _gameCustomDataStore,
+                        _achievementOverridesService,
+                        _achievementDataService,
+                        _cacheManager,
+                        _manualSourceRegistry,
+                        _settingsViewModel.Settings,
+                        _logger,
+                        _managedCustomIconService);
+                    _refreshService.LinkedFilePass = (scope, cancel) => _linkedFileSyncService.RunPassAsync(scope, cancel);
+
                     // Reconcile the cache DB's AchievementFilters mirror against custom data
                     // before any summary read (theme wiring, projection warm). Synchronous and
                     // cheap when unchanged; also covers legacy custom-data migrations that
@@ -1273,8 +1295,10 @@ namespace PlayniteAchievements
                         _gameCustomDataStore,
                         _achievementOverridesService,
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                        wholeGame => AutoCapstoneTagRule.Resolve(_settingsViewModel?.Settings?.Persisted, wholeGame),
                         NotifyAchievementUnlocked,
                         _logger);
+                    SettingsSaved += OnSettingsSavedForAutoCapstoneTags;
                     // One author for the editor's button and automatic generation alike.
                     _autoCapstoneAuthoring = new AutoCapstoneAuthoring(
                         _gameCustomDataStore,
@@ -1282,6 +1306,7 @@ namespace PlayniteAchievements
                         gameId => _achievementDataService?.GetGameAchievementData(gameId),
                         () => _managedCustomIconService,
                         () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
+                        wholeGame => AutoCapstoneTagRule.Resolve(_settingsViewModel?.Settings?.Persisted, wholeGame),
                         () => _metadataLinkStore,
                         _logger);
                     _autoCapstoneTextService = new AutoCapstoneTextService(
@@ -1403,6 +1428,14 @@ namespace PlayniteAchievements
                     _autoCapstoneMaintainer.DefersAnnouncements = gameId => _inGameMonitor?.IsMonitoring(gameId) == true;
                     _inGameMonitor.MaintainCapstones = gameId => _autoCapstoneMaintainer?.Maintain(gameId);
                     _inGameMonitor.TakeCapstoneAnnouncements = _autoCapstoneMaintainer.TakePendingAnnouncements;
+                    _inGameMonitor.LinkedFileSource = new Services.LinkedFiles.LinkedFileProgressSource(
+                        _gameCustomDataStore,
+                        gameId => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
+                        _logger);
+                    _inGameMonitor.ApplyUserOwnedObservations = (gameId, observations) =>
+                        _achievementOverridesService?.ApplyUserOwnedObservations(gameId, observations) ?? (IReadOnlyList<string>)Array.Empty<string>();
+                    _inGameMonitor.LoadGameDataWithCustomAchievements = gameId =>
+                        _achievementDataService?.GetRawGameAchievementDataWithCustomAchievements(gameId);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -1568,6 +1601,11 @@ namespace PlayniteAchievements
 
         public override IEnumerable<SidebarItem> GetSidebarItems()
         {
+            if (_settingsViewModel?.Settings?.Persisted?.ShowSidebarButton != true)
+            {
+                yield break;
+            }
+
             yield return new SidebarItem
             {
                 Title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -1669,6 +1707,17 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>
+        /// Holds library glow animations still while any game runs; Playnite sits behind the game,
+        /// and the animations would keep it redrawing at the display's refresh rate.
+        /// </summary>
+        private void UpdateGlowGateForGames()
+        {
+            GlowAnimationGate.Post(
+                PlayniteApi?.MainView?.UIDispatcher ?? System.Windows.Application.Current?.Dispatcher,
+                () => GlowAnimationGate.SetGameRunning(AnyGameRunning()));
+        }
+
         public override void OnGameStarted(OnGameStartedEventArgs args)
         {
             try
@@ -1676,6 +1725,7 @@ namespace PlayniteAchievements
                 TrackStartedGame(args?.Game, args?.StartedProcessId);
                 _windowTracker?.OnGameStarted(args?.Game, args?.StartedProcessId);
                 _libraryProjectionService?.SetGameSessionActive(true);
+                UpdateGlowGateForGames();
                 _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
                 _inGameMonitor?.Start(args?.Game);
                 _unlockRecordings?.OnGameStarted(args?.Game);
@@ -1708,6 +1758,7 @@ namespace PlayniteAchievements
                 }
 
                 _libraryProjectionService?.SetGameSessionActive(AnyGameRunning());
+                UpdateGlowGateForGames();
                 if (args?.Game != null)
                 {
                     _toastNotifications?.ClearPending(args.Game.Id);
@@ -1788,6 +1839,21 @@ namespace PlayniteAchievements
 
             if (!AnyProviderCapable(game))
             {
+                // A game tracked only by you still gets its game-close refresh when it has a
+                // linked file: with no provider work the refresh reads the file and runs what
+                // follows every refresh, the same as for any other game.
+                if (_gameCustomDataStore?.LoadOrDefault(game.Id)?.LinkedFile != null)
+                {
+                    _logger.Info($"Game stopped: {game.Name}. Reading its linked file.");
+                    await _refreshCoordinator.ExecuteAsync(new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = game.Id
+                    }).ConfigureAwait(false);
+                    _libraryProjectionService?.Warm();
+                    return;
+                }
+
                 _logger.Info($"Game stopped: {game.Name}; no enabled provider is capable, skipping refresh.");
                 // No refresh delta will arrive to rebuild the projection after the session's
                 // suppressed warms; schedule it explicitly (no-op while other games still run).
@@ -1872,8 +1938,14 @@ namespace PlayniteAchievements
                 // repeatedly not inside one.
                 Common.UiStallWatchdog.Start(_logger);
 
+                // Names the dispatcher operations behind a startup stall, whichever plugin or
+                // Playnite component queued them; no-op unless tracing is armed.
+                Common.DispatcherOperationProbe.Arm(_logger, "startup", TimeSpan.FromSeconds(30));
+
                 LogStartupBanner();
 
+                // Before anything writes an icon: a move the last session left unfinished ends now.
+                ResumeIconCacheMoveOnStartup();
                 // Keep the fork release check off the startup UI thread (including proxy discovery).
                 _ = Task.Run(() => _forkReleaseMonitor?.CheckForForkReleaseAsync() ?? Task.CompletedTask);
 
@@ -1901,6 +1973,12 @@ namespace PlayniteAchievements
                 }
 
                 StartLibraryMigration();
+
+                // Hold looping glow animations still while Playnite is minimized or in the tray.
+                GlowAnimationGate.Post(
+                    PlayniteApi?.MainView?.UIDispatcher ?? System.Windows.Application.Current?.Dispatcher,
+                    () => GlowAnimationGate.TrackMainWindow(System.Windows.Application.Current?.MainWindow));
+
                 // The friends overview snapshot is intentionally NOT warmed here: it is built
                 // on demand by the first consumer (friends view or a theme friend binding) and
                 // released when the last consumer detaches, so it only occupies memory while
@@ -1949,11 +2027,13 @@ namespace PlayniteAchievements
 
                 _achievementHotkeyService?.Start();
 
-                // Re-localize un-customized default tag names to the current Playnite
-                // language; needs the database, which is only open from this point on.
+                // Delete the items of retired kinds and re-localize un-customized default tag
+                // names to the current Playnite language; both need the database, which is only
+                // open from this point on.
                 try
                 {
-                    if (_tagSyncService?.RelocalizeDefaultTagNames() == true)
+                    var removedRetired = _tagSyncService?.RemoveRetiredKinds() == true;
+                    if (_tagSyncService?.RelocalizeDefaultTagNames() == true || removedRetired)
                     {
                         PersistSettingsForUi();
                     }
@@ -1981,8 +2061,10 @@ namespace PlayniteAchievements
                 }
 
                 // Bring auto capstones still on default text in line with a language or template
-                // change made since they were last applied.
+                // change made since they were last applied, and their tags with a configured-tag
+                // change a save did not finish applying.
                 StartAutoCapstoneTextApply();
+                StartAutoCapstoneTagsApply();
 
                 _notificationImageStore?.PruneOrphans(
                     _settingsViewModel?.Settings?.Persisted,
@@ -2058,6 +2140,8 @@ namespace PlayniteAchievements
         }
 
         private void OnSettingsSavedForAutoCapstoneText(object sender, EventArgs e) => StartAutoCapstoneTextApply();
+
+        private void OnSettingsSavedForAutoCapstoneTags(object sender, EventArgs e) => StartAutoCapstoneTagsApply();
 
         private void OnSettingsSavedForAchievementTags(object sender, EventArgs e)
         {
@@ -2173,6 +2257,38 @@ namespace PlayniteAchievements
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed to apply auto capstone text templates.");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Quietly re-maintains every auto capstone in the background when the tags the settings
+        /// give capstones differ from the ones last applied: after each settings save, which is
+        /// how a change to the lists reaches existing capstones, and at startup for a save whose
+        /// sweep did not finish. The tags of a capstone's own achievements are re-read with them.
+        /// </summary>
+        private void StartAutoCapstoneTagsApply()
+        {
+            var maintainer = _autoCapstoneMaintainer;
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (maintainer == null || !AutoCapstoneTagRule.NeedsApply(persisted))
+            {
+                return;
+            }
+
+            var signature = AutoCapstoneTagRule.Signature(persisted);
+            var dispatcher = Application.Current?.Dispatcher;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    maintainer.MaintainAll();
+                    dispatcher?.BeginInvoke(new Action(() => _settingsViewModel?.UpdatePersistedIncludingEditSnapshot(
+                        settings => settings.AutoCapstoneAppliedTags = signature)));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to apply auto capstone tags.");
                 }
             });
         }
@@ -2448,8 +2564,9 @@ namespace PlayniteAchievements
                    propertyName == nameof(PersistedSettings.ShowHiddenPoints) ||
                    propertyName == nameof(PersistedSettings.ShowLockedTrophy) ||
                    propertyName == nameof(PersistedSettings.ShowLockedPoints) ||
+                   propertyName == nameof(PersistedSettings.ShowHiddenRarity) ||
+                   propertyName == nameof(PersistedSettings.ShowLockedRarity) ||
                    propertyName == nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable) ||
-                   propertyName == nameof(PersistedSettings.SeparateLockedIconEnabledGameIds) ||
                    propertyName == nameof(PersistedSettings.LockedFallbackIconPath) ||
                    propertyName == nameof(PersistedSettings.HiddenFallbackIconPath);
         }
@@ -2558,6 +2675,7 @@ namespace PlayniteAchievements
             SettingsSaved -= OnSettingsSavedForUnlockSounds;
             SettingsSaved -= OnSettingsSavedForAutoCapstoneText;
             SettingsSaved -= OnSettingsSavedForAchievementTags;
+            SettingsSaved -= OnSettingsSavedForIconCacheJournal;
             try { _unlockSounds?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose unlockSounds"); }
             try { _captureLibraryService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose captureLibraryService"); }
             try { _windowTracker?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowTracker"); }
@@ -2693,6 +2811,37 @@ namespace PlayniteAchievements
 
             _refreshService.GameRefreshed += OnAchievementGameRefreshed;
             _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
+
+            // The database's capture index follows the capture folders, each game's refreshes and
+            // its custom data (a renamed achievement matches other files), so the resolved views
+            // carry capture paths.
+            if (_captureLibraryService != null && _cacheManager is Services.Cache.CacheManager captureCache)
+            {
+                _captureIndexSync = new Services.Captures.CaptureIndexSync(
+                    _captureLibraryService,
+                    captureCache,
+                    gameId => _achievementDataService?.GetGameAchievementData(gameId),
+                    _logger);
+                Action<Guid> indexGame = _captureIndexSync.QueueGame;
+                _refreshService.GameRefreshed += indexGame;
+                EventHandler<GameCustomDataChangedEventArgs> indexCustomData = (sender, e) => _captureIndexSync.QueueGame(e?.PlayniteGameId ?? Guid.Empty);
+                if (_gameCustomDataStore != null)
+                {
+                    _gameCustomDataStore.CustomDataChanged += indexCustomData;
+                }
+
+                _eventSubscriptions.Add(() =>
+                {
+                    _refreshService.GameRefreshed -= indexGame;
+                    if (_gameCustomDataStore != null)
+                    {
+                        _gameCustomDataStore.CustomDataChanged -= indexCustomData;
+                    }
+
+                    _captureIndexSync.Dispose();
+                });
+                _ = _captureIndexSync.SyncAllAsync();
+            }
             if (_customProviderStore != null)
             {
                 _customProviderStore.Changed += CustomProviderStore_Changed;
@@ -2708,8 +2857,10 @@ namespace PlayniteAchievements
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChangedForTags;
                     _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
                     _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForCaptures;
+                    _gameCustomDataStore.CustomDataWritten += GameCustomDataStore_CustomDataWrittenForLinkedFile;
                     _eventSubscriptions.Add(() =>
                     {
+                        _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForLinkedFile;
                         _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWrittenForCaptures;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
                         _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChangedForTags;
@@ -2793,6 +2944,28 @@ namespace PlayniteAchievements
                     StringComparison.OrdinalIgnoreCase))
             {
                 _captureLibraryService?.RefreshGameDirectories();
+            }
+        }
+
+        private void GameCustomDataStore_CustomDataWrittenForLinkedFile(object sender, GameCustomDataWrittenEventArgs e)
+        {
+            // A running game picks up a linked, moved or remapped file at once. Read status is
+            // written after every read, so only the path and the mapping count as a change.
+            if (e == null || _inGameMonitor?.IsMonitoring(e.PlayniteGameId) != true)
+            {
+                return;
+            }
+
+            var before = e.Previous?.LinkedFile;
+            var after = e.Persisted?.LinkedFile;
+            var samePath = string.Equals(before?.FilePath, after?.FilePath, StringComparison.OrdinalIgnoreCase);
+            var sameMapping = string.Equals(
+                Newtonsoft.Json.JsonConvert.SerializeObject(before?.Schema),
+                Newtonsoft.Json.JsonConvert.SerializeObject(after?.Schema),
+                StringComparison.Ordinal);
+            if (!samePath || !sameMapping)
+            {
+                _inGameMonitor.Reconfigure();
             }
         }
 
@@ -2907,8 +3080,7 @@ namespace PlayniteAchievements
 
         private void HandleCustomDataChangedCore(Guid gameId, bool affectsSummaryData)
         {
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            if (_tagSyncService?.AnySyncEnabled == true)
             {
                 // Any custom-data change at all, not just a summary-affecting one: completion
                 // only moves with the summary data, but the Customized tag reports whether the
@@ -3071,8 +3243,9 @@ namespace PlayniteAchievements
 
         private void OnAchievementGameRefreshed(Guid gameId)
         {
-            var persisted = _settingsViewModel?.Settings?.Persisted;
-            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            // The in-game monitor's periodic refresh is a poll, not a change: it reports what it
+            // finds through ProgressApplied, which lands here again once the refresh is over.
+            if (_tagSyncService?.AnySyncEnabled == true && _inGameMonitor?.IsFallbackRefreshing(gameId) != true)
             {
                 // Queued off-thread into the batched tag-sync drainer so the Playnite DB
                 // write (and its ItemUpdated fan-out) does not run inside the provider's

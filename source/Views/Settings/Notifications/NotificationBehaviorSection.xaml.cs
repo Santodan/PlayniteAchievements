@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
     /// <remarks>
     /// In game mode (Manage Achievements) the section edits one game's
     /// <see cref="GameNotificationBehaviorOverride"/> instead, and hides the rows that stay
-    /// app-wide (duration, concurrency, render mode, vibration) and position, which a game sets
+    /// app-wide (duration, concurrency, vibration) and position, which a game sets
     /// through its own style.
     /// </remarks>
     public partial class NotificationBehaviorSection : UserControl, IDisposable
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
             GameCustomizeCheckBox.Visibility = Visibility.Visible;
             foreach (var globalOnly in new FrameworkElement[]
             {
-                SkipCompletionGlobalRow, DurationGlobalRow, MaxConcurrentGlobalRow, PositionGlobalRow, RenderModeGlobalRow, VibrationGlobalRow, VibrationGlobalPanel
+                SkipCompletionGlobalRow, DurationGlobalRow, MaxConcurrentGlobalRow, PositionGlobalRow, VibrationGlobalRow, VibrationGlobalPanel
             })
             {
                 globalOnly.Visibility = Visibility.Collapsed;

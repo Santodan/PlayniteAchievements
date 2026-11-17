@@ -12,19 +12,25 @@ namespace PlayniteAchievements.Services.UI
     /// on-screen notification: the card it composites is rendered from a real toast window
     /// whether or not that window is ever revealed, so the saved file always shows one.
     /// </para>
+    /// <para>
+    /// A retrigger bypasses the rarity thresholds: the user asked for that capture, so only the
+    /// feature flags decide which variants it produces.
+    /// </para>
     /// </summary>
     internal static class UnlockScreenshotVariantPolicy
     {
         /// <summary>
         /// The variants this unlock should produce. Null settings resolve to
-        /// <see cref="ScreenshotVariants.None"/>.
+        /// <see cref="ScreenshotVariants.None"/>. <paramref name="bypassRarity"/> skips every
+        /// variant's rarity threshold while leaving its feature flag in force.
         /// </summary>
         public static ScreenshotVariants Resolve(
             RarityTier rarity,
             bool isCompletion,
             string providerKey,
             PersistedSettings persisted,
-            GameCustomDataFile gameData = null)
+            GameCustomDataFile gameData = null,
+            bool bypassRarity = false)
         {
             if (persisted == null)
             {
@@ -35,29 +41,29 @@ namespace PlayniteAchievements.Services.UI
             var captures = effective.Captures;
             var variants = ScreenshotVariants.None;
 
-            if (effective.ScreenshotClean && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.ScreenshotClean && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockScreenshotCleanRarities,
-                    captures.UnlockScreenshotCleanAlwaysCaptureCompletion))
+                    captures.UnlockScreenshotCleanAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.Clean;
             }
 
-            if (effective.ScreenshotWithToast && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.ScreenshotWithToast && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockScreenshotWithToastRarities,
-                    captures.UnlockScreenshotWithToastAlwaysCaptureCompletion))
+                    captures.UnlockScreenshotWithToastAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.WithToast;
             }
 
-            if (effective.ScreenshotFramed && UnlockCaptureRarityFilter.ShouldCapture(
+            if (effective.ScreenshotFramed && (bypassRarity || UnlockCaptureRarityFilter.ShouldCapture(
                     rarity,
                     isCompletion,
                     captures.UnlockScreenshotFramedRarities,
-                    captures.UnlockScreenshotFramedAlwaysCaptureCompletion))
+                    captures.UnlockScreenshotFramedAlwaysCaptureCompletion)))
             {
                 variants |= ScreenshotVariants.Framed;
             }

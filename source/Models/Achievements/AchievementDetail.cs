@@ -160,6 +160,27 @@ namespace PlayniteAchievements.Models.Achievements
         public string ProviderCategoryKind { get; set; }
 
         /// <summary>
+        /// Runtime-only: the platform's own values for this achievement, which the cache stores
+        /// in its definition row. Null on a row no store or refresh has layered yet.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues PlatformLayer { get; set; }
+
+        /// <summary>
+        /// Runtime-only: the values metadata sources supplied, stored apart from the platform's.
+        /// Null or empty when no source supplied any.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues MetadataLayer { get; set; }
+
+        /// <summary>
+        /// Runtime-only: the values the user's override supplies, set on each hydration. Never
+        /// stored in the cache; custom data is its own store.
+        /// </summary>
+        [IgnoreDataMember]
+        public AchievementLayerValues CustomLayer { get; set; }
+
+        /// <summary>
         /// Runtime-only category art path for theme/display bindings: custom override when
         /// set, otherwise the provider default. Null when neither exists; consumers choose
         /// the game icon/cover fallback.
@@ -183,6 +204,14 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public int DefaultOrderIndex { get; set; } = int.MaxValue;
+
+        /// <summary>
+        /// This achievement's position in the list of the metadata source chosen for order, or null
+        /// when no source ordered it. Written by the metadata overlay and stored with the
+        /// achievement's definition, whose reads sort by it ahead of the platform's own order.
+        /// </summary>
+        [IgnoreDataMember]
+        public int? MetadataOrderIndex { get; set; }
 
         /// <summary>
         /// Runtime-only full path to this achievement's saved clean unlock screenshot (no toast,

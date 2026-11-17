@@ -87,7 +87,7 @@ namespace PlayniteAchievements.Services.Database
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
                         ua.ProgressDenom AS ProgressDenom
-                      FROM AchievementDefinitions ad
+                      FROM PlatformDefinitions ad
                       LEFT JOIN UserAchievements ua
                         ON ua.AchievementDefinitionId = ad.Id
                        AND ua.UserGameProgressId = ?
@@ -200,7 +200,7 @@ namespace PlayniteAchievements.Services.Database
                             StringComparison.Ordinal))
                         {
                             db.ExecuteNonQuery(
-                                @"UPDATE AchievementDefinitions
+                                @"UPDATE PlatformDefinitions
                                   SET Tags = ?, UpdatedUtc = ?
                                   WHERE Id = ?;",
                                 DbValue(updatedTags),

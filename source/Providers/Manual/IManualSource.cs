@@ -35,6 +35,11 @@ namespace PlayniteAchievements.Providers.Manual
         /// Optional platform display string (e.g., "Steam, PS4" for Exophase results).
         /// </summary>
         public string Platforms { get; set; }
+
+        /// <summary>
+        /// Optional release region display string (e.g., "Europe" for an Exophase regional page).
+        /// </summary>
+        public string Region { get; set; }
     }
 
     /// <summary>

@@ -22,14 +22,48 @@ namespace PlayniteAchievements.Views.Helpers
         bool WantsRayFrames { get; }
 
         void OnRayFrame();
+
+        /// <summary>
+        /// Keeps receiving frames while <see cref="GlowAnimationGate"/> is suspended (content shown
+        /// over a running game, such as the unlock notification card).
+        /// </summary>
+        bool IgnoresGlowGate { get; }
+
+        /// <summary>
+        /// Served at every composed frame while a held rate is set, where the other targets are
+        /// served at that rate. For a target whose frame costs little.
+        /// </summary>
+        bool TakesEveryHeldFrame { get; }
     }
 
     /// <summary>
-    /// The single composition tick behind every ray burst on screen.
+    /// A target whose frame has a part that can be worked out on any thread. The driver begins
+    /// every such target's frame on the UI thread, fills them all at once across threads, and
+    /// ends each on the UI thread again: a wave of several notification cards then waits for the
+    /// longest of its bursts' fills, where one after another it waited for their sum
+    /// (tools/capture-harness README.md, "Waves of several cards").
+    /// </summary>
+    internal interface IRayBatchTarget
+    {
+        /// <summary>UI thread. False when this frame has nothing to fill; OnRayFrame is then called.</summary>
+        bool BeginRayFrame();
+
+        /// <summary>Any thread, at the same time as other targets'. Touches only the target's own buffers.</summary>
+        void FillRayFrame();
+
+        /// <summary>UI thread, after every begun target has been filled.</summary>
+        void EndRayFrame();
+    }
+
+    /// <summary>
+    /// The single composition tick behind every animated rarity glow on screen: the ray bursts and
+    /// the phase-locked glow pulse (<see cref="RarityGlowPulse"/>).
     ///
-    /// One hook for the whole application, attached when the first burst subscribes and detached the
+    /// One hook for the whole application, attached when the first target subscribes and detached the
     /// moment the last one leaves, so an application with the effect switched off — or simply scrolled
-    /// away from any qualifying row — is not paying for a per-frame callback at all.
+    /// away from any qualifying row — is not paying for a per-frame callback at all. It also detaches
+    /// while <see cref="GlowAnimationGate"/> is suspended and no exempt target remains, since a
+    /// subscribed Rendering handler alone keeps WPF composing at the display's refresh rate.
     ///
     /// The tick only invalidates. Phase comes from <see cref="GlowAnimationClock"/>, never accumulated
     /// across frames, which is what keeps separate bursts in step, lets a recycled row resume mid-cycle,
@@ -66,9 +100,24 @@ namespace PlayniteAchievements.Views.Helpers
         private static readonly List<IRayAnimationTarget> Subscribers = new List<IRayAnimationTarget>();
         private static readonly List<IRayAnimationTarget> Dispatch = new List<IRayAnimationTarget>();
 
+        // The targets whose frames were begun this tick and are filled together.
+        private static readonly List<IRayBatchTarget> Batch = new List<IRayBatchTarget>();
+        private static readonly Action<int> FillBatched = index => Batch[index].FillRayFrame();
+
         private static Dispatcher _owner;
         private static TimeSpan _lastRenderingTime = TimeSpan.MinValue;
         private static double _nextDueMs;
+        private static bool _hooked;
+
+        /// <summary>
+        /// Advances once per served tick. Targets that cache per-frame work key it on this value.
+        /// </summary>
+        internal static int FrameNumber { get; private set; }
+
+        static RayAnimationDriver()
+        {
+            GlowAnimationGate.Changed += (s, e) => UpdateHook();
+        }
 
         /// <summary>
         /// Targets currently on the render tick. This list holds strong references, and a WPF
@@ -94,15 +143,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             Subscribers.Add(target);
-            if (Subscribers.Count != 1)
-            {
-                return;
-            }
-
             _owner = dispatcher;
-            _lastRenderingTime = TimeSpan.MinValue;
-            _nextDueMs = GlowAnimationClock.ElapsedMilliseconds;
-            CompositionTarget.Rendering += OnRendering;
+            UpdateHook();
         }
 
         /// <summary>Raises the tick rate to the given track sampling rate for a recording's span.</summary>
@@ -116,6 +158,25 @@ namespace PlayniteAchievements.Views.Helpers
             _samplingFps = 0;
         }
 
+        /// <summary>
+        /// Raises the tick rate while a notification rests with its rays in a layer of their own,
+        /// and serves the targets that take every held frame at every composed frame.
+        /// Measured there (tools/capture-harness README.md, "The plugin's presenter and hold
+        /// layers" and "The rays' cost"): 60 against 30 took the same processor time and the same
+        /// game frame rate. A recording's sampling rate takes its place while one is set.
+        /// </summary>
+        public static void SetHeldFps(double fps)
+        {
+            _heldFps = fps > 0 && !double.IsNaN(fps) && !double.IsInfinity(fps) ? fps : 0;
+        }
+
+        public static void ClearHeldFps()
+        {
+            _heldFps = 0;
+        }
+
+        private static double _heldFps;
+
         public static void Unsubscribe(IRayAnimationTarget target)
         {
             if (target == null || !Subscribers.Remove(target))
@@ -123,13 +184,56 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            if (Subscribers.Count > 0)
+            if (Subscribers.Count == 0)
+            {
+                _owner = null;
+            }
+
+            UpdateHook();
+        }
+
+        private static bool WantsHook()
+        {
+            if (Subscribers.Count == 0)
+            {
+                return false;
+            }
+
+            if (!GlowAnimationGate.IsSuspended)
+            {
+                return true;
+            }
+
+            for (var i = 0; i < Subscribers.Count; i++)
+            {
+                if (Subscribers[i].IgnoresGlowGate)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void UpdateHook()
+        {
+            var wants = WantsHook();
+            if (wants == _hooked)
             {
                 return;
             }
 
-            CompositionTarget.Rendering -= OnRendering;
-            _owner = null;
+            _hooked = wants;
+            if (wants)
+            {
+                _lastRenderingTime = TimeSpan.MinValue;
+                _nextDueMs = GlowAnimationClock.ElapsedMilliseconds;
+                CompositionTarget.Rendering += OnRendering;
+            }
+            else
+            {
+                CompositionTarget.Rendering -= OnRendering;
+            }
         }
 
         /// <summary>Seconds for one full lap of the loop, from the shared glow speed setting.</summary>
@@ -170,23 +274,30 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var nowMs = GlowAnimationClock.ElapsedMilliseconds;
-            if (nowMs < _nextDueMs - DueToleranceMs)
+            var due = nowMs >= _nextDueMs - DueToleranceMs;
+            var everyFrame = _samplingFps <= 0 && _heldFps > 0;
+            if (!due && !everyFrame)
             {
                 return;
             }
 
-            // Step the due time forward in whole intervals rather than from now, so a stall resumes on
-            // cadence instead of bunching the frames it missed.
-            var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps);
-            do
+            if (due)
             {
-                _nextDueMs += intervalMs;
-            }
-            while (_nextDueMs <= nowMs);
+                // Step the due time forward in whole intervals rather than from now, so a stall
+                // resumes on cadence instead of bunching the frames it missed.
+                var intervalMs = 1000.0 / Math.Max(DefaultFramesPerSecond, _samplingFps > 0 ? _samplingFps : _heldFps);
+                do
+                {
+                    _nextDueMs += intervalMs;
+                }
+                while (_nextDueMs <= nowMs);
 
-            // Bursts that share a shape build their arrow geometry once for the whole frame; this
-            // releases the previous frame's copies before they start.
-            Controls.RarityRayBurst.BeginFrame();
+                // Bursts that share a shape build their arrow geometry once for the whole frame,
+                // keyed on this number.
+                FrameNumber = unchecked(FrameNumber + 1);
+            }
+
+            var suspended = GlowAnimationGate.IsSuspended;
 
             // A target may unsubscribe itself while being served, so walk a copy.
             Dispatch.Clear();
@@ -199,15 +310,49 @@ namespace PlayniteAchievements.Views.Helpers
                 for (var i = 0; i < Dispatch.Count; i++)
                 {
                     var target = Dispatch[i];
+                    if (suspended && !target.IgnoresGlowGate)
+                    {
+                        // Held still, not dropped: it resumes when the gate opens.
+                        continue;
+                    }
+
+                    if (!due && !target.TakesEveryHeldFrame)
+                    {
+                        continue;
+                    }
+
                     if (target.WantsRayFrames)
                     {
-                        target.OnRayFrame();
+                        if (target is IRayBatchTarget batched && batched.BeginRayFrame())
+                        {
+                            Batch.Add(batched);
+                        }
+                        else
+                        {
+                            target.OnRayFrame();
+                        }
                     }
                     else
                     {
                         Unsubscribe(target);
                     }
                 }
+
+                if (Batch.Count == 1)
+                {
+                    Batch[0].FillRayFrame();
+                }
+                else if (Batch.Count > 1)
+                {
+                    System.Threading.Tasks.Parallel.For(0, Batch.Count, FillBatched);
+                }
+
+                for (var i = 0; i < Batch.Count; i++)
+                {
+                    Batch[i].EndRayFrame();
+                }
+
+                Batch.Clear();
             }
 
             Dispatch.Clear();

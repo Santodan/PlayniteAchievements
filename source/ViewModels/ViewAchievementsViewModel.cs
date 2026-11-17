@@ -100,6 +100,9 @@ namespace PlayniteAchievements.ViewModels
             _summaryBuilder = new GameSummaryItemBuilder(_playniteApi, _logger);
             FriendCompare = new FriendCompareController(friendCache, settings, logger);
             _controlBar.AttachFriendCompare(FriendCompare);
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistCompareSelection(
+                FriendCompare.PersistSelection,
+                GridOptionKeys.Achievement.SingleGame);
             FriendCompare.SetGame(gameId, null);
 
             Timeline = new TimelineViewModel();
@@ -108,6 +111,9 @@ namespace PlayniteAchievements.ViewModels
             LocalDayRollover.Subscribe(OnLocalDayChanged);
             OnPropertyChanged(nameof(Timeline));
 
+            Services.Showcase.ShowcaseControlBarStateStore.Instance.PersistUnlockToggles(
+                _controlBar,
+                GridOptionKeys.Achievement.SingleGame);
             _controlBar.FilterChanged += (_, __) => ApplySearchFilter();
 
             // Initialize commands
@@ -226,6 +232,16 @@ namespace PlayniteAchievements.ViewModels
             // LoadGameData applies the combined state once.
             _currentSortPath = snapshot.SortPath;
             _currentSortDirection = snapshot.SortDirection;
+
+            // The unlock-state toggles come from the saved settings, which another game's
+            // window may have changed since this snapshot was taken.
+            if (snapshot.Filters != null)
+            {
+                snapshot.Filters.ShowUnlocked = _controlBar.ShowUnlocked;
+                snapshot.Filters.ShowLocked = _controlBar.ShowLocked;
+                snapshot.Filters.ShowHidden = _controlBar.ShowHidden;
+            }
+
             _controlBar.RestoreState(snapshot.Filters, raiseChanged: false);
         }
 

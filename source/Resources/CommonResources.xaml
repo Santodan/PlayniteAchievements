@@ -34,6 +34,7 @@
     <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter"/>
     <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter"/>
     <converters:ImageFitDimensionConverter x:Key="ImageFitDimension"/>
+    <converters:BrushOpacityConverter x:Key="BrushOpacity"/>
     <converters:GameMetadataTextConverter x:Key="GameMetadataText"/>
     <converters:LocalDateTimeConverter x:Key="LocalDateTimeConverter"/>
     <converters:DateDisplayModeConverter x:Key="DateDisplayMode"/>
@@ -52,6 +53,35 @@
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+    </Style>
+
+    <!-- Section header titles ("Achievements", "Game Summaries", a selected game's name). Every
+         header text shares the body font so switching between header states does not shift it. -->
+    <Style x:Key="PlayAch.TextBlock.SectionHeaderStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <!-- Game name at the root of a category breadcrumb. Set Tag to True while a category is
+         drilled into, which makes the name a back link. -->
+    <Style x:Key="PlayAch.TextBlock.BreadcrumbRootStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource PlayAch.TextBlock.SectionHeaderStyle}">
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="TextDecorations" Value="Underline"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Subdued header text: breadcrumb separators and the count beside a header title. -->
+    <Style x:Key="PlayAch.TextBlock.HeaderSubtleStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Subtle}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <!-- Rarity bar: a global unlock percent (Value, 0-100) drawn across the bottom of an
@@ -1812,6 +1842,7 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -1819,6 +1850,7 @@
                                Text="{TemplateBinding Content}"
                                Foreground="{TemplateBinding Foreground}"
                                FontSize="{TemplateBinding FontSize}"
+                               FontFamily="{TemplateBinding FontFamily}"
                                FontWeight="{TemplateBinding FontWeight}"
                                TextDecorations="Underline"
                                TextTrimming="CharacterEllipsis"
@@ -1838,7 +1870,6 @@
     <DataTemplate x:Key="PlayAch.CategoryPathSegmentTemplate" DataType="{x:Type items:CategoryPathSegment}">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <Button Content="{Binding Content}"
-                    Command="{Binding NavigateCommand}"
                     IsEnabled="{Binding IsNavigable}"
                     ToolTip="{Binding ToolTip}">
                 <Button.Style>
@@ -1859,10 +1890,7 @@
                 </Button.Style>
             </Button>
             <TextBlock Text=" &gt; "
-                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
-                       VerticalAlignment="Center"
+                       Style="{StaticResource PlayAch.TextBlock.HeaderSubtleStyle}"
                        Visibility="{Binding ShowSeparator, Converter={StaticResource BoolToVis}}"/>
         </StackPanel>
     </DataTemplate>

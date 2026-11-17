@@ -1,57 +1,165 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>
-    /// Inputs of the shared completion badge style (CompletionBadgeImageStyle), which picks
-    /// between the completed badge and the platinum trophy.
+    /// Inputs of the shared completion badge style (CompletionBadgeImageStyle), which shows the
+    /// completed badge, the platinum trophy or the mythic badge.
     /// </summary>
     /// <remarks>
-    /// Both are attached properties so the style can test them with property trigger conditions
-    /// rather than ancestor bindings, which lets any host carry the badge: the game summaries grid
-    /// and the showcase mosaic each set <see cref="PreferTrophyBadgesProperty"/> once on their root,
-    /// and it inherits down to every badge in their trees.
+    /// The badge follows the row's leading progress detail, the same priority the detail strip
+    /// uses (<see cref="GameSummaryItem.CompletionBadgeFor"/>). Hosts set
+    /// <see cref="DetailOrderProperty"/> once on their root and it inherits down to every badge;
+    /// an element with <see cref="TracksKindProperty"/> set keeps <see cref="KindProperty"/>
+    /// current from its row and that order, so styles switch on it with property triggers.
     /// </remarks>
     public static class CompletionBadge
     {
-        /// <summary>
-        /// Whether the host shows trophy badges in place of rarity badges, so a row whose capstones
-        /// are its platinums shows the platinum in the completion spot. Inherits.
-        /// </summary>
-        public static readonly DependencyProperty PreferTrophyBadgesProperty =
+        /// <summary>The enabled progress detail styles in priority order. Inherits.</summary>
+        public static readonly DependencyProperty DetailOrderProperty =
             DependencyProperty.RegisterAttached(
-                "PreferTrophyBadges",
+                "DetailOrder",
+                typeof(IReadOnlyList<ProgressDetailStyle>),
+                typeof(CompletionBadge),
+                new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.Inherits, OnInputChanged));
+
+        public static void SetDetailOrder(DependencyObject element, IReadOnlyList<ProgressDetailStyle> value) =>
+            element?.SetValue(DetailOrderProperty, value);
+
+        public static IReadOnlyList<ProgressDetailStyle> GetDetailOrder(DependencyObject element) =>
+            element?.GetValue(DetailOrderProperty) as IReadOnlyList<ProgressDetailStyle>;
+
+        /// <summary>What the badge shows for its row, kept current on elements that track it.</summary>
+        public static readonly DependencyProperty KindProperty =
+            DependencyProperty.RegisterAttached(
+                "Kind",
+                typeof(CompletionBadgeKind),
+                typeof(CompletionBadge),
+                new FrameworkPropertyMetadata(CompletionBadgeKind.Completed));
+
+        public static void SetKind(DependencyObject element, CompletionBadgeKind value) =>
+            element?.SetValue(KindProperty, value);
+
+        public static CompletionBadgeKind GetKind(DependencyObject element) =>
+            element == null ? CompletionBadgeKind.Completed : (CompletionBadgeKind)element.GetValue(KindProperty);
+
+        /// <summary>
+        /// Set by a style to keep <see cref="KindProperty"/> current from the element's row
+        /// (its DataContext) and the inherited <see cref="DetailOrderProperty"/>.
+        /// </summary>
+        public static readonly DependencyProperty TracksKindProperty =
+            DependencyProperty.RegisterAttached(
+                "TracksKind",
                 typeof(bool),
                 typeof(CompletionBadge),
-                new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.Inherits));
+                new FrameworkPropertyMetadata(false, OnTracksKindChanged));
 
-        public static void SetPreferTrophyBadges(DependencyObject element, bool value) =>
-            element?.SetValue(PreferTrophyBadgesProperty, value);
+        public static void SetTracksKind(DependencyObject element, bool value) =>
+            element?.SetValue(TracksKindProperty, value);
 
-        public static bool GetPreferTrophyBadges(DependencyObject element) =>
-            element == null || (bool)element.GetValue(PreferTrophyBadgesProperty);
+        public static bool GetTracksKind(DependencyObject element) =>
+            element != null && (bool)element.GetValue(TracksKindProperty);
 
-        /// <summary>
-        /// The badge's own copy of its row's ShowPlatinumInCompletionSpot, set by a style setter
-        /// binding so the platinum swap can be a property trigger.
-        /// </summary>
-        public static readonly DependencyProperty ShowsPlatinumProperty =
+        // The element's subscription to its row. The weak event manager holds the handler weakly,
+        // so the element holds it here to keep it alive for as long as the element is.
+        private sealed class Tracker
+        {
+            private readonly WeakReference<FrameworkElement> _element;
+            private GameSummaryItem _item;
+
+            public Tracker(FrameworkElement element)
+            {
+                _element = new WeakReference<FrameworkElement>(element);
+            }
+
+            public void Attach(GameSummaryItem item)
+            {
+                if (ReferenceEquals(_item, item))
+                {
+                    return;
+                }
+
+                if (_item != null)
+                {
+                    PropertyChangedEventManager.RemoveHandler(_item, OnItemPropertyChanged, string.Empty);
+                }
+
+                _item = item;
+                if (_item != null)
+                {
+                    PropertyChangedEventManager.AddHandler(_item, OnItemPropertyChanged, string.Empty);
+                }
+            }
+
+            private void OnItemPropertyChanged(object sender, PropertyChangedEventArgs e)
+            {
+                if (_element.TryGetTarget(out var element))
+                {
+                    Update(element);
+                }
+            }
+        }
+
+        private static readonly DependencyProperty TrackerProperty =
             DependencyProperty.RegisterAttached(
-                "ShowsPlatinum",
-                typeof(bool),
+                "Tracker",
+                typeof(Tracker),
                 typeof(CompletionBadge),
-                new FrameworkPropertyMetadata(false));
+                new FrameworkPropertyMetadata(null));
 
-        public static void SetShowsPlatinum(DependencyObject element, bool value) =>
-            element?.SetValue(ShowsPlatinumProperty, value);
+        private static void OnTracksKindChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(d is FrameworkElement element))
+            {
+                return;
+            }
 
-        public static bool GetShowsPlatinum(DependencyObject element) =>
-            element != null && (bool)element.GetValue(ShowsPlatinumProperty);
+            if ((bool)e.NewValue)
+            {
+                element.SetValue(TrackerProperty, new Tracker(element));
+                element.DataContextChanged += OnDataContextChanged;
+                Update(element);
+            }
+            else
+            {
+                element.DataContextChanged -= OnDataContextChanged;
+                (element.GetValue(TrackerProperty) as Tracker)?.Attach(null);
+                element.ClearValue(TrackerProperty);
+            }
+        }
+
+        private static void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (sender is FrameworkElement element)
+            {
+                Update(element);
+            }
+        }
+
+        private static void OnInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is FrameworkElement element && GetTracksKind(element))
+            {
+                Update(element);
+            }
+        }
+
+        private static void Update(FrameworkElement element)
+        {
+            var item = element.DataContext as GameSummaryItem;
+            (element.GetValue(TrackerProperty) as Tracker)?.Attach(item);
+            element.SetValue(
+                KindProperty,
+                item?.CompletionBadgeFor(GetDetailOrder(element)) ?? CompletionBadgeKind.Completed);
+        }
 
         /// <summary>
         /// Size of the badge in the completion frame (CompletionFrameTemplate), set by each host on
@@ -71,11 +179,11 @@ namespace PlayniteAchievements.Views.Helpers
             element == null ? 24d : (double)element.GetValue(FrameBadgeSizeProperty);
 
         /// <summary>
-        /// Binds <see cref="PreferTrophyBadgesProperty"/> on <paramref name="element"/> to the global
-        /// progress badge source, through the settings wrapper so a cancelled edit's replaced
-        /// Persisted instance is followed.
+        /// Binds <see cref="DetailOrderProperty"/> on <paramref name="element"/> to the enabled
+        /// styles of the global progress details list, through the settings wrapper so a
+        /// cancelled edit's replaced Persisted instance is followed.
         /// </summary>
-        public static void BindPreferTrophyBadgesToSettings(FrameworkElement element)
+        public static void BindDetailOrderToSettings(FrameworkElement element)
         {
             var settings = PlayniteAchievementsPlugin.Instance?.Settings;
             if (element == null || settings?.Persisted == null)
@@ -84,21 +192,21 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             element.SetBinding(
-                PreferTrophyBadgesProperty,
-                new Binding($"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.ProgressBadgeSource)}")
+                DetailOrderProperty,
+                new Binding($"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.ProgressDetails)}")
                 {
                     Source = settings,
                     Mode = BindingMode.OneWay,
-                    Converter = PreferTrophyConverter.Instance
+                    Converter = EnabledStylesConverter.Instance
                 });
         }
 
-        private sealed class PreferTrophyConverter : IValueConverter
+        private sealed class EnabledStylesConverter : IValueConverter
         {
-            public static readonly PreferTrophyConverter Instance = new PreferTrophyConverter();
+            public static readonly EnabledStylesConverter Instance = new EnabledStylesConverter();
 
             public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-                !(value is ProgressBadgeSource source) || source != ProgressBadgeSource.Rarity;
+                ProgressDetailOrder.EnabledStyles(value as IEnumerable<ProgressDetailEntry>);
 
             public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
                 Binding.DoNothing;

@@ -317,6 +317,102 @@ namespace PlayniteAchievements.ThemeMigration.Tests
             }
         }
 
+        private const string NativeLegacyView =
+            "<ContentControl x:Name=\"PlayniteAchievements_PluginButton\" " +
+            "Visibility=\"{Binding LegacyData.HasData}\" />\n" +
+            "<ContentControl x:Name=\"SuccessStory_PluginButton\" />\n" +
+            "<TextBlock Text=\"\" />";
+
+        [DataTestMethod]
+        [DataRow("Desktop", true)]
+        [DataRow("Fullscreen", false)]
+        public void DiscoverThemes_FlagsNativeLegacyThemeForMigration_OnDesktopOnly(string themeType, bool expectedNeedsMigration)
+        {
+            var themesRoot = CreateThemesRoot();
+
+            try
+            {
+                var themePath = Path.Combine(themesRoot, themeType, "NativeLegacy_ab123456");
+                Directory.CreateDirectory(themePath);
+                File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Native Legacy\nVersion: 1.0.0\n");
+                File.WriteAllText(Path.Combine(themePath, "View.xaml"), NativeLegacyView);
+
+                var service = new ThemeDiscoveryService(new FakeLogger(), new FakePlayniteApi());
+                var theme = service.DiscoverThemes(themesRoot).Single();
+
+                Assert.IsTrue(theme.ModernizeOnly);
+                Assert.AreEqual(expectedNeedsMigration, theme.NeedsMigration);
+                Assert.IsFalse(theme.CouldNotScan);
+            }
+            finally
+            {
+                DeleteDirectory(themesRoot);
+            }
+        }
+
+        [TestMethod]
+        public async Task MigrateThemeAsync_FullModernizesNativeLegacyThemeWithoutSuccessStoryRenames()
+        {
+            var themesRoot = CreateThemesRoot();
+
+            try
+            {
+                var themePath = Path.Combine(themesRoot, "Desktop", "NativeLegacy_ab123456");
+                Directory.CreateDirectory(themePath);
+                var viewPath = Path.Combine(themePath, "View.xaml");
+                File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Native Legacy\nVersion: 1.0.0\n");
+                File.WriteAllText(viewPath, NativeLegacyView);
+
+                var service = new ThemeMigrationService(new FakeLogger());
+                var result = await service.MigrateThemeAsync(themePath, MigrationMode.Full);
+
+                Assert.IsTrue(result.Success);
+                Assert.IsTrue(Directory.Exists(Path.Combine(themePath, "PlayniteAchievements_backup")));
+                Assert.AreEqual(
+                    "<ContentControl x:Name=\"PlayniteAchievements_AchievementButton\" " +
+                    "Visibility=\"{Binding ModernTheme.HasAchievements}\" />\n" +
+                    "<ContentControl x:Name=\"SuccessStory_PluginButton\" />\n" +
+                    "<TextBlock Text=\"\" />",
+                    File.ReadAllText(viewPath));
+
+                var revert = await service.RevertThemeAsync(themePath);
+
+                Assert.IsTrue(revert.Success);
+                Assert.AreEqual(NativeLegacyView, File.ReadAllText(viewPath));
+            }
+            finally
+            {
+                DeleteDirectory(themesRoot);
+            }
+        }
+
+        [TestMethod]
+        public async Task MigrateThemeAsync_LimitedLeavesNativeLegacyThemeUnchanged()
+        {
+            var themesRoot = CreateThemesRoot();
+
+            try
+            {
+                var themePath = Path.Combine(themesRoot, "Desktop", "NativeLegacy_ab123456");
+                Directory.CreateDirectory(themePath);
+                var viewPath = Path.Combine(themePath, "View.xaml");
+                File.WriteAllText(Path.Combine(themePath, "theme.yaml"), "Name: Native Legacy\nVersion: 1.0.0\n");
+                File.WriteAllText(viewPath, NativeLegacyView);
+
+                var service = new ThemeMigrationService(new FakeLogger());
+                var result = await service.MigrateThemeAsync(themePath, MigrationMode.Limited);
+
+                Assert.IsTrue(result.Success);
+                Assert.AreEqual(0, result.FilesBackedUp);
+                Assert.IsFalse(Directory.Exists(Path.Combine(themePath, "PlayniteAchievements_backup")));
+                Assert.AreEqual(NativeLegacyView, File.ReadAllText(viewPath));
+            }
+            finally
+            {
+                DeleteDirectory(themesRoot);
+            }
+        }
+
         [DataTestMethod]
         [DataRow("<!-- List//HoyoverseGames -->")]
         [DataRow("<!-- List: HoyoverseGames -->")]

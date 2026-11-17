@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
@@ -9,6 +11,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.ViewModels.Settings;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.Settings.Controls;
 using PlayniteAchievements.Views.Showcase;

@@ -17,7 +17,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         public static readonly ExophaseMetadataBranch Xbox = new ExophaseMetadataBranch(
             key: "Xbox",
             displayNameKey: "LOCPlayAch_Provider_Xbox",
-            fields: MetadataField.Icons | MetadataField.Points | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Text,
+            fields: MetadataField.Icons | MetadataField.Points | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.Text | MetadataField.Order,
             nativeProviders: new[] { "Xbox", "Xenia" },
             // Exophase lists current consoles under both -xbox and -xbox-one, and older games -xbox-360.
             generations: new[]
@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         public static readonly ExophaseMetadataBranch PlayStation = new ExophaseMetadataBranch(
             key: "PlayStation",
             displayNameKey: "LOCPlayAch_Metadata_Source_PlayStation",
-            fields: MetadataField.Icons | MetadataField.TrophyTypes | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.CapstoneArt | MetadataField.Text,
+            fields: MetadataField.Icons | MetadataField.TrophyTypes | MetadataField.Categories | MetadataField.CategoryArt | MetadataField.CapstoneArt | MetadataField.Text | MetadataField.Order,
             nativeProviders: new[] { "PSN", "RPCS3", "ShadPS4", "Vita3K" },
             // -psn for recent games, the platform itself for older ones ("dark-souls-iii-ps4").
             generations: new[]

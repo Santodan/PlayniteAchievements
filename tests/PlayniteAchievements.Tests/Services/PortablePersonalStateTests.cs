@@ -233,6 +233,100 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(5, incoming.ProgressDenom);
         }
 
+        [TestMethod]
+        public void CarryLocal_KeepsTheLinkedFilePathAndReadStatus()
+        {
+            var current = new GameCustomDataFile
+            {
+                LinkedFile = new LinkedFileLink
+                {
+                    FilePath = @"C:\games\progress.csv",
+                    LastReadUtc = UnlockTime,
+                    LastReadStatus = "Ok",
+                    Schema = new LinkedFileSchema { Name = "Old mapping" }
+                }
+            };
+            var imported = new GameCustomDataFile
+            {
+                LinkedFile = new LinkedFileLink { Schema = new LinkedFileSchema { Name = "Package mapping" } }
+            };
+
+            PortablePersonalState.CarryLocal(current, imported);
+
+            Assert.AreEqual("Package mapping", imported.LinkedFile.Schema.Name, "The package's mapping replaces the local one.");
+            Assert.AreEqual(@"C:\games\progress.csv", imported.LinkedFile.FilePath);
+            Assert.AreEqual(UnlockTime, imported.LinkedFile.LastReadUtc);
+            Assert.AreEqual("Ok", imported.LinkedFile.LastReadStatus);
+        }
+
+        [TestMethod]
+        public void CarryLocal_KeepsTheLinkedFile_WhenThePackageHasNoMapping()
+        {
+            var current = new GameCustomDataFile
+            {
+                LinkedFile = new LinkedFileLink { FilePath = @"C:\games\progress.csv", Schema = new LinkedFileSchema { Name = "Mine" } }
+            };
+            var imported = new GameCustomDataFile();
+
+            PortablePersonalState.CarryLocal(current, imported);
+
+            Assert.AreEqual("Mine", imported.LinkedFile?.Schema?.Name);
+            Assert.AreEqual(@"C:\games\progress.csv", imported.LinkedFile.FilePath);
+            Assert.AreNotSame(current.LinkedFile, imported.LinkedFile);
+        }
+
+        [TestMethod]
+        public void ExportPortablePackage_CarriesTheMappingButNeverThePath()
+        {
+            WithStore((store, tempDir) =>
+            {
+                var gameId = Guid.NewGuid();
+                var record = BuildRecordWithPersonalState(gameId, "480", UnlockTime);
+                record.LinkedFile = new LinkedFileLink
+                {
+                    FilePath = @"C:\games\secret-folder\progress.csv",
+                    LastReadUtc = UnlockTime,
+                    LastReadStatus = "Ok",
+                    Schema = new LinkedFileSchema
+                    {
+                        Name = "Progress mapping",
+                        Format = LinkedFileFormat.Delimited,
+                        Columns = new List<LinkedFileColumnMapping>
+                        {
+                            new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName },
+                            new LinkedFileColumnMapping { Column = "done", Field = LinkedFileField.Unlocked }
+                        }
+                    }
+                };
+                store.Save(gameId, record);
+
+                var packagePath = Path.Combine(tempDir, "game.pa");
+                store.ExportPortablePackage(gameId, packagePath);
+
+                string manifestText;
+                using (var archive = ZipFile.OpenRead(packagePath))
+                using (var reader = new StreamReader(archive.GetEntry(GameCustomDataStore.PortablePackageManifestEntryName).Open()))
+                {
+                    manifestText = reader.ReadToEnd();
+                }
+
+                StringAssert.Contains(manifestText, "Progress mapping");
+                StringAssert.Contains(manifestText, "\"ApiName\"", "Enums travel as names so the package stays readable.");
+                Assert.IsFalse(manifestText.Contains("secret-folder"), "The file path must never leave the machine.");
+                Assert.IsFalse(manifestText.Contains("LastRead"), "Read status is local state.");
+
+                var freshId = Guid.NewGuid();
+                var fresh = store.ImportReplacePortable(freshId, packagePath).ImportedData;
+                Assert.AreEqual("Progress mapping", fresh.LinkedFile?.Schema?.Name);
+                Assert.IsNull(fresh.LinkedFile.FilePath);
+                Assert.IsNull(fresh.LinkedFile.LastReadUtc);
+
+                var reimported = store.ImportReplacePortable(gameId, packagePath).ImportedData;
+                Assert.AreEqual(@"C:\games\secret-folder\progress.csv", reimported.LinkedFile.FilePath, "The local path survives a re-import.");
+                Assert.AreEqual(UnlockTime, reimported.LinkedFile.LastReadUtc);
+            });
+        }
+
         private static GameCustomDataFile BuildRecordWithPersonalState(Guid gameId, string sourceGameId, DateTime unlockTime)
         {
             return new GameCustomDataFile

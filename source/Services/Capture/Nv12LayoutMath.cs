@@ -46,7 +46,47 @@ namespace PlayniteAchievements.Services.Capture
 
             // Neither accounts for the length exactly; the frame-width reading is the historical
             // one and stays the default.
-            return fromWidth > 0 ? fromWidth : fromPitch;
+            if (fromWidth > 0 || fromPitch > 0)
+            {
+                return fromWidth > 0 ? fromWidth : fromPitch;
+            }
+
+            // Some decoders count rows at the coded width: the frame width padded up by an amount
+            // that varies by decoder, narrower than the pitch. The row count then comes from the
+            // allocated surface, and the counted width must land between the frame width and the
+            // pitch. A 2020-wide frame at pitch 2048 reporting 3316224 of 3342336 bytes is 1088
+            // rows of 2032; a 406-wide one at pitch 448 reporting 119808 of 129024 is 192 of 416.
+            return FromAllocatedRows(frameW, frameH, pitch, contiguousLength, maxLength);
+        }
+
+        /// <summary>
+        /// The row count the allocated surface implies at <paramref name="pitch"/>, accepted only
+        /// when it divides evenly, covers the frame, and the reported length divided over it gives
+        /// a whole row width between the frame width and the pitch; otherwise 0.
+        /// </summary>
+        private static int FromAllocatedRows(
+            int frameW, int frameH, int pitch, long contiguousLength, long maxLength)
+        {
+            var pitchUnits = (long)pitch * 3;
+            if (maxLength <= 0 || maxLength * 2 % pitchUnits != 0)
+            {
+                return 0;
+            }
+
+            var rows = maxLength * 2 / pitchUnits;
+            if (rows < frameH || rows > int.MaxValue)
+            {
+                return 0;
+            }
+
+            var rowUnits = rows * 3;
+            if (contiguousLength * 2 % rowUnits != 0)
+            {
+                return 0;
+            }
+
+            var countedWidth = contiguousLength * 2 / rowUnits;
+            return countedWidth > frameW && countedWidth < pitch ? (int)rows : 0;
         }
 
         /// <summary>Whether a candidate's own surface is exactly the length that was reported.</summary>

@@ -54,6 +54,28 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ExcludedFromMetadata_SurvivesNormalizing_AndAnImport_AndKeepsTheRecord()
+        {
+            var gameId = Guid.NewGuid();
+            var stored = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                ExcludedFromMetadata = true,
+                MetadataChoices = new MetadataChoices { Icons = MetadataChoices.Exophase }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(stored, gameId);
+            Assert.AreEqual(true, normalized.ExcludedFromMetadata);
+            Assert.AreEqual(MetadataChoices.Exophase, normalized.MetadataChoices.Icons, "the game's own choices stay");
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(new GameCustomDataFile { ExcludedFromMetadata = true }));
+
+            // A package never carries it, so an import keeps this machine's choice.
+            var imported = GameCustomDataFile.FromPortable(normalized.ToPortable(), gameId, null, null);
+            PortablePersonalState.CarryLocal(normalized, imported);
+            Assert.AreEqual(true, imported.ExcludedFromMetadata);
+        }
+
+        [TestMethod]
         public void HasVisibleCustomization_ExclusionsOnly_ReturnsFalse()
         {
             var data = new GameCustomDataFile
@@ -480,9 +502,9 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.AreEqual(2, normalized.AchievementNotes.Count);
-            Assert.AreEqual("second note\nline", normalized.AchievementNotes["ach_one"]);
-            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, normalized.AchievementNotes["ach_long"].Length);
+            Assert.AreEqual(2, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note).Count);
+            Assert.AreEqual("second note\nline", AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_one"]);
+            Assert.AreEqual(AchievementNoteHelper.MaxNoteLength, AchievementOverride.Project(normalized.AchievementOverrides, o => o.Note)["ach_long"].Length);
             Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(normalized));
         }
 
@@ -864,9 +886,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var customData = new ResolvedGameCustomData
             {
-                AchievementNotes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["ACH_ONE"] = "route note"
+                    ["ACH_ONE"] = new AchievementOverride { Note = "route note" }
                 }
             };
 
@@ -891,9 +913,9 @@ namespace PlayniteAchievements.Services.Tests
             };
             var renamed = new ResolvedGameCustomData
             {
-                AchievementCategoryOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                AchievementOverrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["dlc_ach"] = "My Renamed DLC"
+                    ["dlc_ach"] = new AchievementOverride { Category = "My Renamed DLC" }
                 }
             };
 
@@ -1029,8 +1051,8 @@ namespace PlayniteAchievements.Services.Tests
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.FilteredAchievementApiNames);
             Assert.IsNull(normalized.SummaryFilteredAchievementApiNames);
             CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementOverrides.Keys.ToList());
-            CollectionAssert.AreEqual(new[] { "prov_one" }, normalized.AchievementCategoryOverrides.Keys.ToList());
-            Assert.IsNull(normalized.AchievementNotes);
+            Assert.IsNull(normalized.AchievementCategoryOverrides);
+            Assert.IsNull(normalized.AchievementOverrides["prov_one"].Note);
         }
 
         [TestMethod]
@@ -1235,6 +1257,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ProgressCountIsKeptWithoutATotal()
+        {
+            var gameId = Guid.NewGuid();
+            var data = new GameCustomDataFile
+            {
+                PlayniteGameId = gameId,
+                CustomAchievements = new List<CustomAchievementDefinition>
+                {
+                    new CustomAchievementDefinition { Id = "count", DisplayName = "Count", ProgressNum = 20 },
+                    new CustomAchievementDefinition { Id = "negative", DisplayName = "Negative", ProgressNum = -1 },
+                    new CustomAchievementDefinition { Id = "over", DisplayName = "Over", ProgressNum = 12, ProgressDenom = 10 }
+                }
+            };
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(data, gameId).CustomAchievements;
+
+            var count = normalized.Single(definition => definition.Id == "count");
+            Assert.AreEqual(20, count.ProgressNum);
+            Assert.IsNull(count.ProgressDenom);
+            Assert.IsNull(normalized.Single(definition => definition.Id == "negative").ProgressNum);
+            Assert.IsNull(normalized.Single(definition => definition.Id == "over").ProgressNum, "A count above the total is dropped.");
+        }
+
+        [TestMethod]
         public void CustomProviderId_RoundTripsAndIsClearedWithoutCustomAchievements()
         {
             var gameId = Guid.NewGuid();
@@ -1360,5 +1406,180 @@ namespace PlayniteAchievements.Services.Tests
                 !normalized.AchievementOverrides.ContainsKey("ach_one"));
         }
 
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_KeepsThePathAndNormalizesTheMapping()
+        {
+            var gameId = Guid.NewGuid();
+            var readUtc = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualLink = new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "480" },
+                    LinkedFile = new LinkedFileLink
+                    {
+                        FilePath = @"  C:\games\progress.csv  ",
+                        LastReadUtc = readUtc,
+                        LastReadStatus = " Ok ",
+                        Schema = new LinkedFileSchema
+                        {
+                            Name = " Progress ",
+                            Format = LinkedFileFormat.Delimited,
+                            Delimiter = "tab",
+                            Columns = new List<LinkedFileColumnMapping>
+                            {
+                                new LinkedFileColumnMapping { Column = " id ", Field = LinkedFileField.ApiName },
+                                new LinkedFileColumnMapping { Column = "notes", Field = LinkedFileField.Ignore },
+                                new LinkedFileColumnMapping { Column = "ID", Field = LinkedFileField.DisplayName },
+                                new LinkedFileColumnMapping { Column = "done", Field = LinkedFileField.Unlocked }
+                            },
+                            TimeFormat = LinkedFileTimeFormat.Custom
+                        }
+                    }
+                },
+                gameId);
+
+            var link = normalized.LinkedFile;
+            Assert.IsNotNull(link);
+            Assert.AreEqual(@"C:\games\progress.csv", link.FilePath);
+            Assert.AreEqual("Ok", link.LastReadStatus);
+            Assert.AreEqual(readUtc, link.LastReadUtc);
+            Assert.AreEqual("Progress", link.Schema.Name);
+            Assert.AreEqual("\t", link.Schema.Delimiter);
+            CollectionAssert.AreEqual(new[] { "id", "done" }, link.Schema.Columns.Select(mapping => mapping.Column).ToArray());
+            Assert.AreEqual(LinkedFileTimeFormat.Auto, link.Schema.TimeFormat);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_KeepsHandPairings()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
+                        FilePath = "progress.csv",
+                        Schema = new LinkedFileSchema { Name = "Progress" },
+                        Pairings = new Dictionary<string, string>
+                        {
+                            [" id:x "] = " custom:c1 ",
+                            ["row:2"] = null,
+                            ["  "] = "ignored"
+                        }
+                    }
+                },
+                gameId);
+
+            var pairings = normalized.LinkedFile.Pairings;
+            Assert.AreEqual(2, pairings.Count);
+            Assert.AreEqual("custom:c1", pairings["id:x"]);
+            Assert.AreEqual(string.Empty, pairings["row:2"], "A row paired with nothing stays paired with nothing.");
+            Assert.AreEqual(2, normalized.LinkedFile.Clone().Pairings.Count);
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_WithAFileIsKeptOnAGameWithNoAchievements()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
+                        FilePath = @"C:\games\progress.csv",
+                        Schema = new LinkedFileSchema { Name = "Progress" }
+                    }
+                },
+                gameId);
+
+            Assert.AreEqual(@"C:\games\progress.csv", normalized.LinkedFile?.FilePath);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_WithoutAFileCustomTrackingOrCustomAchievements_IsDropped()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink
+                    {
+                        Schema = new LinkedFileSchema { Name = "Progress" }
+                    }
+                },
+                gameId);
+
+            Assert.IsNull(normalized.LinkedFile);
+            Assert.IsFalse(GameCustomDataNormalizer.HasInternalData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizeInternal_LinkedFile_CustomAchievementsAloneKeepIt()
+        {
+            var gameId = Guid.NewGuid();
+
+            var normalized = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    CustomAchievements = new List<CustomAchievementDefinition>
+                    {
+                        new CustomAchievementDefinition { Id = "c1", DisplayName = "C1" }
+                    },
+                    LinkedFile = new LinkedFileLink
+                    {
+                        Schema = new LinkedFileSchema { Name = "Progress" }
+                    }
+                },
+                gameId);
+
+            Assert.AreEqual("Progress", normalized.LinkedFile?.Schema?.Name);
+            Assert.IsNull(normalized.LinkedFile.FilePath);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(normalized));
+        }
+
+        [TestMethod]
+        public void NormalizePortable_LinkedFileSchema_FollowsTheSameRule()
+        {
+            var portable = new GameCustomDataPortableFile
+            {
+                LinkedFileSchema = new LinkedFileSchema { Name = " Progress " }
+            };
+
+            var orphaned = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
+            Assert.IsNull(orphaned.LinkedFileSchema);
+            Assert.IsFalse(GameCustomDataNormalizer.HasPortableData(orphaned));
+
+            portable.ManualLink = new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "480" };
+            var kept = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
+            Assert.AreEqual("Progress", kept.LinkedFileSchema?.Name);
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(kept));
+        }
+
+        [TestMethod]
+        public void MergePreferExisting_KeepsTheExistingLinkedFile()
+        {
+            var existing = new GameCustomDataFile
+            {
+                ManualLink = new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "480" },
+                LinkedFile = new LinkedFileLink { FilePath = @"C:\p.csv", Schema = new LinkedFileSchema { Name = "Mine" } }
+            };
+
+            var merged = GameCustomDataNormalizer.MergePreferExisting(existing, new GameCustomDataFile());
+
+            Assert.AreEqual("Mine", merged.LinkedFile?.Schema?.Name);
+            Assert.AreNotSame(existing.LinkedFile, merged.LinkedFile);
+        }
     }
 }

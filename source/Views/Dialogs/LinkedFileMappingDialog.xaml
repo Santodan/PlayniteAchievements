@@ -1,0 +1,582 @@
+<UserControl x:Class="PlayniteAchievements.Views.Dialogs.LinkedFileMappingDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             mc:Ignorable="d"
+             d:DesignHeight="720" d:DesignWidth="980"
+             d:DataContext="{d:DesignInstance vm:LinkedFileMappingViewModel}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementGridStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- The preview grid takes the Editor grid's look: row separators, the hover and selected
+                 row brushes, and cells that never take focus or paint a selection of their own. -->
+            <Style x:Key="PreviewRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource ManageAchievementsDataGridRowStyle}">
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="Cursor" Value="Arrow" />
+            </Style>
+
+            <Style x:Key="PreviewCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+            </Style>
+
+            <!-- The frozen match column: file columns scroll beneath it, so it paints the window's
+                 background and lays the row's hover and selected brushes over that. -->
+            <Style x:Key="MatchCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource PreviewCellStyle}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{DynamicResource PlayAch.Brush.Window.Background}">
+                                <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Stretch" />
+                                </Border>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowSelectedBackground}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="PreviewCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+            </Style>
+
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="HintTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}" />
+                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <!-- One labeled field in the side panel: the label above, the control full width. -->
+            <Style x:Key="PanelFieldStyle" TargetType="StackPanel">
+                <Setter Property="Margin" Value="0,0,0,12" />
+            </Style>
+
+            <Style x:Key="PanelLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
+                <Setter Property="Margin" Value="0,0,0,4" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+            </Style>
+
+            <Style x:Key="OptionCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                <Setter Property="Margin" Value="0,0,16,6" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
+                <Setter Property="Margin" Value="4,0,0,0" />
+                <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            </Style>
+
+            <!-- The match column's header is plain text; the file columns' headers host a field picker. -->
+            <Style x:Key="MatchColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                <Setter Property="VerticalContentAlignment" Value="Top" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style x:Key="RevealGlyphTextStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Icon}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Glyph}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <!-- A file column's header: the field picker over the file's own column name. Set on
+                 each file column rather than in the grid's header style, so the filler header
+                 behind the columns does not draw a picker of its own. -->
+            <DataTemplate x:Key="FieldHeaderTemplate">
+                <StackPanel Margin="2">
+                    <ComboBox ItemsSource="{Binding DataContext.FieldOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                              SelectedItem="{Binding SelectedField, Mode=TwoWay}"
+                              DisplayMemberPath="Name"
+                              MinWidth="120" />
+                    <TextBlock Text="{Binding ColumnName}"
+                               Margin="2,4,0,0"
+                               Style="{StaticResource HintTextStyle}"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+                </StackPanel>
+            </DataTemplate>
+
+            <!-- The match column header: its title and, when the display settings mask any of the
+                 game's achievements, the eye that shows or masks them, as in the Editor. -->
+            <DataTemplate x:Key="MatchColumnHeaderTemplate">
+                <DockPanel Margin="7,2,2,2" Height="{StaticResource PlayAch.Size.Control.Height}">
+                    <Button DockPanel.Dock="Right"
+                            Width="24" Height="24"
+                            Padding="0"
+                            Margin="6,0,0,0"
+                            Cursor="Hand"
+                            Focusable="False"
+                            ToolTip="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}"
+                            Command="{Binding DataContext.ToggleRevealCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                            Visibility="{Binding DataContext.HasMaskedAchievements, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <TextBlock Text="&#xEF22;"
+                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                       Visibility="{Binding DataContext.IsRevealed, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource InverseBoolToVis}}" />
+                            <TextBlock Text="&#xEF24;"
+                                       Style="{StaticResource RevealGlyphTextStyle}"
+                                       Visibility="{Binding DataContext.IsRevealed, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}" />
+                        </Grid>
+                    </Button>
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </DataTemplate>
+
+            <Style x:Key="MatchCellTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMatched}" Value="False">
+                        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Hint}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsUserSet}" Value="True">
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="PickerIconStyle" TargetType="Image">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+                <Setter Property="helpers:AsyncImage.DecodePixel" Value="64" />
+            </Style>
+
+            <!-- The paired achievement's icon in the match cell; rows that pair with none show no icon. -->
+            <Style x:Key="MatchIconStyle" TargetType="Image">
+                <Setter Property="Width" Value="22" />
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Margin" Value="0,0,6,0" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+                <Setter Property="helpers:AsyncImage.DecodePixel" Value="44" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding MatchIcon}" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- One unlinked achievement: its icon and name, in a wrapping list. A masked one
+                 reveals on click, and masks again on a second click. -->
+            <Style x:Key="UnlinkedChipStyle" TargetType="Button">
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Margin" Value="0,0,6,6" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="ToolTip" Value="{Binding Description}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chip"
+                                    Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="4,3,10,3">
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                        <Setter Property="Cursor" Value="Hand" />
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding CanReveal}" Value="True" />
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}" />
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding CanReveal}" Value="True" />
+                            <Condition Binding="{Binding IsRevealed}" Value="False" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <DataTemplate x:Key="UnlinkedAchievementTemplate">
+                <Button Style="{StaticResource UnlinkedChipStyle}"
+                        Command="{Binding DataContext.ToggleRevealOneCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Width="24" Height="24"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Center"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.DecodePixel="48"
+                               helpers:AsyncImage.Uri="{Binding Icon}" />
+                        <TextBlock Text="{Binding Name, Mode=OneWay}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="220"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
+            </DataTemplate>
+
+            <!-- The match cell: once the file was matched, a dropdown that pairs the row by hand
+                 (Automatic, None, or any of the game's achievements). A hand pairing shows bold. -->
+            <DataTemplate x:Key="MatchCellTemplate">
+                <Grid>
+                    <TextBlock Text="{Binding Match}"
+                               Style="{StaticResource MatchCellTextStyle}"
+                               Margin="4,0"
+                               VerticalAlignment="Center"
+                               Visibility="{Binding CanPick, Converter={StaticResource InverseBoolToVis}}" />
+                    <!-- Opens the window's one pairing dropdown under itself, on release, once the
+                         grid has finished handling the press. -->
+                    <ToggleButton Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
+                                  IsChecked="{Binding IsPickerOpen, Mode=OneWay}"
+                                  Focusable="False"
+                                  PreviewMouseLeftButtonDown="PickerButton_PreviewMouseLeftButtonDown"
+                                  PreviewMouseLeftButtonUp="PickerButton_PreviewMouseLeftButtonUp"
+                                  Visibility="{Binding CanPick, Converter={StaticResource BoolToVis}}">
+                        <DockPanel>
+                            <Image DockPanel.Dock="Left"
+                                   Style="{StaticResource MatchIconStyle}"
+                                   helpers:AsyncImage.Uri="{Binding MatchIcon}" />
+                            <TextBlock Text="{Binding Match}" Style="{StaticResource MatchCellTextStyle}" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </ToggleButton>
+                </Grid>
+            </DataTemplate>
+
+            <!-- The pairing dropdown's content, shown in the window's one popup for the row whose
+                 cell opened it. -->
+            <DataTemplate x:Key="PairingPopupTemplate">
+                        <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
+                                BorderThickness="1"
+                                Padding="6"
+                                MinWidth="320">
+                            <StackPanel>
+                                <TextBox Text="{Binding Search, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="{DynamicResource LOCPlayAch_Common_Search}"
+                                         Padding="6,4"
+                                         Margin="0,0,0,6"
+                                         PreviewKeyDown="PickerSearch_PreviewKeyDown" />
+                                <ListBox ItemsSource="{Binding Options}"
+                                         MaxHeight="360"
+                                         HorizontalContentAlignment="Stretch"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         PreviewMouseLeftButtonUp="PickerList_PreviewMouseLeftButtonUp">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="2" ToolTip="{Binding Description}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Image Grid.Column="0"
+                                                       Style="{StaticResource PickerIconStyle}"
+                                                       helpers:AsyncImage.Uri="{Binding Icon}"
+                                                       Visibility="{Binding IsSpecial, Converter={StaticResource InverseBoolToVis}}" />
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name, Mode=OneWay}"
+                                                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <!-- The file row it pairs with now. -->
+                                                    <TextBlock Text="{Binding PairedWith, Mode=OneWay}"
+                                                               Style="{StaticResource HintTextStyle}"
+                                                               TextWrapping="NoWrap"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Visibility="{Binding IsPaired, Converter={StaticResource BoolToVis}}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Border>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- The file and its format -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="PathTextBox"
+                         Grid.Column="0"
+                         VerticalContentAlignment="Center"
+                         MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                         Text="{Binding FilePath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         AutomationProperties.Name="{DynamicResource LOCPlayAch_LinkedFile_File}"
+                         KeyDown="CommitOnEnter_KeyDown" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Margin="8,0,0,0"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Command="{Binding BrowseCommand}" />
+                    <Button Content="&#xEFD1;"
+                            Style="{StaticResource IconButtonStyle}"
+                            ToolTip="{DynamicResource LOCPlayAch_Button_Refresh}"
+                            AutomationProperties.Name="{DynamicResource LOCPlayAch_Button_Refresh}"
+                            Command="{Binding RereadCommand}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Margin="16,0,8,0" Text="{DynamicResource LOCPlayAch_LinkedFile_Format}" Style="{StaticResource FieldLabelStyle}" />
+                <ComboBox Grid.Column="3"
+                          Width="170"
+                          ItemsSource="{Binding FormatOptions}"
+                          SelectedItem="{Binding SelectedFormat, Mode=TwoWay}"
+                          DisplayMemberPath="Name" />
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="280" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Preview: each file column's header picks the field it feeds; the first column shows the match -->
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top"
+                               Margin="0,0,0,6"
+                               Text="{Binding ReadMessage}"
+                               Foreground="{DynamicResource PlayAch.Brush.AuthError}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasReadMessage, Converter={StaticResource BoolToVis}}" />
+                    <DataGrid x:Name="PreviewGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserSortColumns="False"
+                              CanUserReorderColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              SelectionUnit="FullRow"
+                              SelectionMode="Single"
+                              FrozenColumnCount="1"
+                              EnableColumnVirtualization="True"
+                              EnableRowVirtualization="True"
+                              MinColumnWidth="140"
+                              GridLinesVisibility="None"
+                              RowBackground="Transparent"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                              RowStyle="{StaticResource PreviewRowStyle}"
+                              CellStyle="{StaticResource PreviewCellStyle}"
+                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ItemsSource="{Binding PreviewRows}">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Background" Value="Transparent" />
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                    </DataGrid>
+                </DockPanel>
+
+                <!-- Side panel: the options of the chosen format, then the settings for this
+                     mapping, then saved mappings. Fields that do not apply are collapsed. -->
+                <Border Grid.Column="1"
+                        Margin="12,0,0,0"
+                        Padding="12,0,0,0"
+                        BorderThickness="1,0,0,0"
+                        BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Presets_Header}" Style="{StaticResource PanelLabelStyle}" />
+                            <DockPanel>
+                                <Button x:Name="PresetActionsButton"
+                                        DockPanel.Dock="Right"
+                                        Content="&#xEFA2;"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        ToolTip="{DynamicResource LOCPlayAch_Presets_Header}"
+                                        AutomationProperties.Name="{DynamicResource LOCPlayAch_Presets_Header}"
+                                        Click="PresetActionsButton_Click" />
+                                <ComboBox ItemsSource="{Binding SavedNames}"
+                                          SelectedItem="{Binding SelectedSavedName, Mode=TwoWay}" />
+                            </DockPanel>
+                        </StackPanel>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding IsDelimited, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Delimiter}" Style="{StaticResource PanelLabelStyle}" />
+                                    <ComboBox IsEditable="True"
+                                              ItemsSource="{Binding DelimiterOptions}"
+                                              Text="{Binding DelimiterText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                                              KeyDown="CommitOnEnter_KeyDown" />
+                                </StackPanel>
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding IsXlsx, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_Sheet}" Style="{StaticResource PanelLabelStyle}" />
+                                    <ComboBox IsEditable="True"
+                                              ItemsSource="{Binding SheetNames}"
+                                              Text="{Binding SheetName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                                              KeyDown="CommitOnEnter_KeyDown" />
+                                </StackPanel>
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding UsesRootPath, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RootPath}" Style="{StaticResource PanelLabelStyle}" />
+                                    <ComboBox IsEditable="True"
+                                              ItemsSource="{Binding RowPaths}"
+                                              Text="{Binding RootPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                              ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RootPathHint}"
+                                              SelectionChanged="CommitOnSelection_SelectionChanged"
+                                              KeyDown="CommitOnEnter_KeyDown" />
+                                </StackPanel>
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding IsXml, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_RowElementPath}" Style="{StaticResource PanelLabelStyle}" />
+                                    <TextBox VerticalContentAlignment="Center"
+                                             Text="{Binding RowElementPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="{DynamicResource LOCPlayAch_LinkedFile_RowElementPathHint}"
+                                             KeyDown="CommitOnEnter_KeyDown" />
+                                </StackPanel>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_HasHeader}"
+                                          IsChecked="{Binding HasHeader, Mode=TwoWay}"
+                                          Style="{StaticResource OptionCheckBoxStyle}"
+                                          Margin="0,0,0,12"
+                                          Visibility="{Binding UsesHeaderRow, Converter={StaticResource BoolToVis}}" />
+
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding UsesTimeOptions, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_TimeFormat}" Style="{StaticResource PanelLabelStyle}" />
+                                    <ComboBox ItemsSource="{Binding TimeFormatOptions}"
+                                              SelectedItem="{Binding SelectedTimeFormat, Mode=TwoWay}"
+                                              DisplayMemberPath="Name" />
+                                    <TextBox Margin="0,6,0,0"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding CustomTimeFormat, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             Visibility="{Binding IsCustomTimeFormat, Converter={StaticResource BoolToVis}}"
+                                             KeyDown="CommitOnEnter_KeyDown" />
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_TimesAreLocal}"
+                                              IsChecked="{Binding TimesAreLocal, Mode=TwoWay}"
+                                              Style="{StaticResource OptionCheckBoxStyle}"
+                                              Margin="0,8,0,0" />
+                                </StackPanel>
+                                <StackPanel Style="{StaticResource PanelFieldStyle}" Visibility="{Binding UsesUnlockedValues, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValues}" Style="{StaticResource PanelLabelStyle}" />
+                                    <TextBox VerticalContentAlignment="Center"
+                                             Text="{Binding UnlockedValues, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             ToolTip="{DynamicResource LOCPlayAch_LinkedFile_UnlockedValuesHint}"
+                                             KeyDown="CommitOnEnter_KeyDown" />
+                                </StackPanel>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatched}"
+                                          IsChecked="{Binding CreateUnmatched, Mode=TwoWay}"
+                                          ToolTip="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatchedHint}"
+                                          Style="{StaticResource OptionCheckBoxStyle}"
+                                          Margin="0" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+            <!-- What applying would do, then the achievements the file has no row for. -->
+            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                <TextBlock Text="{Binding ProblemText}"
+                           Foreground="{DynamicResource PlayAch.Brush.AuthError}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,4"
+                           Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding ResultText}" Style="{StaticResource HintTextStyle}" />
+                <Expander Margin="0,6,0,0"
+                          Visibility="{Binding HasUnlinked, Converter={StaticResource BoolToVis}}">
+                    <Expander.Header>
+                        <TextBlock Text="{Binding UnlinkedHeader}" Style="{StaticResource SectionHeaderStyle}" />
+                    </Expander.Header>
+                    <ScrollViewer MaxHeight="132"
+                                  Margin="0,6,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding UnlinkedAchievements}"
+                                      ItemTemplate="{StaticResource UnlinkedAchievementTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Expander>
+            </StackPanel>
+
+            <!-- Footer -->
+            <DockPanel Grid.Row="3" Margin="0,14,0,0">
+                <Button DockPanel.Dock="Left"
+                        Content="{DynamicResource LOCPlayAch_LinkedFile_Unlink}"
+                        Command="{Binding UnlinkCommand}"
+                        Visibility="{Binding HasStoredLink, Converter={StaticResource BoolToVis}}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyNowCommand}"
+                            ToolTip="{DynamicResource LOCPlayAch_LinkedFile_OverwriteHint}"
+                            Margin="0,0,8,0" />
+                    <Button Content="{DynamicResource LOCPlayAch_Common_Cancel}" Click="Cancel_Click" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- The one pairing dropdown. It sits outside the preview grid, so the grid's own
+                 mouse and focus handling cannot close it; its data context is the row being paired. -->
+            <Popup x:Name="PairingPopup"
+                   DataContext="{x:Null}"
+                   IsOpen="{Binding IsPickerOpen, Mode=TwoWay, FallbackValue=False}"
+                   Placement="Bottom"
+                   StaysOpen="False"
+                   AllowsTransparency="True"
+                   Opened="PickerPopup_Opened"
+                   Closed="PairingPopup_Closed">
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource PairingPopupTemplate}" />
+            </Popup>
+        </Grid>
+    </Border>
+</UserControl>

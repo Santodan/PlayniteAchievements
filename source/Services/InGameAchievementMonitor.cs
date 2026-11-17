@@ -137,6 +137,9 @@ namespace PlayniteAchievements.Services
         private Task _loopTask;
         private int _fallbackInFlight;
 
+        /// <summary>Games whose fallback provider refresh is running right now.</summary>
+        private readonly HashSet<Guid> _fallbackRefreshGameIds = new HashSet<Guid>();
+
         public event Action<Guid> ProgressApplied;
 
         /// <summary>
@@ -152,8 +155,33 @@ namespace PlayniteAchievements.Services
         /// </summary>
         public Func<Guid, IReadOnlyList<AchievementUnlockedEventArgs>> TakeCapstoneAnnouncements { get; set; }
 
+        /// <summary>
+        /// The fast source for a game with a linked file. It takes precedence over the provider's
+        /// own source, and serves a game no provider services.
+        /// </summary>
+        internal IInGameProgressSource LinkedFileSource { get; set; }
+
+        /// <summary>Records linked file unlocks on the achievements the user owns; returns the newly unlocked API names.</summary>
+        internal Func<Guid, IReadOnlyList<AchievementProgressObservation>, IReadOnlyList<string>> ApplyUserOwnedObservations { get; set; }
+
+        /// <summary>Cached data plus custom achievement rows, so linked file unlocks of custom rows are seen.</summary>
+        internal Func<Guid, GameAchievementData> LoadGameDataWithCustomAchievements { get; set; }
+
         /// <summary>True while the monitor is tracking a running game.</summary>
         public bool IsMonitoring(Guid gameId) => gameId != Guid.Empty && IsTracked(gameId);
+
+        /// <summary>
+        /// True while the periodic fallback refresh is running for the game. A refresh event
+        /// raised then comes from the poll rather than from a change; a change the poll finds
+        /// is reported through <see cref="ProgressApplied"/>.
+        /// </summary>
+        public bool IsFallbackRefreshing(Guid gameId)
+        {
+            lock (_fallbackRefreshGameIds)
+            {
+                return _fallbackRefreshGameIds.Contains(gameId);
+            }
+        }
 
         public InGameAchievementMonitor(
             IPlayniteAPI api,
@@ -776,6 +804,12 @@ namespace PlayniteAchievements.Services
             InGameProgressQueryResult query,
             long elapsedMilliseconds)
         {
+            if (LinkedFileSource != null && ReferenceEquals(state.ProgressSource, LinkedFileSource))
+            {
+                ApplyLinkedFileResult(state, query, elapsedMilliseconds);
+                return;
+            }
+
             var before = _cacheManager?.LoadGameData(state.Game.Id.ToString());
             var write = _progressWriter?.ApplyInGameProgress(
                 state.Game.Id.ToString(),
@@ -788,6 +822,76 @@ namespace PlayniteAchievements.Services
             }
 
             var after = _cacheManager?.LoadGameData(state.Game.Id.ToString()) ?? before;
+            CompleteProgressApply(state, query, write, before, after, elapsedMilliseconds, beforeFullyUnlocked: null);
+        }
+
+        /// <summary>
+        /// Applies a linked file read. Linked-definition rows go to the cache and the manual link,
+        /// so the next refresh keeps them; custom rows go to their definitions, which the cache
+        /// never holds. The snapshots include the custom rows so their unlocks are announced.
+        /// </summary>
+        private void ApplyLinkedFileResult(
+            GamePollState state,
+            InGameProgressQueryResult query,
+            long elapsedMilliseconds)
+        {
+            var gameId = state.Game.Id;
+            Func<Guid, GameAchievementData> load = LoadGameDataWithCustomAchievements ??
+                (id => _cacheManager?.LoadGameData(id.ToString()));
+            var before = load(gameId);
+            // Read now: announcing hydrates the snapshots from the store, which by then holds the
+            // custom rows this read unlocked.
+            var beforeFullyUnlocked = before?.IsFullyUnlocked == true;
+
+            var observations = query.Achievements ?? Array.Empty<AchievementProgressObservation>();
+            var newlyUnlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var changed = false;
+            var linkedDefinitionRows = observations
+                .Where(observation => !CustomAchievementProjectionService.IsCustomApiName(observation?.ApiName))
+                .ToList();
+            if (linkedDefinitionRows.Count > 0 && state.Provider != null && _progressWriter != null)
+            {
+                var cacheWrite = _progressWriter.ApplyInGameProgress(
+                    gameId.ToString(),
+                    state.Provider.ProviderKey,
+                    linkedDefinitionRows);
+                if (cacheWrite?.Success == true)
+                {
+                    changed |= cacheWrite.Changed;
+                    newlyUnlocked.UnionWith(cacheWrite.NewlyUnlockedKeys ?? Array.Empty<string>());
+                }
+                else
+                {
+                    _logger?.Debug($"[InGameMonitor] Linked file cache write skipped for {state.Game.Name}: {cacheWrite?.ErrorCode}.");
+                }
+            }
+
+            var owned = ApplyUserOwnedObservations?.Invoke(gameId, observations) ?? Array.Empty<string>();
+            if (owned.Count > 0)
+            {
+                changed = true;
+                newlyUnlocked.UnionWith(owned);
+            }
+
+            var write = new InGameProgressWriteResult
+            {
+                Success = true,
+                Changed = changed,
+                NewlyUnlockedKeys = newlyUnlocked.ToList()
+            };
+            var after = load(gameId) ?? before;
+            CompleteProgressApply(state, query, write, before, after, elapsedMilliseconds, beforeFullyUnlocked);
+        }
+
+        private void CompleteProgressApply(
+            GamePollState state,
+            InGameProgressQueryResult query,
+            InGameProgressWriteResult write,
+            GameAchievementData before,
+            GameAchievementData after,
+            long elapsedMilliseconds,
+            bool? beforeFullyUnlocked)
+        {
             bool primed;
             DateTime sessionStartUtc;
             DateTime observedUtc;
@@ -863,7 +967,8 @@ namespace PlayniteAchievements.Services
                     observedUtc,
                     anchorPolicy,
                     anchorBias,
-                    held);
+                    held,
+                    beforeFullyUnlocked);
             }
 
             // Silent baseline observations must also be remembered: a later refresh may relock
@@ -1090,22 +1195,47 @@ namespace PlayniteAchievements.Services
             }
 
             var provider = TryResolveProvider(state.Game);
-            if (provider == null)
+            var cached = _cacheManager?.LoadGameData(state.Game.Id.ToString());
+
+            // A linked file serves the game whether or not a provider does.
+            InGameProgressRegistration linkedRegistration = null;
+            if (LinkedFileSource != null)
+            {
+                try
+                {
+                    linkedRegistration = LinkedFileSource.TryRegister(state.Game, cached);
+                    if (!(linkedRegistration?.WatchTargets?.Count > 0))
+                    {
+                        linkedRegistration = null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"[InGameMonitor] Linked file registration failed for {state.Game.Name}.");
+                    linkedRegistration = null;
+                }
+            }
+
+            if (provider == null && linkedRegistration == null)
             {
                 return false;
             }
 
             // A reconfigure can move a tracked game onto an exempt provider; returning false
             // stops it there.
-            if (IsPollingExempt(provider))
+            if (linkedRegistration == null && IsPollingExempt(provider))
             {
                 return false;
             }
 
-            var cached = _cacheManager?.LoadGameData(state.Game.Id.ToString());
             IInGameProgressSource progressSource = null;
             InGameProgressRegistration registration = null;
-            if (_progressWriter != null &&
+            if (linkedRegistration != null)
+            {
+                progressSource = LinkedFileSource;
+                registration = linkedRegistration;
+            }
+            else if (_progressWriter != null &&
                 provider is IInGameProgressSource candidate &&
                 cached?.Achievements?.Count > 0 &&
                 string.Equals(cached.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -1134,7 +1264,7 @@ namespace PlayniteAchievements.Services
                 !localProvider.RefreshMissingAchievementFileDiscovery(state.Game, out _);
             var equivalent =
                 preservePrimeWhenEquivalent &&
-                string.Equals(state.Provider?.ProviderKey, provider.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(state.Provider?.ProviderKey, provider?.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
                 ReferenceEquals(state.ProgressSource, progressSource) &&
                 previousTargets.SequenceEqual(nextTargets, StringComparer.OrdinalIgnoreCase) &&
                 state.Registration?.IsRemote == registration?.IsRemote &&
@@ -1235,7 +1365,7 @@ namespace PlayniteAchievements.Services
             if (shouldLogConfigured)
             {
                 ForkLog.Wrap(_logger)?.Debug(
-                    $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider.ProviderKey}, " +
+                    $"[InGameMonitor] Configured game={state.Game.Name}, provider={provider?.ProviderKey ?? "none"}, " +
                     $"prongs={DescribeProngs(state)}, " +
                     $"targets={nextTargets.Count}.");
             }
@@ -1346,31 +1476,45 @@ namespace PlayniteAchievements.Services
                             }
                         }
                     }
-                    using (RealtimePollingLogScope.Enter())
-                    using (localProvider?.BeginRealtimeLogThrottle())
+                    lock (_fallbackRefreshGameIds)
                     {
-                        await _executeRefreshAsync(
-                            new RefreshRequest
-                            {
-                                GameIds = gameIds,
-                                Options = new RefreshOptions
+                        _fallbackRefreshGameIds.UnionWith(gameIds);
+                    }
+                    try
+                    {
+                        using (RealtimePollingLogScope.Enter())
+                        using (localProvider?.BeginRealtimeLogThrottle())
+                        {
+                            await _executeRefreshAsync(
+                                new RefreshRequest
                                 {
-                                    Subjects = RefreshSubjects.CurrentUser,
-                                    Scope = RefreshGameScope.Explicit,
-                                    ProviderKeys = new[] { providerGroup.Key },
-                                    PlayniteGameIds = gameIds,
-                                    PreferCachedDefinitions = true,
-                                    RespectUserExclusions = true
-                                }
-                            },
-                            new RefreshExecutionPolicy
-                            {
-                                ValidateAuthentication = false,
-                                UseProgressWindow = false,
-                                SwallowExceptions = true,
-                                ExternalCancellationToken = token,
-                                ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
-                            }).ConfigureAwait(false);
+                                    GameIds = gameIds,
+                                    Options = new RefreshOptions
+                                    {
+                                        Subjects = RefreshSubjects.CurrentUser,
+                                        Scope = RefreshGameScope.Explicit,
+                                        ProviderKeys = new[] { providerGroup.Key },
+                                        PlayniteGameIds = gameIds,
+                                        PreferCachedDefinitions = true,
+                                        RespectUserExclusions = true
+                                    }
+                                },
+                                new RefreshExecutionPolicy
+                                {
+                                    ValidateAuthentication = false,
+                                    UseProgressWindow = false,
+                                    SwallowExceptions = true,
+                                    ExternalCancellationToken = token,
+                                    ErrorLogMessage = "[InGameMonitor] Provider fallback refresh failed."
+                                }).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        lock (_fallbackRefreshGameIds)
+                        {
+                            _fallbackRefreshGameIds.ExceptWith(gameIds);
+                        }
                     }
                     timer.Stop();
 
@@ -1389,7 +1533,13 @@ namespace PlayniteAchievements.Services
                             (after?.Achievements?.Count(item => item?.Unlocked == true) ?? 0));
                         // Read the baseline flag before MarkPrimed below sets it.
                         var primed = state.Schedule.ShouldEmitUnlocks();
-                        var keys = _differ.DiffUserUnlocks(before, after)
+                        var unlocked = _differ.DiffUserUnlocks(before, after).ToList();
+                        if (unlocked.Count > 0)
+                        {
+                            ProgressApplied?.Invoke(state.Game.Id);
+                        }
+
+                        var keys = unlocked
                             .Where(achievement =>
                                 achievement != null &&
                                 !string.IsNullOrWhiteSpace(achievement.ApiName) &&
@@ -1554,7 +1704,8 @@ namespace PlayniteAchievements.Services
             DateTime observedUtc,
             InGameUnlockAnchorPolicy anchorPolicy,
             TimeSpan anchorBias,
-            IReadOnlyList<AchievementUnlockedEventArgs> held)
+            IReadOnlyList<AchievementUnlockedEventArgs> held,
+            bool? beforeFullyUnlocked = null)
         {
             var heldCapstoneCompletes = held?.Count > 0;
             var game = state.Game;
@@ -1601,7 +1752,8 @@ namespace PlayniteAchievements.Services
             // notification is reserved for true 100% (the capstone's own toast, flagged
             // IsCapstone, is the capstone notification). Gated on the claimed unlocks rather than
             // the shown ones: a notification filter hiding the final unlock does not undo the 100%.
-            var reaches100Percent = claimed.Count > 0 && before?.IsFullyUnlocked != true && after?.IsFullyUnlocked == true;
+            var wasFullyUnlocked = beforeFullyUnlocked ?? (before?.IsFullyUnlocked == true);
+            var reaches100Percent = claimed.Count > 0 && !wasFullyUnlocked && after?.IsFullyUnlocked == true;
 
             // The single unlock that finished the game: the capstone when it lands in the
             // 100%-reaching batch, otherwise the last achievement to unlock. Null when this batch
