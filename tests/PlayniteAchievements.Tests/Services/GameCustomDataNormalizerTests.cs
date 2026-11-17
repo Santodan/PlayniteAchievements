@@ -1416,7 +1416,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void NormalizeInternal_LinkedFile_WithoutAFileCustomTrackingOrCustomAchievements_IsDropped()
+        public void NormalizeInternal_LinkedFile_MappingAloneIsKeptOnAnyGame()
         {
             var gameId = Guid.NewGuid();
 
@@ -1431,8 +1431,17 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 gameId);
 
-            Assert.IsNull(normalized.LinkedFile);
-            Assert.IsFalse(GameCustomDataNormalizer.HasInternalData(normalized));
+            Assert.AreEqual("Progress", normalized.LinkedFile?.Schema?.Name);
+            Assert.IsTrue(GameCustomDataNormalizer.HasInternalData(normalized));
+
+            var withoutMapping = GameCustomDataNormalizer.NormalizeInternal(
+                new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    LinkedFile = new LinkedFileLink { FilePath = @"C:\p.csv" }
+                },
+                gameId);
+            Assert.IsNull(withoutMapping.LinkedFile, "A link with no mapping reads nothing.");
         }
 
         [TestMethod]
@@ -1469,9 +1478,9 @@ namespace PlayniteAchievements.Services.Tests
                 LinkedFileSchema = new LinkedFileSchema { Name = " Progress " }
             };
 
-            var orphaned = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
-            Assert.IsNull(orphaned.LinkedFileSchema);
-            Assert.IsFalse(GameCustomDataNormalizer.HasPortableData(orphaned));
+            var alone = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());
+            Assert.AreEqual("Progress", alone.LinkedFileSchema?.Name);
+            Assert.IsTrue(GameCustomDataNormalizer.HasPortableData(alone));
 
             portable.ManualLink = new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "480" };
             var kept = GameCustomDataNormalizer.NormalizePortable(portable, Guid.NewGuid());

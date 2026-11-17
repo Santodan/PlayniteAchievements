@@ -40,8 +40,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
     /// <summary>
     /// Reads linked files and writes what they say: unlocks for custom achievements onto their
     /// definitions, unlocks for linked definitions onto the manual link (then re-projected onto
-    /// the cache), progress for linked definitions onto the cache. The file wins for the rows it
-    /// contains. A file that is missing, half-written or unreadable writes nothing.
+    /// the cache), progress for linked definitions onto the cache, and unlocks and progress for
+    /// a platform's achievements onto the cache, where a recorded unlock outlasts the
+    /// provider's refreshes. The file wins for the rows it contains, except that it never locks
+    /// a platform's achievement. A file that is missing, half-written or unreadable writes nothing.
     /// </summary>
     public sealed class LinkedFileSyncService
     {
@@ -80,21 +82,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
             _icons = managedIcons == null ? null : new LinkedFileIcons(managedIcons, logger);
         }
 
-        /// <summary>A file can be linked to a custom-tracked game or one with custom achievements.</summary>
-        public static bool IsEligible(GameCustomDataFile data)
-        {
-            // A stored link stays eligible on its own, so a file linked to a game with no
-            // achievements yet can create them.
-            return data != null &&
-                   (data.ManualLink != null ||
-                    data.LinkedFile != null ||
-                    CustomAchievementProjectionService.HasCustomAchievements(data));
-        }
-
         public IReadOnlyList<Guid> FindLinkedGameIds()
         {
             return _store.QueryAll(records => records
-                .Where(record => record?.LinkedFile?.HasFilePath == true && IsEligible(record))
+                .Where(record => record?.LinkedFile?.HasFilePath == true)
                 .Select(record => record.PlayniteGameId)
                 .Where(id => id != Guid.Empty)
                 .ToList());
@@ -214,7 +205,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             var link = data.LinkedFile;
-            if (!IsEligible(data) || !link.HasFilePath)
+            if (!link.HasFilePath)
             {
                 return Record(gameId, link, new LinkedFileApplyReport { Status = LinkedFileReadStatus.NoFilePath, ReadUtc = nowUtc });
             }
@@ -278,22 +269,12 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             // Progress lands on the cache first, so re-projecting the link below keeps it.
-            if (plan.ManualProgress.Count > 0 && _cacheManager is IInGameProgressCacheWriter writer)
+            WriteToCache(gameId, CustomProviders.CustomProviderKeys.FallbackProviderKey, plan.ManualProgress);
+
+            // A platform's achievements are written under the provider the cache holds them for.
+            if (plan.PlatformUpdates.Count > 0)
             {
-                var observations = plan.ManualProgress
-                    .Select(update => new AchievementProgressObservation
-                    {
-                        ApiName = update.ApiName,
-                        Unlocked = false,
-                        ProgressNum = update.ProgressNum,
-                        ProgressDenom = update.ProgressDenom
-                    })
-                    .ToList();
-                var result = writer.ApplyInGameProgress(gameId.ToString(), CustomProviders.CustomProviderKeys.FallbackProviderKey, observations);
-                if (result?.Success != true)
-                {
-                    _logger?.Debug($"[LinkedFile] Progress for game {gameId} was not written: {result?.ErrorCode}.");
-                }
+                WriteToCache(gameId, _dataService.GetRawGameAchievementData(gameId.ToString())?.ProviderKey, plan.PlatformUpdates);
             }
 
             if (plan.ManualChanged && _overrides.SetManualUnlockStates(gameId, plan.ManualUnlocks))
@@ -303,6 +284,31 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     var source = _manualSources?.GetSourceByKey(updated.ManualLink.SourceKey);
                     new ManualLinkCacheApplier(_dataService, _cacheManager, _settings, _logger).Apply(gameId, updated.ManualLink, source);
                 }
+            }
+        }
+
+        /// <summary>Adds unlocks and progress to the game's cached rows; the write never locks a row.</summary>
+        private void WriteToCache(Guid gameId, string providerKey, IReadOnlyList<LinkedFileProgressUpdate> updates)
+        {
+            if (updates.Count == 0 || !(_cacheManager is IInGameProgressCacheWriter writer))
+            {
+                return;
+            }
+
+            var observations = updates
+                .Select(update => new AchievementProgressObservation
+                {
+                    ApiName = update.ApiName,
+                    Unlocked = update.Unlocked,
+                    UnlockTimeUtc = update.UnlockTimeUtc,
+                    ProgressNum = update.ProgressNum,
+                    ProgressDenom = update.ProgressDenom
+                })
+                .ToList();
+            var result = writer.ApplyInGameProgress(gameId.ToString(), providerKey, observations);
+            if (result?.Success != true)
+            {
+                _logger?.Debug($"[LinkedFile] The cache write for game {gameId} failed: {result?.ErrorCode}.");
             }
         }
 

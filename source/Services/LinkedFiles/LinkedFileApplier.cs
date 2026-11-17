@@ -256,10 +256,18 @@ namespace PlayniteAchievements.Services.LinkedFiles
         }
     }
 
-    /// <summary>Progress a file gives a linked-definition achievement; written to the cache only.</summary>
+    /// <summary>
+    /// What a file gives an achievement whose state lives in the cache: progress for a
+    /// linked-definition achievement, and an unlock or progress for a platform achievement.
+    /// </summary>
     public sealed class LinkedFileProgressUpdate
     {
         public string ApiName { get; set; }
+
+        /// <summary>The file unlocks an achievement the cache holds locked.</summary>
+        public bool Unlocked { get; set; }
+
+        public DateTime? UnlockTimeUtc { get; set; }
 
         public int? ProgressNum { get; set; }
 
@@ -322,8 +330,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
     /// <summary>
     /// What applying a file would write: a replacement unlock map for the game's linked
-    /// definitions, cache-only progress for those rows, and a replacement custom achievement
-    /// list. The caller writes them; nothing here touches a store.
+    /// definitions, cache-only progress for those rows, unlocks and progress for the platform's
+    /// achievements, and a replacement custom achievement list. The caller writes them; nothing
+    /// here touches a store.
     /// </summary>
     public sealed class LinkedFileApplyPlan
     {
@@ -333,6 +342,12 @@ namespace PlayniteAchievements.Services.LinkedFiles
         public Dictionary<string, DateTime?> ManualUnlocks { get; } = new Dictionary<string, DateTime?>(StringComparer.OrdinalIgnoreCase);
 
         public List<LinkedFileProgressUpdate> ManualProgress { get; } = new List<LinkedFileProgressUpdate>();
+
+        /// <summary>
+        /// Unlocks and progress for achievements a platform provider supplies, added to the cache.
+        /// Holds only rows that unlock a locked achievement or carry progress.
+        /// </summary>
+        public List<LinkedFileProgressUpdate> PlatformUpdates { get; } = new List<LinkedFileProgressUpdate>();
 
         public bool CustomChanged { get; set; }
 
@@ -345,9 +360,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
     }
 
     /// <summary>
-    /// Turns a read table into the writes it implies. The file wins for the rows it contains,
-    /// locking as well as unlocking; achievements with no row keep their state. Definition fields
-    /// apply to custom achievements only. Pure: the same inputs always build the same plan.
+    /// Turns a read table into the writes it implies. For custom achievements and linked
+    /// definitions the file wins for the rows it contains, locking as well as unlocking. For a
+    /// platform's achievements the file only adds: a row unlocks a locked achievement and never
+    /// locks one. Achievements with no row keep their state. Definition fields apply to custom
+    /// achievements only. Pure: the same inputs always build the same plan.
     /// </summary>
     public static class LinkedFileApplier
     {
@@ -464,13 +481,18 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
                 else
                 {
-                    report.AddMessage(DescribeRow(rowMatch.RowIndex) + ": '" + achievement.ApiName + "' is not tracked by you, so the file cannot change it.");
+                    if (values.HasDefinitionFields)
+                    {
+                        definitionFieldsIgnored = true;
+                    }
+
+                    ApplyToPlatform(achievement, values, plan, nowUtc, report);
                 }
             }
 
             if (definitionFieldsIgnored)
             {
-                report.AddMessage("Name, description, icon, hidden, points, trophy, rarity and category columns apply to custom achievements only; linked definitions keep their source's values.");
+                report.AddMessage("Name, description, icon, hidden, points, trophy, rarity and category columns apply to custom achievements only; other achievements keep their source's values.");
             }
 
             if (schema.CreateUnmatchedRows)
@@ -604,6 +626,38 @@ namespace PlayniteAchievements.Services.LinkedFiles
             {
                 report.Updated++;
             }
+        }
+
+        /// <summary>
+        /// A platform achievement takes an unlock the file adds and progress; a row that says
+        /// locked changes nothing, and an achievement already unlocked keeps its time.
+        /// </summary>
+        private static void ApplyToPlatform(
+            AchievementDetail achievement,
+            LinkedFileRowValues values,
+            LinkedFileApplyPlan plan,
+            DateTime nowUtc,
+            LinkedFileApplyReport report)
+        {
+            var unlocks = values.HasUnlockInfo && values.Unlocked && !achievement.Unlocked;
+            if (!unlocks && !values.ProgressNum.HasValue && !values.ProgressDenom.HasValue)
+            {
+                return;
+            }
+
+            if (unlocks)
+            {
+                report.Unlocked++;
+            }
+
+            plan.PlatformUpdates.Add(new LinkedFileProgressUpdate
+            {
+                ApiName = achievement.ApiName.Trim(),
+                Unlocked = unlocks,
+                UnlockTimeUtc = unlocks ? values.UnlockTimeUtc ?? nowUtc : (DateTime?)null,
+                ProgressNum = values.ProgressNum,
+                ProgressDenom = values.ProgressDenom
+            });
         }
 
         private static void ApplyToManual(
