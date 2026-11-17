@@ -219,6 +219,28 @@ namespace PlayniteAchievements.Services.Friends
                    (_friendGameUnlockKeys.Contains(key) || _friendGameOwnershipKeys.Contains(key));
         }
 
+        /// <summary>
+        /// Whether <paramref name="friend"/> has anything for the game <paramref name="row"/>
+        /// belongs to: unlocked rows or an ownership link, as in
+        /// <see cref="HasFriendGamePairData"/>.
+        /// </summary>
+        public bool HasFriendGameData(FriendSummaryItem friend, FriendAchievementDisplayItem row)
+        {
+            if (friend == null || row == null)
+            {
+                return false;
+            }
+
+            var key = BuildFriendGameUnlockKey(
+                friend.IsMergedFriend ? MergedProviderKey : friend.ProviderKey,
+                friend.IsMergedFriend ? friend.MergedFriendId : friend.ExternalUserId,
+                row.ProviderGameKey,
+                row.AppId,
+                row.PlayniteGameId);
+            return !string.IsNullOrWhiteSpace(key) &&
+                   (_friendGameUnlockKeys.Contains(key) || _friendGameOwnershipKeys.Contains(key));
+        }
+
         public static bool IsAllScope(string scopeKey)
         {
             return string.IsNullOrWhiteSpace(scopeKey) ||
