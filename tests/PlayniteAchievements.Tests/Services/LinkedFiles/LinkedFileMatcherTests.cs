@@ -129,6 +129,84 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Order_PicksTheAchievementAtThePositionWhateverTheRowOrder()
+        {
+            var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
+            var schema = Schema(("n", LinkedFileField.Order));
+
+            var oneBased = LinkedFileMatcher.Match(Table(new[] { "n" }, new[] { "3" }, new[] { "1" }), schema, achievements);
+            Assert.AreEqual(2, oneBased.Matches.Count);
+            Assert.AreEqual("c", oneBased.Matches[0].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.Order, oneBased.Matches[0].MatchedBy);
+            Assert.AreEqual("a", oneBased.Matches[1].Achievement.ApiName);
+            Assert.AreEqual("b", oneBased.UnmatchedAchievements.Single().ApiName);
+
+            var holdsZero = LinkedFileMatcher.Match(Table(new[] { "n" }, new[] { "2" }, new[] { "0" }), schema, achievements);
+            Assert.AreEqual("c", holdsZero.Matches[0].Achievement.ApiName, "A 0 in the column means positions count from 0.");
+            Assert.AreEqual("a", holdsZero.Matches[1].Achievement.ApiName);
+
+            var zeroBasedSchema = Schema(("n", LinkedFileField.Order));
+            zeroBasedSchema.OrderStartsAtZero = true;
+            var zeroBased = LinkedFileMatcher.Match(Table(new[] { "n" }, new[] { "2" }, new[] { "1" }), zeroBasedSchema, achievements);
+            Assert.AreEqual("c", zeroBased.Matches[0].Achievement.ApiName);
+            Assert.AreEqual("b", zeroBased.Matches[1].Achievement.ApiName);
+        }
+
+        [TestMethod]
+        public void Order_LeavesDuplicateOutOfRangeAndUnreadablePositionsUnmatched()
+        {
+            var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
+            var table = Table(new[] { "n" }, new[] { "1" }, new[] { "1" }, new[] { "4" }, new[] { "x" }, new[] { "" }, new[] { "2" });
+
+            var result = LinkedFileMatcher.Match(table, Schema(("n", LinkedFileField.Order)), achievements);
+
+            Assert.AreEqual("b", result.Matches.Single().Achievement.ApiName);
+            CollectionAssert.AreEqual(new[] { 0, 1, 2, 3, 4 }, result.UnmatchedRows.ToArray());
+            Assert.AreEqual(2, result.Diagnostics.Count(message => message.Contains("more than one row")));
+            Assert.AreEqual(1, result.Diagnostics.Count(message => message.Contains("outside the game's 3 achievements")));
+            Assert.AreEqual(1, result.Diagnostics.Count(message => message.Contains("is not a position")));
+        }
+
+        [TestMethod]
+        public void Order_RunsAfterApiNameAndBeforeName()
+        {
+            var achievements = new[] { Achievement("a", "Alpha"), Achievement("b", "Beta"), Achievement("c", "Gamma") };
+            var table = Table(
+                new[] { "id", "n", "name" },
+                new[] { "c", "1", "Alpha" },
+                new[] { "zzz", "2", "Alpha" },
+                new[] { "zzz", "", "alpha" });
+
+            var result = LinkedFileMatcher.Match(
+                table,
+                Schema(("id", LinkedFileField.ApiName), ("n", LinkedFileField.Order), ("name", LinkedFileField.DisplayName)),
+                achievements);
+
+            Assert.AreEqual(3, result.Matches.Count);
+            Assert.AreEqual("c", result.Matches[0].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.ApiName, result.Matches[0].MatchedBy);
+            Assert.AreEqual("b", result.Matches[1].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.Order, result.Matches[1].MatchedBy);
+            Assert.AreEqual("a", result.Matches[2].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.DisplayName, result.Matches[2].MatchedBy);
+        }
+
+        [TestMethod]
+        public void Order_KeysHandPairingsByThePosition()
+        {
+            var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
+            var schema = Schema(("n", LinkedFileField.Order));
+            var table = Table(new[] { "n" }, new[] { "2" }, new[] { "1" });
+            Assert.AreEqual("order:2", LinkedFileMatcher.RowKey(table, schema, 0));
+
+            var result = LinkedFileMatcher.Match(table, schema, achievements, new Dictionary<string, string> { ["order:2"] = "c" });
+
+            Assert.AreEqual("c", result.Matches[0].Achievement.ApiName);
+            Assert.AreEqual(LinkedFileMatchKey.Paired, result.Matches[0].MatchedBy);
+            Assert.AreEqual("a", result.Matches[1].Achievement.ApiName);
+        }
+
+        [TestMethod]
         public void Pairings_ComeFirstAndANoneRowIsSkipped()
         {
             var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
