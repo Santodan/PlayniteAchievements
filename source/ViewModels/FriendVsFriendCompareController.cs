@@ -32,6 +32,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly Func<FriendAchievementDisplayItem, bool> _isRowInScope;
         private readonly Func<IReadOnlyList<FriendIdentity>> _loadCurrentUserIdentities;
         private readonly Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> _hasGameData;
+        private readonly Func<FriendSummaryItem, bool> _hasPairData;
         private readonly ILogger _logger;
 
         private FriendSummaryItem _compareFriend;
@@ -65,19 +66,25 @@ namespace PlayniteAchievements.ViewModels
         /// Whether a friend has anything for a row's game, for callers that know of games a friend
         /// owns without a row in the pool. A friend with a pool row for the game always counts.
         /// </param>
+        /// <param name="hasPairData">
+        /// Whether a candidate has anything for the game being viewed; one without is listed
+        /// dimmed. Omit to list every candidate alike.
+        /// </param>
         public FriendVsFriendCompareController(
             Func<FriendSummaryItem> getSelectedFriend,
             Func<IReadOnlyList<FriendSummaryItem>> getCandidates,
             Func<FriendAchievementDisplayItem, bool> isRowInScope = null,
             Func<IReadOnlyList<FriendIdentity>> loadCurrentUserIdentities = null,
             ILogger logger = null,
-            Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> hasGameData = null)
+            Func<FriendSummaryItem, FriendAchievementDisplayItem, bool> hasGameData = null,
+            Func<FriendSummaryItem, bool> hasPairData = null)
         {
             _getSelectedFriend = getSelectedFriend ?? throw new ArgumentNullException(nameof(getSelectedFriend));
             _getCandidates = getCandidates ?? throw new ArgumentNullException(nameof(getCandidates));
             _isRowInScope = isRowInScope;
             _loadCurrentUserIdentities = loadCurrentUserIdentities;
             _hasGameData = hasGameData;
+            _hasPairData = hasPairData;
             _logger = logger;
             _selfOptionAvailable = loadCurrentUserIdentities != null;
             BeginIdentityLoad();
@@ -146,6 +153,17 @@ namespace PlayniteAchievements.ViewModels
         public bool IsKeyFavorite(string key)
         {
             return FindCandidate(key)?.IsFavorite == true;
+        }
+
+        public bool IsKeyMuted(string key)
+        {
+            if (_hasPairData == null || IsSelfKey(key))
+            {
+                return false;
+            }
+
+            var candidate = FindCandidate(key);
+            return candidate != null && !_hasPairData(candidate);
         }
 
         // Single-select semantics over checkable menu items: checking a friend or the self entry
@@ -218,6 +236,11 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public void ClearSelection()
+        {
+            Select(null);
+        }
+
+        private protected override void DropSelection()
         {
             Select(null);
         }
@@ -465,13 +488,7 @@ namespace PlayniteAchievements.ViewModels
         // "Me" fallback covers providers with no stored account name.
         private string GetSelfLabel(string providerKey = null)
         {
-            var identity = ResolveSelfIdentity(providerKey ?? FirstInScopeProviderKey());
-            if (identity != null && IsRealIdentityName(identity))
-            {
-                return identity.DisplayName.Trim();
-            }
-
-            return ResourceProvider.GetString("LOCPlayAch_Filter_CompareSelfOption");
+            return GetSelfName(ResolveSelfIdentity(providerKey ?? FirstInScopeProviderKey()));
         }
 
         private FriendIdentity ResolveSelfIdentity(string providerKey)
@@ -497,25 +514,6 @@ namespace PlayniteAchievements.ViewModels
             return targetRows.FirstOrDefault(row => row != null &&
                 !string.IsNullOrWhiteSpace(row.ProviderKey) &&
                 IsTargetRow(row, selectedFriend))?.ProviderKey;
-        }
-
-        // "unmapped" is the store's placeholder for providers with no stored account, and a
-        // display name equal to the external id is a raw account id (e.g. a SteamID64 before the
-        // persona is fetched); neither reads as a username.
-        private static bool IsRealIdentityName(FriendIdentity identity)
-        {
-            var name = identity.DisplayName?.Trim();
-            if (string.IsNullOrEmpty(name))
-            {
-                return false;
-            }
-
-            if (string.Equals(name, "unmapped", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return !string.Equals(name, identity.ExternalUserId?.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSelfKey(string key)
