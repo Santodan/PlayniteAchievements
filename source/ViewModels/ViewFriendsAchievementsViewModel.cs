@@ -96,7 +96,8 @@ namespace PlayniteAchievements.ViewModels
                 GetCompareFriendOptions,
                 isRowInScope: null,
                 loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
-                logger: logger);
+                logger: logger,
+                hasPairData: HasCompareGameData);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
             PersistCompareSelection();
 
@@ -544,7 +545,12 @@ namespace PlayniteAchievements.ViewModels
             return FriendSurfaceControlBars.GetCompareFriendOptions(
                 _allFriends,
                 SelectedFriend,
-                friend => _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)));
+                HasCompareGameData);
+        }
+
+        private bool HasCompareGameData(FriendSummaryItem friend)
+        {
+            return _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend));
         }
 
         // Mirrors the Friends Overview game-summary pair: the aggregate all-friends row when no
