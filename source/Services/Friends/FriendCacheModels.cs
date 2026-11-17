@@ -339,6 +339,12 @@ namespace PlayniteAchievements.Services.Friends
         public Guid? PlayniteGameId { get; set; }
         public long PlaytimeForeverMinutes { get; set; }
         public DateTime? LastPlayedUtc { get; set; }
+
+        /// <summary>
+        /// Whether the link came from the friend's own game list or carries playtime, as opposed
+        /// to one made only by scraping their achievements for the game.
+        /// </summary>
+        public bool OwnershipConfirmed { get; set; }
     }
 
     internal interface IFriendCacheManager
