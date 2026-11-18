@@ -194,14 +194,35 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            if (_editingClone?.Persisted == null)
+            if (_editingClone?.Persisted != null)
             {
-                _plugin.PersistSettingsForUi();
-                return;
+                _editingClone.Persisted.TaggingSettings = tagging.Clone();
             }
 
-            _editingClone.Persisted.TaggingSettings = tagging.Clone();
-            _saveOnCancel = true;
+            SaveSurvivingCancel();
+        }
+
+        /// <summary>
+        /// Applies <paramref name="update"/> as <see cref="UpdatePersistedIncludingEditSnapshot"/>
+        /// does, then saves it: now when no settings window is open, otherwise when the window
+        /// closes, by Save or Cancel.
+        /// </summary>
+        public void UpdatePersistedAndSave(Action<PersistedSettings> update)
+        {
+            UpdatePersistedIncludingEditSnapshot(update);
+            SaveSurvivingCancel();
+        }
+
+        private void SaveSurvivingCancel()
+        {
+            if (_editingClone == null)
+            {
+                _plugin.PersistSettingsForUi();
+            }
+            else
+            {
+                _saveOnCancel = true;
+            }
         }
 
         public void BeginEdit()
