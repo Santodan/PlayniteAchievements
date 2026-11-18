@@ -250,6 +250,9 @@ namespace PlayniteAchievements.Models.Settings
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
             target.IconScaleMode = source.IconScaleMode;
+            target.CornerRoundingRadius = source.CornerRoundingRadius;
+            target.RoundGameArtCorners = source.RoundGameArtCorners;
+            target.RoundAchievementIconCorners = source.RoundAchievementIconCorners;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
             target.ProgressDetailShownCount = source.ProgressDetailShownCount;
