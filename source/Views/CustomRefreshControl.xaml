@@ -158,8 +158,8 @@
                                      Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
                                      Text="{Binding RecentLimitOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                     Background="{DynamicResource PlayAch.Brush.Surface}"
-                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                     Background="{DynamicResource PlayAch.Brush.Input.Background}"
+                                     BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
                                      IsEnabled="{Binding UseRecentLimitOverride}" />
                         </StackPanel>
 
