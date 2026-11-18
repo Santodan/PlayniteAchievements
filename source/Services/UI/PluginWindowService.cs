@@ -527,7 +527,7 @@ namespace PlayniteAchievements.Services.UI
                     authContext = await _refreshService
                         .GetRefreshAuthContextOrShowDialogAsync(request, progress.CancelToken)
                         .ConfigureAwait(false);
-                    if (authContext == null || !authContext.HasAuthenticatedProviders)
+                    if (authContext == null || !authContext.CanProceed)
                     {
                         _logger?.Info("RunRefreshWithGlobalProgressAsync: Authentication preflight found no authenticated providers.");
                         SafeInvokeRefreshCompleted(onCompleted, false);
