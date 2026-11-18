@@ -87,6 +87,12 @@ namespace PlayniteAchievements.Services
             }
 
             var culture = FormattingCulture.Current;
+            if (hours >= 1000)
+            {
+                // Matches the Showcase statistics widget ("23.4k h"); minutes are dropped at this scale.
+                return string.Format(culture, L("LOCPlayAch_Showcase_ThousandsHours"), totalMinutes / 60d / 1000d);
+            }
+
             var hoursText = hours.ToString("N0", culture);
 
             if (displayMode == PlaytimeDisplayMode.HoursOnly)
