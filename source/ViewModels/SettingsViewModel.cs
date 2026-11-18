@@ -180,8 +180,34 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// Saves the tagging settings once they are written to the library (Apply and Sync, Remove
+        /// All), so a Cancel cannot restore names and ids the library no longer matches. While a
+        /// settings window is open they go into its edit snapshot and are written to disk when the
+        /// window closes, by Save or Cancel; otherwise they are written now.
+        /// </summary>
+        public void SaveTaggingSettings()
+        {
+            var tagging = Settings?.Persisted?.TaggingSettings;
+            if (tagging == null)
+            {
+                return;
+            }
+
+            if (_editingClone?.Persisted == null)
+            {
+                _plugin.PersistSettingsForUi();
+                return;
+            }
+
+            _editingClone.Persisted.TaggingSettings = tagging.Clone();
+            _saveOnCancel = true;
+        }
+
         public void BeginEdit()
         {
+            _saveOnCancel = false;
+
             // Only persisted settings need an edit snapshot; runtime/theme data can be large.
             _editingClone = new PlayniteAchievementsSettings(_plugin);
             _editingClone.CopyPersistedFrom(Settings);
@@ -208,6 +234,12 @@ namespace PlayniteAchievements.ViewModels
             _editingClone = null;
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+
+            if (_saveOnCancel)
+            {
+                _saveOnCancel = false;
+                _plugin.SavePluginSettings(Settings);
+            }
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
         }
@@ -215,6 +247,7 @@ namespace PlayniteAchievements.ViewModels
         public void EndEdit()
         {
             _editingClone = null;
+            _saveOnCancel = false;
             _plugin.ProviderRegistry?.CommitEditSession(false);
             _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
 
@@ -336,5 +369,9 @@ namespace PlayniteAchievements.ViewModels
         }
 
         private PlayniteAchievementsSettings _editingClone;
+
+        // Set when settings already applied to the library were copied into the edit snapshot,
+        // so a Cancel still writes them to disk.
+        private bool _saveOnCancel;
     }
 }
