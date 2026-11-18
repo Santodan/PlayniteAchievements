@@ -1170,6 +1170,7 @@ namespace PlayniteAchievements
                         () => AutoCapstoneText.Resolve(_settingsViewModel?.Settings?.Persisted),
                         wholeGame => AutoCapstoneTagRule.Resolve(_settingsViewModel?.Settings?.Persisted, wholeGame),
                         () => _metadataLinkStore,
+                        () => _settingsViewModel?.Settings?.Persisted,
                         _logger);
                     _autoCapstoneTextService = new AutoCapstoneTextService(
                         _gameCustomDataStore,
