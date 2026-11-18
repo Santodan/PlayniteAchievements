@@ -512,7 +512,7 @@
                                                Visibility="{Binding ShowOverviewScoreCard1, Converter={StaticResource BoolToVis}}"/>
 
                     <Border x:Name="ScoreCardsDivider"
-                            Background="{DynamicResource PlayAch.Brush.ControlBorder}"
+                            Background="{DynamicResource PlayAch.Brush.Separator}"
                             Opacity="{StaticResource PlayAch.Opacity.Disabled}"
                             VerticalAlignment="Center"
                             Width="1"
