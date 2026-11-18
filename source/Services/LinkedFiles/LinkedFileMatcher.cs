@@ -36,12 +36,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
     /// <summary>
     /// Pairs file rows with achievements. The user's own pairings come first, by row key. Then
-    /// API names match, exactly (a custom achievement
-    /// also answers to its bare id), then an Order column's number picks the achievement at that
-    /// position in the game's list, then display names by their normalized text, each over the
-    /// rows and achievements still unmatched. A mapping that identifies rows by none of those
-    /// matches nothing; the position column every table carries is what maps to Order for a file
-    /// whose rows are identified only by where they sit.
+    /// the match column's cells pair the remaining rows, read as the mapping's
+    /// <see cref="LinkedFileSchema.MatchBy"/> says: as API names, exactly (a custom achievement
+    /// also answers to its bare id), as names by their normalized text, or as positions in the
+    /// game's order. A mapping with no match column pairs by hand pairings only.
     /// A row matches at most one achievement and an achievement at most one row; anything
     /// ambiguous stays unmatched and is reported.
     /// </summary>
@@ -66,13 +64,28 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 MatchByPairing(table, schema, pairings, candidates, rowTaken, achievementTaken, result);
             }
 
-            MatchByColumn(
-                table, schema, LinkedFileField.ApiName, candidates, rowTaken, achievementTaken, result,
-                LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
-            MatchByOrderColumn(table, schema, candidates, rowTaken, achievementTaken, result);
-            MatchByColumn(
-                table, schema, LinkedFileField.DisplayName, candidates, rowTaken, achievementTaken, result,
-                LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
+            var columnIndex = string.IsNullOrWhiteSpace(schema.MatchColumn) ? -1 : table.IndexOfColumn(schema.MatchColumn);
+            if (columnIndex >= 0)
+            {
+                switch (schema.MatchBy)
+                {
+                    case LinkedFileMatchBy.ApiName:
+                        MatchByKeys(
+                            table, columnIndex, candidates, rowTaken, achievementTaken, result,
+                            LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
+                        break;
+                    case LinkedFileMatchBy.Name:
+                        MatchByKeys(
+                            table, columnIndex, candidates, rowTaken, achievementTaken, result,
+                            LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
+                        break;
+                    default:
+                        MatchByPosition(
+                            table, columnIndex, schema.MatchBy == LinkedFileMatchBy.PositionFromZero ? 0 : 1,
+                            candidates, rowTaken, achievementTaken, result);
+                        break;
+                }
+            }
 
             for (var row = 0; row < rowTaken.Length; row++)
             {
@@ -87,10 +100,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
             return result;
         }
 
-        private static void MatchByColumn(
+        private static void MatchByKeys(
             LinkedFileTable table,
-            LinkedFileSchema schema,
-            LinkedFileField field,
+            int columnIndex,
             IReadOnlyList<AchievementDetail> candidates,
             bool[] rowTaken,
             HashSet<AchievementDetail> achievementTaken,
@@ -100,17 +112,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
             Func<string, IEnumerable<string>> rowKeys,
             StringComparer comparer)
         {
-            if (!schema.TryGetColumn(field, out var column))
-            {
-                return;
-            }
-
-            var columnIndex = table.IndexOfColumn(column);
-            if (columnIndex < 0)
-            {
-                return;
-            }
-
             // Achievements by key; a key shared by two achievements is ambiguous and matches nothing.
             var byKey = new Dictionary<string, List<AchievementDetail>>(comparer);
             foreach (var achievement in candidates.Where(candidate => !achievementTaken.Contains(candidate)))
@@ -206,30 +207,19 @@ namespace PlayniteAchievements.Services.LinkedFiles
         }
 
         /// <summary>
-        /// Pairs each row with the achievement at the position its Order cell gives. Positions
-        /// count from 1, or from 0 when the mapping says so or the column holds a 0. A number
-        /// outside the list, or on more than one row, pairs nothing.
+        /// Pairs each row with the achievement at the position its cell gives, counting from
+        /// <paramref name="first"/>. A number outside the list, or on more than one row, pairs nothing.
         /// </summary>
-        private static void MatchByOrderColumn(
+        private static void MatchByPosition(
             LinkedFileTable table,
-            LinkedFileSchema schema,
+            int columnIndex,
+            int first,
             IReadOnlyList<AchievementDetail> candidates,
             bool[] rowTaken,
             HashSet<AchievementDetail> achievementTaken,
             LinkedFileMatchResult result)
         {
-            if (!schema.TryGetColumn(LinkedFileField.Order, out var column))
-            {
-                return;
-            }
-
-            var columnIndex = table.IndexOfColumn(column);
-            if (columnIndex < 0)
-            {
-                return;
-            }
-
-            // Every row's number counts toward the base and toward duplicates, paired or not.
+            // Every row's number counts toward duplicates, paired or not.
             var numberByRow = new Dictionary<int, int>();
             var rowsByNumber = new Dictionary<int, int>();
             for (var row = 0; row < rowTaken.Length; row++)
@@ -255,7 +245,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 rowsByNumber[number] = count + 1;
             }
 
-            var first = schema.OrderStartsAtZero || rowsByNumber.ContainsKey(0) ? 0 : 1;
             foreach (var row in numberByRow.Keys.OrderBy(row => row))
             {
                 if (rowTaken[row])
@@ -294,49 +283,31 @@ namespace PlayniteAchievements.Services.LinkedFiles
         }
 
         /// <summary>
-        /// The key a hand pairing is stored under: the row's API name cell, else its Order cell,
-        /// else its name cell, else its position, so a pairing follows the row when the file's
-        /// order changes and one of those columns is mapped.
+        /// The key a hand pairing is stored under: the row's match cell, prefixed by how it is
+        /// read, else its position, so a pairing follows the row when the file's order changes.
+        /// The prefixes are the ones keys had when API Name, Order and Name were separate fields,
+        /// and the position column keeps "row:", so pairings saved then still find their row.
         /// </summary>
         public static string RowKey(LinkedFileTable table, LinkedFileSchema schema, int rowIndex)
         {
-            var apiName = CellText(table, schema, LinkedFileField.ApiName, rowIndex);
-            if (apiName != null)
+            var columnIndex = table == null || string.IsNullOrWhiteSpace(schema?.MatchColumn) ? -1 : table.IndexOfColumn(schema.MatchColumn);
+            var text = columnIndex < 0 ? null : table.Cell(rowIndex, columnIndex)?.Trim();
+            if (!string.IsNullOrEmpty(text))
             {
-                return "id:" + apiName;
-            }
-
-            if (schema.TryGetColumn(LinkedFileField.Order, out var orderColumn))
-            {
-                var order = CellText(table, schema, LinkedFileField.Order, rowIndex);
-                if (order != null)
+                switch (schema.MatchBy)
                 {
-                    // The position column keeps the "row:" key it has always had, so pairings
-                    // made before the column existed still find their row.
-                    var prefix = string.Equals(orderColumn, LinkedFileSchema.PositionColumn, StringComparison.Ordinal) ? "row:" : "order:";
-                    return prefix + order;
+                    case LinkedFileMatchBy.ApiName:
+                        return "id:" + text;
+                    case LinkedFileMatchBy.Name:
+                        return "name:" + text;
+                    default:
+                        return string.Equals(schema.MatchColumn, LinkedFileSchema.PositionColumn, StringComparison.Ordinal)
+                            ? "row:" + text
+                            : "order:" + text;
                 }
             }
 
-            var name = CellText(table, schema, LinkedFileField.DisplayName, rowIndex);
-            if (name != null)
-            {
-                return "name:" + name;
-            }
-
             return "row:" + (rowIndex + 1).ToString(CultureInfo.InvariantCulture);
-        }
-
-        private static string CellText(LinkedFileTable table, LinkedFileSchema schema, LinkedFileField field, int rowIndex)
-        {
-            if (table == null || schema == null || !schema.TryGetColumn(field, out var column))
-            {
-                return null;
-            }
-
-            var columnIndex = table.IndexOfColumn(column);
-            var text = columnIndex < 0 ? null : table.Cell(rowIndex, columnIndex)?.Trim();
-            return string.IsNullOrEmpty(text) ? null : text;
         }
 
         /// <summary>

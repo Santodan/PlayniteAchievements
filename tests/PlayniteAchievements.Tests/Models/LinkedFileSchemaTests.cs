@@ -76,48 +76,64 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void PresenceAndRowOrder_FollowTheMappedColumns()
-        {
-            LinkedFileSchema With(params LinkedFileField[] fields) => new LinkedFileSchema
-            {
-                Columns = fields.Select((field, i) => new LinkedFileColumnMapping { Column = "c" + i, Field = field }).ToList()
-            };
-
-            Assert.IsTrue(With(LinkedFileField.ApiName).RowPresenceMeansUnlocked, "A list of ids means each listed one is unlocked.");
-            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
-            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.UnlockTime).RowPresenceMeansUnlocked);
-            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.ProgressNum).RowPresenceMeansUnlocked);
-            Assert.IsFalse(With(LinkedFileField.DisplayName, LinkedFileField.Description).RowPresenceMeansUnlocked, "A list of definitions says nothing about unlocks.");
-            Assert.IsFalse(new LinkedFileSchema().RowPresenceMeansUnlocked);
-
-            Assert.IsTrue(With(LinkedFileField.Order).RowPresenceMeansUnlocked, "A list of positions means each listed one is unlocked.");
-            Assert.IsFalse(With(LinkedFileField.Order, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
-        }
-
-        [TestMethod]
-        public void Normalize_MapsThePositionColumnWhenNothingElseIdentifiesTheRows()
+        public void Presence_FollowsTheMappedColumns()
         {
             LinkedFileSchema With(params LinkedFileField[] fields) => LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Columns = fields.Select((field, i) => new LinkedFileColumnMapping { Column = "c" + i, Field = field }).ToList()
             });
 
-            var byPosition = With(LinkedFileField.Unlocked, LinkedFileField.UnlockTime);
-            Assert.AreEqual(LinkedFileField.Order, byPosition.Columns.Last().Field);
-            Assert.AreEqual(LinkedFileSchema.PositionColumn, byPosition.Columns.Last().Column);
-            Assert.AreEqual(
-                LinkedFileSchema.PositionColumn,
-                LinkedFileSchema.Normalize(byPosition).Columns.Last().Column,
-                "Normalizing again adds nothing further.");
+            Assert.IsTrue(With(LinkedFileField.ApiName).RowPresenceMeansUnlocked, "A list of ids means each listed one is unlocked.");
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.UnlockTime).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.ApiName, LinkedFileField.ProgressNum).RowPresenceMeansUnlocked);
+            Assert.IsFalse(With(LinkedFileField.DisplayName, LinkedFileField.Description).RowPresenceMeansUnlocked, "A list of definitions says nothing about unlocks.");
+            Assert.IsFalse(new LinkedFileSchema().RowPresenceMeansUnlocked, "Without a match column no row says which achievement it is.");
+            Assert.IsTrue(new LinkedFileSchema { MatchColumn = "id" }.RowPresenceMeansUnlocked, "A list of ids with nothing else mapped.");
 
-            foreach (var identifying in new[] { LinkedFileField.ApiName, LinkedFileField.DisplayName, LinkedFileField.Order })
+            Assert.IsTrue(With(LinkedFileField.Order).RowPresenceMeansUnlocked, "A list of positions means each listed one is unlocked.");
+            Assert.IsFalse(With(LinkedFileField.Order, LinkedFileField.Unlocked).RowPresenceMeansUnlocked);
+        }
+
+        [TestMethod]
+        public void Normalize_GivesAnOlderMappingTheMatchItWasReadWith()
+        {
+            LinkedFileSchema With(params LinkedFileField[] fields) => LinkedFileSchema.Normalize(new LinkedFileSchema
             {
-                Assert.IsFalse(
-                    With(identifying, LinkedFileField.Unlocked).Columns.Any(mapping => mapping.Column == LinkedFileSchema.PositionColumn),
-                    identifying + " already identifies the rows.");
-            }
+                Columns = fields.Select((field, i) => new LinkedFileColumnMapping { Column = "c" + i, Field = field }).ToList()
+            });
 
-            Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema()).Columns, "A mapping with no columns reads nothing.");
+            var byApiName = With(LinkedFileField.DisplayName, LinkedFileField.ApiName);
+            Assert.AreEqual("c1", byApiName.MatchColumn, "API Name comes before Name.");
+            Assert.AreEqual(LinkedFileMatchBy.ApiName, byApiName.MatchBy);
+            Assert.AreEqual(2, byApiName.Columns.Count, "Both stay mapped to feed new achievements.");
+
+            var byOrder = With(LinkedFileField.DisplayName, LinkedFileField.Order);
+            Assert.AreEqual("c1", byOrder.MatchColumn, "Order comes before Name.");
+            Assert.AreEqual(LinkedFileMatchBy.PositionFromOne, byOrder.MatchBy);
+            Assert.IsFalse(byOrder.Columns.Any(mapping => mapping.Field == LinkedFileField.Order), "Order feeds no field of its own.");
+
+            var byName = With(LinkedFileField.DisplayName, LinkedFileField.Unlocked);
+            Assert.AreEqual("c0", byName.MatchColumn);
+            Assert.AreEqual(LinkedFileMatchBy.Name, byName.MatchBy);
+
+            var byPosition = With(LinkedFileField.Unlocked, LinkedFileField.UnlockTime);
+            Assert.AreEqual(LinkedFileSchema.PositionColumn, byPosition.MatchColumn);
+            Assert.AreEqual(LinkedFileMatchBy.PositionFromOne, byPosition.MatchBy);
+
+            var chosen = LinkedFileSchema.Normalize(new LinkedFileSchema
+            {
+                Columns = byApiName.Columns,
+                MatchColumn = " c0 ",
+                MatchBy = LinkedFileMatchBy.Name
+            });
+            Assert.AreEqual("c0", chosen.MatchColumn, "A chosen match is kept.");
+            Assert.AreEqual(LinkedFileMatchBy.Name, chosen.MatchBy);
+
+            Assert.IsNull(
+                LinkedFileSchema.Normalize(new LinkedFileSchema { Columns = byPosition.Columns }, upgrade: false).MatchColumn,
+                "The Link File window's own mapping is not upgraded.");
+            Assert.IsNull(LinkedFileSchema.Normalize(new LinkedFileSchema()).MatchColumn, "A mapping with no columns reads nothing.");
         }
 
         [TestMethod]

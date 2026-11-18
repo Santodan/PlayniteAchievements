@@ -143,8 +143,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 Assert.AreEqual("Alpha", vm.PreviewRows[0].Match);
                 Assert.AreEqual("LOCPlayAch_LinkedFile_NoMatch", vm.PreviewRows[2].Match, "The zzz row matches nothing.");
                 Assert.IsFalse(vm.PreviewRows[2].IsMatched);
-                Assert.IsFalse(vm.HasUnlinked, "Every achievement has a row.");
-                Assert.AreEqual(0, vm.UnlinkedAchievements.Count);
+                Assert.IsTrue(vm.AchievementRows.All(row => row.IsMatched), "Every achievement has a row.");
 
                 vm.Columns[1].SelectedField = apiName;
                 Assert.AreEqual(LinkedFileField.Ignore, vm.Columns[0].Field, "Picking a field another column feeds moves it.");
@@ -493,33 +492,81 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void UnlinkedChip_RevealsOneAchievement()
+        public void NewLink_TakesTheBestMatchAndListsTheAchievementsWithTheirRows()
         {
             WithFolder(folder =>
             {
                 var harness = new Harness();
+                var vm = new LinkedFileMappingViewModel(harness.Services());
+                vm.FilePath = CreateFile(folder);
+
+                Assert.AreEqual("id", vm.SelectedMatch.Column, "The id column pairs both achievements by API name.");
+                Assert.AreEqual(LinkedFileMatchBy.ApiName, vm.SelectedMatch.By);
+                Assert.AreEqual("id", vm.BuildSchema().MatchColumn);
+                Assert.IsNull(vm.ProblemText, vm.ProblemText);
+
+                var alpha = vm.AchievementRows.Single(row => row.ApiName == "a");
+                Assert.IsTrue(alpha.IsMatched);
+                StringAssert.Contains(alpha.RowText, "#1");
+                Assert.AreEqual(LinkedFileField.Unlocked, vm.ValueColumns[0].Field, "The status column comes first.");
+                Assert.AreEqual("LOCPlayAch_Common_Unlocked", alpha[0]);
+                Assert.AreEqual("LOCPlayAch_Common_Locked", vm.AchievementRows.Single(row => row.ApiName == "b")[0]);
+            });
+        }
+
+        [TestMethod]
+        public void GameWithoutAchievements_HidesTheMatchAndFollowsTheNamingColumn()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                harness.Table = LinkedFileTable.Build(new[] { "title", "done" }, new[] { new[] { "First Steps", "1" } });
                 var services = harness.Services();
-                services.LoadAchievements = () => new List<AchievementDetail>
-                {
-                    new AchievementDetail { ApiName = "a", DisplayName = "Alpha" },
-                    new AchievementDetail { ApiName = "secret", DisplayName = "Secret", Hidden = true }
-                };
-                services.Spoilers = new SpoilerSettings();
+                services.LoadAchievements = () => new List<AchievementDetail>();
                 var vm = new LinkedFileMappingViewModel(services);
                 vm.FilePath = CreateFile(folder);
-                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
 
-                var chip = vm.UnlinkedAchievements.Single();
-                Assert.IsTrue(chip.CanReveal);
-                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", chip.Name);
+                Assert.IsFalse(vm.ShowsMatching, "Every row is new, so there is nothing to match.");
+                Assert.IsTrue(vm.CreateUnmatched);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.DisplayName);
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Unlocked);
 
-                vm.ToggleRevealOneCommand.Execute(chip);
-                chip = vm.UnlinkedAchievements.Single();
-                Assert.AreEqual("Secret", chip.Name);
-                Assert.IsTrue(chip.IsRevealed);
+                var schema = vm.BuildSchema();
+                Assert.AreEqual("title", schema.MatchColumn, "Later reads find the new achievements by their names.");
+                Assert.AreEqual(LinkedFileMatchBy.Name, schema.MatchBy);
+                Assert.IsNull(vm.ProblemText, vm.ProblemText);
 
-                vm.ToggleRevealOneCommand.Execute(chip);
-                Assert.AreEqual("LOCPlayAch_Achievements_HiddenTitle", vm.UnlinkedAchievements.Single().Name);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
+                Assert.AreEqual("LOCPlayAch_LinkedFile_Problem_CreateNeedsName", vm.ProblemText, "Only the naming column is asked for.");
+            });
+        }
+
+        [TestMethod]
+        public void PairingByHand_SwitchesToTheWayThatPairsTheRowOnItsOwn()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                // Positions from 0 in "n"; the names in "name" match nothing.
+                harness.Table = LinkedFileTable.Build(
+                    new[] { "n", "name" },
+                    new[] { new[] { "1", "x" }, new[] { "0", "y" } });
+                var vm = new LinkedFileMappingViewModel(harness.Services());
+                vm.FilePath = CreateFile(folder);
+                Assert.AreEqual(LinkedFileMatchBy.PositionFromZero, vm.SelectedMatch.By, "A 0 rules out counting from 1.");
+
+                // Choose counting from 1, which pairs only the 1 row, and with the wrong achievement.
+                vm.SelectedMatch = vm.MatchChoices.Single(choice => choice.Column == "n" && choice.By == LinkedFileMatchBy.PositionFromOne);
+                var beta = vm.AchievementRows.Single(row => row.ApiName == "b");
+                Assert.IsFalse(beta.IsMatched);
+
+                // Pairing Beta with the row holding 1 is what counting from 0 does on its own.
+                beta.IsPickerOpen = true;
+                beta.Pick(beta.Options.Single(option => option.Key == "order:1"));
+
+                Assert.AreEqual(LinkedFileMatchBy.PositionFromZero, vm.SelectedMatch.By);
+                Assert.IsTrue(vm.AchievementRows.All(row => row.IsMatched));
+                Assert.IsFalse(vm.AchievementRows.Any(row => row.IsUserSet), "No hand pairing is left behind.");
             });
         }
 
