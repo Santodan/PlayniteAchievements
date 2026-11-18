@@ -907,6 +907,7 @@
                             <controls:RarityRayBurst UseCompletedColors="True"
                                                      BurstScale="1.55"
                                                      CornerRadiusRatio="0.14"
+                                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.Art}"
                                                      SubjectUri="{Binding CoverPath}">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
@@ -991,9 +992,13 @@
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Small}"/>
+                                        <!-- Clips the art, tint and rarity bar together; seamless
+                                             tiles stay square so they keep butting edge to edge. -->
+                                        <Setter Property="helpers:RoundedClip.Radius" Value="{DynamicResource PlayAch.Radius.Art}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsSeamless}" Value="True">
                                                 <Setter Property="CornerRadius" Value="0"/>
+                                                <Setter Property="helpers:RoundedClip.Radius" Value="0"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -1112,7 +1117,8 @@
                                        SnapsToDevicePixels="True"
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                                       helpers:AsyncImage.DecodePixel="64"/>
+                                       helpers:AsyncImage.DecodePixel="64"
+                                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
                                 <StackPanel Grid.Column="1"
                                             Margin="8,0"
                                             VerticalAlignment="Center">
