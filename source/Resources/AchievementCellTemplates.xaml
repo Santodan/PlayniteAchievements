@@ -762,15 +762,11 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <Image Stretch="Uniform"
-                       Margin="2"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128"
-                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
-                    <Image.Style>
-                        <Style TargetType="Image">
+                <!-- The effect sits on this wrapper and the rounding clip on the Image inside it, so the
+                     glow is cast from the rounded art and the clip never cuts the blur. -->
+                <Border>
+                    <Border.Style>
+                        <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -805,8 +801,16 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           Margin="2"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           IsHitTestVisible="False"
+                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                           helpers:AsyncImage.DecodePixel="128"
+                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                </Border>
             </Border>
 
             <!-- Edge that comes with the rays: the same layer as the soft halo above, at a blur small
@@ -818,15 +822,10 @@
                 <Border.CacheMode>
                     <BitmapCache/>
                 </Border.CacheMode>
-                <Image Stretch="Uniform"
-                       Margin="2"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128"
-                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
-                    <Image.Style>
-                        <Style TargetType="Image">
+                <!-- Effect on the wrapper, rounding clip on the Image, as for the halo above. -->
+                <Border>
+                    <Border.Style>
+                        <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -859,8 +858,16 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           Margin="2"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           IsHitTestVisible="False"
+                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                           helpers:AsyncImage.DecodePixel="128"
+                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                </Border>
             </Border>
 
             <!-- Front icon. While the row is masked this is the user's locked or hidden cover, so it
