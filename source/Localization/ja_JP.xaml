@@ -233,7 +233,7 @@
     <sys:String x:Key="LOCPlayAch_Column_Recordings">録画</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Captures">キャプチャ</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_CategoryArt">カテゴリーアート</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_ReplaceGameArt">Replace Game Art</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_ReplaceGameArt">ゲームアートを置換</sys:String>
 
     <!-- ================================================================= -->
     <!-- 04 Buttons -->
@@ -552,7 +552,7 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_ReadFormat">Read {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_FileMissing">ファイルが見つかりません</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_Unstable">The file was changing while it was read.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">The mapping is incomplete.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Status_MappingIncomplete">マッピングが完了していません。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_NoAchievements">このゲームには一致する実績がありません。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Status_ReadFailed">このファイルを読み込めませんでした。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_OverwriteHint">解除状況は更新時およびゲーム実行中にリンク済みのファイルから読み込まれます。ここで行った編集内容は次回の読み込み時に置換されます。</sys:String>
@@ -563,13 +563,13 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_Binary">バイナリセーブ</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Format_SupportedFiles">対応ファイル</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Delimiter">区切り文字</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">First row is a header</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">Rows path</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">Where the rows are, such as data.achievements. Add [*] to take every item of a list. Empty uses the whole file.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_HasHeader">1行目をヘッダーとして扱う</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPath">行パス</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RootPathHint">データが格納されている行 (例: data.achievements) を指定します。リストのすべての項目を取得するには [*] を追加します。空欄の場合はファイル全体を使用します。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Sheet">シート</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">Row element path</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">The element that is one row, such as achievements.achievement. Empty uses the root's children.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">Save Mapping</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPath">行要素パス</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_RowElementPathHint">1行として扱う要素 (例: achievements.achievement) を指定します。空欄の場合はルート要素の子要素を使用します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_SaveMappingTitle">マッピングを保存</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NoMatch">一致なし</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_NewRow">新規</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CreateUnmatched">新しい実績を追加</sys:String>
@@ -588,15 +588,15 @@ This removes the chosen achievement list and deletes its unlock times and this g
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedRows">{0} unmatched</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_UnmatchedAchievements">{0} unlinked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable rows</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_CellUnreadable">This value cannot be read as {0}.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">Enter a custom time format.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_ApplyReportTitle">The linked file was applied.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_Unlink">Unlink File</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlinkConfirm">Unlink the file from this game?
+    <sys:String x:Key="LOCPlayAch_LinkedFile_CellUnreadable">この値を {0} として読み込むことはできません。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">列を実績フィールドにマッピングしてください。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">実績を作成にするには API 名または実績名にマッピングされた列が必要です。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">カスタム時刻形式を入力してください。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_ApplyReportTitle">リンクしたファイルが適用されました。</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Unlink">ファイルのリンクを解除</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_UnlinkConfirm">このゲームからファイルのリンクを解除しますか?
 
-The mapping is removed from this game. Saved mappings and recorded unlocks are kept.</sys:String>
+このゲームからマッピングが削除されます。保存したマッピングおよび記録された解除状況は保持されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_ImportedSchemaPrompt">The imported data includes a file mapping but no file. Attach a file now?</sys:String>
 
     <!-- ================================================================= -->
