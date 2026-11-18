@@ -774,7 +774,14 @@ namespace PlayniteAchievements.ViewModels
             Columns.Clear();
             for (var i = 0; i < table.Columns.Count; i++)
             {
-                var column = new LinkedFileColumnItem(i, table.Columns[i], _fieldOptions[LinkedFileField.Ignore]);
+                var name = table.Columns[i];
+                var column = new LinkedFileColumnItem(
+                    i,
+                    name,
+                    _fieldOptions[LinkedFileField.Ignore],
+                    string.Equals(name, LinkedFileSchema.PositionColumn, StringComparison.Ordinal)
+                        ? L("LOCPlayAch_ManageAchievements_Tab_AchievementOrder")
+                        : null);
                 column.FieldChanged += Column_FieldChanged;
                 Columns.Add(column);
             }
@@ -784,10 +791,29 @@ namespace PlayniteAchievements.ViewModels
                 ApplyPendingMappings();
             }
 
+            ApplyPositionFallback();
+
             _previewTable = table;
             RaiseFieldFlags();
             PreviewRows = BuildPreviewRows(null, null);
             ColumnsRebuilt?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// The position column feeds Order while nothing else identifies the rows, which is the
+        /// mapping <see cref="LinkedFileSchema.Normalize"/> stores for such a file, so the window
+        /// shows what its rows are matched by instead of leaving it to a rule.
+        /// </summary>
+        private void ApplyPositionFallback()
+        {
+            if (Columns.Any(column => column.Field == LinkedFileField.ApiName ||
+                                      column.Field == LinkedFileField.Order ||
+                                      column.Field == LinkedFileField.DisplayName))
+            {
+                return;
+            }
+
+            Columns.FirstOrDefault(column => column.IsPosition)?.SetFieldSilently(_fieldOptions[LinkedFileField.Order]);
         }
 
         private void Column_FieldChanged(LinkedFileColumnItem changed)
