@@ -143,10 +143,23 @@
                         <CheckBox IsChecked="{Binding Persisted.RoundAchievementIconCorners}"/>
                     </controls:SettingRow>
                     <!-- The slider covers the useful range; the box takes any value, and each image
-                         caps the radius at half its shorter side. -->
+                         caps the radius at half its shorter side. Enabled while either checkbox is on. -->
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius_Help}"
                                          Margin="0">
+                        <controls:SettingRow.Style>
+                            <Style TargetType="{x:Type controls:SettingRow}">
+                                <Setter Property="IsEnabled" Value="False"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Persisted.RoundGameArtCorners}" Value="True">
+                                        <Setter Property="IsEnabled" Value="True"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Persisted.RoundAchievementIconCorners}" Value="True">
+                                        <Setter Property="IsEnabled" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </controls:SettingRow.Style>
                         <StackPanel Orientation="Horizontal">
                             <Slider Style="{StaticResource SettingsSliderStyle}"
                                     Minimum="0" Maximum="32"
