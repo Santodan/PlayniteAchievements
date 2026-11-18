@@ -1074,7 +1074,7 @@
 
     <!-- Provider: FFXIV -->
     <!-- FFXIV_Profile: leave "Lodestone" and "FFXIV Collect" untranslated. -->
-    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Profile">Lodestone or FFXIV Collect character profile URL</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Profile">Lodestone または FFXIV Collect キャラクタープロフィール URL</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_PublicNote">実績をトラッキングするには Lodestone でアチーブメントを公開設定にする必要があります。</sys:String>
     <!-- FFXIV_CollectNote: {0} is a link whose text is the site name "FFXIV Collect". "Add" is that
          site's English-only button label; leave it, "FFXIV Collect", and "Lodestone" untranslated. -->
