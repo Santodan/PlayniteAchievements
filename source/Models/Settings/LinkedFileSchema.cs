@@ -36,7 +36,28 @@ namespace PlayniteAchievements.Models.Settings
         TrophyType,
         Rarity,
         Category,
+
+        /// <summary>
+        /// Read only from mappings saved before <see cref="LinkedFileSchema.MatchColumn"/>, which
+        /// <see cref="LinkedFileSchema.Normalize"/> turns into a match by position.
+        /// </summary>
         Order
+    }
+
+    /// <summary>How the match column's cells name an achievement.</summary>
+    public enum LinkedFileMatchBy
+    {
+        /// <summary>The achievement's API name, or a custom achievement's bare id.</summary>
+        ApiName,
+
+        /// <summary>The achievement's name, compared by its normalized text.</summary>
+        Name,
+
+        /// <summary>The achievement's place in the game's order, the first being 1.</summary>
+        PositionFromOne,
+
+        /// <summary>The achievement's place in the game's order, the first being 0.</summary>
+        PositionFromZero
     }
 
     /// <summary>How a file row was matched to an achievement.</summary>
@@ -92,7 +113,7 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>
         /// The column every table ends with, whose cells are the row's 1-based position. It is
         /// the plugin's own numbering rather than anything the file holds, so a file that names
-        /// its achievements nowhere is still matched by an ordinary mapped column.
+        /// its achievements nowhere is matched by it like by any other column.
         /// </summary>
         public const string PositionColumn = "$row";
 
@@ -125,6 +146,16 @@ namespace PlayniteAchievements.Models.Settings
 
         public List<LinkedFileColumnMapping> Columns { get; set; }
 
+        /// <summary>
+        /// The column whose cells say which achievement a row is, read as <see cref="MatchBy"/>
+        /// says. Null matches rows by hand pairings only; a mapping saved before this setting
+        /// existed gets one from <see cref="Normalize"/>.
+        /// </summary>
+        public string MatchColumn { get; set; }
+
+        [JsonConverter(typeof(StringEnumConverter))]
+        public LinkedFileMatchBy MatchBy { get; set; }
+
         /// <summary>Rows that match no achievement become new custom achievements.</summary>
         public bool CreateUnmatchedRows { get; set; }
 
@@ -140,12 +171,6 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>Times without a zone are local; otherwise they are UTC.</summary>
         public bool AssumeLocalTime { get; set; } = true;
 
-        /// <summary>
-        /// The Order column numbers the game's first achievement 0 rather than 1. A file with a
-        /// 0 in that column is read as starting at 0 either way.
-        /// </summary>
-        public bool OrderStartsAtZero { get; set; }
-
         public static string SanitizeName(string name)
         {
             var trimmed = (name ?? string.Empty).Trim();
@@ -159,10 +184,15 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// A fresh copy with every field in its stored form: trimmed strings, no blank or
-        /// ignored mappings, one mapping per column and per field, a non-empty match order.
-        /// Returns null for null input only.
+        /// ignored mappings, one mapping per column and per field. Returns null for null input only.
         /// </summary>
-        public static LinkedFileSchema Normalize(LinkedFileSchema schema)
+        /// <param name="upgrade">
+        /// Gives a mapping saved before <see cref="MatchColumn"/> existed the match it was read
+        /// with: its API Name column, else its Order column, else its Name column, else the row's
+        /// position. The Link File window passes false, since a mapping it is still editing has
+        /// no match column only until one is chosen.
+        /// </param>
+        public static LinkedFileSchema Normalize(LinkedFileSchema schema, bool upgrade = true)
         {
             if (schema == null)
             {
@@ -171,6 +201,16 @@ namespace PlayniteAchievements.Models.Settings
 
             var name = SanitizeName(schema.Name);
             var customTimeFormat = Trim(schema.CustomTimeFormat);
+            var columns = NormalizeColumns(schema.Columns);
+            var matchColumn = Trim(schema.MatchColumn);
+            var matchBy = schema.MatchBy;
+            if (matchColumn == null && upgrade && columns != null)
+            {
+                UpgradeMatch(columns, out matchColumn, out matchBy);
+            }
+
+            // Order only ever said which achievement a row is, which the match column says now.
+            columns?.RemoveAll(mapping => mapping.Field == LinkedFileField.Order);
             var normalized = new LinkedFileSchema
             {
                 Name = name.Length > 0 ? name : null,
@@ -180,25 +220,42 @@ namespace PlayniteAchievements.Models.Settings
                 SheetName = Trim(schema.SheetName),
                 RootPath = Trim(schema.RootPath),
                 RowElementPath = Trim(schema.RowElementPath),
-                Columns = NormalizeColumns(schema.Columns),
+                Columns = columns?.Count > 0 ? columns : null,
+                MatchColumn = matchColumn,
+                MatchBy = matchBy,
                 CreateUnmatchedRows = schema.CreateUnmatchedRows,
                 UnlockedTrueValues = NormalizeValues(schema.UnlockedTrueValues),
                 TimeFormat = schema.TimeFormat == LinkedFileTimeFormat.Custom && customTimeFormat == null
                     ? LinkedFileTimeFormat.Auto
                     : schema.TimeFormat,
                 CustomTimeFormat = customTimeFormat,
-                AssumeLocalTime = schema.AssumeLocalTime,
-                OrderStartsAtZero = schema.OrderStartsAtZero
+                AssumeLocalTime = schema.AssumeLocalTime
             };
 
-            // Rows a mapping identifies by nothing else are matched by their position, stored as
-            // an ordinary mapping of the position column rather than left to a rule of its own.
-            if (normalized.Columns != null && !normalized.Columns.Any(mapping => IdentifiesAchievement(mapping.Field)))
-            {
-                normalized.Columns.Add(new LinkedFileColumnMapping { Column = PositionColumn, Field = LinkedFileField.Order });
-            }
-
             return normalized;
+        }
+
+        private static void UpgradeMatch(IReadOnlyList<LinkedFileColumnMapping> columns, out string column, out LinkedFileMatchBy matchBy)
+        {
+            string ColumnOf(LinkedFileField field) => columns.FirstOrDefault(mapping => mapping.Field == field)?.Column;
+
+            if ((column = ColumnOf(LinkedFileField.ApiName)) != null)
+            {
+                matchBy = LinkedFileMatchBy.ApiName;
+            }
+            else if ((column = ColumnOf(LinkedFileField.Order)) != null)
+            {
+                matchBy = LinkedFileMatchBy.PositionFromOne;
+            }
+            else if ((column = ColumnOf(LinkedFileField.DisplayName)) != null)
+            {
+                matchBy = LinkedFileMatchBy.Name;
+            }
+            else
+            {
+                column = PositionColumn;
+                matchBy = LinkedFileMatchBy.PositionFromOne;
+            }
         }
 
         public LinkedFileSchema Clone()
@@ -213,12 +270,13 @@ namespace PlayniteAchievements.Models.Settings
                 RootPath = RootPath,
                 RowElementPath = RowElementPath,
                 Columns = Columns?.Where(mapping => mapping != null).Select(mapping => mapping.Clone()).ToList(),
+                MatchColumn = MatchColumn,
+                MatchBy = MatchBy,
                 CreateUnmatchedRows = CreateUnmatchedRows,
                 UnlockedTrueValues = UnlockedTrueValues?.ToList(),
                 TimeFormat = TimeFormat,
                 CustomTimeFormat = CustomTimeFormat,
-                AssumeLocalTime = AssumeLocalTime,
-                OrderStartsAtZero = OrderStartsAtZero
+                AssumeLocalTime = AssumeLocalTime
             };
         }
 
@@ -237,22 +295,21 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// A listed row means unlocked when the mapping identifies achievements and nothing else,
-        /// as in files that list only earned achievements. Any other mapped column, such as an
-        /// unlock state, a time, progress or a description, leaves unlock state to the columns.
+        /// A listed row means unlocked when the file says which achievement each row is and
+        /// nothing else, as in files that list only earned achievements. Any other mapped column,
+        /// such as an unlock state, a time, progress or a description, leaves unlock state to the
+        /// columns.
         /// </summary>
         [JsonIgnore]
         public bool RowPresenceMeansUnlocked =>
-            Columns != null &&
-            Columns.Any(mapping => mapping != null && IdentifiesAchievement(mapping.Field)) &&
-            Columns.All(mapping => mapping == null ||
-                                   mapping.Field == LinkedFileField.Ignore ||
-                                   IdentifiesAchievement(mapping.Field));
+            !string.IsNullOrWhiteSpace(MatchColumn) &&
+            (Columns == null || Columns.All(mapping => mapping == null || NamesAchievement(mapping.Field)));
 
-        /// <summary>Whether a column of <paramref name="field"/> says which achievement a row is.</summary>
-        private static bool IdentifiesAchievement(LinkedFileField field)
+        /// <summary>Whether a column of <paramref name="field"/> only names the achievement.</summary>
+        private static bool NamesAchievement(LinkedFileField field)
         {
-            return field == LinkedFileField.ApiName || field == LinkedFileField.Order || field == LinkedFileField.DisplayName;
+            return field == LinkedFileField.Ignore || field == LinkedFileField.ApiName ||
+                   field == LinkedFileField.DisplayName || field == LinkedFileField.Order;
         }
 
         /// <summary>The values that read as unlocked, lowercased, falling back to the defaults.</summary>
