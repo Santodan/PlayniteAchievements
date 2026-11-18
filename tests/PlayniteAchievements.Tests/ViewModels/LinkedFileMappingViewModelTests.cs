@@ -515,6 +515,33 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void GameWithoutAchievements_HidesTheMatchAndFollowsTheNamingColumn()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness();
+                harness.Table = LinkedFileTable.Build(new[] { "title", "done" }, new[] { new[] { "First Steps", "1" } });
+                var services = harness.Services();
+                services.LoadAchievements = () => new List<AchievementDetail>();
+                var vm = new LinkedFileMappingViewModel(services);
+                vm.FilePath = CreateFile(folder);
+
+                Assert.IsFalse(vm.ShowsMatching, "Every row is new, so there is nothing to match.");
+                Assert.IsTrue(vm.CreateUnmatched);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.DisplayName);
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Unlocked);
+
+                var schema = vm.BuildSchema();
+                Assert.AreEqual("title", schema.MatchColumn, "Later reads find the new achievements by their names.");
+                Assert.AreEqual(LinkedFileMatchBy.Name, schema.MatchBy);
+                Assert.IsNull(vm.ProblemText, vm.ProblemText);
+
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Ignore);
+                Assert.AreEqual("LOCPlayAch_LinkedFile_Problem_CreateNeedsName", vm.ProblemText, "Only the naming column is asked for.");
+            });
+        }
+
+        [TestMethod]
         public void PairingByHand_SwitchesToTheWayThatPairsTheRowOnItsOwn()
         {
             WithFolder(folder =>
