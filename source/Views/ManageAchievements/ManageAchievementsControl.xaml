@@ -388,7 +388,8 @@
                                    VerticalAlignment="Center"
                                    HorizontalAlignment="Center"
                                    helpers:AsyncImage.Uri="{Binding GameImagePath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                                   helpers:AsyncImage.DecodePixel="480" />
+                                   helpers:AsyncImage.DecodePixel="480"
+                                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
                         </Border>
                     </controls:WidthFollowingDecorator>
 
