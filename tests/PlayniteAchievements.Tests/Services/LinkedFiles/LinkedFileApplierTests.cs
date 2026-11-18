@@ -20,12 +20,13 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             return LinkedFileTable.Build(columns, rows);
         }
 
+        /// <summary>A mapping as a stored one reads: <see cref="LinkedFileSchema.Normalize"/> gives it its match column.</summary>
         private static LinkedFileSchema Schema(params (string column, LinkedFileField field)[] mappings)
         {
-            return new LinkedFileSchema
+            return LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Columns = mappings.Select(mapping => new LinkedFileColumnMapping { Column = mapping.column, Field = mapping.field }).ToList()
-            };
+            });
         }
 
         private static ManualAchievementLink Link()
@@ -288,11 +289,11 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
 
             var emptyGame = LinkedFileApplier.Build(
                 Table(new[] { "name" }, new[] { "First" }),
-                new LinkedFileSchema
+                LinkedFileSchema.Normalize(new LinkedFileSchema
                 {
                     Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "name", Field = LinkedFileField.DisplayName } },
                     CreateUnmatchedRows = true
-                },
+                }),
                 null, new List<AchievementDetail>(), null, null, Now);
             Assert.AreEqual(1, emptyGame.Report.Created, "A game with no achievements yet can still be seeded from the file.");
             Assert.IsTrue(emptyGame.CustomDefinitions.Single().Unlocked);
@@ -388,7 +389,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         public void Validator_NamesWhatAMappingLacks()
         {
             CollectionAssert.AreEqual(
-                new[] { LinkedFileSchemaProblem.NoColumns },
+                new[] { LinkedFileSchemaProblem.NoMatchColumn },
                 LinkedFileSchemaValidator.Validate(new LinkedFileSchema()).ToArray());
             CollectionAssert.AreEqual(
                 new[] { LinkedFileSchemaProblem.NoColumns },
@@ -397,6 +398,8 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual(0, LinkedFileSchemaValidator.Validate(Schema(("id", LinkedFileField.ApiName), ("done", LinkedFileField.Unlocked))).Count);
             Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("name", LinkedFileField.DisplayName))), "A listed row means unlocked.");
             Assert.IsTrue(LinkedFileSchemaValidator.IsValid(Schema(("done", LinkedFileField.Unlocked))), "Rows pair by order.");
+
+            Assert.IsTrue(LinkedFileSchemaValidator.IsValid(new LinkedFileSchema { MatchColumn = "id" }), "A list of ids needs no other column.");
 
             var create = Schema(("done", LinkedFileField.Unlocked));
             create.CreateUnmatchedRows = true;

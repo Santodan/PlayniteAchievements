@@ -584,6 +584,7 @@
     <Compile Include="..\..\source\Services\LinkedFiles\Readers\BinaryTableReader.cs" Link="Source\Services\LinkedFiles\Readers\BinaryTableReader.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileValueParser.cs" Link="Source\Services\LinkedFiles\LinkedFileValueParser.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileMatcher.cs" Link="Source\Services\LinkedFiles\LinkedFileMatcher.cs" />
+    <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileMatchFinder.cs" Link="Source\Services\LinkedFiles\LinkedFileMatchFinder.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileApplier.cs" Link="Source\Services\LinkedFiles\LinkedFileApplier.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileColumnGuesser.cs" Link="Source\Services\LinkedFiles\LinkedFileColumnGuesser.cs" />
     <Compile Include="..\..\source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" Link="Source\Services\LinkedFiles\LinkedFileSchemaValidator.cs" />
@@ -595,6 +596,8 @@
     <Compile Include="..\..\source\ViewModels\LinkedFileStatusText.cs" Link="Source\ViewModels\LinkedFileStatusText.cs" />
     <Compile Include="..\..\source\ViewModels\AchievementSpoilerMask.cs" Link="Source\ViewModels\AchievementSpoilerMask.cs" />
     <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.cs" />
+    <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.Achievements.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.Achievements.cs" />
+    <Compile Include="..\..\source\ViewModels\LinkedFileMappingViewModel.Match.cs" Link="Source\ViewModels\LinkedFileMappingViewModel.Match.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataLinkStore.cs" Link="Source\Services\Metadata\MetadataLinkStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataStateStore.cs" Link="Source\Services\Metadata\MetadataStateStore.cs" />
     <Compile Include="..\..\source\Services\Metadata\MetadataSourcePageStore.cs" Link="Source\Services\Metadata\MetadataSourcePageStore.cs" />

@@ -470,7 +470,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             CollectionAssert.AreEqual(new[] { "ach_one", "", "2026-11-06 21:57:15", "5" }, Row(result.Table, 1), "A key in two sections is one row.");
             CollectionAssert.AreEqual(new[] { "ach_three", "", "", "21" }, Row(result.Table, 3));
 
-            var schema = new LinkedFileSchema
+            var schema = LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Format = LinkedFileFormat.Ini,
                 Columns = new List<LinkedFileColumnMapping>
@@ -479,7 +479,7 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
                     new LinkedFileColumnMapping { Column = "unlocked", Field = LinkedFileField.UnlockTime },
                     new LinkedFileColumnMapping { Column = "progress", Field = LinkedFileField.ProgressNum }
                 }
-            };
+            });
             var plan = LinkedFileApplier.Build(
                 result.Table, schema, null,
                 new List<AchievementDetail> { new AchievementDetail { ApiName = "ach_one" }, new AchievementDetail { ApiName = "ach_two" }, new AchievementDetail { ApiName = "ach_three" } },
