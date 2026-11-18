@@ -740,6 +740,19 @@ namespace PlayniteAchievements
             }
         }
 
+        /// <summary>Saves the tagging settings after a library write; see the view model's method.</summary>
+        public void SaveTaggingSettings()
+        {
+            try
+            {
+                _settingsViewModel?.SaveTaggingSettings();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to save the tagging settings.");
+            }
+        }
+
         public void PersistSettingsForUi()
         {
             try
