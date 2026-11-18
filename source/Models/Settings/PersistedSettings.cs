@@ -229,6 +229,9 @@ namespace PlayniteAchievements.Models.Settings
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
+        private int _cornerRoundingRadius = 6;
+        private bool _roundGameArtCorners;
+        private bool _roundAchievementIconCorners;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
         private int _progressDetailShownCount = ProgressDetailOrder.MinShownCount;
@@ -2655,6 +2658,29 @@ namespace PlayniteAchievements.Models.Settings
             get => _iconScaleMode;
             set => SetValue(ref _iconScaleMode, value);
         }
+        /// <summary>
+        /// Corner radius in pixels for rounded game art, category art and achievement icons. Each
+        /// surface caps it at half its own shorter side.
+        /// </summary>
+        public int CornerRoundingRadius
+        {
+            get => _cornerRoundingRadius;
+            set => SetValue(ref _cornerRoundingRadius, Math.Max(0, value));
+        }
+
+        /// <summary>Whether game and category art is drawn with CornerRoundingRadius corners.</summary>
+        public bool RoundGameArtCorners
+        {
+            get => _roundGameArtCorners;
+            set => SetValue(ref _roundGameArtCorners, value);
+        }
+
+        /// <summary>Whether achievement icons are drawn with CornerRoundingRadius corners.</summary>
+        public bool RoundAchievementIconCorners
+        {
+            get => _roundAchievementIconCorners;
+            set => SetValue(ref _roundAchievementIconCorners, value);
+        }
 
         /// <summary>
         /// Which part of a nested category the grids' Category column shows: the subcategory, the
@@ -3505,6 +3531,9 @@ namespace PlayniteAchievements.Models.Settings
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 IconScaleMode = this.IconScaleMode,
+                CornerRoundingRadius = this.CornerRoundingRadius,
+                RoundGameArtCorners = this.RoundGameArtCorners,
+                RoundAchievementIconCorners = this.RoundAchievementIconCorners,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
                 ProgressDetailShownCount = this.ProgressDetailShownCount,
@@ -3640,6 +3669,9 @@ namespace PlayniteAchievements.Models.Settings
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
+            CornerRoundingRadius = defaults.CornerRoundingRadius;
+            RoundGameArtCorners = defaults.RoundGameArtCorners;
+            RoundAchievementIconCorners = defaults.RoundAchievementIconCorners;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
