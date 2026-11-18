@@ -721,8 +721,13 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var usedIds = new HashSet<string>(
                 plan.CustomDefinitions.Select(definition => CustomAchievementProjectionService.NormalizeId(definition.Id)).Where(id => id != null),
                 StringComparer.OrdinalIgnoreCase);
-            var apiNameMapped = schema.TryGetColumn(LinkedFileField.ApiName, out var apiNameColumn) && table.IndexOfColumn(apiNameColumn) >= 0;
-            var apiNameIndex = apiNameMapped ? table.IndexOfColumn(apiNameColumn) : -1;
+            // A new achievement takes its API name and name from their columns, and the one the
+            // match column is read as from the match column when that field has no column.
+            var matchIndex = string.IsNullOrWhiteSpace(schema.MatchColumn) ? -1 : table.IndexOfColumn(schema.MatchColumn);
+            var apiNameIndex = schema.TryGetColumn(LinkedFileField.ApiName, out var apiNameColumn)
+                ? table.IndexOfColumn(apiNameColumn)
+                : schema.MatchBy == LinkedFileMatchBy.ApiName ? matchIndex : -1;
+            var nameIndex = !schema.HasColumn(LinkedFileField.DisplayName) && schema.MatchBy == LinkedFileMatchBy.Name ? matchIndex : -1;
 
             foreach (var rowIndex in match.UnmatchedRows)
             {
@@ -734,7 +739,13 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     continue;
                 }
 
-                var id = apiNameMapped ? CustomAchievementProjectionService.NormalizeId(table.Cell(rowIndex, apiNameIndex)) : null;
+                var id = apiNameIndex >= 0 ? CustomAchievementProjectionService.NormalizeId(table.Cell(rowIndex, apiNameIndex)) : null;
+                if (nameIndex >= 0 && values.DisplayName == null)
+                {
+                    var name = table.Cell(rowIndex, nameIndex)?.Trim();
+                    values.DisplayName = string.IsNullOrEmpty(name) ? null : name;
+                }
+
                 if (id == null && values.DisplayName == null)
                 {
                     report.AddMessage(DescribeRow(rowIndex) + ": has neither an API name nor a name, so no achievement was created.");
