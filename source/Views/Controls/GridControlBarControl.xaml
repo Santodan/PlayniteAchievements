@@ -35,8 +35,8 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="ToggleButton">
                             <Border x:Name="Seg"
-                                    Background="{DynamicResource PlayAch.Brush.Button.Background}"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
+                                    Background="{DynamicResource PlayAch.Brush.Input.Background}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
                                     BorderThickness="1"
                                     CornerRadius="4"
                                     Padding="8,0"
@@ -628,8 +628,8 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Seg"
-                                    Background="{DynamicResource PlayAch.Brush.Button.Background}"
-                                    BorderBrush="{DynamicResource PlayAch.Brush.Button.Border}"
+                                    Background="{DynamicResource PlayAch.Brush.Input.Background}"
+                                    BorderBrush="{DynamicResource PlayAch.Brush.Input.Border}"
                                     BorderThickness="1"
                                     CornerRadius="0,4,4,0"
                                     Padding="8,0"
