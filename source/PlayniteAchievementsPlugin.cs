@@ -2618,6 +2618,40 @@ namespace PlayniteAchievements
             _eventSubscriptions.Add(() => PlayniteApi?.Database?.FilterPresets?.ItemUpdated -= FilterPresets_ItemUpdated);
             PlayniteApi?.Database?.FilterPresets?.ItemCollectionChanged += FilterPresets_ItemCollectionChanged;
             _eventSubscriptions.Add(() => PlayniteApi?.Database?.FilterPresets?.ItemCollectionChanged -= FilterPresets_ItemCollectionChanged);
+
+            // A plugin tag or feature renamed in Playnite keeps its new name in the settings.
+            PlayniteApi?.Database?.Tags?.ItemUpdated += Tags_ItemUpdated;
+            _eventSubscriptions.Add(() => PlayniteApi?.Database?.Tags?.ItemUpdated -= Tags_ItemUpdated);
+            PlayniteApi?.Database?.Features?.ItemUpdated += Features_ItemUpdated;
+            _eventSubscriptions.Add(() => PlayniteApi?.Database?.Features?.ItemUpdated -= Features_ItemUpdated);
+        }
+
+        private void Tags_ItemUpdated(object sender, ItemUpdatedEventArgs<Tag> e)
+        {
+            AdoptRenamedLibraryItems(false, e?.UpdatedItems?.Select(u => (u.NewData?.Id ?? Guid.Empty, u.NewData?.Name)));
+        }
+
+        private void Features_ItemUpdated(object sender, ItemUpdatedEventArgs<GameFeature> e)
+        {
+            AdoptRenamedLibraryItems(true, e?.UpdatedItems?.Select(u => (u.NewData?.Id ?? Guid.Empty, u.NewData?.Name)));
+        }
+
+        private void AdoptRenamedLibraryItems(bool features, IEnumerable<(Guid Id, string Name)> renamed)
+        {
+            try
+            {
+                var viewModel = _settingsViewModel;
+                if (viewModel == null || renamed == null)
+                {
+                    return;
+                }
+
+                _tagSyncService?.AdoptRenamedItems(features, renamed.ToList(), viewModel.UpdatePersistedAndSave);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to take on a renamed Playnite tag or feature.");
+            }
         }
 
         private void FilterPresets_ItemUpdated(object sender, ItemUpdatedEventArgs<FilterPreset> e)
