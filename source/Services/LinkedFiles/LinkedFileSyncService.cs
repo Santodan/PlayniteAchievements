@@ -306,6 +306,16 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     new ManualLinkCacheApplier(_dataService, _cacheManager, _settings, _logger).Apply(gameId, updated.ManualLink, source);
                 }
             }
+
+            // The editor saves the game's authored achievements as a whole list built from its
+            // rows, so an open one would save over this write. Telling it reloads its rows.
+            if (plan.CustomChanged ||
+                plan.ManualChanged ||
+                plan.ManualProgress.Count > 0 ||
+                plan.PlatformUpdates.Count > 0)
+            {
+                OpenEditorRegistry.NotifyBackgroundWrite(gameId);
+            }
         }
 
         /// <summary>Adds unlocks and progress to the game's cached rows; the write never locks a row.</summary>
