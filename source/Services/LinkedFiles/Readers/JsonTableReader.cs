@@ -94,7 +94,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
-            if (root is JObject top && !IsUniformTable(top))
+            // A root with one entry is a wrapper around the rows, not a one-row table.
+            if (root is JObject top && (top.Count < 2 || !IsUniformTable(top)))
             {
                 Visit(top, null, 1);
             }
