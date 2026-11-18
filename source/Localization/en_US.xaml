@@ -573,12 +573,11 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_CellUnreadable">This value cannot be read as {0}.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoMatch">Choose how rows are matched to achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchedBy">Matched {0} of {1} achievements by</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_ApiName">API name in “{0}”</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_Name">name in “{0}”</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromOne">position in “{0}”, counting from 1</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromZero">position in “{0}”, counting from 0</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_RowOrder">row order</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy">Match rows by</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchedBy">{0} of {1} achievements matched</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromOne">Position, from 1</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromZero">Position, from 0</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_RowOrder">Row order</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_DetailsCustomOnly">Names, descriptions and other details apply to custom achievements only.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">Enter a custom time format.</sys:String>
