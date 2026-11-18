@@ -163,11 +163,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
         private static LinkedFileSchema Mapping(LinkedFileFormat format, params (string Column, LinkedFileField Field)[] columns)
         {
-            return new LinkedFileSchema
+            return LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Format = format,
                 Columns = columns.Select(column => new LinkedFileColumnMapping { Column = column.Column, Field = column.Field }).ToList()
-            };
+            });
         }
 
         private static List<SampleFile> WriteSampleFiles(string folder)
