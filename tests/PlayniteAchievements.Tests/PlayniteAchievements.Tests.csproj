@@ -206,6 +206,7 @@
     <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
     <Compile Include="..\..\source\Views\Helpers\AsyncImage.cs" Link="Source\Views\Helpers\AsyncImage.cs" />
+    <Compile Include="..\..\source\Views\Helpers\RoundedClip.cs" Link="Source\Views\Helpers\RoundedClip.cs" />
     <Compile Include="..\..\source\Views\Helpers\AnimationFrameRate.cs" Link="Source\Views\Helpers\AnimationFrameRate.cs" />
     <Compile Include="..\..\source\Views\Helpers\RarityGlowPulse.cs" Link="Source\Views\Helpers\RarityGlowPulse.cs" />
     <Compile Include="..\..\source\Views\Helpers\GlowAnimationClock.cs" Link="Source\Views\Helpers\GlowAnimationClock.cs" />
