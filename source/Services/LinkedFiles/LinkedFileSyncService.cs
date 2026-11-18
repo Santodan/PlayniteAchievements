@@ -225,6 +225,27 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             var achievements = LoadAchievements(gameId);
+            if (LinkedFileBaselineGuard.HasLostItsAchievements(
+                    link,
+                    achievements?.Count ?? 0,
+                    data.CustomAchievements?.Count ?? 0))
+            {
+                // A link that has read this game before cannot legitimately find it empty: the
+                // rows it would create are the ones it already created. Creating them again
+                // duplicates the whole file onto a game whose achievements are momentarily
+                // unreadable, so the read writes nothing and says what it found.
+                var empty = new LinkedFileApplyReport
+                {
+                    Status = LinkedFileReadStatus.NoAchievements,
+                    ReadUtc = nowUtc,
+                    FilePath = link.FilePath,
+                    RowCount = read.Table?.Rows?.Count ?? 0
+                };
+                empty.AddMessage("The game has no achievements to match, though this file matched it before. Nothing was written.");
+                _logger?.Info($"[LinkedFile] game={gameId} reason={reason} {empty.Summarize()}");
+                return Record(gameId, link, empty);
+            }
+
             var plan = LinkedFileApplier.Build(
                 read.Table,
                 link.Schema,
