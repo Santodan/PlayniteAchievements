@@ -74,10 +74,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 "apikey", "key", "nameid", "internalname", "codename", "identifier", "uid", "guid",
                 "achid", "achievementid", "trophyid", "cheevoid", "statname", "slug", "code"
             }),
-            (LinkedFileField.Order, new[]
-            {
-                "order", "sortorder", "position", "index"
-            }),
             (LinkedFileField.DisplayName, new[]
             {
                 "label", "caption", "heading", "localizedname", "achievementtitle", "trophyname", "cheevo"
@@ -224,8 +220,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>
         /// A first-guess mapping for a table: each column by its header when its cells fit that
         /// field, then the columns left over by their cells. One column per field; columns that
-        /// fit nothing are left out. A position column is guessed only when no column names the
-        /// achievements, since a position always pairs with something.
+        /// fit nothing are left out, as is the position column, which feeds no field.
         /// </summary>
         public static List<LinkedFileColumnMapping> Guess(LinkedFileTable table)
         {
@@ -271,15 +266,10 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 }
             }
 
-            var named = claimed.Contains(LinkedFileField.ApiName) || claimed.Contains(LinkedFileField.DisplayName);
             for (var index = 0; index < table.Columns.Count; index++)
             {
-                if (named && fields[index] == LinkedFileField.Order)
-                {
-                    continue;
-                }
-
-                if (fields[index] != LinkedFileField.Ignore)
+                if (fields[index] != LinkedFileField.Ignore &&
+                    !string.Equals(table.Columns[index], LinkedFileSchema.PositionColumn, StringComparison.Ordinal))
                 {
                     mappings.Add(new LinkedFileColumnMapping { Column = table.Columns[index], Field = fields[index] });
                 }
@@ -376,7 +366,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
                     return cells.All(cell => LinkedFileValueParser.TryParseUnlockTimeUtc(cell, null, out _));
                 case LinkedFileField.ProgressNum:
                 case LinkedFileField.Points:
-                case LinkedFileField.Order:
                     return cells.All(cell => LinkedFileValueParser.TryParseInt(cell, out var value) && value >= 0);
                 case LinkedFileField.ProgressDenom:
                     return cells.All(cell => LinkedFileValueParser.TryParseInt(cell, out var value) && value > 0);
