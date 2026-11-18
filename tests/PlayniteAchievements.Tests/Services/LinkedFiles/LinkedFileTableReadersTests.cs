@@ -238,6 +238,35 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
+        public void Toml_SingleTopLevelTable_IsOfferedAsTheAchievementList()
+        {
+            var text = string.Join("\r\n", new[]
+            {
+                "# Achievement unlock state - managed by the runtime",
+                "[unlocked.1]",
+                "filetime = 134394237123357469",
+                "",
+                "[unlocked.45]",
+                "filetime = 134394238634904551",
+            });
+
+            var whole = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml });
+            CollectionAssert.AreEqual(new[] { "unlocked" }, whole.RowPaths.ToArray());
+
+            var listed = ParseText(text, new LinkedFileSchema { Format = LinkedFileFormat.Toml, RootPath = "unlocked" });
+            Assert.IsTrue(listed.Success, listed.Message);
+            CollectionAssert.AreEqual(new[] { "$key", "filetime", "$row" }, listed.Table.Columns.ToArray());
+            CollectionAssert.AreEqual(new[] { "1", "134394237123357469" }, Row(listed.Table, 0));
+            CollectionAssert.AreEqual(new[] { "45", "134394238634904551" }, Row(listed.Table, 1));
+
+            var json = ParseText("{\"achievements\": {\"a\": {\"done\": 1}, \"b\": {\"done\": 0}}}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
+            CollectionAssert.AreEqual(new[] { "achievements" }, json.RowPaths.ToArray());
+
+            var table = ParseText("{\"a\": {\"done\": 1}, \"b\": {\"done\": 0}}", new LinkedFileSchema { Format = LinkedFileFormat.Json });
+            Assert.AreEqual(0, table.RowPaths.Count, "A root that is itself a table offers no list.");
+        }
+
+        [TestMethod]
         public void Toml_ArraysOfTablesInlineTablesAndDates_ReadAsRows()
         {
             var text = string.Join("\n", new[]
