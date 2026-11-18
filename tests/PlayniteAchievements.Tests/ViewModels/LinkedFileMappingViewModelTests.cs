@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             public int Reads;
             public LinkedFileApplyReport AppliedReport;
+            public bool ApplyReportsNothing;
             public bool ConfirmAnswer = true;
             public string NameAnswer = "My mapping";
             public string Message;
@@ -57,7 +58,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                         new AchievementDetail { ApiName = "b", DisplayName = "Beta" }
                     },
                     SchemaStore = store,
-                    ApplyNow = () => AppliedReport ?? new LinkedFileApplyReport { Status = LinkedFileReadStatus.Ok, MatchedRows = 2 },
+                    ApplyNow = () => ApplyReportsNothing ? null : AppliedReport ?? new LinkedFileApplyReport { Status = LinkedFileReadStatus.Ok, MatchedRows = 2 },
                     BrowseFile = current => null,
                     Confirm = message => ConfirmAnswer,
                     ShowMessage = message => Message = message,
@@ -299,6 +300,27 @@ namespace PlayniteAchievements.Tests.ViewModels
                 vm.UnlinkCommand.Execute(null);
                 Assert.IsNull(harness.Record.LinkedFile);
                 Assert.IsTrue(closed);
+            });
+        }
+
+        [TestMethod]
+        public void ApplyNow_WithoutAReport_StillCloses()
+        {
+            WithFolder(folder =>
+            {
+                var harness = new Harness { ApplyReportsNothing = true };
+                var vm = new LinkedFileMappingViewModel(harness.Services());
+                vm.FilePath = CreateFile(folder);
+                vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
+                vm.Columns[1].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.Unlocked);
+
+                var closed = false;
+                vm.RequestClose += (s, e) => closed = true;
+                vm.ApplyNowCommand.Execute(null);
+
+                Assert.IsTrue(closed, "Apply closes the window when the refresh runs after it.");
+                Assert.IsNull(harness.Message, "No report means no message.");
+                Assert.IsNotNull(harness.Record.LinkedFile);
             });
         }
 
