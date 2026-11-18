@@ -387,7 +387,8 @@
                                                            helpers:AsyncImage.DecodePixel="320"
                                                            Width="320"
                                                            Height="180"
-                                                           Stretch="Uniform" />
+                                                           Stretch="Uniform"
+                                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
                                                 </ToolTip>
                                             </Border.ToolTip>
                                             <Border.Style>
@@ -402,7 +403,8 @@
                                             <Image Stretch="Uniform"
                                                    helpers:AsyncImage.Uri="{Binding ArtPreviewPath}"
                                                    helpers:AsyncImage.DecodePixel="-1"
-                                                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}" />
+                                                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                                                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
                                         </Border>
 
                                         <Button Grid.Column="0"
