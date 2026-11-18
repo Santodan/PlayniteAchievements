@@ -562,6 +562,7 @@
                        Style="{StaticResource ScoreCardPlatformIconStyle}"/>
                 <Image helpers:AsyncImage.Uri="{Binding GameArtPath}"
                        helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"
                        Style="{StaticResource ScoreCardGameArtStyle}"/>
 
                 <Grid x:Name="TextColumn">
