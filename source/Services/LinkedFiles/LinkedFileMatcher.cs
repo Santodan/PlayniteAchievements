@@ -39,8 +39,9 @@ namespace PlayniteAchievements.Services.LinkedFiles
     /// API names match, exactly (a custom achievement
     /// also answers to its bare id), then an Order column's number picks the achievement at that
     /// position in the game's list, then display names by their normalized text, each over the
-    /// rows and achievements still unmatched. With none of those columns mapped, rows pair by
-    /// order when the file has no more rows than the game has achievements.
+    /// rows and achievements still unmatched. A mapping that identifies rows by none of those
+    /// matches nothing; the position column every table carries is what maps to Order for a file
+    /// whose rows are identified only by where they sit.
     /// A row matches at most one achievement and an achievement at most one row; anything
     /// ambiguous stays unmatched and is reported.
     /// </summary>
@@ -65,20 +66,13 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 MatchByPairing(table, schema, pairings, candidates, rowTaken, achievementTaken, result);
             }
 
-            if (schema.MatchesByRowOrder)
-            {
-                MatchByRowOrder(table, candidates, rowTaken, achievementTaken, result);
-            }
-            else
-            {
-                MatchByColumn(
-                    table, schema, LinkedFileField.ApiName, candidates, rowTaken, achievementTaken, result,
-                    LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
-                MatchByOrderColumn(table, schema, candidates, rowTaken, achievementTaken, result);
-                MatchByColumn(
-                    table, schema, LinkedFileField.DisplayName, candidates, rowTaken, achievementTaken, result,
-                    LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
-            }
+            MatchByColumn(
+                table, schema, LinkedFileField.ApiName, candidates, rowTaken, achievementTaken, result,
+                LinkedFileMatchKey.ApiName, ApiNameKeys, ApiNameRowKeys, StringComparer.OrdinalIgnoreCase);
+            MatchByOrderColumn(table, schema, candidates, rowTaken, achievementTaken, result);
+            MatchByColumn(
+                table, schema, LinkedFileField.DisplayName, candidates, rowTaken, achievementTaken, result,
+                LinkedFileMatchKey.DisplayName, DisplayNameKeys, DisplayNameRowKeys, StringComparer.Ordinal);
 
             for (var row = 0; row < rowTaken.Length; row++)
             {
@@ -299,41 +293,6 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
         }
 
-        private static void MatchByRowOrder(
-            LinkedFileTable table,
-            IReadOnlyList<AchievementDetail> candidates,
-            bool[] rowTaken,
-            HashSet<AchievementDetail> achievementTaken,
-            LinkedFileMatchResult result)
-        {
-            if (table.Rows.Count == 0)
-            {
-                return;
-            }
-
-            if (table.Rows.Count > candidates.Count)
-            {
-                result.Diagnostics.Add(
-                    "Row order was not used because the file has " + table.Rows.Count.ToString(CultureInfo.InvariantCulture) +
-                    " rows and the game has " + candidates.Count.ToString(CultureInfo.InvariantCulture) + " achievements.");
-                return;
-            }
-
-            // Position still decides: row N pairs with achievement N, unless either was paired by hand.
-            for (var row = 0; row < table.Rows.Count; row++)
-            {
-                var achievement = candidates[row];
-                if (rowTaken[row] || achievementTaken.Contains(achievement))
-                {
-                    continue;
-                }
-
-                rowTaken[row] = true;
-                achievementTaken.Add(achievement);
-                result.Matches.Add(new LinkedFileRowMatch { RowIndex = row, Achievement = achievement, MatchedBy = LinkedFileMatchKey.RowOrder });
-            }
-        }
-
         /// <summary>
         /// The key a hand pairing is stored under: the row's API name cell, else its Order cell,
         /// else its name cell, else its position, so a pairing follows the row when the file's
@@ -347,10 +306,16 @@ namespace PlayniteAchievements.Services.LinkedFiles
                 return "id:" + apiName;
             }
 
-            var order = CellText(table, schema, LinkedFileField.Order, rowIndex);
-            if (order != null)
+            if (schema.TryGetColumn(LinkedFileField.Order, out var orderColumn))
             {
-                return "order:" + order;
+                var order = CellText(table, schema, LinkedFileField.Order, rowIndex);
+                if (order != null)
+                {
+                    // The position column keeps the "row:" key it has always had, so pairings
+                    // made before the column existed still find their row.
+                    var prefix = string.Equals(orderColumn, LinkedFileSchema.PositionColumn, StringComparison.Ordinal) ? "row:" : "order:";
+                    return prefix + order;
+                }
             }
 
             var name = CellText(table, schema, LinkedFileField.DisplayName, rowIndex);

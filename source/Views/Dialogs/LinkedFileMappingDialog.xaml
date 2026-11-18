@@ -126,7 +126,7 @@
                               SelectedItem="{Binding SelectedField, Mode=TwoWay}"
                               DisplayMemberPath="Name"
                               MinWidth="120" />
-                    <TextBlock Text="{Binding ColumnName}"
+                    <TextBlock Text="{Binding DisplayName}"
                                Margin="2,4,0,0"
                                Style="{StaticResource HintTextStyle}"
                                TextTrimming="CharacterEllipsis"

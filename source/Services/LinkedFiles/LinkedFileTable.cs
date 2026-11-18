@@ -1,3 +1,4 @@
+using PlayniteAchievements.Models.Settings;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,7 +9,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
     /// <summary>
     /// A linked file read as a table: named columns and rows of text cells. Every row has one
     /// cell per column, empty where the file had none, so readers of any format hand the mapping
-    /// the same shape.
+    /// the same shape. Every built table ends with the position column
+    /// (<see cref="LinkedFileSchema.PositionColumn"/>), holding each row's 1-based number.
     /// </summary>
     public sealed class LinkedFileTable
     {
@@ -37,7 +39,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>
         /// Builds a table from column names and rows, making names unique (a repeat gets a
         /// " (2)" suffix), naming any column a row has beyond the header by its 1-based position,
-        /// and padding every row to the column count.
+        /// padding every row to the column count, and appending the position column.
         /// </summary>
         public static LinkedFileTable Build(IEnumerable<string> columns, IEnumerable<IEnumerable<string>> rows)
         {
@@ -67,14 +69,17 @@ namespace PlayniteAchievements.Services.LinkedFiles
             }
 
             var width = names.Count;
+            names.Add(UniqueName(LinkedFileSchema.PositionColumn, seen));
             var padded = new List<IReadOnlyList<string>>(materialized.Count);
-            foreach (var cells in materialized)
+            for (var row = 0; row < materialized.Count; row++)
             {
+                var cells = materialized[row];
                 while (cells.Count < width)
                 {
                     cells.Add(string.Empty);
                 }
 
+                cells.Add((row + 1).ToString(CultureInfo.InvariantCulture));
                 padded.Add(cells);
             }
 

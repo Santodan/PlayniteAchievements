@@ -100,32 +100,31 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         }
 
         [TestMethod]
-        public void RowOrder_AppliesOnlyWithoutANameColumnAndWhenRowsFit()
+        public void PositionColumn_PairsEachRowWithTheAchievementAtItsPlace()
         {
             var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
-            var schema = Schema(("done", LinkedFileField.Unlocked));
+            var schema = LinkedFileSchema.Normalize(Schema(("done", LinkedFileField.Unlocked)));
+            Assert.AreEqual(LinkedFileSchema.PositionColumn, schema.Columns.Last().Column, "Nothing else identifies the rows.");
 
             var fits = LinkedFileMatcher.Match(Table(new[] { "done" }, new[] { "1" }, new[] { "0" }), schema, achievements);
             Assert.AreEqual(2, fits.Matches.Count);
             Assert.AreEqual("a", fits.Matches[0].Achievement.ApiName);
             Assert.AreEqual("b", fits.Matches[1].Achievement.ApiName);
-            Assert.AreEqual(LinkedFileMatchKey.RowOrder, fits.Matches[1].MatchedBy);
+            Assert.AreEqual(LinkedFileMatchKey.Order, fits.Matches[1].MatchedBy);
             Assert.AreEqual("c", fits.UnmatchedAchievements.Single().ApiName);
 
+            // A file with more rows than the game has achievements matches the rows it can.
             var tooMany = LinkedFileMatcher.Match(Table(new[] { "done" }, new[] { "1" }, new[] { "0" }, new[] { "1" }, new[] { "1" }), schema, achievements);
-            Assert.AreEqual(0, tooMany.Matches.Count);
-            Assert.AreEqual(4, tooMany.UnmatchedRows.Count);
-            Assert.IsTrue(tooMany.Diagnostics.Single().Contains("4 rows"));
+            Assert.AreEqual(3, tooMany.Matches.Count);
+            CollectionAssert.AreEqual(new[] { 3 }, tooMany.UnmatchedRows.ToArray());
+            Assert.IsTrue(tooMany.Diagnostics.Single().Contains("outside the game's 3 achievements"));
 
-            var afterApiName = LinkedFileMatcher.Match(
+            var withApiName = LinkedFileMatcher.Match(
                 Table(new[] { "id" }, new[] { "b" }, new[] { "nope" }),
-                new LinkedFileSchema
-                {
-                    Columns = new List<LinkedFileColumnMapping> { new LinkedFileColumnMapping { Column = "id", Field = LinkedFileField.ApiName } }
-                },
+                LinkedFileSchema.Normalize(Schema(("id", LinkedFileField.ApiName))),
                 achievements);
-            Assert.AreEqual(1, afterApiName.Matches.Count);
-            CollectionAssert.AreEqual(new[] { 1 }, afterApiName.UnmatchedRows.ToArray(), "With an API name column, rows never pair by order.");
+            Assert.AreEqual(1, withApiName.Matches.Count);
+            CollectionAssert.AreEqual(new[] { 1 }, withApiName.UnmatchedRows.ToArray(), "An API name column identifies the rows, so position is not used.");
         }
 
         [TestMethod]
@@ -229,14 +228,19 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
         {
             var achievements = new[] { Achievement("a", "A"), Achievement("b", "B"), Achievement("c", "C") };
             var table = Table(new[] { "done" }, new[] { "1" }, new[] { "0" }, new[] { "1" });
+            // A pairing stored before the position column existed still finds its row.
             var pairings = new Dictionary<string, string> { ["row:1"] = "c", ["row:2"] = "gone" };
 
-            var result = LinkedFileMatcher.Match(table, Schema(("done", LinkedFileField.Unlocked)), achievements, pairings);
+            var result = LinkedFileMatcher.Match(
+                table,
+                LinkedFileSchema.Normalize(Schema(("done", LinkedFileField.Unlocked))),
+                achievements,
+                pairings);
 
             Assert.AreEqual(2, result.Matches.Count);
             Assert.AreEqual("c", result.Matches[0].Achievement.ApiName);
             Assert.AreEqual("b", result.Matches[1].Achievement.ApiName);
-            Assert.AreEqual(LinkedFileMatchKey.RowOrder, result.Matches[1].MatchedBy);
+            Assert.AreEqual(LinkedFileMatchKey.Order, result.Matches[1].MatchedBy);
             CollectionAssert.AreEqual(new[] { 2 }, result.UnmatchedRows.ToArray(), "Row 3's achievement was paired by hand to row 1.");
             Assert.IsTrue(result.Diagnostics.Any(line => line.Contains("'gone'")));
         }
@@ -251,6 +255,10 @@ namespace PlayniteAchievements.Services.Tests.LinkedFiles
             Assert.AreEqual("name:Why", LinkedFileMatcher.RowKey(table, both, 1));
             Assert.AreEqual("row:3", LinkedFileMatcher.RowKey(table, both, 2));
             Assert.AreEqual("row:1", LinkedFileMatcher.RowKey(table, Schema(), 0));
+            Assert.AreEqual(
+                "row:2",
+                LinkedFileMatcher.RowKey(table, Schema((LinkedFileSchema.PositionColumn, LinkedFileField.Order)), 1),
+                "The position column keeps the key a row has always had.");
         }
 
         [TestMethod]

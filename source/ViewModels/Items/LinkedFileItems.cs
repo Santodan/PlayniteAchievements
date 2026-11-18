@@ -31,16 +31,27 @@ namespace PlayniteAchievements.ViewModels.Items
     {
         private LinkedFileOption<LinkedFileField> _selectedField;
 
-        public LinkedFileColumnItem(int index, string columnName, LinkedFileOption<LinkedFileField> selectedField)
+        public LinkedFileColumnItem(
+            int index,
+            string columnName,
+            LinkedFileOption<LinkedFileField> selectedField,
+            string displayName = null)
         {
             Index = index;
             ColumnName = columnName;
+            DisplayName = string.IsNullOrEmpty(displayName) ? columnName : displayName;
             _selectedField = selectedField;
         }
 
         public int Index { get; }
 
         public string ColumnName { get; }
+
+        /// <summary>What the header calls the column; the position column is named for its field.</summary>
+        public string DisplayName { get; }
+
+        /// <summary>The position column, whose cells are the plugin's own row numbers.</summary>
+        public bool IsPosition => string.Equals(ColumnName, LinkedFileSchema.PositionColumn, StringComparison.Ordinal);
 
         /// <summary>Raised after the user picks a field; the view model keeps one column per field.</summary>
         public event Action<LinkedFileColumnItem> FieldChanged;

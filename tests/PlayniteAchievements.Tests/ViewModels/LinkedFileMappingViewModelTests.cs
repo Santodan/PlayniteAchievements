@@ -115,7 +115,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 vm.Columns[0].SelectedField = vm.FieldOptions.Single(option => option.Value == LinkedFileField.ApiName);
 
                 Assert.AreEqual(LinkedFileFormat.Delimited, vm.BuildSchema().Format);
-                Assert.AreEqual(2, vm.Columns.Count);
+                Assert.AreEqual(3, vm.Columns.Count, "The file's two columns and the position column.");
                 Assert.AreEqual(3, vm.PreviewRows.Count);
                 Assert.AreEqual(0, harness.Writes, "Closing without Apply leaves the game as it was.");
                 Assert.IsNull(harness.Record.LinkedFile);
@@ -168,7 +168,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 harness.Table = LinkedFileTable.Build(new[] { "extra", "done", "id" }, new[] { new[] { "x", "1", "a" } });
                 vm.Reread().Wait();
 
-                Assert.AreEqual(3, vm.Columns.Count);
+                Assert.AreEqual(4, vm.Columns.Count);
                 Assert.AreEqual(LinkedFileField.Unlocked, vm.Columns.Single(column => column.ColumnName == "done").Field);
                 Assert.AreEqual(LinkedFileField.Ignore, vm.Columns.Single(column => column.ColumnName == "extra").Field);
             });
