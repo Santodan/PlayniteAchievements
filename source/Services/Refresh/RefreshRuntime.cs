@@ -122,6 +122,13 @@ namespace PlayniteAchievements.Services.Refresh
                 return authContext;
             }
 
+            if (_refreshRequestPlanner?.NamesOnlyLinkedGames(request) == true)
+            {
+                _logger.Info("No platforms are authenticated; the requested games read linked files, so the refresh continues without a provider.");
+                authContext.CoveredByLinkedFiles = true;
+                return authContext;
+            }
+
             if (HasSteamTransientAuthFailure(authContext))
             {
                 _logger.Warn("Refresh skipped because Steam web authentication could not be verified; suppressing generic authentication modal.");
