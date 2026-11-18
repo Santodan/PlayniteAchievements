@@ -973,9 +973,12 @@
                                             <BlurEffect Radius="14"/>
                                         </Rectangle.Effect>
                                     </Rectangle>
-                                    <Image Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
-                                        <Image.Style>
-                                            <Style TargetType="Image" BasedOn="{StaticResource MosaicTileArtStyle}">
+                                    <!-- The edge glow sits on this wrapper and the rounding clip on
+                                         the art inside, so the edge follows the tile's rounded corners
+                                         and the clip never cuts the blur. -->
+                                    <Border Effect="{DynamicResource PlayAch.Effect.CompletedGlowEdge}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding RayGlowTiers, RelativeSource={RelativeSource AncestorType=showcase:ShowcaseWidgetControl}, Converter={StaticResource RaritySelectionIncludesCompleted}}" Value="True">
@@ -983,8 +986,20 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </Image.Style>
-                                    </Image>
+                                        </Border.Style>
+                                        <Image>
+                                            <Image.Style>
+                                                <Style TargetType="Image" BasedOn="{StaticResource MosaicTileArtStyle}">
+                                                    <Setter Property="helpers:RoundedClip.Radius" Value="{DynamicResource PlayAch.Radius.Art}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSeamless}" Value="True">
+                                                            <Setter Property="helpers:RoundedClip.Radius" Value="0"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
+                                    </Border>
                                 </Grid>
                             </Border>
                             <Border Background="{DynamicResource PlayAch.Brush.Overlay.Tint.08}"
