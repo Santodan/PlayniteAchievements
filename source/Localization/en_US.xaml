@@ -561,7 +561,6 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixMilliseconds">Unix milliseconds</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows file time</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">Times are local</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_OrderStartsAtZero">Order starts at 0</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValues">Values meaning unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">Separated by commas; any other value means locked. Empty uses true, yes, 1, unlocked, earned and achieved.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Matched">{0} matched</sys:String>
@@ -573,6 +572,14 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Errors">{0} unreadable rows</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_CellUnreadable">This value cannot be read as {0}.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoColumns">Map a column to an achievement field.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_NoMatch">Choose how rows are matched to achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchedBy">Matched {0} of {1} achievements by</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_ApiName">API name in “{0}”</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_Name">name in “{0}”</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromOne">position in “{0}”, counting from 1</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_PositionFromZero">position in “{0}”, counting from 0</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_MatchBy_RowOrder">row order</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_DetailsCustomOnly">Names, descriptions and other details apply to custom achievements only.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CreateNeedsName">Creating achievements needs a column mapped to API Name or Name.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Problem_CustomTimeFormat">Enter a custom time format.</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_ApplyReportTitle">The linked file was applied.</sys:String>
