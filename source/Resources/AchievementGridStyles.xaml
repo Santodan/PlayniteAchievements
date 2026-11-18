@@ -657,8 +657,8 @@
     <Style x:Key="AchievementSelectorButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="Padding" Value="10,4"/>
