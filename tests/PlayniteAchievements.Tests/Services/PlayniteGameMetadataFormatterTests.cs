@@ -77,18 +77,36 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void FormatPlaytime_UsesThousandsSeparatorForHours()
+        public void FormatPlaytime_KeepsFullHoursBelowOneThousand()
         {
-            var playtimeSeconds = 1234UL * 60 * 60;
+            var playtimeSeconds = ((999UL * 60) + 59UL) * 60;
             Assert.AreEqual(
-                "1,234h",
+                "999h59m",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursAndMinutes));
+            Assert.AreEqual(
+                "999h",
                 PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
+        }
+
+        [TestMethod]
+        public void FormatPlaytime_CompactsThousandsOfHours()
+        {
+            var playtimeSeconds = ((23412UL * 60) + 15UL) * 60;
+            Assert.AreEqual(
+                "23.4k h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursAndMinutes));
+            Assert.AreEqual(
+                "23.4k h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
+            Assert.AreEqual(
+                "1.0k h",
+                PlayniteGameMetadataFormatter.FormatPlaytime(1000UL * 60 * 60, PlaytimeDisplayMode.HoursOnly));
 
             FormattingCulture.Initialize(() => "german");
             try
             {
                 Assert.AreEqual(
-                    "1.234h",
+                    "23,4k h",
                     PlayniteGameMetadataFormatter.FormatPlaytime(playtimeSeconds, PlaytimeDisplayMode.HoursOnly));
             }
             finally
