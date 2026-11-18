@@ -3302,6 +3302,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
+                // A capstone source chosen since the game's last refresh has given it nothing yet,
+                // so the game is refreshed first and the capstone takes that source's platinum.
+                if (authoring.AwaitsCapstoneSource(_gameId))
+                {
+                    await RefreshForAutoCapstoneAsync().ConfigureAwait(true);
+                }
+
                 // An auto capstone standing for the same thing is brought up to date rather than
                 // joined by a second one.
                 var existing = AchievementRows.FirstOrDefault(row =>
@@ -3342,6 +3349,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ApplyAutoCapstoneDerivation(existing);
                     RefreshComputedState();
                     await SaveAsync().ConfigureAwait(true);
+
+                    // Art and text the plugin wrote follow the platinum the last refresh recorded.
+                    await authoring.RefreshArtFromEditorAsync(_gameId).ConfigureAwait(true);
+                    _gameDataSnapshotProvider?.Invalidate();
+                    ReloadData();
+                    existing = FindRow(existing.OriginalApiName) ?? existing;
                     SetCapstoneForRow(existing, true);
                     SelectRowAndScrollTo(existing);
                     SetStatus(null, false);
@@ -3389,6 +3402,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
+        }
+
+        /// <summary>
+        /// Saves the rows, refreshes the game so its metadata sources record their platinum, and
+        /// reads the rows back.
+        /// </summary>
+        private async Task RefreshForAutoCapstoneAsync()
+        {
+            var entryPoint = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (entryPoint == null)
+            {
+                return;
+            }
+
+            await SaveAsync().ConfigureAwait(true);
+            await entryPoint.ExecuteAsync(
+                    new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = _gameId,
+                        SurfaceUserNotices = true
+                    },
+                    Services.Refresh.RefreshExecutionPolicy.ProgressWindow(_gameId))
+                .ConfigureAwait(true);
+            _gameDataSnapshotProvider?.Invalidate();
+            ReloadData();
         }
 
         private AchievementEditorRow FindRow(string apiName)
