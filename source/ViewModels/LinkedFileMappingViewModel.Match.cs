@@ -133,49 +133,45 @@ namespace PlayniteAchievements.ViewModels
             MatchChoices.Clear();
             foreach (var candidate in _candidates)
             {
-                MatchChoices.Add(new LinkedFileMatchChoice(candidate.Column, candidate.By, ChoiceName(candidate.Column, candidate.By, candidate.Matched)));
+                MatchChoices.Add(BuildChoice(candidate.Column, candidate.By, candidate.Matched));
             }
 
             // A stored way the file no longer bears out stays listed, so the dropdown shows it.
             if (_matchColumn != null && !MatchChoices.Any(choice => choice.Is(_matchColumn, _matchBy)))
             {
-                MatchChoices.Add(new LinkedFileMatchChoice(_matchColumn, _matchBy, ChoiceName(_matchColumn, _matchBy, matched: 0)));
+                MatchChoices.Add(BuildChoice(_matchColumn, _matchBy, matched: 0));
             }
 
             _selectedMatch = _matchColumn == null ? null : MatchChoices.FirstOrDefault(choice => choice.Is(_matchColumn, _matchBy));
             OnPropertyChanged(nameof(SelectedMatch));
         }
 
-        private string ChoiceName(string column, LinkedFileMatchBy by, int matched)
+        private LinkedFileMatchChoice BuildChoice(string column, LinkedFileMatchBy by, int matched)
         {
-            string name;
+            var count = string.Format(FormattingCulture.Current, L("LOCPlayAch_LinkedFile_Count_Matched"), matched);
             if (string.Equals(column, LinkedFileSchema.PositionColumn, StringComparison.Ordinal))
             {
-                name = L("LOCPlayAch_LinkedFile_MatchBy_RowOrder");
+                return new LinkedFileMatchChoice(column, by, L("LOCPlayAch_LinkedFile_MatchBy_RowOrder"), string.Empty, count);
             }
-            else
+
+            string reading;
+            switch (by)
             {
-                string key;
-                switch (by)
-                {
-                    case LinkedFileMatchBy.ApiName:
-                        key = "LOCPlayAch_LinkedFile_MatchBy_ApiName";
-                        break;
-                    case LinkedFileMatchBy.Name:
-                        key = "LOCPlayAch_LinkedFile_MatchBy_Name";
-                        break;
-                    case LinkedFileMatchBy.PositionFromZero:
-                        key = "LOCPlayAch_LinkedFile_MatchBy_PositionFromZero";
-                        break;
-                    default:
-                        key = "LOCPlayAch_LinkedFile_MatchBy_PositionFromOne";
-                        break;
-                }
-
-                name = string.Format(L(key), column);
+                case LinkedFileMatchBy.ApiName:
+                    reading = L("LOCPlayAch_Column_ApiName");
+                    break;
+                case LinkedFileMatchBy.Name:
+                    reading = L("LOCPlayAch_Common_Name");
+                    break;
+                case LinkedFileMatchBy.PositionFromZero:
+                    reading = L("LOCPlayAch_LinkedFile_MatchBy_PositionFromZero");
+                    break;
+                default:
+                    reading = L("LOCPlayAch_LinkedFile_MatchBy_PositionFromOne");
+                    break;
             }
 
-            return name + " · " + string.Format(FormattingCulture.Current, L("LOCPlayAch_LinkedFile_Count_Matched"), matched);
+            return new LinkedFileMatchChoice(column, by, column, reading, count);
         }
 
         private string DescribeMatched(LinkedFileMatchResult match, IReadOnlyList<AchievementDetail> achievements)

@@ -253,20 +253,35 @@ namespace PlayniteAchievements.ViewModels.Items
         }
     }
 
-    /// <summary>One way to match the file's rows, as the window's match dropdown lists it.</summary>
+    /// <summary>
+    /// One way to match the file's rows, as the window's match dropdown lists it: the column, how
+    /// its cells are read, and how many rows that pairs, each in a column of its own.
+    /// </summary>
     public sealed class LinkedFileMatchChoice
     {
-        public LinkedFileMatchChoice(string column, LinkedFileMatchBy by, string name)
+        public LinkedFileMatchChoice(string column, LinkedFileMatchBy by, string columnText, string readingText, string countText)
         {
             Column = column;
             By = by;
-            Name = name;
+            ColumnText = columnText;
+            ReadingText = readingText;
+            CountText = countText;
+            Name = string.IsNullOrEmpty(readingText) ? columnText : columnText + ", " + readingText;
         }
 
         public string Column { get; }
 
         public LinkedFileMatchBy By { get; }
 
+        /// <summary>The file's column name, or the row order for the position column.</summary>
+        public string ColumnText { get; }
+
+        /// <summary>How the cells are read; empty for the row order.</summary>
+        public string ReadingText { get; }
+
+        public string CountText { get; }
+
+        /// <summary>Column and reading as one phrase, for screen readers and search.</summary>
         public string Name { get; }
 
         public bool Is(string column, LinkedFileMatchBy by) =>
