@@ -349,8 +349,10 @@
                           DisplayMemberPath="Name" />
             </Grid>
 
-            <!-- How rows are matched: the count, then the way, which lists every way the file offers. -->
-            <DockPanel Grid.Row="1" Margin="0,12,0,0" LastChildFill="False">
+            <!-- How rows are matched: the count, then the way, which lists every way the file offers.
+                 Hidden on a game with no achievements, where every row is new. -->
+            <Grid Grid.Row="1" Visibility="{Binding ShowsMatching, Converter={StaticResource BoolToVis}}">
+            <DockPanel Margin="0,12,0,0" LastChildFill="False">
                 <DockPanel.Style>
                     <Style TargetType="DockPanel">
                         <Style.Triggers>
@@ -371,6 +373,7 @@
                           DisplayMemberPath="Name"
                           AutomationProperties.Name="{Binding MatchSummary}" />
             </DockPanel>
+            </Grid>
 
             <Grid Grid.Row="2" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
@@ -385,9 +388,10 @@
                                Foreground="{DynamicResource PlayAch.Brush.AuthError}"
                                TextWrapping="Wrap"
                                Visibility="{Binding HasReadMessage, Converter={StaticResource BoolToVis}}" />
-                    <TabControl Background="Transparent" BorderThickness="0">
+                    <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0">
                         <!-- The game's achievements, each with the row it pairs with and what the row says. -->
-                        <TabItem Header="{DynamicResource LOCPlayAch_Achievements}">
+                        <TabItem Header="{DynamicResource LOCPlayAch_Achievements}"
+                                 Visibility="{Binding ShowsMatching, Converter={StaticResource BoolToVis}}">
                             <DataGrid x:Name="AchievementsGrid"
                                       AutoGenerateColumns="False"
                                       IsReadOnly="True"

@@ -30,6 +30,12 @@ namespace PlayniteAchievements.Views.Dialogs
             _viewModel.RequestClose += (s, e) => RequestClose?.Invoke(this, EventArgs.Empty);
             RebuildPreviewColumns();
             RebuildAchievementColumns();
+
+            // A game with no achievements has no achievements list; the file is all there is.
+            if (!_viewModel.ShowsMatching)
+            {
+                Tabs.SelectedIndex = 1;
+            }
         }
 
         public event EventHandler RequestClose;
