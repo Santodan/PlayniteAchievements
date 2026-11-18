@@ -74,6 +74,9 @@ namespace PlayniteAchievements.ViewModels
         private string _delimiterText;
         private bool _hasHeader = true;
         private string _rootPath;
+
+        /// <summary>The file whose achievement list was last defaulted or loaded, so it is defaulted once.</summary>
+        private string _rootPathSettledFor;
         private string _sheetName;
         private string _rowElementPath;
         private bool _createUnmatched;
@@ -614,6 +617,7 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 FilePath = link?.FilePath;
+                _rootPathSettledFor = link?.FilePath;
                 ApplySchemaToSettings(link?.Schema);
                 _pairings.Clear();
                 foreach (var pair in link?.Pairings ?? new Dictionary<string, string>())
@@ -735,6 +739,11 @@ namespace PlayniteAchievements.ViewModels
                 RowPaths.Add(path);
             }
 
+            if (TryDefaultRootPath(read))
+            {
+                return;
+            }
+
             if (read == null)
             {
                 ReadMessage = string.IsNullOrWhiteSpace(_filePath) ? null : L("LOCPlayAch_LinkedFile_FileMissing");
@@ -746,6 +755,40 @@ namespace PlayniteAchievements.ViewModels
 
             RebuildColumns(read?.Success == true ? read.Table : LinkedFileTable.Empty);
             Recompute();
+        }
+
+        /// <summary>
+        /// On the first read of a newly chosen JSON or TOML file with no achievement list set,
+        /// points the list at the file's only top-level list or object, such as <c>unlocked</c>
+        /// in a file of <c>[unlocked.N]</c> sections. The whole file as one row is never what
+        /// such a file means. Re-reads and returns true when it changed the list.
+        /// </summary>
+        private bool TryDefaultRootPath(LinkedFileReadResult read)
+        {
+            if (read?.Success != true || !UsesRootPath || !string.IsNullOrWhiteSpace(_rootPath) ||
+                string.IsNullOrWhiteSpace(_filePath) ||
+                string.Equals(_rootPathSettledFor, _filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            _rootPathSettledFor = _filePath;
+            var top = read.RowPaths.Where(path => path.IndexOf('.') < 0 && path.IndexOf('[') < 0).ToList();
+            if (top.Count != 1)
+            {
+                return false;
+            }
+
+            // The columns guessed for the whole-file row do not exist in the list's rows.
+            _pendingMappings = null;
+            foreach (var column in Columns)
+            {
+                column.FieldChanged -= Column_FieldChanged;
+            }
+
+            Columns.Clear();
+            RootPath = top[0];
+            return true;
         }
 
         private void RebuildColumns(LinkedFileTable table)
