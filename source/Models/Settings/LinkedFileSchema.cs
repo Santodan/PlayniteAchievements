@@ -44,7 +44,6 @@ namespace PlayniteAchievements.Models.Settings
     {
         ApiName,
         DisplayName,
-        RowOrder,
         Paired,
         Order
     }
@@ -89,6 +88,13 @@ namespace PlayniteAchievements.Models.Settings
     public sealed class LinkedFileSchema
     {
         public const int MaxNameLength = 64;
+
+        /// <summary>
+        /// The column every table ends with, whose cells are the row's 1-based position. It is
+        /// the plugin's own numbering rather than anything the file holds, so a file that names
+        /// its achievements nowhere is still matched by an ordinary mapped column.
+        /// </summary>
+        public const string PositionColumn = "$row";
 
         public static readonly string[] DefaultTrueValues = { "true", "yes", "y", "1", "unlocked", "earned", "achieved" };
 
@@ -185,6 +191,13 @@ namespace PlayniteAchievements.Models.Settings
                 OrderStartsAtZero = schema.OrderStartsAtZero
             };
 
+            // Rows a mapping identifies by nothing else are matched by their position, stored as
+            // an ordinary mapping of the position column rather than left to a rule of its own.
+            if (normalized.Columns != null && !normalized.Columns.Any(mapping => IdentifiesAchievement(mapping.Field)))
+            {
+                normalized.Columns.Add(new LinkedFileColumnMapping { Column = PositionColumn, Field = LinkedFileField.Order });
+            }
+
             return normalized;
         }
 
@@ -235,14 +248,6 @@ namespace PlayniteAchievements.Models.Settings
             Columns.All(mapping => mapping == null ||
                                    mapping.Field == LinkedFileField.Ignore ||
                                    IdentifiesAchievement(mapping.Field));
-
-        /// <summary>
-        /// Rows pair with achievements by row order only when no column is mapped to API Name,
-        /// Order or Name to match them by.
-        /// </summary>
-        [JsonIgnore]
-        public bool MatchesByRowOrder =>
-            !HasColumn(LinkedFileField.ApiName) && !HasColumn(LinkedFileField.Order) && !HasColumn(LinkedFileField.DisplayName);
 
         /// <summary>Whether a column of <paramref name="field"/> says which achievement a row is.</summary>
         private static bool IdentifiesAchievement(LinkedFileField field)
