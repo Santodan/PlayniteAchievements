@@ -224,6 +224,35 @@
                 </Grid>
             </DataTemplate>
 
+            <!-- One way to match, in the match dropdown: the column, how its cells are read, and the
+                 rows it pairs, each at a fixed width so every line lines up. -->
+            <DataTemplate x:Key="MatchChoiceTemplate">
+                <Grid AutomationProperties.Name="{Binding Name}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding ColumnText}"
+                               ToolTip="{Binding ColumnText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ReadingText}"
+                               Style="{StaticResource HintTextStyle}"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding CountText}"
+                               Style="{StaticResource HintTextStyle}"
+                               TextWrapping="NoWrap"
+                               Margin="12,0,0,0" />
+                </Grid>
+            </DataTemplate>
+
             <!-- An achievement in the achievements list: its icon and name, masked per the display
                  settings, with its description as the tooltip. -->
             <DataTemplate x:Key="AchievementCellTemplate">
@@ -363,15 +392,20 @@
                     </Style>
                 </DockPanel.Style>
                 <TextBlock DockPanel.Dock="Left"
-                           Text="{Binding MatchSummary}"
+                           Text="{DynamicResource LOCPlayAch_LinkedFile_MatchBy}"
                            Style="{StaticResource SectionHeaderStyle}"
-                           Margin="0,0,8,0" />
+                           Margin="0,0,10,0" />
                 <ComboBox DockPanel.Dock="Left"
-                          MinWidth="300"
+                          Width="420"
                           ItemsSource="{Binding MatchChoices}"
                           SelectedItem="{Binding SelectedMatch, Mode=TwoWay}"
-                          DisplayMemberPath="Name"
-                          AutomationProperties.Name="{Binding MatchSummary}" />
+                          ItemTemplate="{StaticResource MatchChoiceTemplate}"
+                          HorizontalContentAlignment="Stretch"
+                          AutomationProperties.Name="{DynamicResource LOCPlayAch_LinkedFile_MatchBy}" />
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding MatchSummary}"
+                           Style="{StaticResource FieldLabelStyle}"
+                           Margin="12,0,0,0" />
             </DockPanel>
             </Grid>
 
