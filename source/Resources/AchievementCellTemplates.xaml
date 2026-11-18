@@ -66,9 +66,9 @@
     <SolidColorBrush x:Key="CompletionFrameMaskBrush" Color="{StaticResource PlayAch.Color.Shadow}"/>
 
     <!-- Completion frame, drawn on the cover art in the style of a mythic cover frame: a light
-         scrim along the bottom, a square-cornered band on the cover's edge (heavier along the
-         bottom), and a diamond emblem carrying the completion badge on the bottom border between
-         two laurel branches.
+         scrim along the bottom, a band on the cover's edge (heavier along the bottom, its corners
+         following PlayAch.CornerRadius.Art), and a diamond emblem carrying the completion badge
+         on the bottom border between two laurel branches.
          The band and laurels are drawn once as a silhouette (FrameShapes) that masks a single
          completed-gradient fill and sheen, so the start-to-end sweep runs across the whole frame
          instead of restarting in each piece.
@@ -79,7 +79,8 @@
     <ControlTemplate x:Key="CompletionFrameTemplate" TargetType="Control">
         <controls:OverlayLayoutHost>
             <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
-                <Border IsHitTestVisible="False">
+                <Border IsHitTestVisible="False"
+                        CornerRadius="{DynamicResource PlayAch.CornerRadius.Art}">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Offset="0.75" Color="{StaticResource CompletionFrameScrimClear}"/>
@@ -89,6 +90,7 @@
                 </Border>
                 <Grid x:Name="FrameShapes" IsHitTestVisible="False">
                     <Border BorderThickness="3,3,3,4"
+                            CornerRadius="{DynamicResource PlayAch.CornerRadius.Art}"
                             BorderBrush="{StaticResource CompletionFrameMaskBrush}"/>
                     <!-- The laurels fill only the width the frame is given, so a narrow cover
                          shrinks them rather than widening the frame; the row's height is their
@@ -634,7 +636,8 @@
                 RenderOptions.BitmapScalingMode="HighQuality"
                 UseLayoutRounding="True"
                 SnapsToDevicePixels="True">
-            <Image Stretch="Uniform">
+            <Image Stretch="Uniform"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
@@ -665,7 +668,8 @@
                 RenderOptions.BitmapScalingMode="HighQuality"
                 UseLayoutRounding="True"
                 SnapsToDevicePixels="True">
-            <Image Stretch="Uniform">
+            <Image Stretch="Uniform"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
@@ -699,7 +703,8 @@
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                      HasRarityData="{Binding HasRarityPercent}"
                                      SubjectUri="{Binding DisplayIcon}"
-                                     SubjectInset="2">
+                                     SubjectInset="2"
+                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.AchievementIcon}">
                 <controls:RarityRayBurst.Style>
                     <Style TargetType="controls:RarityRayBurst">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -866,7 +871,8 @@
                    RenderOptions.BitmapScalingMode="HighQuality"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
                    helpers:AsyncImage.DecodePixel="128"
-                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
+                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Style.Triggers>
@@ -888,6 +894,7 @@
                  so it never covers or shrinks the icon, matching how the glow extended outward. -->
             <Border Margin="-1"
                     BorderThickness="3"
+                    CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                     Background="Transparent"
                     IsHitTestVisible="False"
                     SnapsToDevicePixels="True"
