@@ -415,7 +415,7 @@
 カスタムトラッキングを有効にすると、{0} から取得したこのゲームの実績データを置換することができます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Source">ソース</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Manual_Unlink">リストを削除</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">行をドラッグしてデフォルトの順序を設定してください。変更は即座に保存されます。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Hint">行をドラッグしてデフォルトの順序を設定します。変更は即座に保存されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Order_Reset">カスタム順序をリセット</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_Customize">このゲームの通知スタイルを個別に設定する</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Notifications_CustomizeBehavior">このゲームの通知動作を個別に設定する</sys:String>
@@ -578,7 +578,7 @@
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixSeconds">Unix 秒</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_UnixMilliseconds">Unix ミリ秒</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_TimeFormat_WindowsFileTime">Windows ファイル時刻</sys:String>
-    <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">Times are local</sys:String>
+    <sys:String x:Key="LOCPlayAch_LinkedFile_TimesAreLocal">ローカル時間として扱う</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValues">解除済みを表す値</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_UnlockedValuesHint">カンマ区切りで指定します。それ以外の値は未解除として扱われます。空欄の場合は true、yes、1、unlocked、earned および achieved が使用されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_LinkedFile_Count_Matched">{0} 一致</sys:String>
@@ -844,7 +844,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendUnlock">フレンドが解除しました</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderCongratulations">100% クリア率</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFriendCompleted">フレンドがゲームをクリアしました</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFormatInvalid">The friend header must include {0} for the friend's name.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Style_HeaderFormatInvalid">フレンドヘッダーにはフレンド名を表示するための {0} を含める必要があります。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImage">背景画像</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BackgroundImageHint">通知の背面に表示される画像です。アニメーション形式は再生されます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Style_BlurBackground">ぼかし背景</sys:String>
@@ -1004,7 +1004,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes">時間と分</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly">時間のみ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles">実績スタイル</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles_Help">ドラッグして順序を入れ替え、プログレスバー、バッジおよびクリア円グラフでどれを先に表示するか選択します。レア度は常にオンです。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementStyles_Help">プログレスバー、バッジおよびクリア円グラフで先に表示する項目をドラッグして選択します。レア度は常にオンです。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProgressBarDetailCount">ゲームごとのプログレスバー詳細</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadge">カテゴリークリアバッジ</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CategoryCompletionBadgeMode_First">先頭</sys:String>
@@ -1078,7 +1078,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_PublicNote">実績をトラッキングするには Lodestone でアチーブメントを公開設定にする必要があります。</sys:String>
     <!-- FFXIV_CollectNote: {0} is a link whose text is the site name "FFXIV Collect". "Add" is that
          site's English-only button label; leave it, "FFXIV Collect", and "Lodestone" untranslated. -->
-    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CollectNote">Unlock data comes from {0}, which indexes characters on demand. Search for your character there and select Add if it is not listed yet.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_FFXIV_CollectNote">解除データは {0} から取得されます。このサイトは必要に応じてキャラクターがインデックスに登録されるため、まだ一覧に自分のキャラクターが登録されていない場合は検索して追加を選択してください。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_Verifying">キャラクターを確認中...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_InvalidProfile">プロフィール URL にキャラクター ID が見つかりません。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FFXIV_AchievementsPrivate">キャラクターは見つかりましたが、Lodestone 側で実績がプライベートに設定されています。</sys:String>
@@ -1116,9 +1116,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_Hypixel_Unavailable">プレイヤー情報を検索するために hypixel.net に接続できませんでした。時間をおいて再度お試しください。</sys:String>
 
     <!-- Provider: Minecraft -->
-    <sys:String x:Key="LOCPlayAch_Settings_MinecraftGameFoldersHint">Add a launcher folder such as %AppData%\PrismLauncher to read all of its instances, or a single instance or .minecraft folder. Empty reads %AppData%\.minecraft.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_MinecraftGameFoldersHint">ランチャーフォルダ (例: %AppData%\PrismaLauncher) を追加してその中に含まれるすべてのインスタンスを読み込むか、個別のインスタンスフォルダまたは .minecraft フォルダを追加します。空欄にすると %AppData%\.minecraft が読み込まれます。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_MinecraftPlayerUuid">プレイヤー UUID</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_MinecraftPlayerUuid_Help">Optional. Leave empty to use the accounts signed in to your launchers.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_MinecraftPlayerUuid_Help">任意です。空欄のままにするとランチャーにサインインしているアカウントが使用されます。</sys:String>
 
     <!-- Provider: Riot -->
     <sys:String x:Key="LOCPlayAch_Settings_Riot_Help">League of Legens チャレンジは Riot の公式 API を使用するため、Riot アカウントに紐づいた無料の API キーが必要です。Riot は API キーなしで動作するプレイヤー別のエンドポイントを提供していません:</sys:String>
