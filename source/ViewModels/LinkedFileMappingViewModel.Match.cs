@@ -28,6 +28,13 @@ namespace PlayniteAchievements.ViewModels
         private LinkedFileMatchChoice _selectedMatch;
         private string _matchSummary;
 
+        /// <summary>
+        /// Whether the game has achievements for rows to match. Without any, every row becomes a
+        /// new achievement, so the window shows neither the match nor the achievements list; the
+        /// match still follows the mapped columns, so later reads find what the first one added.
+        /// </summary>
+        public bool ShowsMatching => HasAchievements();
+
         /// <summary>The ways the file's rows can be matched, the best first, with what each pairs.</summary>
         public ObservableCollection<LinkedFileMatchChoice> MatchChoices { get; } = new ObservableCollection<LinkedFileMatchChoice>();
 

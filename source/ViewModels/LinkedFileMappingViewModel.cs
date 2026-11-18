@@ -853,7 +853,11 @@ namespace PlayniteAchievements.ViewModels
         private void Recompute()
         {
             var schema = BuildSchema();
-            var problems = LinkedFileSchemaValidator.Validate(schema);
+            var problems = LinkedFileSchemaValidator.Validate(schema)
+                // Without achievements the match follows the API Name or Name column, and the
+                // problem that names those columns says what is missing.
+                .Where(problem => ShowsMatching || problem != LinkedFileSchemaProblem.NoMatchColumn)
+                .ToList();
             ProblemText = problems.Count == 0 ? null : string.Join(" ", problems.Select(DescribeProblem));
 
             if (_lastRead?.Success != true)
