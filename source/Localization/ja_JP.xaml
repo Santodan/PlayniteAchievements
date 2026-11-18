@@ -1271,7 +1271,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_ConsoleVersionHint">ゲームが複数の世代の PlayStation または Xbox に対応している場合、最新または最古の機種からリストを取得します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_Sources">ソース</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Metadata_SourcesHint">デフォルトでは先頭行の設定に従います。ゲーム固有のソースや紐付けは実績の管理で設定します。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation と Xbox では、公式のトロフィーおよび実績リストを Exophase から読み込みます。TrueGaming のページが既に読み込まれている場合、そちらから取得します。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Metadata_OfficialSources">PlayStation と Xbox は公式のトロフィーおよび実績リストを Exophase から取得します。TrueGaming のページが既に読み込まれている場合、そちらから取得します。</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_SteamHunters">SteamHunters</sys:String>
     <sys:String x:Key="LOCPlayAch_Metadata_Source_TrueGaming">TrueGaming</sys:String>
