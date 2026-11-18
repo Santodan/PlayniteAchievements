@@ -83,24 +83,10 @@
                         </Style>
                     </controls:RarityRayBurst.Style>
                 </controls:RarityRayBurst>
-                <Image Stretch="Uniform"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       helpers:AsyncImage.DecodePixel="256"
-                       SnapsToDevicePixels="True"
-                       IsHitTestVisible="False"
-                       CacheMode="BitmapCache"
-                       Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
-                       Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <helpers:AsyncImage.Uri>
-                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
-                        </MultiBinding>
-                    </helpers:AsyncImage.Uri>
-                    <Image.Style>
-                        <Style TargetType="{x:Type Image}">
+                <Border IsHitTestVisible="False"
+                        CacheMode="BitmapCache">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -147,29 +133,32 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           helpers:AsyncImage.DecodePixel="256"
+                           SnapsToDevicePixels="True"
+                           Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+                           Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}">
+                        <helpers:AsyncImage.Uri>
+                            <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                            </MultiBinding>
+                        </helpers:AsyncImage.Uri>
+                    </Image>
+                </Border>
 
                 <!-- Edge that comes with the rays: the same layer as the halo above at a blur small
                      enough to read as a line. A blur of the artwork, so it hugs the alpha. -->
-                <Image Stretch="Uniform"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       helpers:AsyncImage.DecodePixel="256"
-                       SnapsToDevicePixels="True"
-                       IsHitTestVisible="False"
-                       CacheMode="BitmapCache"
-                       Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
-                       Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <helpers:AsyncImage.Uri>
-                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
-                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
-                        </MultiBinding>
-                    </helpers:AsyncImage.Uri>
-                    <Image.Style>
-                        <Style TargetType="{x:Type Image}">
+                <Border IsHitTestVisible="False"
+                        CacheMode="BitmapCache">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -204,8 +193,25 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           helpers:AsyncImage.DecodePixel="256"
+                           SnapsToDevicePixels="True"
+                           Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+                           Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}">
+                        <helpers:AsyncImage.Uri>
+                            <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                                <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                            </MultiBinding>
+                        </helpers:AsyncImage.Uri>
+                    </Image>
+                </Border>
 
                 <Image Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality"
