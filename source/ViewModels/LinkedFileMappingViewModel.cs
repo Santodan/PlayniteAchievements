@@ -1192,6 +1192,7 @@ namespace PlayniteAchievements.ViewModels
             ChangedLink = true;
             if (report == null)
             {
+                RequestClose?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
