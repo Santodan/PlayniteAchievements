@@ -898,7 +898,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
                         Filter = L("LOCPlayAch_LinkedFile_Format_SupportedFiles") +
                                  " (*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav)|*.csv;*.tsv;*.txt;*.json;*.toml;*.xlsx;*.xml;*.ini;*.bin;*.dat;*.sav|" +
                                  L("LOCPlayAch_Showcase_AllFiles") + " (*.*)|*.*",
-                        CheckFileExists = true,
+                        // A file some programs write only at the first unlock can be named before it exists.
+                        CheckFileExists = false,
+                        CheckPathExists = true,
                         Multiselect = false
                     };
                     try
