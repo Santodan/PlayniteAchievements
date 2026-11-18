@@ -221,6 +221,71 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
+        /// Takes on names given in Playnite (such as in Library Manager) to the tags or features
+        /// the plugin tracks, so the next sync keeps them instead of renaming the item back.
+        /// Matches by the remembered id; an item already called its configured name, which
+        /// includes every rename the plugin makes itself, is skipped.
+        /// </summary>
+        /// <param name="features">True for features, false for tags.</param>
+        /// <param name="renamed">The updated items' ids and new names.</param>
+        /// <param name="updateAndSave">Applies a change to every copy of the settings and saves it.</param>
+        public void AdoptRenamedItems(
+            bool features,
+            IEnumerable<(Guid Id, string Name)> renamed,
+            Action<Action<PersistedSettings>> updateAndSave)
+        {
+            var configs = features ? Tagging?.FeatureConfigs : Tagging?.TagConfigs;
+            if (configs == null || renamed == null || updateAndSave == null)
+            {
+                return;
+            }
+
+            var adopted = new Dictionary<TagType, string>();
+            foreach (var (id, name) in renamed)
+            {
+                if (id == Guid.Empty || string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                foreach (var kvp in configs)
+                {
+                    if (kvp.Value?.TagId == id && !string.Equals(kvp.Value.ResolvedName, name, StringComparison.Ordinal))
+                    {
+                        adopted[kvp.Key] = name;
+                    }
+                }
+            }
+
+            if (adopted.Count == 0)
+            {
+                return;
+            }
+
+            updateAndSave(settings =>
+            {
+                var target = features ? settings?.TaggingSettings?.FeatureConfigs : settings?.TaggingSettings?.TagConfigs;
+                if (target == null)
+                {
+                    return;
+                }
+
+                foreach (var kvp in adopted)
+                {
+                    if (target.TryGetValue(kvp.Key, out var config) && config != null)
+                    {
+                        config.DisplayName = kvp.Value;
+                    }
+                }
+            });
+
+            foreach (var kvp in adopted)
+            {
+                _logger.Info($"Took on the name '{kvp.Value}' given in Playnite to the {(features ? "feature" : "tag")} for {kvp.Key}.");
+            }
+        }
+
+        /// <summary>
         /// Strips the Playnite item of each <see cref="TaggingSettings.RetiredKinds"/> kind from
         /// every game, deletes it by id (never by name, so a user's own item is untouched), and
         /// drops the kind's config. A retired config left in the settings is what marks the work
