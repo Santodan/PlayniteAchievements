@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Views.Dialogs
                     Header = column,
                     HeaderTemplate = fieldHeaderTemplate,
                     Binding = new Binding("[" + column.Index + "]"),
-                    ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
+                    ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index, column.IsPosition),
                     MaxWidth = 420
                 });
             }
@@ -104,11 +104,17 @@ namespace PlayniteAchievements.Views.Dialogs
 
         /// <summary>
         /// The text style of one file column: a cell whose value cannot be read for its field
-        /// shows in the error color, with the reason as its tooltip.
+        /// shows in the error color, with the reason as its tooltip. The position column is the
+        /// plugin's own numbering rather than the file's text, so it is shown muted.
         /// </summary>
-        private Style BuildCellTextStyle(Style baseStyle, int columnIndex)
+        private Style BuildCellTextStyle(Style baseStyle, int columnIndex, bool muted)
         {
             var style = new Style(typeof(TextBlock), baseStyle);
+            if (muted)
+            {
+                style.Setters.Add(new Setter(OpacityProperty, Convert.ToDouble(FindResource("PlayAch.Opacity.Hint"))));
+            }
+
             style.Setters.Add(new Setter(ToolTipProperty, new Binding("CellErrors[" + columnIndex + "]") { FallbackValue = null }));
             var failed = new DataTrigger
             {
