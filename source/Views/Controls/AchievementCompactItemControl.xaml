@@ -148,17 +148,10 @@
                     </Style>
                 </controls:RarityRayBurst.Style>
             </controls:RarityRayBurst>
-            <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"
-                   SnapsToDevicePixels="True"
-                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   IsHitTestVisible="False"
-                   CacheMode="BitmapCache"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256">
-                <Image.Style>
-                    <Style TargetType="Image">
+            <Border IsHitTestVisible="False"
+                    CacheMode="BitmapCache">
+                <Border.Style>
+                    <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Setter Property="Effect" Value="{x:Null}"/>
                         <Style.Triggers>
@@ -216,22 +209,23 @@
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Image.Style>
-            </Image>
+                </Border.Style>
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                       helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+            </Border>
 
             <!-- Edge that comes with the rays: the same layer as the halo above at a blur small enough
                  to read as a line. A blur of the artwork, so it hugs the alpha on any shape. -->
-            <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"
-                   SnapsToDevicePixels="True"
-                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                   IsHitTestVisible="False"
-                   CacheMode="BitmapCache"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256">
-                <Image.Style>
-                    <Style TargetType="Image">
+            <Border IsHitTestVisible="False"
+                    CacheMode="BitmapCache">
+                <Border.Style>
+                    <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Setter Property="Effect" Value="{x:Null}"/>
                         <Style.Triggers>
@@ -262,8 +256,16 @@
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Image.Style>
-            </Image>
+                </Border.Style>
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                       helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+            </Border>
 
             <Image Stretch="Uniform"
                    RenderOptions.BitmapScalingMode="HighQuality"
