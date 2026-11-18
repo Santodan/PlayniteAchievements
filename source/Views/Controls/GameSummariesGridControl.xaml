@@ -144,7 +144,8 @@
                                  differs, matching the rounded card this art is clipped to. -->
                             <controls:RarityRayBurst UseCompletedColors="True"
                                                      BurstScale="1.55"
-                                                     CornerRadiusRatio="0.14">
+                                                     CornerRadiusRatio="0.14"
+                                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.Art}">
                                 <controls:RarityRayBurst.Style>
                                     <Style TargetType="controls:RarityRayBurst">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -247,7 +248,8 @@
                                         RenderOptions.BitmapScalingMode="HighQuality"
                                         UseLayoutRounding="True"
                                         SnapsToDevicePixels="True">
-                                    <Image Style="{StaticResource GameImageStyle}"/>
+                                    <Image Style="{StaticResource GameImageStyle}"
+                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"/>
                                 </Border>
 
                                 <!-- Completion frame, drawn on the art itself. Last, so it draws

@@ -92,6 +92,7 @@
                        RenderOptions.BitmapScalingMode="HighQuality"
                        helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
                        helpers:AsyncImage.DecodePixel="128"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                        Visibility="{Binding DisplayIcon, Mode=OneWay, Converter={StaticResource StringToVisibility}}"/>
 
                 <StackPanel x:Name="TitleStack" Margin="{StaticResource PlayAch.Thickness.Top.Sm}">

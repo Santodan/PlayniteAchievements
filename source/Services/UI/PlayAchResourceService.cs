@@ -163,6 +163,7 @@ namespace PlayniteAchievements.Services.UI
             RarityAppearanceHelper.ApplyCompletedGlowEffectResources(resources, settings);
             RarityAppearanceHelper.ApplyCompletedProgressFillResource(resources, settings);
             ApplyIconScaleResource(resources, settings);
+            ApplyCornerRoundingResources(resources, settings);
         }
 
         /// <summary>
@@ -191,6 +192,51 @@ namespace PlayniteAchievements.Services.UI
             }
 
             resources[CapAtOwnSizeResourceKey] = settings.IconScaleMode == IconScaleMode.OwnSizeMax;
+        }
+
+        /// <summary>
+        /// Resource keys for the corner radius (a double, in pixels) of game and category art and of
+        /// achievement icons, consumed through RoundedClip.Radius. 0 when that kind is not rounded.
+        /// Left unwritten without settings, so an unresolved reference falls back to 0.
+        /// </summary>
+        public const string ArtCornerRadiusResourceKey = "PlayAch.Radius.Art";
+        public const string AchievementIconCornerRadiusResourceKey = "PlayAch.Radius.AchievementIcon";
+
+        /// <summary>
+        /// The same radii as CornerRadius values, for Borders drawn over the art (frames, scrims)
+        /// so their corners follow the clipped picture.
+        /// </summary>
+        public const string ArtCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.Art";
+        public const string AchievementIconCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.AchievementIcon";
+
+        /// <summary>Publishes the corner rounding settings at application scope.</summary>
+        public static void ApplyCornerRoundingToApplication(PersistedSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            PlayAchRuntimeResources.Update(resources => ApplyCornerRoundingResources(resources, settings));
+        }
+
+        /// <summary>The published radius for one kind of image: the shared radius when enabled, else 0.</summary>
+        public static double ResolveCornerRadius(bool enabled, int radius) =>
+            enabled ? Math.Max(0, radius) : 0d;
+
+        private static void ApplyCornerRoundingResources(ResourceDictionary resources, PersistedSettings settings)
+        {
+            if (resources == null || settings == null)
+            {
+                return;
+            }
+
+            var art = ResolveCornerRadius(settings.RoundGameArtCorners, settings.CornerRoundingRadius);
+            var icon = ResolveCornerRadius(settings.RoundAchievementIconCorners, settings.CornerRoundingRadius);
+            resources[ArtCornerRadiusResourceKey] = art;
+            resources[AchievementIconCornerRadiusResourceKey] = icon;
+            resources[ArtCornerRadiusShapeResourceKey] = new CornerRadius(art);
+            resources[AchievementIconCornerRadiusShapeResourceKey] = new CornerRadius(icon);
         }
 
         private static TokenDefinition Brush(

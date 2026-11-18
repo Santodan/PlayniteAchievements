@@ -37,7 +37,8 @@
                   SnapsToDevicePixels="True">
                 <!-- Rays glow style: a rotating sunburst behind the icon, replacing the soft halo. -->
                 <controls:RarityRayBurst Rarity="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity}"
-                                         HasRarityData="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=HasRarityPercent}">
+                                         HasRarityData="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=HasRarityPercent}"
+                                         CornerRadiusPx="{DynamicResource PlayAch.Radius.AchievementIcon}">
                     <!-- Same icon the layers below draw, chosen the same way, so the track is traced
                          from whichever variant is actually on screen. -->
                     <controls:RarityRayBurst.SubjectUri>
@@ -213,6 +214,7 @@
                        Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
                        Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
                        x:Name="PART_Image"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Loaded="Image_Loaded" ImageFailed="Image_ImageFailed">
                     <helpers:AsyncImage.Uri>
@@ -230,6 +232,7 @@
              Negative margin draws the border just OUTSIDE the icon so it never shrinks it. -->
         <Border Margin="-3"
                 BorderThickness="3"
+                CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                 Background="Transparent"
                 IsHitTestVisible="False"
                 SnapsToDevicePixels="True"

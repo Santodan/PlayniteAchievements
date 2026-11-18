@@ -131,7 +131,19 @@
                                                  IsActive="{Binding AnimateRarityGlows}"
                                                  PhaseLock="{Binding IsPreview}"
                                                  SubjectUri="{Binding IconPath}"
-                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <!-- Follows the front icon's rounding; the completion badge keeps its own shape. -->
+                            <controls:RarityRayBurst.Style>
+                                <Style TargetType="controls:RarityRayBurst">
+                                    <Setter Property="CornerRadiusPx" Value="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="CornerRadiusPx" Value="0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </controls:RarityRayBurst.Style>
+                        </controls:RarityRayBurst>
                         <!-- Completion's other half: game and category art stack two copies, one glow
                              thrown from each corner, and it is the pair that reads as the completion
                              gradient. Only shown for completion, so a normal unlock is unaffected.
@@ -209,7 +221,8 @@
                                 </Style>
                             </Image.Style>
                         </Image>
-                        <!-- Front icon: crisp, no glow. -->
+                        <!-- Front icon: crisp, no glow. Rounded like the plugin's other achievement
+                             icons; the completion badge that replaces it keeps its own shape. -->
                         <Image Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                helpers:AsyncImage.DecodePixel="160">
@@ -217,9 +230,11 @@
                                 <Style TargetType="Image">
                                     <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
                                     <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+                                    <Setter Property="helpers:RoundedClip.Radius" Value="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
                                             <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                                            <Setter Property="helpers:RoundedClip.Radius" Value="0"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -228,6 +243,7 @@
                         <!-- Hardcore RetroAchievements unlocks: crisp rarity border instead of glow. -->
                         <Border Margin="-2"
                                 BorderThickness="2"
+                                CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                                 Background="Transparent"
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>

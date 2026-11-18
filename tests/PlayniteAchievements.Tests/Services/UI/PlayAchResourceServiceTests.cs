@@ -131,7 +131,7 @@ namespace PlayniteAchievements.Tests.Services.UI
                 }
             };
 
-            PlayAchResourceService.Apply(resources, null, settings);
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
 
             var completed = resources["PlayAch.Brush.Progress.CompletedFill"] as LinearGradientBrush;
             Assert.IsNotNull(completed);
@@ -322,6 +322,34 @@ namespace PlayniteAchievements.Tests.Services.UI
 
             Assert.IsFalse(loaded.ResourceOverrides.ContainsKey("PlayAch.Brush.GridSurface"));
             Assert.IsTrue(loaded.ResourceOverrides.ContainsKey("PlayAch.Brush.ControlSurface"));
+        }
+
+        [TestMethod]
+        public void Apply_PublishesCornerRadiusOnlyForEnabledKinds()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                CornerRoundingRadius = 9,
+                RoundGameArtCorners = true,
+                RoundAchievementIconCorners = false
+            };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(9d, resources[PlayAchResourceService.ArtCornerRadiusResourceKey]);
+            Assert.AreEqual(0d, resources[PlayAchResourceService.AchievementIconCornerRadiusResourceKey]);
+            Assert.AreEqual(new CornerRadius(9), resources[PlayAchResourceService.ArtCornerRadiusShapeResourceKey]);
+            Assert.AreEqual(new CornerRadius(0), resources[PlayAchResourceService.AchievementIconCornerRadiusShapeResourceKey]);
+        }
+
+        [TestMethod]
+        public void CornerRoundingRadius_ClampsNegativeToZero()
+        {
+            var settings = new PersistedSettings { CornerRoundingRadius = -5 };
+
+            Assert.AreEqual(0, settings.CornerRoundingRadius);
+            Assert.AreEqual(0d, PlayAchResourceService.ResolveCornerRadius(true, -5));
         }
 
         private static void AssertNoDescriptor(string resourceKey)
