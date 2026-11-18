@@ -115,7 +115,8 @@
             <!-- Rays glow style: arrows riding the icon's own silhouette, replacing the soft halo. -->
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                      HasRarityData="{Binding HasRarityPercent}"
-                                     SubjectUri="{Binding DisplayIcon, Mode=OneWay}">
+                                     SubjectUri="{Binding DisplayIcon, Mode=OneWay}"
+                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.AchievementIcon}">
                 <controls:RarityRayBurst.Style>
                     <Style TargetType="controls:RarityRayBurst">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -270,12 +271,14 @@
                    Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="256"/>
+                   helpers:AsyncImage.DecodePixel="256"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
 
             <!-- Solid rarity border for Hardcore achievements (replaces the glow).
                  Negative margin draws the border just OUTSIDE the icon so it never shrinks it. -->
             <Border Margin="-3"
                     BorderThickness="3"
+                    CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                     Background="Transparent"
                     IsHitTestVisible="False"
                     SnapsToDevicePixels="True"
