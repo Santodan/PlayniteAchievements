@@ -329,7 +329,7 @@ namespace PlayniteAchievements
                 SoundsLibraryAdapter,
                 () => _gameCustomDataStore,
                 () => _settingsViewModel?.Settings?.Persisted,
-                gameId => _achievementDataService?.GetGameAchievementData(gameId)?.EffectiveProviderKey));
+                gameId => _achievementDataService?.GetGameHeader(gameId)?.EffectiveProviderKey));
 
         private IEnumerable<UnlockSoundSettings> ReferencedUnlockSoundPacks()
         {
@@ -384,7 +384,7 @@ namespace PlayniteAchievements
                         Adapter(isFrame: true),
                         () => _gameCustomDataStore,
                         () => _settingsViewModel?.Settings?.Persisted,
-                        gameId => _achievementDataService?.GetGameAchievementData(gameId)?.EffectiveProviderKey);
+                        gameId => _achievementDataService?.GetGameHeader(gameId)?.EffectiveProviderKey);
                 }
 
                 return _notificationLibraryTargets;
@@ -1157,7 +1157,7 @@ namespace PlayniteAchievements
                         _gameCustomDataStore,
                         () => _settingsViewModel?.Settings?.Persisted,
                         gameId => api.Database?.Games?.Get(gameId)?.Name
-                            ?? _achievementDataService?.GetGameAchievementData(gameId)?.GameName,
+                            ?? _achievementDataService?.GetGameHeader(gameId)?.GameName,
                         GetPluginLocalizationDirectory(),
                         _logger);
                     SettingsSaved += OnSettingsSavedForAutoCapstoneText;
