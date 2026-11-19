@@ -28,7 +28,6 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
 
         private List<FriendSummaryItem> _friends = new List<FriendSummaryItem>();
-        private FriendsOverviewLists _lists = FriendsOverviewLists.Empty;
         private FriendSummaryItem _selected;
         private Dictionary<string, FriendAchievementDisplayItem> _selectedRows =
             new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
@@ -126,19 +125,17 @@ namespace PlayniteAchievements.ViewModels
             var version = Interlocked.Increment(ref _friendsLoadVersion);
             if (_friendCache?.FriendReads == null || _settings?.Persisted?.EnableFriendsFeatures != true)
             {
-                ApplyFriends(version, FriendsOverviewLists.Empty, new List<FriendSummaryItem>(), _currentUsersByProvider);
+                ApplyFriends(version, new List<FriendSummaryItem>(), _currentUsersByProvider);
                 return;
             }
 
             LoadTask = Task.Run(() =>
             {
-                var lists = FriendsOverviewLists.Empty;
                 var friends = new List<FriendSummaryItem>();
                 try
                 {
                     // The friend list alone, without any achievement rows.
-                    lists = FriendsOverviewLists.Build(_friendCache.FriendReads.LoadLists(), null, _settings?.Persisted);
-                    friends = lists.Friends
+                    friends = FriendsOverviewLists.Build(_friendCache.FriendReads.LoadLists(), null, _settings?.Persisted).Friends
                         .Where(friend => friend != null &&
                                          !FriendOverviewProjection.IsAllScope(
                                              FriendOverviewProjection.GetFriendScopeKey(friend)))
@@ -154,7 +151,7 @@ namespace PlayniteAchievements.ViewModels
                 var currentUsers = LoadIdentitiesByProvider(
                     () => _friendCache.LoadCurrentUserIdentities(),
                     _logger);
-                RunOnUi(() => ApplyFriends(version, lists, friends, currentUsers));
+                RunOnUi(() => ApplyFriends(version, friends, currentUsers));
             });
         }
 
@@ -210,7 +207,6 @@ namespace PlayniteAchievements.ViewModels
 
         private void ApplyFriends(
             int version,
-            FriendsOverviewLists lists,
             List<FriendSummaryItem> friends,
             Dictionary<string, FriendIdentity> currentUsers)
         {
@@ -219,7 +215,6 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            _lists = lists;
             _friends = friends;
             _currentUsersByProvider = currentUsers;
 
@@ -258,13 +253,14 @@ namespace PlayniteAchievements.ViewModels
 
             // A merged friend's rows come from each of its accounts.
             var accounts = FriendsOverviewLists.AccountsOf(next);
-            var links = _lists.Projection.FriendGameLinks;
             LoadTask = Task.Run(() =>
             {
                 IReadOnlyList<FriendAchievementDisplayItem> rows = Array.Empty<FriendAchievementDisplayItem>();
+                IReadOnlyList<FriendGameLinkItem> links = Array.Empty<FriendGameLinkItem>();
                 try
                 {
                     rows = _friendCache.FriendReads.Rows(AchievementQuery.AllFriends.ForFriendAccounts(accounts).WhereUnlocked(true));
+                    links = _friendCache.FriendReads.LoadLists().FriendGameLinks ?? links;
                 }
                 catch (Exception ex)
                 {
