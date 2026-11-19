@@ -4,7 +4,6 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
-using PlayniteAchievements.Services.StartPage;
 
 namespace PlayniteAchievements.ViewModels.StartPage
 {
@@ -19,7 +18,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         public StartPageShowcaseWidgetViewModel(
             Func<ShowcaseWidgetInstanceSettings> resolveInstance,
-            StartPageDataCoordinator dataCoordinator,
+            Services.Widgets.WidgetDataCoordinator dataCoordinator,
             PlayniteAchievementsSettings settings,
             ILogger logger)
             : base(dataCoordinator, settings, logger)
