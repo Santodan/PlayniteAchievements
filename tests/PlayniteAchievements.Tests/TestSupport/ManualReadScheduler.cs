@@ -10,24 +10,26 @@ namespace PlayniteAchievements.Tests.TestSupport
     /// </summary>
     internal sealed class ManualReadScheduler : IReadScheduler
     {
+        private readonly object _sync = new object();
         private readonly Queue<Action> _background = new Queue<Action>();
         private readonly Queue<Action> _ui = new Queue<Action>();
         private readonly List<Action> _timers = new List<Action>();
 
-        public int PendingReads => _background.Count;
+        public int PendingReads { get { lock (_sync) { return _background.Count; } } }
 
-        public int PendingTimers => _timers.Count;
+        public int PendingTimers { get { lock (_sync) { return _timers.Count; } } }
 
-        public void Run(Action work) => _background.Enqueue(work);
+        public void Run(Action work) { lock (_sync) { _background.Enqueue(work); } }
 
-        public void Post(Action action) => _ui.Enqueue(action);
+        // Code under test may post from another thread; the queued work still runs on the test's.
+        public void Post(Action action) { lock (_sync) { _ui.Enqueue(action); } }
 
-        public void PostAfter(TimeSpan delay, Action action) => _timers.Add(action);
+        public void PostAfter(TimeSpan delay, Action action) { lock (_sync) { _timers.Add(action); } }
 
         /// <summary>Runs the queued reads, then the queued UI work, until both are empty.</summary>
         public void Drain()
         {
-            while (_background.Count > 0 || _ui.Count > 0)
+            while (PendingReads > 0 || PendingUi > 0)
             {
                 RunReads();
                 RunUi();
@@ -37,26 +39,44 @@ namespace PlayniteAchievements.Tests.TestSupport
         /// <summary>Runs the reads queued now; what they queue waits.</summary>
         public void RunReads()
         {
-            for (var count = _background.Count; count > 0; count--)
+            foreach (var work in Take(_background))
             {
-                _background.Dequeue()();
+                work();
             }
         }
 
         /// <summary>Runs the UI work queued now; what it queues waits.</summary>
         public void RunUi()
         {
-            for (var count = _ui.Count; count > 0; count--)
+            foreach (var action in Take(_ui))
             {
-                _ui.Dequeue()();
+                action();
+            }
+        }
+
+        private int PendingUi { get { lock (_sync) { return _ui.Count; } } }
+
+        // The work queued now; what it queues waits.
+        private Action[] Take(Queue<Action> queue)
+        {
+            lock (_sync)
+            {
+                var items = queue.ToArray();
+                queue.Clear();
+                return items;
             }
         }
 
         /// <summary>Ends every pending window: their actions run on the UI queue.</summary>
         public void Elapse()
         {
-            var timers = _timers.ToArray();
-            _timers.Clear();
+            Action[] timers;
+            lock (_sync)
+            {
+                timers = _timers.ToArray();
+                _timers.Clear();
+            }
+
             foreach (var timer in timers)
             {
                 Post(timer);
