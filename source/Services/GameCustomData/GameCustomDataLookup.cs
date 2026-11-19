@@ -359,14 +359,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             return resolvedStore?.GetExcludedRefreshGameIds() ?? new HashSet<Guid>();
         }
 
-        public static HashSet<Guid> GetExcludedSummaryGameIds(
-            PersistedSettings fallbackSettings = null,
-            GameCustomDataStore store = null)
-        {
-            var resolvedStore = ResolveStore(store);
-            return resolvedStore?.GetExcludedSummaryGameIds() ?? new HashSet<Guid>();
-        }
-
         /// <remarks>
         /// Reads the one flag rather than building the resolved projection, which allocates and
         /// copies every collection the record holds. The appearance snapshot falls back to this
