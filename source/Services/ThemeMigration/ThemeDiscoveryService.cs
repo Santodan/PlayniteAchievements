@@ -301,17 +301,22 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var content = File.ReadAllText(file);
                         filesRead++;
 
-                        if (ContainsNativePlayniteAchievementsSupport(content))
+                        // Each flag only ever turns on, so a check already satisfied by an
+                        // earlier file is skipped.
+                        if (!foundNativePlayniteAchievementsSupport &&
+                            ContainsNativePlayniteAchievementsSupport(content))
                         {
                             foundNativePlayniteAchievementsSupport = true;
                         }
 
-                        if (ContainsLegacyPlayniteAchievementsReference(content))
+                        if (!foundLegacyPlayniteAchievementsReference &&
+                            ContainsLegacyPlayniteAchievementsReference(content))
                         {
                             foundLegacyPlayniteAchievementsReference = true;
                         }
 
-                        if (ContainsMigratableReference(content))
+                        if (!foundMigratableReference &&
+                            ContainsMigratableReference(content))
                         {
                             foundMigratableReference = true;
                         }
