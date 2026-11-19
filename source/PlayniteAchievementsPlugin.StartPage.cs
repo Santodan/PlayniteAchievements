@@ -372,19 +372,6 @@ namespace PlayniteAchievements
 
             try
             {
-                if (_achievementDataService != null)
-                {
-                    _achievementDataService.GetOverviewMemoStats(out var memoEntries, out var memoRows);
-                    detail.Append($"summaryMemo={memoEntries}/{memoRows}rows ");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read summary memo stats.");
-            }
-
-            try
-            {
                 if (_startPageDataCoordinator != null)
                 {
                     _startPageDataCoordinator.GetRetentionStats(out var hasSnapshot, out var achRows, out var gameRows);
