@@ -20,28 +20,7 @@ namespace PlayniteAchievements.Services.Cache
     // ICacheReadOptimizations lives in its own file, so the sources that consume it can be
     // linked into the test project without dragging this one in.
 
-    // Write access to the AchievementOverrides mirror table — the summary queries' SQL-side view
-    // of the per-achievement override records that live in the separate custom-data database.
-    // Carries the filter flags plus the user-editable points and trophy type, which aggregates
-    // read directly; fields no query aggregates stay in the blob.
-    internal interface IAchievementOverrideMirror
-    {
-        /// <summary>
-        /// Replaces one game's override and game-level state mirror rows, then raises the change
-        /// feed for the game when either changed.
-        /// </summary>
-        void ReplaceGameCustomLayer(
-            Guid playniteGameId,
-            IReadOnlyList<AchievementOverrideMirrorEntry> entries,
-            GameCustomStateEntry state);
-
-        void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
-
-        /// <summary>Reconciles the game-level state mirror: one game when <paramref name="onlyGameId"/> is set, else all.</summary>
-        void ReplaceGameCustomStates(IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId, Guid? onlyGameId = null);
-    }
-
-    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IAchievementOverrideMirror, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IMetadataStateDatabase, IFriendCacheManager, IInGameProgressCacheWriter, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -303,82 +282,6 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             return result;
-        }
-
-        // Mirror writes never throw: when the store failed to initialize, summaries are
-        // unavailable anyway and the summary reader fails open (empty table = unfiltered).
-        void IAchievementOverrideMirror.ReplaceGameCustomLayer(
-            Guid playniteGameId,
-            IReadOnlyList<AchievementOverrideMirrorEntry> entries,
-            GameCustomStateEntry state)
-        {
-            var changed = false;
-            try
-            {
-                changed = _store.ReplaceAchievementOverrides(playniteGameId, entries);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed to sync achievement filter mirror for game {playniteGameId}.");
-            }
-
-            try
-            {
-                changed |= _store.ReplaceGameCustomStates(
-                    new Dictionary<Guid, GameCustomStateEntry> { [playniteGameId] = state },
-                    playniteGameId) > 0;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to sync the game custom state mirror.");
-            }
-
-            // Unchanged mirror rows leave every resolved read as it was.
-            if (changed && playniteGameId != Guid.Empty)
-            {
-                _feed.Publish(AchievementDataChange.ForGames(new[] { playniteGameId }));
-            }
-        }
-
-        void IAchievementOverrideMirror.ReplaceGameCustomStates(
-            IReadOnlyDictionary<Guid, GameCustomStateEntry> statesByGameId,
-            Guid? onlyGameId)
-        {
-            try
-            {
-                // A whole-library replace changes what every resolved read returns; unchanged
-                // rows leave them as they were.
-                if (_store.ReplaceGameCustomStates(statesByGameId, onlyGameId) > 0)
-                {
-                    _feed.Publish(onlyGameId.HasValue && onlyGameId.Value != Guid.Empty
-                        ? AchievementDataChange.ForGames(new[] { onlyGameId.Value })
-                        : AchievementDataChange.Full);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to sync the game custom state mirror.");
-            }
-        }
-
-        void IAchievementOverrideMirror.ResyncAllAchievementOverrides(
-            IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId)
-        {
-            try
-            {
-                var changedGames = _store.ResyncAllAchievementOverrides(entriesByGameId);
-                _logger?.Debug(changedGames > 0
-                    ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
-                    : "[Filters] Achievement filter mirror unchanged.");
-                if (changedGames > 0)
-                {
-                    _feed.Publish(AchievementDataChange.Full);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to resync achievement filter mirror.");
-            }
         }
 
         // Metadata state access delegates straight to the store; exceptions propagate so the
