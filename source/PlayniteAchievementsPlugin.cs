@@ -2309,6 +2309,11 @@ namespace PlayniteAchievements
                 _themeIntegrationService?.ReloadFriendThemeData();
             }
 
+            if (e.PropertyName == nameof(PersistedSettings.IncludeHiddenGamesInSummaries))
+            {
+                _themeIntegrationService?.NotifyLibraryGamesChanged();
+            }
+
             if (e.PropertyName == nameof(PersistedSettings.RefreshExclusionFilterPresetIds) ||
                 e.PropertyName == nameof(PersistedSettings.SummaryExclusionFilterPresetIds))
             {
@@ -2333,6 +2338,7 @@ namespace PlayniteAchievements
             FormattingCulture.Refresh();
             _achievementHotkeyService?.RefreshConfiguration();
             _themeIntegrationService?.ReloadFriendThemeData();
+            _themeIntegrationService?.NotifyLibraryGamesChanged();
             InvalidateStartPageData();
             _tagSyncService?.InitializeAndSubscribeTaggingSettings();
             _filterExclusionRules?.QueueAll();
