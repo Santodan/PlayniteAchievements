@@ -152,6 +152,9 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>Only capstone achievements.</summary>
         public bool CapstonesOnly { get; private set; }
 
+        /// <summary>With <see cref="CapstonesOnly"/> and <see cref="Rarities"/>: rows of those tiers or capstones.</summary>
+        public bool CapstoneOrRarity { get; private set; }
+
         /// <summary>
         /// Only rows whose category label is one of these, as
         /// <c>AchievementCategoryHelper.NormalizeCategoryOrDefault</c> and
@@ -264,7 +267,12 @@ namespace PlayniteAchievements.Services.Database
 
         public AchievementQuery WithoutHiddenLocked(bool hide = true) => With(query => query.HideHiddenLocked = hide);
 
-        public AchievementQuery WhereCapstone(bool only = true) => With(query => query.CapstonesOnly = only);
+        public AchievementQuery WhereCapstone(bool only = true, bool orRarity = false) =>
+            With(query =>
+            {
+                query.CapstonesOnly = only;
+                query.CapstoneOrRarity = orRarity;
+            });
 
         public AchievementQuery WhereCategory(IEnumerable<string> labels) =>
             With(query => query.CategoryLabels = labels?.ToList());
@@ -336,6 +344,44 @@ namespace PlayniteAchievements.Services.Database
                 query.Limit = Math.Max(0, limit);
                 query.Offset = Math.Max(0, offset);
             });
+
+        /// <summary>The order a grid column's sort member path sorts by; null for a column that does not sort.</summary>
+        public static AchievementSort? SortOfColumn(string sortMemberPath)
+        {
+            switch (sortMemberPath)
+            {
+                case "UnlockTime":
+                    return AchievementSort.UnlockTime;
+                case "RaritySortValue":
+                case "GlobalPercent":
+                    return AchievementSort.Rarity;
+                case "DisplayName":
+                    return AchievementSort.Name;
+                case "SortingName":
+                case "GameName":
+                    return AchievementSort.Game;
+                case "FriendName":
+                    return AchievementSort.Friend;
+                case "Points":
+                    return AchievementSort.Points;
+                case "TrophyType":
+                    return AchievementSort.Trophy;
+                case "CategoryLabel":
+                    return AchievementSort.Category;
+                case "CategoryKind":
+                    return AchievementSort.Kind;
+                case "CategoryType":
+                    return AchievementSort.Tags;
+                case "HasAchievementNote":
+                    return AchievementSort.Note;
+                case "CollectionScore":
+                    return AchievementSort.CollectionScore;
+                case "PrestigeScore":
+                    return AchievementSort.PrestigeScore;
+                default:
+                    return null;
+            }
+        }
 
         private AchievementQuery With(Action<AchievementQuery> change)
         {
