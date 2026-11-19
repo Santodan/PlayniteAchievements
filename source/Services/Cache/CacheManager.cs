@@ -358,7 +358,14 @@ namespace PlayniteAchievements.Services.Cache
         {
             try
             {
-                _store.ReplaceGameCustomStates(statesByGameId, onlyGameId);
+                // A whole-library replace changes what every resolved read returns; unchanged
+                // rows leave them as they were.
+                if (_store.ReplaceGameCustomStates(statesByGameId, onlyGameId) > 0)
+                {
+                    _feed.Publish(onlyGameId.HasValue && onlyGameId.Value != Guid.Empty
+                        ? AchievementDataChange.ForGames(new[] { onlyGameId.Value })
+                        : AchievementDataChange.Full);
+                }
             }
             catch (Exception ex)
             {
@@ -375,6 +382,10 @@ namespace PlayniteAchievements.Services.Cache
                 _logger?.Debug(changedGames > 0
                     ? $"[Filters] Achievement filter mirror resynced for {changedGames} game(s)."
                     : "[Filters] Achievement filter mirror unchanged.");
+                if (changedGames > 0)
+                {
+                    _feed.Publish(AchievementDataChange.Full);
+                }
             }
             catch (Exception ex)
             {
@@ -1364,6 +1375,13 @@ namespace PlayniteAchievements.Services.Cache
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"Failed to update the capture index for game {playniteGameId}.");
+                return;
+            }
+
+            // The resolved rows carry the capture paths.
+            if (playniteGameId != Guid.Empty)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(new[] { playniteGameId }));
             }
         }
 
