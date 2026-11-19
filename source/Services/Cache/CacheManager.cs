@@ -117,7 +117,11 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>The Friends Overview window's reads: its lists, and friend rows as display items.</summary>
         internal IFriendsOverviewReads FriendsOverviewReads => new FriendsOverviewReads(
             _feed,
-            () => ((IFriendCacheManager)this).LoadFriendsOverviewPatchData(null),
+            gameId =>
+            {
+                EnsureReadyForRead("LoadFriendLists");
+                return _store.LoadFriendLists(gameId);
+            },
             Reads,
             (rows, compare) => _store.MapFriendRowRecords(rows, compare));
 
