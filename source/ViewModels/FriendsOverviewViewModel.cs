@@ -725,7 +725,6 @@ namespace PlayniteAchievements.ViewModels
                 ReadWindow,
                 ex => OnReadFailed(ex, "Failed to load friends overview lists."));
             _lists.PropertyChanged += OnListsChanged;
-            UpdateAchievementQueries();
         }
 
         // Every read again, with the same queries.
@@ -1568,11 +1567,12 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Points every read at the current selection, filters, search, sort and compare pick;
-        /// a read whose query is unchanged is left alone.
+        /// a read whose query is unchanged is left alone. Nothing reads before the lists land:
+        /// the queries name the friends and favorites the lists bring.
         /// </summary>
         private void UpdateAchievementQueries()
         {
-            if (_disposed || _lists == null)
+            if (_disposed || _lists?.Result == null)
             {
                 return;
             }
