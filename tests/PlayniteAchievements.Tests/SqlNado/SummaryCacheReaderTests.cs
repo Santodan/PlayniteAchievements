@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Database;
 using SqlNado;
@@ -124,12 +126,82 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void Rows_CarryTheResolvedValues_AndRecentUnlocksLeaveOutClearedTimes()
+        public void Unlocks_GroupTheUnlockedRows_AsTheRowBasedViewsCountedThem()
         {
             WithFixture(db =>
             {
                 var summary = Load(db);
-                var rows = summary.Achievements.ToDictionary(row => row.ApiName);
+                var rows = AchievementReadService.Rows(db, AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true));
+                RarityTier Tier(AchievementRowRecord row) => AchievementSqlFunctions.ParseStoredRarity(row.Rarity);
+                DateTime? Day(AchievementRowRecord row) =>
+                    row.UnlockTimeUtc == null ? (DateTime?)null : PlayniteAchievements.Services.Overview.UnlockDayCounts.DayOf(AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc).Value);
+
+                // Every unlock under its game, day, tags, tier, trophy and capstone flag, as the
+                // filtered views and the tier series read them off the rows.
+                CollectionAssert.AreEquivalent(
+                    rows.Select(row => row.PlayniteGameId + "|" + Day(row) + "|" + row.Tags + "|" + Tier(row) + "|" +
+                                       AchievementTally.NormalizeTrophy(row.TrophyType) + "|" + (row.IsCapstone != 0)).ToList(),
+                    summary.Unlocks.SelectMany(fact => Enumerable.Repeat(
+                        fact.GameId.ToString("D") + "|" + fact.Day + "|" + (fact.Tally.Key.Length == 0 ? null : fact.Tally.Key) + "|" +
+                        fact.Tally.Rarity + "|" + fact.Tally.Trophy + "|" + fact.Tally.IsCapstone, fact.Count)).ToList());
+
+                foreach (var game in rows.GroupBy(row => Guid.Parse(row.PlayniteGameId)))
+                {
+                    var facts = summary.Unlocks.Where(fact => fact.GameId == game.Key).ToList();
+                    var name = game.First().GameName;
+
+                    // Score history: each unlock's collection, prestige and platform points (softcore left out).
+                    Assert.AreEqual(game.Sum(row => AchievementScoreCalculator.GetCollectionValue(Tier(row))), facts.Sum(fact => fact.CollectionScore), name);
+                    Assert.AreEqual(game.Sum(row => AchievementScoreCalculator.GetPrestigeValue(row.GlobalPercentUnlocked, Tier(row))), facts.Sum(fact => fact.PrestigeScore), name);
+                    Assert.AreEqual(
+                        game.Where(row => row.Points > 0 && !AchievementTagHelper.IsSoftcore(row.Tags)).Sum(row => row.Points.Value),
+                        facts.Sum(fact => fact.PlatformScorePoints),
+                        name);
+
+                    // Statistics: the average global percent of the unlocks.
+                    Assert.AreEqual(game.Where(row => row.GlobalPercentUnlocked.HasValue).Sum(row => row.GlobalPercentUnlocked.Value), facts.Sum(fact => fact.PercentSum), 1e-9, name);
+                    Assert.AreEqual(game.Count(row => row.GlobalPercentUnlocked.HasValue), facts.Sum(fact => fact.PercentCount), name);
+
+                    // Game mosaic: the rarest positive percent, among capstones, among base-game capstones.
+                    double? Rarest(IEnumerable<AchievementRowRecord> candidates) =>
+                        candidates.Where(row => row.GlobalPercentUnlocked > 0).Select(row => row.GlobalPercentUnlocked).DefaultIfEmpty().Min();
+                    Assert.AreEqual(Rarest(game), facts.Select(fact => fact.MinPercent).Where(value => value.HasValue).DefaultIfEmpty().Min(), name);
+                    Assert.AreEqual(
+                        Rarest(game.Where(row => row.IsCapstone != 0)),
+                        facts.Where(fact => fact.Tally.IsCapstone).Select(fact => fact.MinPercent).Where(value => value.HasValue).DefaultIfEmpty().Min(),
+                        name);
+                    Assert.AreEqual(
+                        Rarest(game.Where(row => row.IsCapstone != 0 && CategoryKindHelper.IsBase(row.CategoryKind))),
+                        facts.Select(fact => fact.MinBasePercent).Where(value => value.HasValue).DefaultIfEmpty().Min(),
+                        name);
+
+                    // Completions: the last capstone and the first platinum unlock.
+                    var summaryGame = summary.Games.Single(item => item.PlayniteGameId == game.Key);
+                    Assert.AreEqual(
+                        game.Where(row => row.IsCapstone != 0 && row.UnlockTimeUtc != null).Select(row => AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc)).DefaultIfEmpty().Max(),
+                        summaryGame.LastCapstoneUnlockUtc,
+                        name);
+                    Assert.AreEqual(
+                        game.Where(row => AchievementTally.NormalizeTrophy(row.TrophyType) == "platinum" && row.UnlockTimeUtc != null)
+                            .Select(row => AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc)).DefaultIfEmpty().Min(),
+                        summaryGame.FirstPlatinumUnlockUtc,
+                        name);
+                }
+
+                Assert.IsNotNull(summary.Games.Single(game => game.PlayniteGameId == Guid.Parse(Gamma)).FirstPlatinumUnlockUtc);
+            });
+        }
+
+        [TestMethod]
+        public void Rows_CarryTheResolvedValues_AndRecentUnlocksLeaveOutClearedTimes()
+        {
+            WithFixture(db =>
+            {
+                var summary = Load(db, limit: 20);
+                var games = summary.Games.ToDictionary(game => game.PlayniteGameId.Value);
+                var rows = AchievementReadService.Rows(db, AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true))
+                    .Select(row => SummaryCacheReader.MapRow(row, games, path => path))
+                    .ToDictionary(row => row.ApiName);
 
                 CollectionAssert.AreEquivalent(
                     new[] { "a1", "a2", "a6", "a7", "custom:one", "r1", "r2", "m1", "x1", "custom:solo", "g1" },
@@ -164,19 +236,17 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void BoundedRead_TakesTheNewestDatedUnlocks_AndSaysWhetherMoreExist()
+        public void BoundedRead_TakesTheNewestDatedUnlocks()
         {
             WithFixture(db =>
             {
-                var full = Load(db);
+                var full = Load(db, limit: 20);
                 var bounded = Load(db, limit: 3);
 
-                Assert.AreEqual(0, bounded.Achievements.Count);
+                Assert.AreEqual(0, Load(db).RecentUnlocks.Count);
                 CollectionAssert.AreEqual(
                     full.RecentUnlocks.Take(3).Select(row => row.ApiName).ToList(),
                     bounded.RecentUnlocks.Select(row => row.ApiName).ToList());
-                Assert.IsTrue(bounded.HasMoreRecentUnlocks);
-                Assert.IsFalse(Load(db, limit: 20).HasMoreRecentUnlocks);
                 Assert.AreEqual(Describe(full.Games[0]), Describe(bounded.Games[0]), "the games do not depend on the bound");
             });
         }
@@ -189,7 +259,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 var summary = Load(db, excluded: new[] { Guid.Parse(Alpha) });
 
                 Assert.IsFalse(summary.Games.Any(game => game.PlayniteGameId == Guid.Parse(Alpha)));
-                Assert.IsFalse(summary.Achievements.Any(row => row.PlayniteGameId == Guid.Parse(Alpha)));
+                Assert.IsFalse(summary.Unlocks.Any(fact => fact.GameId == Guid.Parse(Alpha)));
                 Assert.IsFalse(summary.UnlockCountsByDateByGame.ContainsKey(Guid.Parse(Alpha)));
                 Assert.AreEqual(6, summary.GlobalUnlockCountsByDate.Values.Sum());
             });
