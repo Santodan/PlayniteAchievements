@@ -1093,16 +1093,23 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> DynamicCategorySummaries
         {
-            get => _dynamicCategorySummaries;
+            get { CategorySummariesRequested?.Invoke(); return _dynamicCategorySummaries; }
             set => ReplaceCollection(_dynamicCategorySummaries, value, nameof(DynamicCategorySummaries));
         }
 
         [DontSerialize]
         public bool HasCategorySummaries
         {
-            get => _hasCategorySummaries;
+            get { CategorySummariesRequested?.Invoke(); return _hasCategorySummaries; }
             set => SetValue(ref _hasCategorySummaries, value);
         }
+
+        /// <summary>
+        /// Invoked when a consumer reads the category summaries, so they are built only for
+        /// themes that bind them.
+        /// </summary>
+        [DontSerialize]
+        internal Action CategorySummariesRequested { get; set; }
 
         [DontSerialize]
         public string DynamicCategorySummariesFilterKey
