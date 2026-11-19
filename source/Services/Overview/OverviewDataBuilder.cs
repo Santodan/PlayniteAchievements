@@ -365,8 +365,8 @@ namespace PlayniteAchievements.Services.Overview
 
         // The bounded pool of locked rows Unlock Next draws from, read when a shown widget asks
         // for it: a superset of every widget's criterion and window, since editing those options
-        // re-projects from the snapshot. The candidate games' locked rows are read once, and the
-        // rows each game keeps are then read as display rows.
+        // re-projects from the snapshot. The keys each candidate game keeps are chosen in SQL, and
+        // only their rows are read as display rows.
         private List<AchievementDisplayItem> LoadUnlockNextCandidates(
             PlayniteAchievementsSettings settings,
             IReadOnlyList<Guid> games,
@@ -383,12 +383,7 @@ namespace PlayniteAchievements.Services.Overview
                 try
                 {
                     var query = AchievementQuery.CurrentUser.WithSummaryRules().ForGames(games).WhereUnlocked(false).OrderBy(AchievementSort.Display);
-                    var keys = reads.Reads.Rows(query)
-                        .GroupBy(row => row.PlayniteGameId)
-                        .SelectMany(game => UnlockNextCandidateSelector.SelectAchievements(game.ToList(), row => row.GlobalPercentUnlocked, row => row.ApiName, slice))
-                        .Select(AchievementReadService.KeyOf)
-                        .ToList();
-                    return LoadRows(settings, query, keys);
+                    return LoadRows(settings, query, reads.Reads.SlicedKeys(query, slice));
                 }
                 catch (Exception ex)
                 {
