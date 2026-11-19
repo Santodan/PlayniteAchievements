@@ -223,6 +223,31 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void RealizedRows_PlaceTheList_AndAGridReadingEveryIndexKeepsNothing()
+        {
+            var rows = Create(5000);
+            _scheduler.Drain();
+            _pageReads.Clear();
+
+            rows.Realized(2500);
+            // A virtualizing grid whose rows differ in height reads every index on each layout pass.
+            for (var pass = 0; pass < 2; pass++)
+            {
+                for (var index = 0; index < 5000; index++)
+                {
+                    At(rows, index);
+                }
+            }
+
+            _scheduler.Drain();
+
+            CollectionAssert.AreEquivalent(new[] { 2400, 2500, 2600 }, ReadOffsets.ToList(), "only the pages around the realized row");
+            Assert.AreEqual(2500, At(rows, 2500).Index);
+            Assert.IsTrue(At(rows, 4000).IsPlaceholder, "a page the grid only read is not loaded");
+            Assert.IsTrue(rows.LoadedItems.Cast<Row>().All(row => row.Index < 200 || (row.Index >= 2400 && row.Index < 2700)));
+        }
+
+        [TestMethod]
         public void VirtualizedScroll_KeepsAboutTenPages_AndDropsFarOnesWithoutEvents()
         {
             var rows = Create(5000);
