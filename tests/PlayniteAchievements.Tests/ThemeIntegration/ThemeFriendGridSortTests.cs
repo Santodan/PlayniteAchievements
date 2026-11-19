@@ -34,13 +34,16 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual((DynamicThemeViewKeys.UnlockTime, Desc), Click("SortingName", DynamicThemeViewKeys.Game, Desc), "the third click returns to the default");
 
             Assert.AreEqual((DynamicThemeViewKeys.Rarity, Asc), Click("RaritySortValue", DynamicThemeViewKeys.UnlockTime, Desc));
-            Assert.IsNull(Click("FriendName", DynamicThemeViewKeys.UnlockTime, Desc), "no theme sort key orders by friend");
+            Assert.AreEqual(("FriendName", Asc), Click("FriendName", DynamicThemeViewKeys.UnlockTime, Desc), "a column no theme sort key names is its own key");
+            Assert.AreEqual(("FriendName", Desc), Click("FriendName", "FriendName", Asc));
+            Assert.AreEqual(("CategoryKind", Asc), Click("CategoryKind", "FriendName", Desc));
+            Assert.IsNull(Click("Description", DynamicThemeViewKeys.UnlockTime, Desc), "a column the query cannot sort by");
         }
 
         [TestMethod]
         public void TheSortKeyAHeaderSets_OrdersTheListsQueryAsTheColumn()
         {
-            foreach (var column in new[] { "UnlockTime", "DisplayName", "SortingName", "RaritySortValue", "Points", "TrophyType", "CategoryLabel" })
+            foreach (var column in new[] { "UnlockTime", "DisplayName", "SortingName", "RaritySortValue", "Points", "TrophyType", "CategoryLabel", "FriendName", "CategoryKind" })
             {
                 var sort = Click(column, DynamicThemeViewKeys.UnlockTime, Desc).Value;
                 var query = DynamicThemeFilterEvaluator.ApplyAchievementSort(AchievementQuery.AllFriends, sort.Item1, sort.Item2);
