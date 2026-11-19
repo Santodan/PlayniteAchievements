@@ -32,6 +32,11 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _gameName;
         public string GameName { get => _gameName; set => SetValue(ref _gameName, value); }
 
+        /// <summary>Stands in for a row before the grid's first read lands (see <see cref="PlaceholderRows"/>).</summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsPlaceholder { get; set; }
+
         // Session-only: true when this game has any saved unlock captures on disk. Set by the
         // capture presence marker after the summaries are built; gates the Captures column button.
         private bool _hasCaptures;
