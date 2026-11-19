@@ -530,7 +530,8 @@ namespace PlayniteAchievements.Services.Database
                         AND ugp.CacheKey = ?
                       ORDER BY ugp.LastUpdatedUtc DESC
                       LIMIT 1;",
-                    cacheKey);
+                    // An array: a lone string is the overload's default value, never bound.
+                    new object[] { cacheKey });
                 return ParseUtc(value);
             });
         }
