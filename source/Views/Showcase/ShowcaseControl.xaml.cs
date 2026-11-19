@@ -2324,7 +2324,7 @@ namespace PlayniteAchievements.Views.Showcase
         // A null snapshot means the overview has not produced one yet (a fresh open, before
         // RefreshViewAsync lands). Projecting against an empty stand-in would build a "No data"
         // body per widget only for SnapshotChanged to rebuild every one of them moments later,
-        // so the host shows a loading caption instead and the snapshot pass does the first
+        // so the host keeps its skeleton block instead and the snapshot pass does the first
         // real projection.
         private void ApplyWidgetProjection(
             ShowcaseWidgetControl host,
