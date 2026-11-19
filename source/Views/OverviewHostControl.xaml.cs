@@ -17,8 +17,9 @@ using Playnite.SDK;
 namespace PlayniteAchievements.Views
 {
     /// <summary>
-    /// Hosts the overview in Playnite's sidebar view, creating the OverviewControl on each
-    /// Loaded, or the first-time landing page when appropriate.
+    /// Hosts the overview in Playnite's sidebar view, or the first-time landing page when
+    /// appropriate. The plugin keeps one host for the session, and the overview stays built
+    /// while another view is shown.
     /// </summary>
     public partial class OverviewHostControl : UserControl
     {
@@ -30,7 +31,6 @@ namespace PlayniteAchievements.Views
 
         private OverviewControl _overview;
         private FirstTimeLandingPage _landingPage;
-        private bool _settingsSavedHooked;
 
         public OverviewHostControl(
             Func<UserControl> createView,
@@ -48,6 +48,8 @@ namespace PlayniteAchievements.Views
             InitializeComponent();
             FormattingCulture.Apply(this);
 
+            // The host lives for the session, so the static event roots nothing extra.
+            PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;
         }
@@ -55,96 +57,32 @@ namespace PlayniteAchievements.Views
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
             _logger.Info("OverviewHostControl_Loaded called");
-            // Subscribe to the static settings-saved event here rather than in the constructor so
-            // the subscription tracks the visual-tree lifecycle. WPF does not guarantee Unloaded
-            // fires; hooking in the constructor and unhooking only in Unloaded would permanently
-            // root this host (and its overview tree) via the static event whenever Unloaded is
-            // skipped. The guard makes a second Loaded without an intervening Unloaded idempotent.
-            if (!_settingsSavedHooked)
+            // The kept overview is shown again and reads what changed while it was hidden, unless
+            // the landing page applies now (the cache was cleared meanwhile).
+            if (_overview != null && !ShowLandingPage(_plugin.Settings))
             {
-                PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
-                _settingsSavedHooked = true;
-            }
-
-            // Always recreate content when loaded (handles overview reopen)
-            RecreateContent();
-            _overview?.Activate();
-        }
-
-        public void RefreshContent()
-        {
-            _logger.Info("RefreshContent called - forcing content refresh");
-            RecreateContent();
-        }
-
-        /// <summary>
-        /// Refreshes the provider status on the landing page if it's currently visible.
-        /// Called when settings are saved to update authentication status display.
-        /// </summary>
-        public void RefreshProviderStatus()
-        {
-            if (_landingPage != null)
-            {
-                _logger.Info("RefreshProviderStatus called - updating landing page provider status");
-                _landingPage.RefreshProviderStatuses();
-            }
-        }
-
-        // Unloaded fires while the view that replaces this one is being built, so the teardown
-        // (stopping reads, releasing rows, detaching the tree) waits until that view has painted.
-        // Pending control bar saves flush on the overview's own Unloaded, not here.
-        private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
-        {
-            _logger.Debug("OverviewHostControl_Unloaded called");
-            var overview = _overview;
-            var landingPage = _landingPage;
-            _overview = null;
-            _landingPage = null;
-
-            // Unsubscribe from settings saved event
-            if (_settingsSavedHooked)
-            {
-                PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                _settingsSavedHooked = false;
-            }
-
-            if (overview == null && landingPage == null)
-            {
+                _overview.Activate();
                 return;
             }
 
-            Dispatcher.BeginInvoke(
-                new Action(() => TearDown(overview, landingPage)),
-                DispatcherPriority.Background);
+            RecreateContent();
         }
 
-        private void TearDown(OverviewControl overview, FirstTimeLandingPage landingPage)
+        // Hidden, the overview stays built but reads nothing and holds no rows; Activate on the
+        // next visit reads them again. The landing page is rebuilt on each visit.
+        private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            using var perf = PerfScope.Start(
-                _logger,
-                "OverviewHost.Unloaded",
-                thresholdMs: 30,
-                context: $"overview={overview != null} landing={landingPage != null}");
-            try
+            _logger.Debug("OverviewHostControl_Unloaded called");
+            _overview?.Deactivate();
+            if (_landingPage != null)
             {
-                overview?.Deactivate();
-                overview?.Dispose();
-                landingPage?.Dispose();
+                _landingPage.Dispose();
+                _landingPage = null;
+                PART_Content.Content = null;
             }
-            catch
-            {
-                // no-op
-            }
-            finally
-            {
-                // Clear content to allow recreation on next load. A Loaded that ran before this
-                // has already replaced it.
-                var shown = PART_Content.Content;
-                if (shown != null && (ReferenceEquals(shown, overview) || ReferenceEquals(shown, landingPage)))
-                {
-                    PART_Content.Content = null;
-                }
-            }
+
+            // What the hidden overview holds, once the view that replaced it has settled.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("overview.hidden", delaySeconds: 8);
         }
 
         private void Plugin_SettingsSaved(object sender, EventArgs e)
@@ -200,19 +138,7 @@ namespace PlayniteAchievements.Views
                     settings._plugin = _plugin;
                 }
 
-                var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
-                var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
-                var dataService = _plugin?.AchievementDataService;
-                var hasCachedData = dataService?.HasCachedGameData() == true;
-                _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
-
-                // Show landing page if:
-                // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
-                // 2. Haven't seen landing page before (!firstTimeCompleted)
-                // 3. No data in achievements_cache (NO MATTER WHAT)
-                bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
-
-                if (settings != null && showLandingPage)
+                if (ShowLandingPage(settings))
                 {
                     _logger.Info("Creating landing page");
                     CreateLandingPage(settings);
@@ -227,6 +153,20 @@ namespace PlayniteAchievements.Views
             {
                 _logger?.Error(ex, "Failed to create overview content.");
             }
+        }
+
+        // Show landing page if:
+        // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
+        // 2. Haven't seen landing page before (!firstTimeCompleted)
+        // 3. No data in achievements_cache (NO MATTER WHAT)
+        private bool ShowLandingPage(PlayniteAchievementsSettings settings)
+        {
+            var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
+            var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
+            var dataService = _plugin?.AchievementDataService;
+            var hasCachedData = dataService?.HasCachedGameData() == true;
+            _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
+            return settings != null && (!seenThemeMigration || !firstTimeCompleted || !hasCachedData);
         }
 
         private void CreateLandingPage(PlayniteAchievementsSettings settings)
