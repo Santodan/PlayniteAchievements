@@ -558,7 +558,15 @@ namespace PlayniteAchievements.Views
             if (!_isActive) return;
             _isActive = false;
             _viewModel?.SetActive(false);
-            DetachHiddenSubViews();
+            // Once the frame showing the other view is drawn, so it does not wait for this; a
+            // return before then keeps them for that visit.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_isActive && !_isDisposed)
+                {
+                    DetachHiddenSubViews();
+                }
+            }), DispatcherPriority.ContextIdle);
         }
 
         public void RefreshView()
