@@ -19,6 +19,13 @@ namespace PlayniteAchievements.Services.Database
         IEnumerable LoadedItems { get; }
     }
 
+    /// <summary>A row list a virtualizing grid places by the rows it realizes.</summary>
+    internal interface IRealizedRows
+    {
+        /// <summary>The grid realized the row at the index. UI thread.</summary>
+        void Realized(int index);
+    }
+
     /// <summary>
     /// The rows of one query as a list whose <see cref="Count"/> is the full row count from the
     /// first load. A load reads the sorted keys of every matching row and keeps them; a page is
@@ -36,13 +43,18 @@ namespace PlayniteAchievements.Services.Database
     /// load from the anchor onward and are never dropped.
     /// </para>
     /// <para>
+    /// A virtualizing grid whose rows differ in height reads every index on each layout pass, so
+    /// once it reports a realized row (<see cref="Realized"/>) only realized rows move the anchor
+    /// and want pages, and its reads neither move it nor count as a sweep.
+    /// </para>
+    /// <para>
     /// A query change or a touching feed change reads the keys again with the pages around the
     /// anchor and every loaded page, and applies them in place: a row whose key is unchanged
     /// keeps its object, brought up to date, and any other row handed out is replaced. All state
     /// is changed on the UI thread.
     /// </para>
     /// </summary>
-    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, INotifyPropertyChanged, IPartiallyLoadedRows, IDisposable
+    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, INotifyPropertyChanged, IPartiallyLoadedRows, IRealizedRows, IDisposable
         where T : class
     {
         public const int PageSize = 100;
@@ -83,6 +95,7 @@ namespace PlayniteAchievements.Services.Database
         private bool _resetAgain;
         private bool _notifying;
         private bool _changed;
+        private bool _realizing;
         private bool _disposed;
 
         /// <param name="loadKeys">Runs off the UI thread; the keys of the query's rows in its order.</param>
@@ -151,14 +164,17 @@ namespace PlayniteAchievements.Services.Database
                     throw new ArgumentOutOfRangeException(nameof(index));
                 }
 
-                // A grid whose rows differ in height reads every index on each layout pass, so a
-                // read only looks for a load when it wants or keeps a page it did not before.
+                // A read only looks for a load when it wants or keeps a page it did not before.
                 var page = index / PageSize;
                 var load = false;
                 if (_notifying)
                 {
                     // A binding reading again because the list announced a change: the index is bound.
                     load = _keptPages.Add(page);
+                }
+                else if (_realizing)
+                {
+                    return Peek(index) ?? NewPlaceholder(index);
                 }
                 else
                 {
@@ -190,6 +206,22 @@ namespace PlayniteAchievements.Services.Database
                 return Peek(index) ?? NewPlaceholder(index);
             }
             set => throw new NotSupportedException();
+        }
+
+        public void Realized(int index)
+        {
+            _realizing = true;
+            if (index < 0 || index >= _count)
+            {
+                return;
+            }
+
+            _anchor = index;
+            var page = index / PageSize;
+            if (Want(page - 1) | Want(page) | Want(page + 1))
+            {
+                LoadNextPage();
+            }
         }
 
         public void Dispose()
