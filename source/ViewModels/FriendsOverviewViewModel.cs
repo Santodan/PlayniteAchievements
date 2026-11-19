@@ -102,6 +102,9 @@ namespace PlayniteAchievements.ViewModels
         private bool _barOptionsOffered = true;
         private bool _isRefreshing;
         private bool _disposed;
+
+        // The friend entries and merge groups as of the last read; see OnPluginSettingsSaved.
+        private string _readFriendSettingsKey;
         private string _statusText;
         private string _friendSearchText;
         private string _gameSearchText;
@@ -213,6 +216,7 @@ namespace PlayniteAchievements.ViewModels
                     () => OnPersistedSettingsChanged(this, new PropertyChangedEventArgs(null)));
             }
 
+            _readFriendSettingsKey = FriendSettingsKey();
             PlayniteAchievementsPlugin.SettingsSaved += OnPluginSettingsSaved;
         }
 
@@ -747,6 +751,7 @@ namespace PlayniteAchievements.ViewModels
         // Every read again, with the same queries.
         private void Reload()
         {
+            _readFriendSettingsKey = FriendSettingsKey();
             UpdateRowDecoration();
             _lists?.SetQuery(_lists.Query);
             _favoriteGames?.SetQuery(_favoriteGames.Query);
@@ -2514,14 +2519,29 @@ namespace PlayniteAchievements.ViewModels
         }
 
         // Merge groups, nicknames and favorites live in the settings the rows are stamped from.
+        // Most saves are view state (a Showcase page, a window position, a column ratio), and
+        // re-reading every list for them stalled each page switch. A settings window save may
+        // change anything the rows are mapped with; any other save re-reads only when the friend
+        // entries or merge groups differ from the last read, since those change inside their
+        // collections without a property change.
         private void OnPluginSettingsSaved(object sender, EventArgs e)
         {
-            if (_disposed)
+            if (_disposed ||
+                (!ReferenceEquals(e, PlayniteAchievementsPlugin.SettingsWindowSave) &&
+                 FriendSettingsKey() == _readFriendSettingsKey))
             {
                 return;
             }
 
             _scheduler.Post(Reload);
+        }
+
+        private string FriendSettingsKey()
+        {
+            var persisted = _settings?.Persisted;
+            return persisted == null
+                ? null
+                : Newtonsoft.Json.JsonConvert.SerializeObject(new { persisted.Friends, persisted.FriendMergeGroups });
         }
     }
 }
