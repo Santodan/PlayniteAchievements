@@ -394,7 +394,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             // The custom layer: a1's points, note and unlock time; a2's cleared time; a3's cleared
             // tags and trophy edit; a6 retagged; a4 filtered and a5 filtered from summaries; the
             // capstone sets; two authored achievements on Alpha and one on a game of its own.
-            Exec(@"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, Points, TrophyType, Tags, Cleared, Note, UnlockTimeUtc, CapstoneAssigned, IsAuthored, Unlocked, IsCapstone, IsFiltered, IsSummaryFiltered, Rarity, GlobalPercentUnlocked, DisplayName, UpdatedUtc) VALUES
+            Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Points, TrophyType, Tags, Cleared, Note, UnlockTimeUtc, CapstoneAssigned, IsAuthored, Unlocked, IsCapstone, IsFiltered, IsSummaryFiltered, Rarity, GlobalPercentUnlocked, DisplayName, UpdatedUtc) VALUES
                 (?1, 'a1', 99, NULL, NULL, 0, 'remember', '2025-03-10T23:45:00.0000000Z', 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, ?4),
                 (?1, 'a2', NULL, NULL, NULL, ?5, NULL, NULL, 1, 0, 0, 0, 0, 0, NULL, NULL, NULL, ?4),
                 (?1, 'a3', NULL, 'gold', NULL, ?6, NULL, NULL, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, ?4),
@@ -406,9 +406,9 @@ namespace PlayniteAchievements.SqlNado.Tests
                 (?2, 'custom:solo', NULL, NULL, NULL, 0, NULL, '2025-02-01T10:00:00.0000000Z', 0, 1, 1, 0, 0, 0, 'Rare', 9.0, 'Solo', ?4),
                 (?3, 'g2', NULL, NULL, NULL, 0, NULL, NULL, 1, 0, 0, 0, 0, 0, NULL, NULL, NULL, ?4);",
                 Alpha, AuthoredOnly, Gamma, Stamp, (long)AchievementField.UnlockTime, (long)AchievementField.Tags);
-            Exec(@"INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, HasManualLink, ExcludedFromSummaries) VALUES
+            Exec(@"INSERT INTO CustomLayerGames (PlayniteGameId, CapstonesMaterialized, HasManualLink, ExcludedFromSummaries) VALUES
                 (?1, 1, 0, 0), (?2, 0, 0, 1), (?3, 0, 1, 0), (?4, 1, 0, 0);", Alpha, Beta, Retro, Gamma);
-            Exec("INSERT INTO AchievementCategories (PlayniteGameId, Category, Kind) VALUES (?1, 'Story', 'Missable');", Alpha);
+            Exec("INSERT INTO CustomLayerCategories (PlayniteGameId, Category, Kind) VALUES (?1, 'Story', 'Missable');", Alpha);
         }
 
         private static void WithFixture(Action<SQLiteDatabase> test)
