@@ -13,6 +13,7 @@ using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Search;
+using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels.Items;
 using SqlNado;
 
@@ -138,51 +139,18 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void FriendRows_MatchTheFriendLoader_ExceptTheUsersOwnUnlockTimeEdits()
+        public void FriendRows_CarryTheUsersOwnResolvedUnlockTimes()
         {
             WithFixture(db =>
             {
-                var loader = LoaderFriendRows(db);
                 var rows = AchievementReadService.Rows(db, AchievementQuery.AllFriends.WhereUnlocked(true));
 
-                string Identity(string friend, string provider, long? appId, string gameKey, string gameId, string apiName, string time) =>
-                    string.Join("|", friend, provider, appId, gameKey, gameId, apiName, time);
-
-                var expected = loader.ToDictionary(row => Identity(
-                    (string)Get(row, "FriendExternalUserId"), (string)Get(row, "ProviderKey"), (long?)Get(row, "ProviderGameId"),
-                    (string)Get(row, "ProviderGameKey"), (string)Get(row, "PlayniteGameId"), (string)Get(row, "ApiName"), (string)Get(row, "UnlockTimeUtc")));
-                var actual = rows.ToDictionary(row => Identity(
-                    row.ExternalUserId, row.ProviderKey, row.ProviderGameId, row.ProviderGameKey, row.PlayniteGameId, row.ApiName, row.UnlockTimeUtc));
-
-                CollectionAssert.AreEquivalent(expected.Keys.ToList(), actual.Keys.ToList(), "the same friend unlocks");
-                Assert.AreEqual(5, actual.Count, "A: a1, a3, o1; B: a2, a6; not the inactive friend C");
-
-                foreach (var pair in expected)
-                {
-                    var old = pair.Value;
-                    var row = actual[pair.Key];
-                    Assert.AreEqual(Convert.ToInt64(Get(old, "MyUnlocked")), row.SelfUnlocked, pair.Key);
-                    Assert.AreEqual(Convert.ToInt64(Get(old, "MyHasGameData")), row.SelfHasGameData, pair.Key);
-                    Assert.AreEqual(Convert.ToInt64(Get(old, "FriendOwnsGame")), row.OwnershipConfirmed, pair.Key);
-
-                    // Disagreement: the loader reads the user's stored unlock time; the resolved rows
-                    // carry the user's override (a1) and clear (a2).
-                    var oldSelfTime = (string)Get(old, "MyUnlockTimeUtc");
-                    switch (row.ApiName)
-                    {
-                        case "a1":
-                            Assert.AreEqual(A1Raw, oldSelfTime);
-                            Assert.AreEqual(A1Override, row.SelfUnlockTimeUtc);
-                            break;
-                        case "a2":
-                            Assert.AreEqual(A2Raw, oldSelfTime);
-                            Assert.IsNull(row.SelfUnlockTimeUtc);
-                            break;
-                        default:
-                            Assert.AreEqual(oldSelfTime, row.SelfUnlockTimeUtc, pair.Key);
-                            break;
-                    }
-                }
+                Assert.AreEqual(5, rows.Count, "A: a1, a3, o1; B: a2, a6; not the inactive friend C");
+                // The user's override (a1) and clear (a2) of their own unlock time.
+                Assert.AreEqual(A1Override, rows.Single(row => row.ApiName == "a1").SelfUnlockTimeUtc);
+                Assert.IsNull(rows.Single(row => row.ApiName == "a2").SelfUnlockTimeUtc);
+                Assert.AreEqual(1L, rows.Single(row => row.ApiName == "a1").SelfUnlocked);
+                Assert.AreEqual(0L, rows.Single(row => row.ApiName == "o1").SelfHasGameData, "a game outside the library");
             });
         }
 
@@ -191,41 +159,41 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             WithFixture(db =>
             {
-                var items = LoaderFriendRows(db).Select(row =>
+                var items = AchievementReadService.Rows(db, AchievementQuery.AllFriends.WhereUnlocked(true)).Select(row =>
                 {
-                    var rarity = AchievementSqlFunctions.ParseStoredRarity((string)Get(row, "Rarity"));
-                    var percent = (double?)Get(row, "GlobalPercentUnlocked");
+                    var rarity = AchievementSqlFunctions.ParseStoredRarity(row.Rarity);
+                    var percent = row.GlobalPercentUnlocked;
                     return new FriendAchievementDisplayItem
                     {
-                        ProviderKey = (string)Get(row, "ProviderKey"),
-                        FriendExternalUserId = (string)Get(row, "FriendExternalUserId"),
+                        ProviderKey = row.ProviderKey,
+                        FriendExternalUserId = row.ExternalUserId,
                         Rarity = rarity,
                         GlobalPercentUnlocked = percent,
-                        TrophyType = (string)Get(row, "TrophyType"),
+                        TrophyType = row.TrophyType,
                         Unlocked = true,
                         CollectionScore = AchievementScoreCalculator.GetCollectionValue(rarity),
                         PrestigeScore = AchievementScoreCalculator.GetPrestigeValue(percent, rarity)
                     };
                 }).ToList();
-                var friends = new[] { new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "a" }, new FriendSummaryItem { ProviderKey = "Steam", ExternalUserId = "b" } };
-                FriendsOverviewDerivations.ApplyFriendSummaryScores(friends, items);
-
                 var totals = AchievementReadService.Totals(db, AchievementQuery.AllFriends.WhereUnlocked(true), AchievementGroup.Friend)
                     .ToDictionary(row => row.Key);
                 Assert.AreEqual(2, totals.Count);
-                foreach (var friend in friends)
+                foreach (var friend in new[] { "a", "b" })
                 {
-                    var total = totals[FriendsOverviewDerivations.BuildFriendScoreKey(friend.ProviderKey, friend.ExternalUserId)];
-                    Assert.AreEqual((long)friend.CollectionScore, total.CollectionScore, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.PrestigeScore, total.PrestigeScore, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.CommonCount, total.CommonUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.UncommonCount, total.UncommonUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.RareCount, total.RareUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.UltraRareCount, total.UltraRareUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.TrophyPlatinumCount, total.PlatinumUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.TrophyGoldCount, total.GoldUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.TrophySilverCount, total.SilverUnlocked, friend.ExternalUserId);
-                    Assert.AreEqual((long)friend.TrophyBronzeCount, total.BronzeUnlocked, friend.ExternalUserId);
+                    var stats = AchievementStatsAccumulator.FromDisplayItems(
+                        items.Where(item => item.FriendExternalUserId == friend).ToList(),
+                        treatItemsAsUnlocked: true);
+                    var total = totals["Steam\u001f" + friend];
+                    Assert.AreEqual((long)stats.CollectionScore, total.CollectionScore, friend);
+                    Assert.AreEqual((long)stats.PrestigeScore, total.PrestigeScore, friend);
+                    Assert.AreEqual((long)stats.CommonCount, total.CommonUnlocked, friend);
+                    Assert.AreEqual((long)stats.UncommonCount, total.UncommonUnlocked, friend);
+                    Assert.AreEqual((long)stats.RareCount, total.RareUnlocked, friend);
+                    Assert.AreEqual((long)stats.UltraRareCount, total.UltraRareUnlocked, friend);
+                    Assert.AreEqual((long)stats.TrophyPlatinumCount, total.PlatinumUnlocked, friend);
+                    Assert.AreEqual((long)stats.TrophyGoldCount, total.GoldUnlocked, friend);
+                    Assert.AreEqual((long)stats.TrophySilverCount, total.SilverUnlocked, friend);
+                    Assert.AreEqual((long)stats.TrophyBronzeCount, total.BronzeUnlocked, friend);
                 }
             });
         }
@@ -331,7 +299,7 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void Count_IsTheNumberOfRows_IgnoringThePage()
+        public void SortedKeys_AreOnePerRow_AndFollowThePage()
         {
             WithFixture(db =>
             {
@@ -346,8 +314,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                 {
                     var rows = AchievementReadService.Rows(db, query).Count;
                     Assert.IsTrue(rows > 0);
-                    Assert.AreEqual(rows, AchievementReadService.Count(db, query));
-                    Assert.AreEqual(rows, AchievementReadService.Count(db, query.Page(1, 1)));
+                    Assert.AreEqual(rows, AchievementReadService.SortedKeys(db, query).Count);
+                    Assert.AreEqual(1, AchievementReadService.SortedKeys(db, query.Page(1, 1)).Count);
                 }
             });
         }
@@ -415,12 +383,6 @@ namespace PlayniteAchievements.SqlNado.Tests
             ((IEnumerable)Invoke(PluginType("PlayniteAchievements.Services.Database.SummaryCacheReader"), "LoadCachedGameSummaryRows", db, null))
                 .Cast<object>()
                 .ToDictionary(row => (string)Get(row, "CacheKey"), row => (string)Get(row, "LastUnlockUtc"));
-
-        private static List<object> LoaderFriendRows(SQLiteDatabase db) =>
-            ((IEnumerable)Invoke(
-                PluginType("PlayniteAchievements.Services.Database.SqlNadoCacheStore"),
-                "LoadFriendAchievementRows",
-                db, 0, false, true, null, null)).Cast<object>().ToList();
 
         private const BindingFlags AnyMember = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
