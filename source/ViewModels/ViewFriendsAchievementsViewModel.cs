@@ -94,7 +94,6 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                isRowInScope: null,
                 loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
                 logger: logger,
                 hasPairData: HasCompareGameData);
