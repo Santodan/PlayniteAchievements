@@ -10,7 +10,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="FriendSummariesGridRowStyle"
