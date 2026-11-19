@@ -3946,24 +3946,6 @@ namespace PlayniteAchievements.Services.Database
                 args.ToArray());
         }
 
-        private static bool FriendOwnershipExists(SQLiteDatabase db, long userId, long gameId)
-        {
-            if (db == null || userId <= 0 || gameId <= 0)
-            {
-                return false;
-            }
-
-            return db.ExecuteScalar<long>(
-                @"SELECT EXISTS(
-                    SELECT 1
-                    FROM FriendOwnership
-                    WHERE UserId = ?
-                      AND GameId = ?
-                    LIMIT 1
-                  );",
-                new object[] { userId, gameId }) != 0;
-        }
-
         private static string ResolveFriendScrapeStatus(FriendGameAchievements achievements)
         {
             if (achievements == null || achievements.TransientFailure)
@@ -7640,11 +7622,6 @@ namespace PlayniteAchievements.Services.Database
 
         internal static RarityTier ParseStoredRarity(string value) => AchievementSqlFunctions.ParseStoredRarity(value);
 
-        private static string NormalizeMarkerApiName(string value)
-        {
-            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-        }
-
         private static string NormalizeStoredIso(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -7672,16 +7649,6 @@ namespace PlayniteAchievements.Services.Database
                    (!current.HasValue || incoming.Value > current.Value)
                 ? incoming
                 : current;
-        }
-
-        private static long ClampPlaytime(ulong seconds)
-        {
-            if (seconds > long.MaxValue)
-            {
-                return long.MaxValue;
-            }
-
-            return (long)seconds;
         }
 
         private static bool IsUnlocked(AchievementDetail achievement)
