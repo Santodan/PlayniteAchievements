@@ -197,6 +197,12 @@ namespace PlayniteAchievements
         public ProviderRegistry ProviderRegistry => _providerRegistry;
         internal ManualSourceRegistry ManualSources => _manualSourceRegistry;
 
+        /// <summary>
+        /// Installed themes as scanned once per session, shared by theme auto-migration, the
+        /// Themes settings tab and first-time setup.
+        /// </summary>
+        internal ThemeDiscoveryCache DiscoveredThemes { get; private set; }
+
         /// <summary>Per-game links to metadata sources, edited on the Manage Achievements Overview.</summary>
         public Services.Metadata.MetadataLinkStore MetadataLinks => _metadataLinkStore;
 
@@ -1370,9 +1376,11 @@ namespace PlayniteAchievements
                         runningGameId => _inGameMonitor?.FireTestNotification(runningGameId),
                         ToggleWorkshopTabWindow);
 
+                    DiscoveredThemes = new ThemeDiscoveryCache(_logger, PlayniteApi);
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
                         PlayniteApi,
+                        DiscoveredThemes,
                         _settingsViewModel.Settings,
                         () => SavePluginSettings(_settingsViewModel.Settings),
                         themeName => _notifications?.ShowThemeAutoMigrated(themeName));
