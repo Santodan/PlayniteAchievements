@@ -261,7 +261,8 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             _watchedItem = item;
-            item.PropertyChanged += OnItemPropertyChanged;
+            // Weak: a kept Overview snapshot outlives the window, and Unloaded is not guaranteed.
+            PropertyChangedEventManager.AddHandler(item, OnItemPropertyChanged, string.Empty);
         }
 
         private void DetachItemGlowWatch(AchievementDisplayItem item)
@@ -272,7 +273,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            target.PropertyChanged -= OnItemPropertyChanged;
+            PropertyChangedEventManager.RemoveHandler(target, OnItemPropertyChanged, string.Empty);
             if (ReferenceEquals(target, _watchedItem))
             {
                 _watchedItem = null;
