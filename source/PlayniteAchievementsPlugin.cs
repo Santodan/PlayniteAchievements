@@ -121,9 +121,6 @@ namespace PlayniteAchievements
         private readonly ManualSourceRegistry _manualSourceRegistry;
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
-        /// <summary>Last seen answer to "does any widget draw from the Unlock Next pool?".</summary>
-        private int _unlockNextPoolSlice;
-
         /// <summary>The achievement pins as last seen.</summary>
         private HashSet<string> _achievementPinKeys = new HashSet<string>();
 
@@ -2590,10 +2587,9 @@ namespace PlayniteAchievements
 
         private void SubscribePluginEventHandlers()
         {
-            // A widget switching to the Unlock Next source needs locked achievements the cached
-            // projection never hydrated, so that one option edit has to drop the cache. Widget
-            // options live in a nested string bag and raise no settings PropertyChanged, which is
-            // why this listens to the showcase's own change event instead.
+            // A pin added needs a row the cached snapshot never read, so that edit has to drop
+            // the cache. Pins raise no settings PropertyChanged, which is why this listens to the
+            // showcase's own change event instead.
             _achievementPinKeys = Services.Overview.OverviewDataSnapshot.PinKeys(Settings?.Persisted?.Showcase);
             ShowcaseConfigurationEvents.Changed += OnShowcaseConfigurationChanged;
             _eventSubscriptions.Add(() => ShowcaseConfigurationEvents.Changed -= OnShowcaseConfigurationChanged);
@@ -3098,23 +3094,15 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
-        /// Rebuilds the start page's snapshots when the showcase starts needing the Unlock Next
-        /// candidate pool, or gains an achievement pin, so the next build reads it. Only a deeper
-        /// pool matters - the source newly used, or Max per game raised past the built depth; a
-        /// widget dropping the source or lowering the value leaves a harmless pool behind until the
-        /// next rebuild.
+        /// Rebuilds the start page's snapshots when the showcase gains an achievement pin, so the
+        /// next build reads it. An Unlock Next widget reads its pool itself when projected.
         /// </summary>
         private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
         {
-            var showcase = Settings?.Persisted?.Showcase;
-            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(showcase);
-            var slice = maxPerGame > 0 ? Services.Overview.UnlockNextCandidateSelector.SliceFor(maxPerGame) : 0;
-            var poolNewlyRequired = slice > _unlockNextPoolSlice;
-            _unlockNextPoolSlice = slice;
-            var pinKeys = Services.Overview.OverviewDataSnapshot.PinKeys(showcase);
+            var pinKeys = Services.Overview.OverviewDataSnapshot.PinKeys(Settings?.Persisted?.Showcase);
             var pinAdded = !pinKeys.IsSubsetOf(_achievementPinKeys);
             _achievementPinKeys = pinKeys;
-            if (poolNewlyRequired || pinAdded)
+            if (pinAdded)
             {
                 ScheduleStartPageInvalidate();
             }
