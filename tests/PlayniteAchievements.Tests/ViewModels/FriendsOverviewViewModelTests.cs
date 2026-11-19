@@ -410,7 +410,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(paths.Count >= 10);
             foreach (var path in paths)
             {
-                Assert.IsNotNull(FriendsOverviewViewModel.MapAchievementSort(path), path);
+                Assert.IsNotNull(AchievementQuery.SortOfColumn(path), path);
             }
         }
 
