@@ -1233,6 +1233,19 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         private void NotifyFriendDataRequested() => FriendDataRequested?.Invoke();
 
+        /// <summary>
+        /// Invoked with a library-wide achievement list's name when a consumer reads it, so the
+        /// list is read only for themes that bind it.
+        /// </summary>
+        [DontSerialize]
+        internal Action<string> LibraryListRequested { get; set; }
+
+        private List<AchievementDetail> RequestLibraryList(Func<List<AchievementDetail>> list, [System.Runtime.CompilerServices.CallerMemberName] string name = null)
+        {
+            LibraryListRequested?.Invoke(name);
+            return list();
+        }
+
         [DontSerialize]
         public ObservableCollection<FriendSummaryItem> DynamicFriendSummaries
         {
@@ -1766,35 +1779,35 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsUnlockAsc
         {
-            get => _allAchievementsUnlockAsc;
+            get => RequestLibraryList(() => _allAchievementsUnlockAsc);
             set => SetValue(ref _allAchievementsUnlockAsc, value);
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsUnlockDesc
         {
-            get => _allAchievementsUnlockDesc;
+            get => RequestLibraryList(() => _allAchievementsUnlockDesc);
             set => SetValue(ref _allAchievementsUnlockDesc, value);
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsRarityAsc
         {
-            get => _allAchievementsRarityAsc;
+            get => RequestLibraryList(() => _allAchievementsRarityAsc);
             set => SetValue(ref _allAchievementsRarityAsc, value);
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsRarityDesc
         {
-            get => _allAchievementsRarityDesc;
+            get => RequestLibraryList(() => _allAchievementsRarityDesc);
             set => SetValue(ref _allAchievementsRarityDesc, value);
         }
 
         [DontSerialize]
         public List<AchievementDetail> DynamicLibraryAchievements
         {
-            get => _dynamicLibraryAchievements;
+            get => RequestLibraryList(() => _dynamicLibraryAchievements);
             set => SetValue(ref _dynamicLibraryAchievements, value);
         }
 
@@ -1927,14 +1940,14 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         public List<AchievementDetail> MostRecentUnlocks
         {
-            get => _mostRecentUnlocks;
+            get => RequestLibraryList(() => _mostRecentUnlocks);
             set => SetValue(ref _mostRecentUnlocks, value);
         }
 
         [DontSerialize]
         public List<AchievementDetail> RarestRecentUnlocks
         {
-            get => _rarestRecentUnlocks;
+            get => RequestLibraryList(() => _rarestRecentUnlocks);
             set => SetValue(ref _rarestRecentUnlocks, value);
         }
 
