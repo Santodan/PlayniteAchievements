@@ -34,6 +34,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void FriendDefinitionChange_TouchesTheCurrentUsersQueriesOfItsLibraryGame()
+        {
+            var asked = new List<FriendCacheChange>();
+            var feed = new AchievementDataFeed(null, null, libraryGamesOf: changes =>
+            {
+                asked.AddRange(changes);
+                return new[] { GameA };
+            });
+            var changes = new List<AchievementDataChange>();
+            feed.AchievementDataChanged += (_, change) => changes.Add(change);
+
+            feed.RaiseFriendChange(FriendCacheChange.ForFriendOwnership("Steam", "f1"));
+            Assert.AreEqual(0, asked.Count, "only definition changes are looked up");
+            Assert.IsFalse(changes[0].Touches(AchievementQuery.CurrentUser));
+
+            feed.RaiseFriendChange(FriendCacheChange.ForGameDefinition("Steam", 10, null));
+            Assert.AreEqual(1, asked.Count);
+            CollectionAssert.AreEqual(new[] { GameA }, changes[1].GameIds.ToArray());
+            Assert.IsTrue(changes[1].Touches(AchievementQuery.CurrentUser.ForGames(new[] { GameA })));
+            Assert.IsFalse(changes[1].Touches(AchievementQuery.CurrentUser.ForGames(new[] { Guid.NewGuid() })));
+            Assert.IsTrue(changes[1].Touches(AchievementQuery.AllFriends.ForFriend("Steam", "f2")), "friend queries are still touched");
+        }
+
+        [TestMethod]
         public void CurrentUserSave_RaisesCacheInvalidatedAndOneChange()
         {
             _feed.Raise(CacheInvalidatedEventArgs.Scoped(new[] { GameA }), null);
