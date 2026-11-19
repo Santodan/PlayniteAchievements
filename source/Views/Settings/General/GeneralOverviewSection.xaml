@@ -31,7 +31,7 @@
 
                 <!-- Settings Header -->
                 <Border Style="{StaticResource SectionBorderStyle}"
-                        Background="{DynamicResource PlayAch.Brush.Panel}"
+                        Background="Transparent"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource PlayAch.Image.Logo}"
