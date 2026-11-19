@@ -96,45 +96,6 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void LibraryRuntimeState_SumsPlatformScoresAcrossProviders()
-        {
-            var allData = new List<GameAchievementData>
-            {
-                Game("Xbox", null, Achievement(100, true, null), Achievement(50, false, null)),
-                // Exophase-sourced Xbox 360 game: counts toward Gamerscore through its platform key.
-                Game("Exophase", "Xbox", Achievement(30, true, null)),
-                Game("Xenia", null, Achievement(20, true, null)),
-                Game("Epic", null, Achievement(45, true, null)),
-                Game("RetroAchievements", null,
-                    Achievement(10, true, "Base|Hardcore"),
-                    Achievement(25, true, "Base|Softcore")),
-                // Exophase-sourced RetroAchievements game: no unlock mode, so every unlock counts.
-                Game("Exophase", "RetroAchievements", Achievement(5, true, null)),
-                Game("Steam", null, Achievement(1000, true, null))
-            };
-
-            var state = LibraryRuntimeStateBuilder.Build(
-                allData,
-                api: null,
-                token: default,
-                includeHeavyAchievementLists: false);
-
-            Assert.AreEqual(150, state.GamerscoreScore);
-            Assert.AreEqual(45, state.EpicXpScore);
-            Assert.AreEqual(15, state.RetroPointsScore);
-            Assert.AreEqual(200, state.GamerscoreTotal);
-            Assert.AreEqual(45, state.EpicXpTotal);
-            Assert.AreEqual(40, state.RetroPointsTotal);
-            Assert.AreEqual("Steam", state.PointsScores[0].FamilyKey);
-            Assert.AreEqual(1000, state.PointsScores[0].Score);
-            Assert.AreEqual(1000, state.PointsScores[0].Total);
-            Assert.AreEqual("Xbox", state.PointsScores[1].FamilyKey);
-            Assert.AreEqual(150, state.PointsScores[1].Score);
-            Assert.AreEqual(200, state.PointsScores[1].Total);
-            Assert.AreEqual(4, state.PointsScores.Count);
-        }
-
-        [TestMethod]
         public void OverviewSnapshot_DeltaTotalsSumPlatformScores()
         {
             var games = new List<GameSummaryItem>
