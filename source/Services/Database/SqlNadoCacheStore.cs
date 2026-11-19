@@ -2973,10 +2973,12 @@ namespace PlayniteAchievements.Services.Database
                 // full definition-driven set was the dominant load cost (~6x more rows). The friend+game
                 // pair comparison view loads its one game's locked rows on demand via
                 // LoadFriendGameAchievementData instead.
-                using (PerfScope.Start(_logger, "Friends.LoadAchievementRows", thresholdMs: 15))
-                data.AllAchievements = MapFriendAchievementRows(
-                    LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true),
-                    presentationCache);
+                List<FriendRecentUnlockRow> achievementRows;
+                using (PerfScope.Start(_logger, "Friends.QueryAchievementRows", thresholdMs: 15))
+                achievementRows = LoadFriendAchievementRows(db, 0, requireUnlockTime: false, unlockedOnly: true);
+
+                using (PerfScope.Start(_logger, "Friends.MapAchievementRows", thresholdMs: 15, context: "rows=" + achievementRows.Count))
+                data.AllAchievements = MapFriendAchievementRows(achievementRows, presentationCache);
 
                 using (PerfScope.Start(_logger, "Friends.ApplySummaryScores", thresholdMs: 15))
                 FriendsOverviewDerivations.Apply(data, recentLimit);
@@ -5200,6 +5202,24 @@ namespace PlayniteAchievements.Services.Database
                 {
                     if (scope == null)
                     {
+                        continue;
+                    }
+
+                    if (scope.Kind == FriendCacheChangeKind.SelfGame)
+                    {
+                        if (scope.PlayniteGameId == Guid.Empty)
+                        {
+                            continue;
+                        }
+
+                        // Every friend's rows for one Playnite game. Games.PlayniteGameId is
+                        // written lowercase (Guid.ToString()); the uppercase form is matched as
+                        // well instead of LOWER(), which would stop IX_Games_PlayniteGameId
+                        // being used.
+                        var gameIdText = scope.PlayniteGameId.ToString("D");
+                        scopeSql.Add("g.PlayniteGameId IN (?, ?)");
+                        args.Add(gameIdText);
+                        args.Add(gameIdText.ToUpperInvariant());
                         continue;
                     }
 
