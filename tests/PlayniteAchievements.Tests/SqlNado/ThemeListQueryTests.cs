@@ -98,9 +98,9 @@ namespace PlayniteAchievements.SqlNado.Tests
             AchievementReadServiceTests.WithFixture(db =>
             {
                 db.ExecuteNonQuery(
-                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
                     Alpha, "2025-01-01T00:00:00.0000000Z");
-                db.ExecuteNonQuery("UPDATE AchievementOverrides SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
+                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
 
                 var rows = AchievementReadService.Rows(db, AchievementQuery.CurrentUser.WithGoalsFirst().OrderBy(AchievementSort.UnlockTime, descending: true));
                 CollectionAssert.AreEqual(new[] { "custom:two", "a3" }, rows.Take(2).Select(row => row.ApiName).ToList());
@@ -210,12 +210,12 @@ namespace PlayniteAchievements.SqlNado.Tests
             AchievementReadServiceTests.WithFixture(db =>
             {
                 db.ExecuteNonQuery(
-                    "INSERT INTO AchievementCategories (PlayniteGameId, Category, SortIndex, ImagePath) VALUES (?1, 'Default', 2, 'art/default.png');",
+                    "INSERT INTO CustomLayerCategories (PlayniteGameId, Category, SortIndex, ImagePath) VALUES (?1, 'Default', 2, 'art/default.png');",
                     Alpha);
                 db.ExecuteNonQuery(
-                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
                     Alpha, "2025-01-01T00:00:00.0000000Z");
-                db.ExecuteNonQuery("UPDATE AchievementOverrides SET GoalOrder = 0 WHERE ApiName = 'a1';");
+                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET GoalOrder = 0 WHERE ApiName = 'a1';");
 
                 var items = LibraryRuntimeStateBuilder.Details(
                     AchievementReadService.Rows(db, AchievementQuery.CurrentUser.ForGames(new[] { Guid.Parse(Alpha) }))
