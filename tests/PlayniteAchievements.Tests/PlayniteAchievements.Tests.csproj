@@ -278,7 +278,6 @@
     <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
     <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
     <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-    <Compile Include="..\..\source\Services\Overview\OverviewAchievementFilters.cs" Link="Source\Services\Overview\OverviewAchievementFilters.cs" />
     <Compile Include="..\..\source\Services\Overview\OverviewGameSummaryFilters.cs" Link="Source\Services\Overview\OverviewGameSummaryFilters.cs" />
     <Compile Include="..\..\source\Services\Summaries\AchievementGameStats.cs" Link="Source\Services\Summaries\AchievementGameStats.cs" />
     <Compile Include="..\..\source\Services\Summaries\AchievementStatsAccumulator.cs" Link="Source\Services\Summaries\AchievementStatsAccumulator.cs" />
