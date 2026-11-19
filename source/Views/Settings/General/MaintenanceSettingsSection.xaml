@@ -23,20 +23,15 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
-            <!-- ================== MAINTENANCE ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Title}"
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-
-                    <!-- Achievement data -->
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Title}"
-                               Style="{StaticResource SubSectionHeaderStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Description}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_ClearPlatformData}">
                         <Button Content="{DynamicResource LOCPlayAch_Common_Clear}"
@@ -73,14 +68,18 @@
                                 Style="{StaticResource MaintenanceActionButtonStyle}"/>
                     </controls:SettingRow>
 
-                    <!-- Icon cache -->
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
-                               Style="{StaticResource SubSectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Folder}"
                                Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -121,14 +120,18 @@
                                 Style="{StaticResource MaintenanceActionButtonStyle}"/>
                     </controls:SettingRow>
 
-                    <!-- Image compression -->
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Title}"
-                               Style="{StaticResource SubSectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Description}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
-                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CompressImages_MaxSize}">
                         <ComboBox x:Name="CompressMaxDimensionCombo"
@@ -164,10 +167,14 @@
                                 Style="{StaticResource MaintenanceActionButtonStyle}"/>
                     </controls:SettingRow>
 
-                    <!-- Utilities -->
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
-                               Style="{StaticResource SubSectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup_Title}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}">
