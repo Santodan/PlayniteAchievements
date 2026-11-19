@@ -263,6 +263,37 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void KeyedReads_InlineAuthoredKeysAndPins_AsQuotedLiterals()
+        {
+            WithFixture(db =>
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UpdatedUtc) VALUES (?, 'it''s; DROP TABLE Games; --', 'Quote', 1, 0, ?);",
+                    Alpha, "2025-01-01T00:00:00.0000000Z");
+                var query = AchievementQuery.CurrentUser.ForGames(new[] { Guid.Parse(Alpha) });
+                var authored = AchievementReadService.SortedKeys(db, query).Where(key => key.PlayniteGameId != null).ToList();
+                var notAGuid = new AchievementQuerySql.RowKey { PlayniteGameId = "x' OR 1=1 --", ApiName = "custom:one" };
+
+                var command = AchievementQuerySql.Rows(query, authored.Concat(new[] { notAGuid }).ToList());
+                var rows = AchievementReadService.Rows(db, query, authored.Concat(new[] { notAGuid }).ToList()).Select(row => row.ApiName).ToList();
+
+                Assert.AreEqual(0, command.Args.Count(arg => arg is string text && text.StartsWith("it's", StringComparison.Ordinal)), "authored keys bind no variables");
+                CollectionAssert.AreEquivalent(new[] { "custom:one", "custom:two", "it's; DROP TABLE Games; --" }, rows);
+
+                var pinned = AchievementQuery.CurrentUser.ForAchievements(new[]
+                {
+                    new KeyValuePair<Guid, string>(Guid.Parse(Alpha), "IT'S; DROP TABLE Games; --"),
+                    new KeyValuePair<Guid, string>(Guid.Parse(Alpha), "a1")
+                });
+                CollectionAssert.AreEquivalent(
+                    new[] { "a1", "it's; DROP TABLE Games; --" },
+                    AchievementReadService.Rows(db, pinned).Select(row => row.ApiName).ToList(),
+                    "pins match ignoring case");
+                Assert.AreEqual(6L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM Games;"));
+            });
+        }
+
+        [TestMethod]
         public void ProgressKeys_SplitTheLockedRows_EvenANumeratorWithoutADenominator()
         {
             WithFixture(db =>
