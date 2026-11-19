@@ -507,6 +507,7 @@
     <Compile Include="..\..\source\ViewModels\Items\FriendAchievementDisplayItem.cs" Link="Source\ViewModels\Items\FriendAchievementDisplayItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendGameSummaryItem.cs" Link="Source\ViewModels\Items\FriendGameSummaryItem.cs" />
     <Compile Include="..\..\source\ViewModels\Items\FriendSummaryItem.cs" Link="Source\ViewModels\Items\FriendSummaryItem.cs" />
+    <Compile Include="..\..\source\ViewModels\Items\PlaceholderRows.cs" Link="Source\ViewModels\Items\PlaceholderRows.cs" />
     <Compile Include="..\..\source\ViewModels\IOverviewRefreshHeaderViewModel.cs" Link="Source\ViewModels\IOverviewRefreshHeaderViewModel.cs" />
     <Compile Include="..\..\source\ViewModels\RefreshHeaderProgressTracker.cs" Link="Source\ViewModels\RefreshHeaderProgressTracker.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettingsSubscription.cs" Link="Source\Models\Settings\PersistedSettingsSubscription.cs" />
