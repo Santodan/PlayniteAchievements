@@ -15,7 +15,9 @@ namespace PlayniteAchievements.Services.Database
     /// SQL functions that run the plugin's C# rules inside SQLite, so plugin queries can score and
     /// bucket rows without loading them: <c>pa_prestige(percent, rarity)</c>,
     /// <c>pa_collection(rarity)</c>, <c>pa_localday(unlockTimeUtc)</c>,
-    /// <c>pa_search(query, text, ...)</c> and <c>pa_classified(categoryKind, tags, key, ...)</c>.
+    /// <c>pa_search(query, text, ...)</c>, <c>pa_classified(categoryKind, tags, key, ...)</c>, and
+    /// the sort and label keys <c>pa_raritysort(percent, rarity)</c>, <c>pa_category(category)</c>,
+    /// <c>pa_kindsort(categoryKind)</c> and <c>pa_tagcount(tags)</c>.
     /// </summary>
     /// <remarks>
     /// They exist only on the plugin's own connections. No view may call them: other add-ons read
@@ -49,6 +51,16 @@ namespace PlayniteAchievements.Services.Database
                 var tags = Text(context.Values[1]);
                 context.SetResult(context.Values.Skip(2).Any(key => AchievementClassificationFilter.Matches(kind, tags, Text(key))) ? 1 : 0);
             });
+
+            // The grid sort keys of AchievementSortHelper and the category label rows display.
+            db.SetScalarFunction("pa_raritysort", 2, true, context => context.SetResult(
+                AchievementRarityResolver.GetSortValue(Double(context.Values[0]), ParseStoredRarity(Text(context.Values[1])))));
+            db.SetScalarFunction("pa_category", 1, true, context => context.SetResult(
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(Text(context.Values[0]))));
+            db.SetScalarFunction("pa_kindsort", 1, true, context => context.SetResult(
+                CategoryKindHelper.ToSortKey(Text(context.Values[0]))));
+            db.SetScalarFunction("pa_tagcount", 1, true, context => context.SetResult(
+                AchievementTagHelper.GetComponents(Text(context.Values[0])).Count));
         }
 
         /// <summary>A stored rarity name as a tier; Common when missing or unknown.</summary>
