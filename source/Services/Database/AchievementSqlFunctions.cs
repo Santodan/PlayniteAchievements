@@ -1,17 +1,21 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Overview;
+using PlayniteAchievements.Services.Search;
 using SqlNado;
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
 {
     /// <summary>
     /// SQL functions that run the plugin's C# rules inside SQLite, so plugin queries can score and
     /// bucket rows without loading them: <c>pa_prestige(percent, rarity)</c>,
-    /// <c>pa_collection(rarity)</c> and <c>pa_localday(unlockTimeUtc)</c>.
+    /// <c>pa_collection(rarity)</c>, <c>pa_localday(unlockTimeUtc)</c>,
+    /// <c>pa_search(query, text, ...)</c> and <c>pa_classified(categoryKind, tags, key, ...)</c>.
     /// </summary>
     /// <remarks>
     /// They exist only on the plugin's own connections. No view may call them: other add-ons read
@@ -31,6 +35,19 @@ namespace PlayniteAchievements.Services.Database
                 context.SetResult(unlockUtc.HasValue
                     ? UnlockDayCounts.DayOf(unlockUtc.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                     : null);
+            });
+
+            // 1 when the values, joined as SearchTextBuilder joins them, match the query as SearchQuery matches it.
+            db.SetScalarFunction("pa_search", -1, true, context => context.SetResult(
+                SearchQuery.From(Text(context.Values[0])).Matches(
+                    SearchTextBuilder.FromValues(context.Values.Skip(1).Select(Text))) ? 1 : 0));
+
+            // 1 when any key matches the kind or tags as AchievementClassificationFilter matches it.
+            db.SetScalarFunction("pa_classified", -1, true, context =>
+            {
+                var kind = Text(context.Values[0]);
+                var tags = Text(context.Values[1]);
+                context.SetResult(context.Values.Skip(2).Any(key => AchievementClassificationFilter.Matches(kind, tags, Text(key))) ? 1 : 0);
             });
         }
 
