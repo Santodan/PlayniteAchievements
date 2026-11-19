@@ -55,19 +55,27 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void AuthoredRows_ShowTheirGamesProvider()
+        public void TheGridsRead_NeedsNoSnapshot_AndRunsOncePerOpen()
         {
-            var load = Between(Read("OverviewViewModel.cs"), "private IReadOnlyList<AchievementDisplayItem> LoadRecentRows(", "private List<AchievementDisplayItem> LoadedRecentRows()");
-            StringAssert.Contains(load, "_dataBuilder.LoadRows(_settings, query, keys, _gamesById)");
+            var source = Read("OverviewViewModel.cs");
+            var load = Between(source, "private IReadOnlyList<AchievementDisplayItem> LoadRecentRows(", "private List<AchievementDisplayItem> LoadedRecentRows()");
+            StringAssert.Contains(load, "_dataBuilder.LoadRows(_settings, query, keys)", "the read names an authored row's provider itself (AchievementReadServiceTests)");
+            Assert.IsFalse(source.Contains("_gamesById"), "rows read before the snapshot need nothing from it");
 
-            // The one row loader every grid and widget reads through.
+            // The one row loader every grid and widget reads through takes no games.
             var rows = Between(
                 File.ReadAllText(FindRepoFile("source", "Services", "Overview", "OverviewDataBuilder.cs")),
                 "internal List<AchievementDisplayItem> LoadRows(",
                 "internal List<AchievementDisplayItem> BuildRows(");
-            StringAssert.Contains(rows, "row.ProviderKey == null && games != null && games.TryGetValue(gameId, out var game)");
-            StringAssert.Contains(rows, "row.ProviderKey = game.ProviderKey;");
+            Assert.IsFalse(rows.Contains("games.TryGetValue"), "no games lookup fills the provider");
             StringAssert.Contains(rows, "return BuildRows(settings, rows);");
+
+            // The snapshot that lands at open does not read the grids again.
+            var activate = Between(source, "public void SetActive(bool isActive)", "public Task RefreshViewAsync()");
+            StringAssert.Contains(activate, "RefreshViewAsync(opening: true)");
+            StringAssert.Contains(source, "ApplySnapshot(snapshot, gameEntries, readsCurrent: opening)");
+            var apply = Between(source, "private void ApplySnapshot(", "private bool IsTransientRebuildSnapshot");
+            StringAssert.Contains(apply, "if (!readsCurrent)");
         }
 
         [TestMethod]
