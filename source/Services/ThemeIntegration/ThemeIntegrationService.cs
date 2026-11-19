@@ -672,6 +672,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private AchievementQuery LibraryListQuery(string name) =>
             LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements);
 
+        /// <summary>
+        /// The library lists a theme has read so far and their row counts, for diagnostics. Loads
+        /// nothing: the theme getters themselves start a read.
+        /// </summary>
+        internal string DescribeLoadedLibraryLists()
+        {
+            var loaded = _libraryLists.ToArray();
+            return loaded.Length == 0
+                ? "none"
+                : string.Join(",", loaded.Select(pair => pair.Key + "=" + (pair.Value.Result?.Count ?? 0)));
+        }
+
         // The rows each library list reads of the library under the summary rules (all): goals
         // first in the whole-library lists, in the list's order.
         internal static AchievementQuery LibraryListQuery(string name, AchievementQuery all, LibraryAchievementViewState view)
