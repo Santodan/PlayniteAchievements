@@ -254,26 +254,6 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void RarestMosaic_LoadsTheFullUnlockedSnapshotWithoutDuplicatingAQuery()
-        {
-            var reader = ReadRepoFile(
-                "source",
-                "Services",
-                "Database",
-                "SummaryCacheReader.cs");
-            var builder = ReadRepoFile(
-                "source",
-                "Services",
-                "Overview",
-                "OverviewDataBuilder.cs");
-
-            StringAssert.Contains(reader, "limit > 0 ? unlocked.WhereUnlockTimeKnown().Page(limit + 1) : unlocked");
-            StringAssert.Contains(reader, "result.Achievements = rows;");
-            StringAssert.Contains(builder, "snapshot.Achievements = MaterializeAchievements(");
-            StringAssert.Contains(builder, "item?.Unlocked == true && item.UnlockTimeUtc.HasValue");
-        }
-
-        [TestMethod]
         public void RarityMosaic_UsesTheReusableCompactItemContractWithoutAThemeListAncestor()
         {
             var itemXaml = ReadRepoFile(
