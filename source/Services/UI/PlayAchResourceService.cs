@@ -41,6 +41,14 @@ namespace PlayniteAchievements.Services.UI
             public bool IsUserVisible { get; }
             public bool AllowsOverride { get; }
             public IReadOnlyList<string> FallbackPlayniteResourceKeys { get; }
+            public ThemeStyleSource StyleSource { get; private set; }
+
+            /// <summary>Reads the token from the theme's implicit control style before the Playnite keys.</summary>
+            public TokenDefinition FromStyle(Type controlType, DependencyProperty property)
+            {
+                StyleSource = new ThemeStyleSource(controlType, property);
+                return this;
+            }
         }
 
         private sealed class AliasDefinition
@@ -55,6 +63,30 @@ namespace PlayniteAchievements.Services.UI
             public string ResourceKey { get; }
             public string SourceResourceKey { get; }
             public byte? Alpha { get; }
+            public ThemeStyleSource StyleSource { get; private set; }
+
+            /// <summary>
+            /// Reads the alias from the theme's implicit control style while its source token follows
+            /// Playnite. A user override of the source token still applies to the alias.
+            /// </summary>
+            public AliasDefinition FromStyle(Type controlType, DependencyProperty property)
+            {
+                StyleSource = new ThemeStyleSource(controlType, property);
+                return this;
+            }
+        }
+
+        /// <summary>A property of the implicit style a theme defines for a control type.</summary>
+        private sealed class ThemeStyleSource
+        {
+            public ThemeStyleSource(Type controlType, DependencyProperty property)
+            {
+                ControlType = controlType;
+                Property = property;
+            }
+
+            public Type ControlType { get; }
+            public DependencyProperty Property { get; }
         }
 
         // DisplayName holds a localization key (LOCPlayAch_*) resolved for display by the
@@ -62,7 +94,11 @@ namespace PlayniteAchievements.Services.UI
         // plain internal label rather than a localized key.
         private static readonly TokenDefinition[] Tokens =
         {
-            Brush("PlayAch.Brush.Text", "LOCPlayAch_Settings_Appearance_Resource_Text", "TextBrush"),
+            // Each role reads the theme's own control style first, so a theme that draws its controls
+            // with keys of its own (NovaX: NormalBorderBrushControls) is followed. Setters inside
+            // triggers are not read; a role whose style sets it only in a trigger falls to the keys.
+            Brush("PlayAch.Brush.Text", "LOCPlayAch_Settings_Appearance_Resource_Text", "TextBrush")
+                .FromStyle(typeof(System.Windows.Controls.TextBlock), System.Windows.Controls.TextBlock.ForegroundProperty),
             Brush("PlayAch.Brush.Text.Secondary", "LOCPlayAch_Settings_Appearance_Resource_TextSecondary", "TextBrushDarker", "TextBrush"),
             // TextBrushDark is pure black in Playnite's default theme (it is the brush for text on light accents), so a muted-text token must not fall to it.
             Brush("PlayAch.Brush.Text.Tertiary", "LOCPlayAch_Settings_Appearance_Resource_TextTertiary", "TextBrushDarker", "TextBrush"),
@@ -93,11 +129,13 @@ namespace PlayniteAchievements.Services.UI
             Alias("PlayAch.Brush.Button.Background.Hover", "PlayAch.Brush.Selection", 0x30),
             Alias("PlayAch.Brush.Button.Background.Selected", "PlayAch.Brush.Selection", 0x45),
             Alias("PlayAch.Brush.Button.Background.Pressed", "PlayAch.Brush.Selection", 0x60),
-            Alias("PlayAch.Brush.Button.Border", "PlayAch.Brush.ControlBorder"),
+            Alias("PlayAch.Brush.Button.Border", "PlayAch.Brush.ControlBorder")
+                .FromStyle(typeof(System.Windows.Controls.Button), System.Windows.Controls.Control.BorderBrushProperty),
             Alias("PlayAch.Brush.Control.Background", "PlayAch.Brush.ControlSurface"),
             Alias("PlayAch.Brush.Control.Background.Hover", "PlayAch.Brush.Selection", 0x30),
             Alias("PlayAch.Brush.Input.Background", "PlayAch.Brush.Surface"),
-            Alias("PlayAch.Brush.Input.Border", "PlayAch.Brush.ControlBorder"),
+            Alias("PlayAch.Brush.Input.Border", "PlayAch.Brush.ControlBorder")
+                .FromStyle(typeof(System.Windows.Controls.ComboBox), System.Windows.Controls.Control.BorderBrushProperty),
             Alias("PlayAch.Brush.Grid.Background", "PlayAch.Brush.GridSurface"),
             Alias("PlayAch.Brush.Grid.HeaderBackground", "PlayAch.Brush.GridSurface"),
             Alias("PlayAch.Brush.Grid.HeaderGripper.Hover", "PlayAch.Brush.Accent"),
@@ -109,12 +147,16 @@ namespace PlayniteAchievements.Services.UI
             Alias("PlayAch.Brush.Dialog.Background", "PlayAch.Brush.PopupSurface"),
             Alias("PlayAch.Brush.Dialog.Border", "PlayAch.Brush.PopupBorder"),
             Alias("PlayAch.Brush.Chart.Separator", "PlayAch.Brush.ControlBorder"),
+            // Divider lines: menu separators and the hairlines between sections.
+            Alias("PlayAch.Brush.Separator", "PlayAch.Brush.Border")
+                .FromStyle(typeof(System.Windows.Controls.Separator), System.Windows.Controls.Control.BackgroundProperty),
             Alias("PlayAch.Brush.Progress.Track", "PlayAch.Brush.Surface"),
             Alias("PlayAch.Brush.Progress.Fill", "PlayAch.Brush.Accent"),
             Alias("PlayAch.Brush.Progress.Border", "PlayAch.Brush.Accent"),
             Alias("PlayAch.Brush.Chrome.Background", "PlayAch.Brush.ControlSurface", 0x1F),
             Alias("PlayAch.Brush.ScrollBar.Track", "PlayAch.Brush.GridSurface", 0x00),
-            Alias("PlayAch.Brush.ScrollBar.Thumb", "PlayAch.Brush.ControlBorder"),
+            Alias("PlayAch.Brush.ScrollBar.Thumb", "PlayAch.Brush.ControlBorder")
+                .FromStyle(typeof(System.Windows.Controls.Primitives.Thumb), System.Windows.Controls.Control.BackgroundProperty),
             Alias("PlayAch.Brush.ScrollBar.Thumb.Hover", "PlayAch.Brush.Glyph"),
             Alias("PlayAch.Brush.ScrollBar.Thumb.Pressed", "PlayAch.Brush.Accent")
         };
@@ -144,19 +186,34 @@ namespace PlayniteAchievements.Services.UI
             IDictionary<string, ResourceOverrideSetting> overrides,
             PersistedSettings settings = null)
         {
+            Apply(resources, overrides, settings, ApplicationResourceLookup);
+        }
+
+        /// <summary>
+        /// Applies the tokens, reading theme resources and implicit styles through
+        /// <paramref name="themeLookup"/> (a resource key or a control type, as for TryFindResource).
+        /// </summary>
+        internal static void Apply(
+            ResourceDictionary resources,
+            IDictionary<string, ResourceOverrideSetting> overrides,
+            PersistedSettings settings,
+            Func<object, object> themeLookup)
+        {
             if (resources == null)
             {
                 return;
             }
 
+            themeLookup = themeLookup ?? (key => null);
+
             foreach (var token in Tokens)
             {
-                resources[token.ResourceKey] = ResolveToken(token, overrides);
+                resources[token.ResourceKey] = ResolveToken(token, overrides, themeLookup);
             }
 
             foreach (var alias in Aliases)
             {
-                resources[alias.ResourceKey] = ResolveAlias(resources, alias);
+                resources[alias.ResourceKey] = ResolveAlias(resources, alias, overrides, themeLookup);
             }
 
             RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources, settings);
@@ -302,7 +359,69 @@ namespace PlayniteAchievements.Services.UI
                 false);
         }
 
-        private static object ResolveToken(TokenDefinition token, IDictionary<string, ResourceOverrideSetting> overrides)
+        private static object ApplicationResourceLookup(object key) => Application.Current?.TryFindResource(key);
+
+        /// <summary>
+        /// The value a token takes while it follows Playnite: the theme's control style, then the
+        /// Playnite resource keys. Overrides are not consulted. Null for an unknown key.
+        /// </summary>
+        internal static object ResolveThemeValue(string resourceKey)
+        {
+            return ResolveThemeValue(resourceKey, ApplicationResourceLookup);
+        }
+
+        internal static object ResolveThemeValue(string resourceKey, Func<object, object> themeLookup)
+        {
+            var token = Tokens.FirstOrDefault(item => string.Equals(item.ResourceKey, resourceKey, StringComparison.Ordinal));
+            return token == null || themeLookup == null
+                ? null
+                : EnsureOpaqueIfRequired(token, CoerceValue(token, FindPlayniteResource(token, themeLookup)));
+        }
+
+        /// <summary>
+        /// Reads <paramref name="property"/> from the implicit style the theme defines for
+        /// <paramref name="controlType"/>, following BasedOn and resolving resource references.
+        /// Only plain setters count; setters inside triggers and setters on template parts do not.
+        /// Null when the theme has no such style or no such setter.
+        /// </summary>
+        internal static object ReadThemeStyleValue(Type controlType, DependencyProperty property, Func<object, object> themeLookup)
+        {
+            if (controlType == null || property == null || themeLookup == null)
+            {
+                return null;
+            }
+
+            for (var style = themeLookup(controlType) as Style; style != null; style = style.BasedOn)
+            {
+                foreach (var setter in style.Setters.OfType<Setter>())
+                {
+                    if (setter.Property == property && string.IsNullOrEmpty(setter.TargetName))
+                    {
+                        return ResolveSetterValue(setter.Value, themeLookup);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static object ResolveSetterValue(object value, Func<object, object> themeLookup)
+        {
+            switch (value)
+            {
+                case DynamicResourceExtension dynamicResource:
+                    return themeLookup(dynamicResource.ResourceKey);
+                case StaticResourceExtension staticResource:
+                    return themeLookup(staticResource.ResourceKey);
+                default:
+                    return value;
+            }
+        }
+
+        private static object ResolveToken(
+            TokenDefinition token,
+            IDictionary<string, ResourceOverrideSetting> overrides,
+            Func<object, object> themeLookup)
         {
             var setting = GetSetting(token.ResourceKey, overrides);
             if (token.AllowsOverride && setting != null)
@@ -320,7 +439,7 @@ namespace PlayniteAchievements.Services.UI
                 }
             }
 
-            var playniteValue = FindPlayniteResource(token);
+            var playniteValue = FindPlayniteResource(token, themeLookup);
             return EnsureOpaqueIfRequired(token, CoerceValue(token, playniteValue));
         }
 
@@ -341,9 +460,18 @@ namespace PlayniteAchievements.Services.UI
             return CreateBrush(color);
         }
 
-        private static object FindPlayniteResource(TokenDefinition token)
+        private static object FindPlayniteResource(TokenDefinition token, Func<object, object> themeLookup)
         {
-            var value = Application.Current?.TryFindResource(token.PlayniteResourceKey);
+            if (token.StyleSource != null)
+            {
+                var styleValue = ReadThemeStyleValue(token.StyleSource.ControlType, token.StyleSource.Property, themeLookup);
+                if (IsUsableResource(token, styleValue))
+                {
+                    return styleValue;
+                }
+            }
+
+            var value = themeLookup(token.PlayniteResourceKey);
             if (IsUsableResource(token, value))
             {
                 return value;
@@ -351,7 +479,7 @@ namespace PlayniteAchievements.Services.UI
 
             foreach (var fallbackKey in token.FallbackPlayniteResourceKeys)
             {
-                value = Application.Current?.TryFindResource(fallbackKey);
+                value = themeLookup(fallbackKey);
                 if (IsUsableResource(token, value))
                 {
                     return value;
@@ -401,7 +529,11 @@ namespace PlayniteAchievements.Services.UI
             return brush is SolidColorBrush solid && solid.Color.A == 0;
         }
 
-        private static object ResolveAlias(ResourceDictionary resources, AliasDefinition alias)
+        private static object ResolveAlias(
+            ResourceDictionary resources,
+            AliasDefinition alias,
+            IDictionary<string, ResourceOverrideSetting> overrides,
+            Func<object, object> themeLookup)
         {
             if (!resources.Contains(alias.SourceResourceKey))
             {
@@ -409,6 +541,16 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var value = resources[alias.SourceResourceKey];
+            if (alias.StyleSource != null && !IsOverridden(alias.SourceResourceKey, overrides))
+            {
+                var styleValue = ReadThemeStyleValue(alias.StyleSource.ControlType, alias.StyleSource.Property, themeLookup);
+                var styleBrush = styleValue == null ? null : CoerceBrush(styleValue);
+                if (styleBrush != null)
+                {
+                    value = styleBrush;
+                }
+            }
+
             if (!alias.Alpha.HasValue || !(value is Brush brush))
             {
                 return value;
@@ -434,6 +576,12 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return clone;
+        }
+
+        private static bool IsOverridden(string resourceKey, IDictionary<string, ResourceOverrideSetting> overrides)
+        {
+            var setting = GetSetting(resourceKey, overrides);
+            return setting != null && setting.Mode != ResourceOverrideMode.FollowPlaynite;
         }
 
         private static ResourceOverrideSetting GetSetting(
