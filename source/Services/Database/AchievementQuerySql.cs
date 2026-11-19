@@ -76,17 +76,26 @@ namespace PlayniteAchievements.Services.Database
                     INNER JOIN Users su ON su.Id = sp.UserId AND su.IsCurrentUser = 1
                     WHERE sg.PlayniteGameId = r.PlayniteGameId) THEN 1 ELSE 0 END AS SelfHasGameData";
 
+        /// <summary>One friend row's identity, as <see cref="PageKeys"/> reads a page of them.</summary>
+        internal sealed class PageKey
+        {
+            public long UserId { get; set; }
+            public long? GameId { get; set; }
+            public string ApiName { get; set; }
+            public string PlayniteGameId { get; set; }
+        }
+
         /// <summary>
         /// The current user's unlocks of each game's achievements across their accounts, with the
-        /// latest resolved time.
+        /// latest resolved time; only of <paramref name="playniteGameIds"/> when given.
         /// </summary>
-        private static readonly string SelfCtes = @"WITH SelfUnlocks AS (
+        private static string SelfCtes(IReadOnlyList<string> playniteGameIds, List<object> args) => @"WITH SelfUnlocks AS (
                 SELECT s.PlayniteGameId AS PlayniteGameId, s.ApiName AS ApiName, MAX(s.UnlockTimeUtc) AS UnlockTimeUtc
                 FROM " + AchievementLayerSql.AllUsersViewName + @" s
-                WHERE s.IsCurrentUser = 1 AND s.IsAuthored = 0 AND s.Unlocked = 1
+                WHERE s.IsCurrentUser = 1 AND s.IsAuthored = 0 AND s.Unlocked = 1" +
+                (playniteGameIds == null ? string.Empty : " AND " + InList("s.PlayniteGameId", playniteGameIds, args)) + @"
                 GROUP BY s.PlayniteGameId, s.ApiName
-            )
-            ";
+            )";
 
         private const string SelfJoins = @"
             LEFT JOIN SelfUnlocks me ON me.PlayniteGameId = r.PlayniteGameId AND me.ApiName = r.ApiName";
@@ -99,14 +108,14 @@ namespace PlayniteAchievements.Services.Database
         /// The compare accounts' unlocks per provider game and achievement, and the provider games
         /// they have: an unlock in it, or ownership from their game list or with playtime.
         /// </summary>
-        private static string CompareCtes(AchievementQuery query, List<object> args)
+        private static string CompareCtes(AchievementQuery query, IReadOnlyList<long> gameIds, List<object> args)
         {
-            var unlockUsers = AccountUsers(query.CompareAccounts, args);
             var unlocks = @",
             CompareUnlocks AS (
                 SELECT c.GameId AS GameId, c.ApiName AS ApiName, MAX(c.UnlockTimeUtc) AS UnlockTimeUtc
                 FROM " + AchievementLayerSql.AllUsersViewName + @" c
-                WHERE c.UserId IN (" + unlockUsers + @") AND c.Unlocked = 1
+                WHERE c.UserId IN (" + AccountUsers(query.CompareAccounts, args) + @") AND c.Unlocked = 1" +
+                (gameIds == null ? string.Empty : " AND " + InList("c.GameId", gameIds.Cast<object>().ToList(), args)) + @"
                 GROUP BY c.GameId, c.ApiName
             ),
             CompareGames AS (
@@ -114,24 +123,51 @@ namespace PlayniteAchievements.Services.Database
                 UNION
                 SELECT co.GameId FROM FriendOwnership co
                 WHERE co.UserId IN (" + AccountUsers(query.CompareAccounts, args) + @")
-                  AND (co.LastOwnershipRefreshUtc IS NOT NULL OR co.PlaytimeForeverMinutes > 0)
-            )
-            ";
+                  AND (co.LastOwnershipRefreshUtc IS NOT NULL OR co.PlaytimeForeverMinutes > 0)" +
+                (gameIds == null ? string.Empty : " AND " + InList("co.GameId", gameIds.Cast<object>().ToList(), args)) + @"
+            )";
             return unlocks;
         }
 
+        /// <summary>
+        /// The identities of a page of friend rows in the query's order: the sort and the page
+        /// without the display columns, which <see cref="Rows(AchievementQuery, IReadOnlyList{PageKey})"/>
+        /// then reads for these rows only.
+        /// </summary>
+        public static Command PageKeys(AchievementQuery query)
+        {
+            var args = new List<object>();
+            var sql = "SELECT r.UserId AS UserId, r.GameId AS GameId, r.ApiName AS ApiName, r.PlayniteGameId AS PlayniteGameId" +
+                      From(query) + Where(query, args) + " ORDER BY " + OrderBy(query) + " LIMIT ? OFFSET ?;";
+            args.Add(query.Limit > 0 ? query.Limit : -1);
+            args.Add(query.Offset);
+            return new Command(sql, args.ToArray());
+        }
+
+        /// <summary>
+        /// The rows of <paramref name="keys"/> that <paramref name="query"/> matches, in no order,
+        /// with every column <see cref="Rows(AchievementQuery)"/> reads; a few rows beyond the keys
+        /// may match, which the caller drops.
+        /// </summary>
+        public static Command Rows(AchievementQuery query, IReadOnlyList<PageKey> keys) =>
+            Rows(query, keys ?? Array.Empty<PageKey>(), ordered: false);
+
         /// <summary>A page of rows, in the query's order, with the friend identity and self state for friend rows.</summary>
-        public static Command Rows(AchievementQuery query)
+        public static Command Rows(AchievementQuery query) => Rows(query, null, ordered: true);
+
+        private static Command Rows(AchievementQuery query, IReadOnlyList<PageKey> keys, bool ordered)
         {
             var args = new List<object>();
             var sql = new StringBuilder();
             var compare = query.Friends && query.CompareAccounts != null;
             if (query.Friends)
             {
-                sql.Append(SelfCtes.TrimEnd());
+                sql.Append(SelfCtes(
+                    keys?.Select(key => key.PlayniteGameId).Where(id => id != null).Distinct(StringComparer.Ordinal).ToList(),
+                    args));
                 if (compare)
                 {
-                    sql.Append(CompareCtes(query, args));
+                    sql.Append(CompareCtes(query, keys?.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().ToList(), args));
                 }
 
                 sql.Append(' ');
@@ -161,6 +197,19 @@ namespace PlayniteAchievements.Services.Database
             }
 
             sql.Append(Where(query, args));
+            if (keys != null)
+            {
+                // Each term narrows the view's arms on their own columns.
+                sql.Append(" AND ").Append(InList("r.UserId", keys.Select(key => key.UserId).Distinct().Cast<object>().ToList(), args));
+                sql.Append(" AND ").Append(InList("r.GameId", keys.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().Cast<object>().ToList(), args));
+                sql.Append(" AND ").Append(InList("r.ApiName", keys.Select(key => key.ApiName).Distinct(StringComparer.Ordinal).Cast<object>().ToList(), args));
+            }
+
+            if (!ordered)
+            {
+                return new Command(sql.Append(';').ToString(), args.ToArray());
+            }
+
             sql.Append(" ORDER BY ").Append(OrderBy(query));
             if (query.Limit > 0 || query.Offset > 0)
             {
@@ -439,7 +488,10 @@ namespace PlayniteAchievements.Services.Database
             return "SELECT fu.Id FROM Users fu WHERE " + string.Join(" OR ", terms);
         }
 
-        private static string InList(string expression, IReadOnlyList<string> values, List<object> args)
+        private static string InList(string expression, IReadOnlyList<string> values, List<object> args) =>
+            InList(expression, values.Cast<object>().ToList(), args);
+
+        private static string InList(string expression, IReadOnlyList<object> values, List<object> args)
         {
             if (values.Count == 0)
             {
