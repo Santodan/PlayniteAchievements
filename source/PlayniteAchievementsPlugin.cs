@@ -1064,11 +1064,11 @@ namespace PlayniteAchievements
                         // is a bulk event, not a burst, so it lands immediately.
                         if (!change.IsFull)
                         {
-                            ScheduleStartPageInvalidate();
+                            ScheduleStartPageInvalidate("data change");
                         }
                         else
                         {
-                            InvalidateStartPageData();
+                            InvalidateStartPageData("full data change");
                         }
 
                         ScheduleRetentionDiagnostics();
@@ -2310,7 +2310,7 @@ namespace PlayniteAchievements
                 _filterExclusionRules?.QueueAll();
             }
 
-            InvalidateStartPageData();
+            InvalidateStartPageData("setting " + e.PropertyName);
             _tagSyncService?.HandlePersistedSettingsPropertyChanged(e);
         }
 
@@ -2329,7 +2329,7 @@ namespace PlayniteAchievements
             _achievementHotkeyService?.RefreshConfiguration();
             _themeIntegrationService?.ReloadFriendThemeData();
             _themeIntegrationService?.NotifyLibraryGamesChanged();
-            InvalidateStartPageData();
+            InvalidateStartPageData("settings replaced");
             _tagSyncService?.InitializeAndSubscribeTaggingSettings();
             _filterExclusionRules?.QueueAll();
         }
@@ -2893,7 +2893,7 @@ namespace PlayniteAchievements
 
             if (affectsSummaryData)
             {
-                InvalidateStartPageData();
+                InvalidateStartPageData("custom data " + gameId);
             }
         }
 
@@ -3035,7 +3035,7 @@ namespace PlayniteAchievements
             // monitor). Coalesced: the end-of-run scoped CacheInvalidated invalidates once
             // regardless, and mid-run start-page freshness comes from the overview's
             // published snapshots when one is open.
-            ScheduleStartPageInvalidate();
+            ScheduleStartPageInvalidate("game saved " + gameId);
         }
 
         private void HandleRefreshAuthNotifications(RebuildPayload payload)
@@ -3102,7 +3102,7 @@ namespace PlayniteAchievements
             _achievementPinKeys = pinKeys;
             if (pinAdded)
             {
-                ScheduleStartPageInvalidate();
+                ScheduleStartPageInvalidate("pin added");
             }
         }
 
@@ -3113,7 +3113,7 @@ namespace PlayniteAchievements
             _logger.Info("Games_ItemCollectionChanged triggered.");
 
             // Games added/removed change what the start page and the theme state show.
-            ScheduleStartPageInvalidate();
+            ScheduleStartPageInvalidate("games added or removed");
             _themeIntegrationService?.NotifyLibraryGamesChanged();
 
             if (e == null)
@@ -3212,7 +3212,7 @@ namespace PlayniteAchievements
                 return;
             }
 
-            ScheduleStartPageInvalidate();
+            ScheduleStartPageInvalidate("games updated");
             _themeIntegrationService?.NotifyLibraryGamesChanged();
         }
 
