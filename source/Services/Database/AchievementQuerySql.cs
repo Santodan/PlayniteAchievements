@@ -163,6 +163,33 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
+        /// The keys of <see cref="SortedKeys"/> cut, per Playnite game, to its first
+        /// <paramref name="slice"/> rows in the query's order and its <paramref name="slice"/> rows
+        /// with the highest global percent (API name ignoring case, then the query's order, breaking
+        /// ties; a row with no percent never ranks): game by game in the query's order, each game's
+        /// first rows, then the rest of its highest.
+        /// </summary>
+        public static Command SlicedKeys(AchievementQuery query, int slice)
+        {
+            var args = new List<object>();
+            var order = OrderBy(query);
+            var sql = @"SELECT UserId, GameId, DefinitionId, PlayniteGameId, ApiName FROM (
+                SELECT *, MIN(Position) OVER (PARTITION BY Game) AS GamePosition FROM (
+                    SELECT r.UserId AS UserId, r.GameId AS GameId, r.Id AS DefinitionId,
+                        CASE WHEN r.IsAuthored = 1 THEN r.PlayniteGameId END AS PlayniteGameId,
+                        CASE WHEN r.IsAuthored = 1 THEN r.ApiName END AS ApiName, r.PlayniteGameId AS Game,
+                        ROW_NUMBER() OVER (ORDER BY " + order + @") AS Position,
+                        ROW_NUMBER() OVER (PARTITION BY r.PlayniteGameId ORDER BY " + order + @") AS InGame,
+                        CASE WHEN r.GlobalPercentUnlocked IS NOT NULL THEN ROW_NUMBER() OVER (PARTITION BY r.PlayniteGameId
+                            ORDER BY r.GlobalPercentUnlocked IS NULL, r.GlobalPercentUnlocked DESC, r.ApiName COLLATE pa_ignorecase, " + order + @") END AS ByPercent" +
+                      From(query, args) + Where(query, args) + @"))
+                WHERE InGame <= ? OR ByPercent <= ?
+                ORDER BY GamePosition, InGame > ?, CASE WHEN InGame <= ? THEN InGame ELSE ByPercent END;";
+            args.AddRange(new object[] { slice, slice, slice, slice });
+            return new Command(sql, args.ToArray());
+        }
+
+        /// <summary>
         /// The rows of <paramref name="keys"/> that <paramref name="query"/> matches, in no order,
         /// with every column <see cref="Rows(AchievementQuery)"/> reads; a few rows beyond the keys
         /// may match, which the caller drops.
