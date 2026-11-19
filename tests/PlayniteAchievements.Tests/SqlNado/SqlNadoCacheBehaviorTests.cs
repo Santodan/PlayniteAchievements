@@ -601,35 +601,35 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void CacheStore_RewritesOnlyTheOverrideRowsThatMoved()
+        public void CustomLayerWrite_RewritesOnlyTheAchievementRowsThatMoved()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
-            var replace = Between(
-                store,
-                "public bool ReplaceAchievementOverrides(",
-                "public int ResyncAllAchievementOverrides(");
+            var repository = File.ReadAllText(FindRepoFile("source", "Services", "GameCustomData", "GameCustomDataRepository.cs"));
+            var write = Between(
+                repository,
+                "private static bool Write(",
+                "private static string CategorySignature(");
 
-            // ReplaceAchievementOverrides runs on the caller's thread inside the synchronous
-            // CustomDataChanged, which for an editor write is the UI thread. Deleting every one
-            // of a game's override rows and re-inserting them, to change one achievement's
-            // points or trophy grade, made that edit scale with how customized the game is.
+            // A save runs on the caller's thread, which for an editor write is the UI thread.
+            // Deleting every one of a game's achievement rows and re-inserting them, to change one
+            // achievement's points or trophy grade, made that edit scale with how customized the
+            // game is.
             Assert.IsFalse(
-                replace.Contains("DELETE FROM AchievementOverrides WHERE PlayniteGameId = ?;"),
+                write.Contains("DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ?;"),
                 "The whole-game delete must not come back: the write has to be the rows that " +
                 "actually differ, not every row the game has.");
 
             StringAssert.Contains(
-                replace,
-                "DELETE FROM AchievementOverrides WHERE PlayniteGameId = ? AND ApiName = ?;",
+                write,
+                "DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ?;",
                 "Rows are removed and rewritten one ApiName at a time.");
 
-            // The unchanged-save short circuit is what keeps a no-op write out of the WAL.
-            StringAssert.Contains(replace, "if (toWrite.Count == 0 && toDelete.Count == 0)");
+            // An unchanged row is skipped, which keeps a no-op save out of the WAL.
+            StringAssert.Contains(write, "string.Equals(signature, row.Signature(), StringComparison.Ordinal)");
 
-            // The insert is INSERT OR IGNORE, so a changed row must lose its stored version
-            // first or the new values are silently dropped.
-            var deleteChanged = replace.IndexOf("foreach (var entry in toWrite)", StringComparison.Ordinal);
-            var insert = replace.IndexOf("InsertAchievementOverrideRows(", StringComparison.Ordinal);
+            // The insert is a plain INSERT under a UNIQUE key, so a changed row must lose its
+            // stored version first.
+            var deleteChanged = write.IndexOf("WHERE PlayniteGameId = ? AND ApiName = ?;\", idText, row.ApiName", StringComparison.Ordinal);
+            var insert = write.IndexOf("db.ExecuteNonQuery(insertSql", StringComparison.Ordinal);
             Assert.IsTrue(
                 deleteChanged >= 0 && insert > deleteChanged,
                 "Changed rows must be deleted before they are re-inserted.");
