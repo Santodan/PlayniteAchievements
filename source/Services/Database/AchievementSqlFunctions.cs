@@ -39,10 +39,21 @@ namespace PlayniteAchievements.Services.Database
                     : null);
             });
 
-            // 1 when the values, joined as SearchTextBuilder joins them, match the query as SearchQuery matches it.
-            db.SetScalarFunction("pa_search", -1, true, context => context.SetResult(
-                SearchQuery.From(Text(context.Values[0])).Matches(
-                    SearchTextBuilder.FromValues(context.Values.Skip(1).Select(Text))) ? 1 : 0));
+            // 1 when the values, joined as SearchTextBuilder joins them, match the query as SearchQuery
+            // matches it. A trimmed query holds no line break, so it matches the joined text exactly
+            // when it matches one value; each value is read only until one matches.
+            db.SetScalarFunction("pa_search", -1, true, context =>
+            {
+                var query = SearchQuery.From(Text(context.Values[0]));
+                var matches = !query.HasValue;
+                for (var index = 1; !matches && index < context.Values.Length; index++)
+                {
+                    var value = Text(context.Values[index]);
+                    matches = !string.IsNullOrEmpty(value) && query.Matches(value);
+                }
+
+                context.SetResult(matches ? 1 : 0);
+            });
 
             // 1 when any key matches the kind or tags as AchievementClassificationFilter matches it.
             db.SetScalarFunction("pa_classified", -1, true, context =>
