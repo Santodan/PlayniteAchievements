@@ -85,12 +85,13 @@ namespace PlayniteAchievements.Tests.ViewModels
             // the selected game in place.
             var handlers = Between(
                 source,
-                "private void OnCacheDeltaUpdated(object sender, CacheDeltaEventArgs e)",
+                "private void OnAchievementDataChanged(object sender, AchievementDataChange e)",
                 "private void QueueReload()");
             Assert.AreEqual(
-                3,
+                2,
                 handlers.Split(new[] { "QueueReload();" }, StringSplitOptions.None).Length - 1,
-                "The refresh delta, the change feed and the summary-affecting custom data change each queue the reload.");
+                "The change feed, refresh saves included, and the summary-affecting custom data change each queue the reload.");
+            Assert.IsFalse(source.Contains("CacheDeltaUpdated"), "refresh saves arrive on the change feed");
             StringAssert.Contains(handlers, "e.Touches(AchievementQuery.CurrentUser)");
 
             var tick = Between(source, "private async void OnReloadTimerTick(", "private void RecalculateOverviewStats()");
