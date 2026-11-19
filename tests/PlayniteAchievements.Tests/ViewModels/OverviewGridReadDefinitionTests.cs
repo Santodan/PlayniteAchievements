@@ -17,9 +17,9 @@ namespace PlayniteAchievements.Tests.ViewModels
         [TestMethod]
         public void TheFilterRead_IsTheUnlocksUnderTheSummaryRules_WithEveryAchievementFilter()
         {
-            var filters = Between(Read("OverviewViewModel.cs"), "private AchievementQuery AchievementFilterQuery()", "private void UpdateRecentQuery()");
+            var filters = Between(Read("OverviewViewModel.cs"), "private AchievementQuery AchievementFilterQuery(", "private void UpdateRecentQuery()");
 
-            StringAssert.Contains(filters, "_tierFilters.ApplyTo(AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true))");
+            StringAssert.Contains(filters, "_tierFilters.ApplyTo((source ?? AchievementQuery.CurrentUser.WithSummaryRules()).WhereUnlocked(true))");
             StringAssert.Contains(filters, "WhereUnlockedBetween(_unlockRangeFrom, _unlockRangeTo)");
             StringAssert.Contains(filters, "WhereClassification(_selectedTagFilters.ToList())");
         }
@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             var update = Between(source, "private void UpdateRecentQuery()", "// The column sort, else the configured default");
 
             StringAssert.Contains(update, "AchievementFilterQuery().ForGames(_filteredGameSummaries");
+            StringAssert.Contains(update, "if (ListsEveryGame())");
+            StringAssert.Contains(update, "AchievementFilterQuery(_everyGameQuery ??= _achievementDataService.SummaryQuery())", "with no game filter the grid reads at open");
             StringAssert.Contains(update, "query.WhereSearch(RightSearchText)");
             StringAssert.Contains(update, "query = ApplyRecentSort(query);");
             StringAssert.Contains(update, "NormalizeGridMaxRows(_settings?.Persisted?.OverviewRecentAchievementsGridMaxRows)");
