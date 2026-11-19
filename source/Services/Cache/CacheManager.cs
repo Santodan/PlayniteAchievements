@@ -1128,6 +1128,9 @@ namespace PlayniteAchievements.Services.Cache
 
                 RaiseGameCacheUpdatedEvent(normalizedKey);
                 RaiseCacheDeltaUpdatedEvent(normalizedKey, CacheDeltaOperationType.Upsert);
+                _feed.Publish(scopeChanged || !renamedPlayniteGameId.HasValue
+                    ? AchievementDataChange.Full
+                    : AchievementDataChange.ForGames(new[] { renamedPlayniteGameId.Value }));
 
                 return CacheWriteResult.CreateSuccess(normalizedKey, writeTime);
             }
