@@ -66,6 +66,18 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void LoadAsync_ReadsNoAchievementsUntilTheListsLand()
+        {
+            using var h = new Harness(CreateData());
+
+            h.Vm.LoadAsync();
+            Assert.IsNull(h.Vm.DisplayedAchievements, "the query names the friends the lists bring");
+
+            h.Settle();
+            Assert.IsNotNull(h.Vm.DisplayedAchievements);
+        }
+
+        [TestMethod]
         public void LoadAsync_AppliesConfiguredRowLimitsToAllThreeGrids()
         {
             using var h = new Harness(CreateData(), settings =>
