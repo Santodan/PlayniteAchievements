@@ -6,10 +6,11 @@ using PlayniteAchievements.ViewModels.Items;
 namespace PlayniteAchievements.Services.Overview
 {
     /// <summary>
-    /// Chooses which games and which of their locked achievements the Unlock Next candidate pool
-    /// keeps. Split from <see cref="OverviewDataBuilder"/> because the caps are the whole point of
-    /// the pool - locked rows are excluded from the overview snapshot for memory reasons - and
-    /// they are worth testing without a cache, a Playnite API, or a snapshot build.
+    /// Chooses which games the Unlock Next candidate pool keeps, and how many locked achievements
+    /// of each (<see cref="Database.AchievementQuerySql.SlicedKeys"/> chooses which). Split from
+    /// <see cref="OverviewDataBuilder"/> because the caps are the whole point of the pool - locked
+    /// rows are excluded from the overview snapshot for memory reasons - and they are worth testing
+    /// without a cache, a Playnite API, or a snapshot build.
     ///
     /// The pool is a superset that dominates every per-widget combination of criterion and
     /// window, because editing those options re-projects from the existing snapshot rather than
@@ -63,30 +64,6 @@ namespace PlayniteAchievements.Services.Overview
                 .Distinct()
                 .Take(GameCap)
                 .ToList();
-        }
-
-        /// <summary>
-        /// The locked rows worth retaining for one game, of its locked rows in its own order: the
-        /// most commonly unlocked (what both criteria rank by) plus the head of its order, which
-        /// carries achievements that have no global percentage. Hidden rows stay in; the
-        /// projection drops them unless the widget opts in.
-        /// </summary>
-        /// <param name="slice">Rows taken from each ranking; see <see cref="SliceFor"/>.</param>
-        public static IReadOnlyList<T> SelectAchievements<T>(
-            IReadOnlyList<T> lockedInOrder,
-            Func<T, double?> percent,
-            Func<T, string> apiName,
-            int slice)
-        {
-            // An achievement with no global percentage is not known to be easy, so it never takes
-            // a slot in the commonness slice; the order slice still carries it.
-            var byCommonness = lockedInOrder
-                .Where(row => percent(row).HasValue)
-                .OrderByDescending(row => percent(row).Value)
-                .ThenBy(apiName, StringComparer.OrdinalIgnoreCase)
-                .Take(slice);
-
-            return lockedInOrder.Take(slice).Concat(byCommonness).Distinct().ToList();
         }
 
         /// <summary>
