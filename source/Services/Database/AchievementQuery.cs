@@ -52,7 +52,16 @@ namespace PlayniteAchievements.Services.Database
         CollectionScore,
 
         /// <summary>The prestige value of the percent and tier.</summary>
-        PrestigeScore
+        PrestigeScore,
+
+        /// <summary>The game's provider, as <see cref="AchievementQuery.ProviderKey"/> resolves it, ignoring case.</summary>
+        Provider,
+
+        /// <summary>The progress fraction; rows without progress lowest.</summary>
+        Progress,
+
+        /// <summary>Unlocked rows above locked ones, then the unlock time.</summary>
+        Status
     }
 
     /// <summary>What a totals read groups by, or what a keys read lists.</summary>
@@ -221,6 +230,25 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         public bool SummaryRules { get; private set; }
 
+        /// <summary>
+        /// Only rows of games of this provider: the game's platform key, else its provider key,
+        /// compared ignoring case; null for every provider.
+        /// </summary>
+        public string ProviderKey { get; private set; }
+
+        /// <summary>
+        /// Rows matching one key of every group, as <c>DynamicThemeFilterEvaluator</c> matches
+        /// them: Unlocked, Locked, Visible, Hidden, InProgress, NoProgress, HasNotes, NoNotes,
+        /// Capstone, a rarity tier, a trophy grade, or else a kind or tag key; null for every row.
+        /// </summary>
+        public IReadOnlyList<IReadOnlyList<string>> KeyGroups { get; private set; }
+
+        /// <summary>Only these achievements, as Playnite game id and API name; null for every achievement.</summary>
+        public IReadOnlyList<KeyValuePair<Guid, string>> Achievements { get; private set; }
+
+        /// <summary>Locked goals first, in goal order, then the sort.</summary>
+        public bool GoalsFirst { get; private set; }
+
         public AchievementSort Sort { get; private set; }
 
         public bool Descending { get; private set; }
@@ -334,6 +362,23 @@ namespace PlayniteAchievements.Services.Database
 
         public AchievementQuery WithSummaryRules(bool apply = true) => With(query => query.SummaryRules = apply);
 
+        public AchievementQuery WhereProvider(string providerKey) =>
+            With(query => query.ProviderKey = string.IsNullOrWhiteSpace(providerKey) ? null : providerKey.Trim());
+
+        public AchievementQuery WhereAnyKey(IEnumerable<string> keys) =>
+            With(query => query.KeyGroups = (query.KeyGroups ?? Array.Empty<IReadOnlyList<string>>())
+                .Concat(new[] { (IReadOnlyList<string>)(keys?.ToList() ?? new List<string>()) })
+                .ToList());
+
+        /// <summary>Only the achievements of these pairs; an empty list matches no row.</summary>
+        public AchievementQuery ForAchievements(IEnumerable<KeyValuePair<Guid, string>> achievements) =>
+            With(query => query.Achievements = achievements?
+                .Where(pair => pair.Key != Guid.Empty && !string.IsNullOrWhiteSpace(pair.Value))
+                .Distinct()
+                .ToList());
+
+        public AchievementQuery WithGoalsFirst(bool first = true) => With(query => query.GoalsFirst = first);
+
         public AchievementQuery OrderBy(AchievementSort sort, bool descending = false) =>
             With(query =>
             {
@@ -381,6 +426,12 @@ namespace PlayniteAchievements.Services.Database
                     return AchievementSort.CollectionScore;
                 case "PrestigeScore":
                     return AchievementSort.PrestigeScore;
+                case "ProviderKey":
+                    return AchievementSort.Provider;
+                case "ProgressPercent":
+                    return AchievementSort.Progress;
+                case "Unlocked":
+                    return AchievementSort.Status;
                 default:
                     return null;
             }
