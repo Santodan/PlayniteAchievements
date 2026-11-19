@@ -1051,14 +1051,18 @@ namespace PlayniteAchievements
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
 
-                    _cacheManager.CacheInvalidated += (_, args) =>
+                    ((ICacheReadOptimizations)_cacheManager).Feed.AchievementDataChanged += (_, change) =>
                     {
-                        // Scoped invalidations arrive in bursts -- one per custom-data edit --
-                        // and each start-page invalidation makes every live widget re-pull a
-                        // full library snapshot. Collapse the burst through the same coalescer
-                        // the CustomDataChanged path already uses. A full invalidation is a
-                        // bulk event, not a burst, so it still lands immediately.
-                        if (args?.IsFull == false)
+                        if (!change.Touches(Services.Database.AchievementQuery.CurrentUser))
+                        {
+                            return;
+                        }
+
+                        // Scoped changes arrive in bursts -- one per custom-data edit -- and each
+                        // start-page invalidation makes every live widget re-pull a library
+                        // snapshot, so the burst collapses through the coalescer. A full change
+                        // is a bulk event, not a burst, so it lands immediately.
+                        if (!change.IsFull)
                         {
                             ScheduleStartPageInvalidate();
                         }
@@ -1106,15 +1110,10 @@ namespace PlayniteAchievements
                         _gameCustomDataStore);
                     _libraryProjectionService = new LibraryProjectionService(
                         _achievementDataService,
-                        providers,
                         PlayniteApi,
                         _settingsViewModel.Settings,
                         _cacheManager,
-                        _gameCustomDataStore,
-                        _logger,
-                        isRefreshActive: () => _refreshService?.IsRebuilding == true,
-                        currentUserIdentityLoader: () => _friendCacheManager?.LoadCurrentUserIdentities(),
-                        hasActiveSnapshotPublisher: () => _startPageDataCoordinator?.HasActivePublisher == true);
+                        _gameCustomDataStore);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
 
                     // Linked files are read after each refresh's provider work, for the games it covers.
@@ -1321,7 +1320,6 @@ namespace PlayniteAchievements
                         PersistSettingsForUi,
                         _achievementOverridesService,
                         _achievementDataService,
-                        _libraryProjectionService,
                         _gameCustomDataStore,
                         _settingsViewModel.Settings,
                         _manualSourceRegistry,
@@ -1456,7 +1454,7 @@ namespace PlayniteAchievements
                 Opened = () =>
                 {
                     return new OverviewHostControl(
-                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _libraryProjectionService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, () => _startPageDataCoordinator),
+                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, () => _startPageDataCoordinator),
                         _logger,
                         PlayniteApi,
                         _refreshService,
@@ -1566,7 +1564,6 @@ namespace PlayniteAchievements
             {
                 TrackStartedGame(args?.Game, args?.StartedProcessId);
                 _windowTracker?.OnGameStarted(args?.Game, args?.StartedProcessId);
-                _libraryProjectionService?.SetGameSessionActive(true);
                 UpdateGlowGateForGames();
                 _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
                 _inGameMonitor?.Start(args?.Game);
@@ -1599,7 +1596,6 @@ namespace PlayniteAchievements
                     _windowTracker?.OnGameStopped(args.Game.Id);
                 }
 
-                _libraryProjectionService?.SetGameSessionActive(AnyGameRunning());
                 UpdateGlowGateForGames();
                 if (args?.Game != null)
                 {
@@ -1673,9 +1669,6 @@ namespace PlayniteAchievements
             if (excludedGameIds?.Contains(game.Id) == true)
             {
                 _logger.Info($"Game stopped: {game.Name}; excluded from refreshes, skipping refresh.");
-                // No refresh delta will arrive to rebuild the projection after the session's
-                // suppressed warms; schedule it explicitly (no-op while other games still run).
-                _libraryProjectionService?.Warm();
                 return;
             }
 
@@ -1692,14 +1685,10 @@ namespace PlayniteAchievements
                         Mode = RefreshModeType.Single,
                         SingleGameId = game.Id
                     }).ConfigureAwait(false);
-                    _libraryProjectionService?.Warm();
                     return;
                 }
 
                 _logger.Info($"Game stopped: {game.Name}; no enabled provider is capable, skipping refresh.");
-                // No refresh delta will arrive to rebuild the projection after the session's
-                // suppressed warms; schedule it explicitly (no-op while other games still run).
-                _libraryProjectionService?.Warm();
                 return;
             }
 
@@ -1790,12 +1779,6 @@ namespace PlayniteAchievements
                 // Launch and preload the sound host off the UI thread so the first unlock plays with
                 // no device-open or decode cost; a settings save re-applies the same step.
                 System.Threading.Tasks.Task.Run(() => OnSettingsSavedForUnlockSounds(this, EventArgs.Empty));
-
-                // Warm the overview/start-page projection now that the game library is loaded, so
-                // resolved game presentation (cover, icon, playtime, last played, metadata) reflects
-                // Playnite's populated database rather than the blank values an early startup warm
-                // would bake in.
-                _libraryProjectionService?.Warm();
 
                 // Hourly look for newer versions of installed Workshop items; its first tick also
                 // resolves the proxy for the Workshop host off the UI thread, so the first index
@@ -3143,14 +3126,11 @@ namespace PlayniteAchievements
             var pinKeys = CollectAchievementPinKeys(showcase);
             var pinsChanged = !pinKeys.SetEquals(_lastAchievementPinKeys);
             _lastAchievementPinKeys = pinKeys;
-            var pinsUnhydrated = pinsChanged &&
-                _libraryProjectionService?.OverviewMissesAchievementPins(showcase) == true;
-            if (!poolNewlyRequired && !pinsUnhydrated)
+            if (!poolNewlyRequired && !pinsChanged)
             {
                 return;
             }
 
-            _libraryProjectionService?.Invalidate();
             ScheduleStartPageInvalidate();
         }
 
@@ -3280,7 +3260,7 @@ namespace PlayniteAchievements
                 return;
             }
 
-            _libraryProjectionService?.InvalidateForGame();
+            _libraryProjectionService?.Invalidate();
             ScheduleStartPageInvalidate();
         }
 
