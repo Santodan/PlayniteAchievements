@@ -93,8 +93,11 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>The stored category text; the reader normalizes it.</summary>
         Category,
 
-        /// <summary>The Playnite game id and the <see cref="Day"/>, separated by a unit separator.</summary>
-        GameDay,
+        /// <summary>
+        /// The Playnite game id, the <see cref="Day"/> (empty when undated), and the
+        /// <see cref="Tally"/> facets after the game id, separated by unit separators.
+        /// </summary>
+        DayTally,
 
         /// <summary>
         /// One achievement tally: the Playnite game id, stored tags, rarity tier, trophy grade
