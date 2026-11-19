@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Services.Friends
             }
         }
 
-        private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
+        internal static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
         {
             if (snapshot == null)
             {
