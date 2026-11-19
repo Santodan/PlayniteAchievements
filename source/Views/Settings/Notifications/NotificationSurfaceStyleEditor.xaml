@@ -17,11 +17,10 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- A recessed panel-colored card grouping one logical area of the editor. Sits inside
-                 the host section's raised Surface, so a Panel fill + hairline border reads as a
-                 distinct sub-area without nesting another section card. -->
+            <!-- A card grouping one logical area of the editor. It has no fill, so the theme's own
+                 background shows through; the hairline border marks the sub-area. -->
             <Style x:Key="EditorCardStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+                <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
                 <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
