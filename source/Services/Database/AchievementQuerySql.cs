@@ -519,7 +519,7 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add(query.Achievements.Count == 0
                     ? "0"
                     : "r.PlayniteGameId IN (" + string.Join(", ", query.Achievements.Select(pair => pair.Key).Distinct().Select(id => "'" + id.ToString("D") + "'")) +
-                      ") AND " + InList("r.PlayniteGameId || char(31) || r.ApiName",
+                      ") AND " + InList("(r.PlayniteGameId || char(31) || r.ApiName) COLLATE NOCASE",
                           query.Achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value).ToList(), args));
             }
 
@@ -702,9 +702,12 @@ namespace PlayniteAchievements.Services.Database
         {
             var direction = query.Descending ? " DESC" : " ASC";
             var friend = query.Friends ? FriendName(query) + " COLLATE NOCASE, " : string.Empty;
-            var tieBreak = ", " + friend + "r.PlayniteGameId, r.GameId, r.ApiName, r.UserId";
-            var unlock = UnlockBucketSql + ", r.UnlockTimeUtc" + direction;
             var display = string.Join(", ", AchievementLayerSql.DisplayOrderSql.Split(',').Select(term => "r." + term.Trim()));
+
+            // Equal keys order by game name, as the in-memory theme sorts broke ties, then by the
+            // game's own order, so a key and a row read agree and no two reads differ.
+            var tieBreak = ", " + friend + "r.GameName COLLATE NOCASE, r.PlayniteGameId, " + display + ", r.UserId";
+            var unlock = UnlockBucketSql + ", r.UnlockTimeUtc" + direction;
             switch (query.Sort)
             {
                 case AchievementSort.UnlockTime:
@@ -744,6 +747,10 @@ namespace PlayniteAchievements.Services.Database
                            direction + ", " + unlock + tieBreak;
                 case AchievementSort.Status:
                     return "r.Unlocked" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Hidden:
+                    return "COALESCE(r.Hidden, 0)" + direction + ", r.DisplayName COLLATE NOCASE" + tieBreak;
+                case AchievementSort.Capstone:
+                    return "r.IsCapstone" + direction + ", r.DisplayName COLLATE NOCASE" + tieBreak;
                 default:
                     return friend + "r.GameName, r.PlayniteGameId, " + display + ", r.UserId";
             }
