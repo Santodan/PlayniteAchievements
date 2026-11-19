@@ -67,9 +67,11 @@ namespace PlayniteAchievements.Tests.Services
                 "InvalidateStartPageData()",
                 "A full invalidation is a bulk event, not a burst, and still lands immediately.");
 
-            // Friend coordinators stay unconditional: scoped raises also come from the refresh
-            // pipeline's end-of-run raise, which includes friend-mode runs.
-            StringAssert.Contains(body, "InvalidateFriendDataCoordinators()");
+            // Friend rows carry the user's own unlock state, so every raise reaches the friend
+            // coordinators, scoped to the changed games so the overview can patch them.
+            StringAssert.Contains(
+                body,
+                "FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(args)");
         }
 
         [TestMethod]
@@ -95,9 +97,9 @@ namespace PlayniteAchievements.Tests.Services
                 "touched that game.");
             StringAssert.Contains(
                 body,
-                "if (!isScoped)",
-                "A current-user achievement edit cannot move friend data, so the friends " +
-                "coordinator is invalidated only on a full change.");
+                "FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(e)",
+                "Friend rows carry the user's own unlock state, so a scoped change patches " +
+                "those games' friend rows and a full one rebuilds.");
         }
 
         [TestMethod]
