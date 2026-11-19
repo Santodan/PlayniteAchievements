@@ -340,6 +340,10 @@ namespace PlayniteAchievements.Services.Showcase
             public readonly Dictionary<string, IReadOnlyList<AchievementDisplayItem>> PinRows =
                 new Dictionary<string, IReadOnlyList<AchievementDisplayItem>>(StringComparer.Ordinal);
 
+            /// <summary>The rows read for each set of pins, keyed by the pins.</summary>
+            public readonly Dictionary<string, IReadOnlyList<AchievementDisplayItem>> PinReads =
+                new Dictionary<string, IReadOnlyList<AchievementDisplayItem>>(StringComparer.Ordinal);
+
             /// <summary>Unlock Next candidates still locked, with their game summary attached.</summary>
             public IReadOnlyList<UnlockNextCandidate> UnlockNextPool;
         }
@@ -784,7 +788,8 @@ namespace PlayniteAchievements.Services.Showcase
             OverviewDataSnapshot snapshot,
             IEnumerable<PinnedAchievementReference> pins)
         {
-            var achievements = snapshot?.PinnedAchievements ?? new List<AchievementDisplayItem>();
+            pins = (pins ?? Array.Empty<PinnedAchievementReference>()).Where(pin => pin != null).ToList();
+            var achievements = ReadPinRows(snapshot, (IReadOnlyList<PinnedAchievementReference>)pins);
 
             // Index by (game id, case-insensitive api name). The first entry wins on a key
             // collision; achievements without a Playnite game id cannot match a pin.
@@ -865,6 +870,27 @@ namespace PlayniteAchievements.Services.Showcase
                 .Where(byId.ContainsKey)
                 .Select(id => byId[id])
                 .ToList();
+        }
+
+        // The pinned achievements' rows, read by key once per snapshot and pin set: locked ones
+        // included, whatever the summary rules leave out.
+        private static IReadOnlyList<AchievementDisplayItem> ReadPinRows(OverviewDataSnapshot snapshot, IReadOnlyList<PinnedAchievementReference> pins)
+        {
+            if (snapshot?.ReadRows == null || pins.Count == 0)
+            {
+                return Array.Empty<AchievementDisplayItem>();
+            }
+
+            var key = string.Join(";", pins.Select(pin => pin.GameId.ToString("N") + ":" + pin.ApiName));
+            var cache = DerivedCache.GetOrCreateValue(snapshot);
+            if (!cache.PinReads.TryGetValue(key, out var rows))
+            {
+                rows = snapshot.ReadRows(Database.AchievementQuery.CurrentUser.ForAchievements(
+                    pins.Select(pin => new KeyValuePair<Guid, string>(pin.GameId, pin.ApiName)))) ?? Array.Empty<AchievementDisplayItem>();
+                cache.PinReads[key] = rows;
+            }
+
+            return rows;
         }
 
         /// <summary>
