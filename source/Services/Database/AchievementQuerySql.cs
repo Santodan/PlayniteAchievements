@@ -57,14 +57,27 @@ namespace PlayniteAchievements.Services.Database
                 r.ProgressMax AS ProgressMax, r.IsFiltered AS IsFiltered, r.IsSummaryFiltered AS IsSummaryFiltered,
                 r.Note AS Note, r.IsGoal AS IsGoal, r.GoalOrder AS GoalOrder, r.CustomOrder AS CustomOrder,
                 r.CategoryOrder AS CategoryOrder, r.CategoryArtPath AS CategoryArtPath,
-                r.PlayniteGameId AS PlayniteGameId, r.GameName AS GameName, r.ProviderKey AS ProviderKey,
-                g.ProviderPlatformKey AS ProviderPlatformKey, g.ProviderGameId AS ProviderGameId,
-                g.ProviderGameKey AS ProviderGameKey, g.IconPath AS GameIconPath, g.CoverPath AS GameCoverPath,
+                r.PlayniteGameId AS PlayniteGameId, r.GameName AS GameName,
+                COALESCE(r.ProviderKey, ag.ProviderKey, CASE WHEN r.IsAuthored = 1 THEN '" + CustomAchievementProjectionService.ProviderKey + @"' END) AS ProviderKey,
+                COALESCE(g.ProviderPlatformKey, ag.ProviderPlatformKey) AS ProviderPlatformKey,
+                COALESCE(g.ProviderGameId, ag.ProviderGameId) AS ProviderGameId,
+                COALESCE(g.ProviderGameKey, ag.ProviderGameKey) AS ProviderGameKey, g.IconPath AS GameIconPath, g.CoverPath AS GameCoverPath,
                 r.Unlocked AS Unlocked, r.UnlockTimeUtc AS UnlockTimeUtc, r.ProgressNum AS ProgressNum,
                 r.ProgressDenom AS ProgressDenom, r.ExcludedFromSummaries AS ExcludedFromSummaries, r.IsAuthored AS IsAuthored,
                 r.CleanCapturePath AS CleanCapturePath, r.NotificationCapturePath AS NotificationCapturePath,
                 r.FramedCapturePath AS FramedCapturePath, r.VideoCapturePath AS VideoCapturePath,
                 r.UserId AS UserId, r.IsCurrentUser AS IsCurrentUser";
+
+        // An authored row has no provider game, so it reads its Playnite game's as the summary
+        // names that game: the current user's most recently updated provider game of it, else the
+        // Custom provider.
+        private const string AuthoredGameJoin = @"
+            LEFT JOIN Games ag ON ag.Id = CASE WHEN r.IsAuthored = 1 THEN (
+                SELECT pg.Id FROM UserGameProgress up
+                INNER JOIN Users cu ON cu.Id = up.UserId AND cu.IsCurrentUser = 1
+                INNER JOIN Games pg ON pg.Id = up.GameId
+                WHERE pg.PlayniteGameId = r.PlayniteGameId AND TRIM(COALESCE(up.CacheKey, '')) <> ''
+                ORDER BY up.LastUpdatedUtc DESC, up.Id DESC LIMIT 1) END";
 
         private const string FriendColumns = @",
                 u.ProviderKey AS UserProviderKey, u.ExternalUserId AS ExternalUserId, u.DisplayName AS UserDisplayName,
@@ -190,6 +203,7 @@ namespace PlayniteAchievements.Services.Database
                 : @",
                 0 AS CompareUnlocked, NULL AS CompareUnlockTimeUtc, 0 AS CompareHasGame");
             sql.Append(From(query, args));
+            sql.Append(AuthoredGameJoin);
             if (query.Friends)
             {
                 sql.Append(SelfJoins);
