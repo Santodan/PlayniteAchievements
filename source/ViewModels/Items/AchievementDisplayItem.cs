@@ -246,6 +246,12 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendIsFavorite, value);
         }
 
+        /// <summary>
+        /// Stands in for a row a paged list has not loaded yet; the row style draws it as an empty
+        /// row of the usual height.
+        /// </summary>
+        public bool IsPlaceholder { get; set; }
+
         // --- Friend comparison (session-only; set by the hosting view model when a
         //     compare friend is selected, cleared when the selection changes) ---
 
