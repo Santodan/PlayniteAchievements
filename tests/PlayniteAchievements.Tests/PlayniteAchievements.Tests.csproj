@@ -731,7 +731,6 @@
     <Compile Include="..\..\source\Services\Overview\CompletionBreakdown.cs" Link="Source\Services\Overview\CompletionBreakdown.cs" />
     <Compile Include="..\..\source\Services\Overview\ProgressFilterChoices.cs" Link="Source\Services\Overview\ProgressFilterChoices.cs" />
     <Compile Include="..\..\source\Services\Overview\UnlockNextCandidateSelector.cs" Link="Source\Services\Overview\UnlockNextCandidateSelector.cs" />
-    <Compile Include="..\..\source\Services\StartPage\StartPageDataCoordinator.cs" Link="Source\Services\StartPage\StartPageDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\Widgets\WidgetDataCoordinator.cs" Link="Source\Services\Widgets\WidgetDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\StartPage\StartPageViewCatalog.cs" Link="Source\Services\StartPage\StartPageViewCatalog.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementIconResolver.cs" Link="Source\Models\Achievements\AchievementIconResolver.cs" />
