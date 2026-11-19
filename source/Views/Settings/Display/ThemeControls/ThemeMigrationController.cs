@@ -6,7 +6,6 @@ using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.ThemeMigration;
 
 namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
@@ -21,7 +20,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsPlugin _plugin;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly ThemeDiscoveryService _themeDiscovery;
+        private readonly ThemeDiscoveryCache _discoveredThemes;
         private readonly ThemeMigrationService _themeMigration;
         private bool _themesLoaded;
         private bool _themesLoading;
@@ -43,11 +42,12 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _logger = logger;
 
-            _themeDiscovery = new ThemeDiscoveryService(_logger, _plugin.PlayniteApi);
+            _discoveredThemes = _plugin.DiscoveredThemes;
             _themeMigration = new ThemeMigrationService(
                 _logger,
                 _settings,
-                () => _plugin.SavePluginSettings(_settings));
+                () => _plugin.SavePluginSettings(_settings),
+                _discoveredThemes);
 
             InitializeCustomOptions();
         }
@@ -112,8 +112,9 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         }
 
         /// <summary>
-        /// Discovers themes on a worker thread, since discovery reads every installed theme's
-        /// files, and fills the lists on the calling (UI) thread.
+        /// Fills the lists from the session's theme discovery, which the startup scan has
+        /// usually finished; otherwise this waits on that same scan off the UI thread.
+        /// Migrate and Revert refresh the changed theme there before calling this again.
         /// </summary>
         private async Task LoadThemesAsync()
         {
@@ -125,22 +126,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             _themesLoading = true;
             try
             {
-                var themesPath = _themeDiscovery.GetDefaultThemesPath();
-                if (string.IsNullOrEmpty(themesPath))
-                {
-                    _logger?.Info("No themes path found for theme migration.");
-                    ApplyThemes(new System.Collections.Generic.List<ThemeDiscoveryService.ThemeInfo>());
-                    return;
-                }
-
-                // Copied here so the worker never reads the live settings dictionary.
-                var source = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var cache = source != null
-                    ? new System.Collections.Generic.Dictionary<string, ThemeMigrationCacheEntry>(source, StringComparer.OrdinalIgnoreCase)
-                    : null;
-                var themes = await Task.Run(() => _themeDiscovery.DiscoverThemes(themesPath, cache));
-
-                ApplyThemes(themes);
+                ApplyThemes(await _discoveredThemes.GetThemesAsync());
                 _logger?.Info($"Loaded {AvailableThemes.Count} themes to migrate, {RevertableThemes.Count} themes to revert.");
             }
             catch (Exception ex)
@@ -154,7 +140,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
             }
         }
 
-        private void ApplyThemes(System.Collections.Generic.IReadOnlyCollection<ThemeDiscoveryService.ThemeInfo> themes)
+        private void ApplyThemes(System.Collections.Generic.IEnumerable<ThemeDiscoveryService.ThemeInfo> themes)
         {
             AvailableThemes.Clear();
             RevertableThemes.Clear();
