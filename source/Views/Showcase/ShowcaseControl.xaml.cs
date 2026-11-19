@@ -3513,13 +3513,14 @@ namespace PlayniteAchievements.Views.Showcase
         // the exception: its locked achievements are not in the snapshot at all, and the overview
         // builder only hydrates them when a widget asks. Switching a mosaic to that source is
         // therefore an option edit that needs the snapshot rebuilt, as is raising Max per game
-        // past the depth the pool was built to. Pins are read by key when projected.
+        // past the depth the pool was built to. A pin the build never read is the same case.
         private void EnsureSnapshotCoversLayout()
         {
             var snapshot = _overview.LatestSnapshot;
             var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(Layout);
-            if (maxPerGame <= 0 ||
-                (snapshot?.UnlockNextPoolBuilt == true && snapshot.UnlockNextPoolSlice >= UnlockNextCandidateSelector.SliceFor(maxPerGame)))
+            if ((maxPerGame <= 0 ||
+                 (snapshot?.UnlockNextPoolBuilt == true && snapshot.UnlockNextPoolSlice >= UnlockNextCandidateSelector.SliceFor(maxPerGame))) &&
+                snapshot?.HasSeenAchievementPins(Layout) != false)
             {
                 return;
             }
