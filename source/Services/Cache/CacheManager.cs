@@ -25,7 +25,14 @@ namespace PlayniteAchievements.Services.Cache
     // read directly; fields no query aggregates stay in the blob.
     internal interface IAchievementOverrideMirror
     {
-        void ReplaceAchievementOverrides(Guid playniteGameId, IReadOnlyList<AchievementOverrideMirrorEntry> entries);
+        /// <summary>
+        /// Replaces one game's override and game-level state mirror rows, then raises the change
+        /// feed for the game when either changed.
+        /// </summary>
+        void ReplaceGameCustomLayer(
+            Guid playniteGameId,
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries,
+            GameCustomStateEntry state);
 
         void ResyncAllAchievementOverrides(IReadOnlyDictionary<Guid, IReadOnlyList<AchievementOverrideMirrorEntry>> entriesByGameId);
 
@@ -41,40 +48,6 @@ namespace PlayniteAchievements.Services.Cache
         {
             public GameAchievementData Data { get; set; }
             public LinkedListNode<string> Node { get; set; }
-        }
-
-        private sealed class FriendCacheInvalidationBatch : IFriendCacheInvalidationBatch
-        {
-            private CacheManager _owner;
-            private bool _disposed;
-
-            public FriendCacheInvalidationBatch(CacheManager owner)
-            {
-                _owner = owner;
-            }
-
-            public void Flush()
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _owner?.FlushFriendCacheInvalidationBatch();
-            }
-
-            public void Dispose()
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _disposed = true;
-                var owner = _owner;
-                _owner = null;
-                owner?.EndFriendCacheInvalidationBatch();
-            }
         }
 
         private readonly IPlayniteAPI _api;
@@ -97,12 +70,7 @@ namespace PlayniteAchievements.Services.Cache
         private bool _scopeInitialized;
         private Exception _initializationFailure;
         private bool _startupFailureDialogShown;
-        private int _friendCacheInvalidationBatchDepth;
-        private bool _friendCacheInvalidationBatchDirty;
-        // Scope accumulated across deferred raises within a batch window (guarded by _sync);
-        // drained on every flush so scope travels with the event, not the batch lifetime.
-        private readonly FriendCacheInvalidationScopeAccumulator _friendCacheInvalidationScope =
-            new FriendCacheInvalidationScopeAccumulator();
+        private readonly AchievementDataFeed _feed;
         private readonly object _friendDataGameIdIndexSync = new object();
         private IReadOnlyCollection<Guid> _friendDataPlayniteGameIds;
         private int _friendDataGameIdIndexVersion;
@@ -133,11 +101,18 @@ namespace PlayniteAchievements.Services.Cache
             remove => MetadataStateCleared -= value;
         }
 
+        /// <summary>One change event per write batch, for read models.</summary>
+        internal AchievementDataFeed Feed => _feed;
+
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
             _api = api;
             _logger = logger;
             _plugin = plugin;
+            _feed = new AchievementDataFeed(
+                InvokeCacheInvalidated,
+                InvokeFriendCacheInvalidated,
+                ex => _logger?.Error(ex, "Failed to notify cache subscribers."));
             _storage = new CacheStorage(plugin, logger);
             _store = new SqlNadoCacheStore(plugin, logger, _storage.BaseDir);
             _importer = new LegacyJsonCacheImporter(_storage, _store, logger);
@@ -344,17 +319,36 @@ namespace PlayniteAchievements.Services.Cache
 
         // Mirror writes never throw: when the store failed to initialize, summaries are
         // unavailable anyway and the summary reader fails open (empty table = unfiltered).
-        void IAchievementOverrideMirror.ReplaceAchievementOverrides(
+        void IAchievementOverrideMirror.ReplaceGameCustomLayer(
             Guid playniteGameId,
-            IReadOnlyList<AchievementOverrideMirrorEntry> entries)
+            IReadOnlyList<AchievementOverrideMirrorEntry> entries,
+            GameCustomStateEntry state)
         {
+            var changed = false;
             try
             {
-                _store.ReplaceAchievementOverrides(playniteGameId, entries);
+                changed = _store.ReplaceAchievementOverrides(playniteGameId, entries);
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"Failed to sync achievement filter mirror for game {playniteGameId}.");
+            }
+
+            try
+            {
+                changed |= _store.ReplaceGameCustomStates(
+                    new Dictionary<Guid, GameCustomStateEntry> { [playniteGameId] = state },
+                    playniteGameId) > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to sync the game custom state mirror.");
+            }
+
+            // Unchanged mirror rows leave every resolved read as it was.
+            if (changed && playniteGameId != Guid.Empty)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(new[] { playniteGameId }));
             }
         }
 
@@ -516,18 +510,34 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        // Both cache events are raised through _feed, so one raise of either or both raises one
+        // AchievementDataChanged.
         private void RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs args = null)
         {
-            try { CacheInvalidated?.Invoke(this, args ?? CacheInvalidatedEventArgs.FullInvalidation); }
+            _feed.Raise(args ?? CacheInvalidatedEventArgs.FullInvalidation, null);
+        }
+
+        private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
+        {
+            _feed.Raise(null, args ?? FriendCacheInvalidatedEventArgs.FullInvalidation);
+        }
+
+        private void RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange change)
+        {
+            _feed.RaiseFriendChange(change);
+        }
+
+        private void InvokeCacheInvalidated(CacheInvalidatedEventArgs args)
+        {
+            try { CacheInvalidated?.Invoke(this, args); }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to notify cache subscribers.");
             }
         }
 
-        private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
+        private void InvokeFriendCacheInvalidated(FriendCacheInvalidatedEventArgs args)
         {
-            args = args ?? FriendCacheInvalidatedEventArgs.FullInvalidation;
             lock (_sync)
             {
                 _friendDataPlayniteGameIds = null;
@@ -543,71 +553,8 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
-        private void RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange change)
-        {
-            if (_friendCacheInvalidationBatchDepth > 0)
-            {
-                _friendCacheInvalidationBatchDirty = true;
-                _friendCacheInvalidationScope.Add(change);
-                return;
-            }
-
-            RaiseFriendCacheInvalidatedEvent(
-                change == null
-                    ? FriendCacheInvalidatedEventArgs.FullInvalidation
-                    : FriendCacheInvalidatedEventArgs.Scoped(new[] { change }));
-        }
-
-        private void FlushFriendCacheInvalidationBatch()
-        {
-            FriendCacheInvalidatedEventArgs args = null;
-            lock (_sync)
-            {
-                if (_friendCacheInvalidationBatchDirty)
-                {
-                    _friendCacheInvalidationBatchDirty = false;
-                    args = _friendCacheInvalidationScope.Drain();
-                }
-            }
-
-            if (args != null)
-            {
-                RaiseFriendCacheInvalidatedEvent(args);
-            }
-        }
-
-        private void EndFriendCacheInvalidationBatch()
-        {
-            FriendCacheInvalidatedEventArgs args = null;
-            lock (_sync)
-            {
-                if (_friendCacheInvalidationBatchDepth > 0)
-                {
-                    _friendCacheInvalidationBatchDepth--;
-                }
-
-                if (_friendCacheInvalidationBatchDepth == 0 && _friendCacheInvalidationBatchDirty)
-                {
-                    _friendCacheInvalidationBatchDirty = false;
-                    args = _friendCacheInvalidationScope.Drain();
-                }
-            }
-
-            if (args != null)
-            {
-                RaiseFriendCacheInvalidatedEvent(args);
-            }
-        }
-
-        IFriendCacheInvalidationBatch IFriendCacheManager.BeginFriendCacheInvalidationBatch()
-        {
-            lock (_sync)
-            {
-                _friendCacheInvalidationBatchDepth++;
-            }
-
-            return new FriendCacheInvalidationBatch(this);
-        }
+        IFriendCacheInvalidationBatch IFriendCacheManager.BeginFriendCacheInvalidationBatch() =>
+            _feed.BeginFriendBatch();
 
         private void ClearMemoryState_Locked()
         {
@@ -872,8 +819,7 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-            RaiseCacheInvalidatedEvent();
-            RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
+            _feed.Raise(CacheInvalidatedEventArgs.FullInvalidation, FriendCacheInvalidatedEventArgs.FullInvalidation);
         }
 
         public bool CacheFileExists() => CoreArtifactsPresent();
@@ -1397,15 +1343,12 @@ namespace PlayniteAchievements.Services.Cache
                 }
             }
 
-            if (cleared.Count > 0)
-            {
-                RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(cleared));
-            }
-
             // Provider-only friend games have no Playnite id to scope; the friend views reload.
-            if (clearedUnmapped)
+            if (cleared.Count > 0 || clearedUnmapped)
             {
-                RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs.FullInvalidation);
+                _feed.Raise(
+                    cleared.Count > 0 ? CacheInvalidatedEventArgs.Scoped(cleared) : null,
+                    clearedUnmapped ? FriendCacheInvalidatedEventArgs.FullInvalidation : null);
             }
 
             return cleared;
