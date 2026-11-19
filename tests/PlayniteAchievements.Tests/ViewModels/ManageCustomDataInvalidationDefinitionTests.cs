@@ -88,9 +88,9 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "_gameCustomDataStore.CustomDataChanged += OnCustomDataChanged",
                 "The overview's summary reload is how an edit reaches a visible overview.");
             StringAssert.Contains(
-                ReadRepoFile("source", "Services", "Achievements", "AchievementDataService.cs"),
-                "_gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview",
-                "The summary memo has to drop the rows the edit changed.");
+                ReadRepoFile("source", "Services", "GameCustomData", "GameCustomDataStore.cs"),
+                "PublishLayerChanged(playniteGameId, layerChanged);",
+                "The resolved reads rerun on the change feed the save raises.");
             StringAssert.Contains(
                 ReadRepoFile("source", "PlayniteAchievementsPlugin.cs"),
                 "_gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged",
