@@ -314,7 +314,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ? query.OrderBy(sort, spec.Direction == ListSortDirection.Descending)
                 : query.OrderBy(AchievementSort.UnlockTime, descending: true);
             var cap = PersistedSettings.NormalizeGridMaxRows((GridOptions as GridCommonOptions)?.MaxRows);
-            return (_rows ??= new ShowcaseRows(RefreshItems)).For(cap.HasValue ? query.Page(cap.Value) : query, projection.Snapshot?.GameSummaries);
+            return (_rows ??= new ShowcaseRows(RefreshItems)).For(cap.HasValue ? query.Page(cap.Value) : query);
         }
 
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
