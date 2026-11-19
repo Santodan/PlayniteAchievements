@@ -188,24 +188,22 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>True for a row both filters keep; every row while nothing is selected.</summary>
         public bool Matches(AchievementDisplayItem row) =>
-            MatchesRarity(row) && MatchesTrophy(row);
-
-        /// <summary>True for a row the Rarity filter keeps; every row while no tier or Capstone is picked.</summary>
-        public bool MatchesRarity(AchievementDisplayItem row) =>
-            row != null && MatchesRarity(row.Rarity, row.IsCapstone);
-
-        /// <summary>True for a row the Trophy filter keeps; every row while no trophy type is picked.</summary>
-        public bool MatchesTrophy(AchievementDisplayItem row) =>
             row != null &&
+            MatchesRarity(row.Rarity, row.IsCapstone) &&
             (_trophies.Count == 0 || _trophies.Contains((row.TrophyType ?? string.Empty).Trim()));
 
         /// <summary>
         /// True for a tally whose achievements both filters keep, locked ones included; every tally
         /// while nothing is selected. A tally of unknown tier matches no picked tier.
         /// </summary>
-        public bool Matches(AchievementTally tally) =>
-            MatchesRarity(tally.Rarity, tally.IsCapstone) &&
-            (_trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy)));
+        public bool Matches(AchievementTally tally) => MatchesRarity(tally) && MatchesTrophy(tally);
+
+        /// <summary>True for a tally the Rarity filter keeps; every tally while no tier or Capstone is picked.</summary>
+        public bool MatchesRarity(AchievementTally tally) => MatchesRarity(tally.Rarity, tally.IsCapstone);
+
+        /// <summary>True for a tally the Trophy filter keeps; every tally while no trophy type is picked.</summary>
+        public bool MatchesTrophy(AchievementTally tally) =>
+            _trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy));
 
         private bool MatchesRarity(RarityTier? tier, bool isCapstone)
         {
