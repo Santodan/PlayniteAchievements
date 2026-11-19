@@ -34,7 +34,10 @@ namespace PlayniteAchievements.Tests.TestSupport
 
         public List<AchievementQuery> RowReads { get; } = new List<AchievementQuery>();
 
-        public List<AchievementQuery> CountReads { get; } = new List<AchievementQuery>();
+        public List<AchievementQuery> KeyReads { get; } = new List<AchievementQuery>();
+
+        /// <summary>The Playnite game of each lists load; null for every game.</summary>
+        public List<Guid?> ListGames { get; } = new List<Guid?>();
 
         public List<KeyValuePair<AchievementQuery, AchievementGroup>> TotalsReads { get; } =
             new List<KeyValuePair<AchievementQuery, AchievementGroup>>();
@@ -47,9 +50,10 @@ namespace PlayniteAchievements.Tests.TestSupport
                 .Where(row => row != null)
                 .ToList();
 
-        public FriendsOverviewData LoadLists()
+        public FriendsOverviewData LoadLists(Guid? playniteGameId = null)
         {
             ListLoads++;
+            ListGames.Add(playniteGameId);
             return new FriendsOverviewData
             {
                 Friends = (Data.Friends ?? new List<FriendSummaryItem>()).Select(CopyFriend).ToList(),
@@ -58,15 +62,33 @@ namespace PlayniteAchievements.Tests.TestSupport
             };
         }
 
-        public int Count(AchievementQuery query)
+        /// <summary>Each key names a row by its index in the source rows.</summary>
+        public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query)
         {
-            CountReads.Add(query);
-            return Matching(query).Count;
+            KeyReads.Add(query);
+            var source = Source;
+            var rows = Sorted(Matching(query), query).AsEnumerable();
+            if (query.Limit > 0)
+            {
+                rows = rows.Take(query.Limit);
+            }
+
+            return rows.Select(row => new AchievementQuerySql.RowKey { DefinitionId = source.IndexOf(row) }).ToList();
         }
 
-        public IReadOnlyList<FriendAchievementDisplayItem> Rows(AchievementQuery query)
+        public IReadOnlyList<FriendAchievementDisplayItem> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys = null)
         {
             RowReads.Add(query);
+            if (keys != null)
+            {
+                var source = Source;
+                return keys.Where(key => key.DefinitionId >= 0 && key.DefinitionId < source.Count)
+                    .Select(key => source[(int)key.DefinitionId])
+                    .Where(row => Matches(query, row))
+                    .Select(row => Copy(row, query))
+                    .ToList();
+            }
+
             var rows = Sorted(Matching(query), query).AsEnumerable();
             if (query.Offset > 0)
             {
@@ -85,6 +107,7 @@ namespace PlayniteAchievements.Tests.TestSupport
         {
             TotalsReads.Add(new KeyValuePair<AchievementQuery, AchievementGroup>(query, group));
             var rows = Matching(query);
+            var order = Source;
             if (query.DistinctAchievements)
             {
                 rows = rows.GroupBy(row => ProviderGameKey(row) + "\u001e" + (row.ApiName ?? row.DisplayName))
@@ -108,6 +131,12 @@ namespace PlayniteAchievements.Tests.TestSupport
                     if (row.CategoryOrderIndex < int.MaxValue && (!total.MinCategoryOrder.HasValue || row.CategoryOrderIndex < total.MinCategoryOrder))
                     {
                         total.MinCategoryOrder = row.CategoryOrderIndex;
+                    }
+
+                    var position = order.IndexOf(row).ToString("D10", CultureInfo.InvariantCulture);
+                    if (group == AchievementGroup.Category && (total.FirstDisplayOrder == null || string.CompareOrdinal(position, total.FirstDisplayOrder) < 0))
+                    {
+                        total.FirstDisplayOrder = position;
                     }
 
                     if (!row.Unlocked)
@@ -218,7 +247,7 @@ namespace PlayniteAchievements.Tests.TestSupport
 
             var search = SearchQuery.From(query.SearchText);
             return !search.HasValue ||
-                   search.Matches(SearchTextBuilder.FromValues(row.FriendName, row.GameName, row.DisplayName, row.Description, row.CategoryLabel, row.ProviderKey));
+                   search.Matches(SearchTextBuilder.FromValues(NameOf(query, row), row.GameName, row.DisplayName, row.Description, row.CategoryLabel, row.ProviderKey));
         }
 
         private List<FriendAchievementDisplayItem> Sorted(List<FriendAchievementDisplayItem> rows, AchievementQuery query)
@@ -241,8 +270,8 @@ namespace PlayniteAchievements.Tests.TestSupport
                     break;
                 case AchievementSort.Friend:
                     sorted = query.Descending
-                        ? rows.OrderByDescending(row => row.FriendName, StringComparer.OrdinalIgnoreCase)
-                        : rows.OrderBy(row => row.FriendName, StringComparer.OrdinalIgnoreCase);
+                        ? rows.OrderByDescending(row => NameOf(query, row), StringComparer.OrdinalIgnoreCase)
+                        : rows.OrderBy(row => NameOf(query, row), StringComparer.OrdinalIgnoreCase);
                     break;
                 case AchievementSort.Rarity:
                     sorted = query.Descending
@@ -308,6 +337,11 @@ namespace PlayniteAchievements.Tests.TestSupport
 
             return copy;
         }
+
+        // The name the query gives the row's account, else the stored one, as the SQL joins it.
+        private static string NameOf(AchievementQuery query, FriendAchievementDisplayItem row) =>
+            query.FriendNames?.FirstOrDefault(name => Same(name.Key.ProviderKey, row.ProviderKey) && Same(name.Key.ExternalUserId, row.FriendExternalUserId)).Value
+            ?? row.FriendName;
 
         private static string KeyOf(FriendAchievementDisplayItem row, AchievementGroup group)
         {
