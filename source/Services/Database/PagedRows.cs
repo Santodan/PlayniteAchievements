@@ -15,6 +15,17 @@ namespace PlayniteAchievements.Services.Database
     }
 
     /// <summary>
+    /// A row list that holds only some of its rows. Code that scans rows for a property of the
+    /// list (a favorite, a second game, a category) reads <see cref="LoadedItems"/>, which never
+    /// loads or creates anything.
+    /// </summary>
+    public interface IPartiallyLoadedRows
+    {
+        /// <summary>The rows loaded now, in index order.</summary>
+        IEnumerable LoadedItems { get; }
+    }
+
+    /// <summary>
     /// The rows of one query as a list whose <see cref="Count"/> is the full row count from the
     /// first load, for a virtualizing grid. Reading an index that is not loaded returns a
     /// placeholder and loads its page and the pages on either side; when the page arrives, each
@@ -23,13 +34,19 @@ namespace PlayniteAchievements.Services.Database
     /// them in place, keeping the other loaded pages until they are read again. All state is
     /// changed on the UI thread.
     /// </summary>
-    internal sealed class PagedRows<T> : IList, INotifyCollectionChanged, ISortableRows, IDisposable
+    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, ISortableRows, IPartiallyLoadedRows, IDisposable
         where T : class
     {
         public const int PageSize = 100;
 
         /// <summary>Pages kept loaded; past it, the page farthest from the last read index is dropped.</summary>
         internal const int MaxLoadedPages = 10;
+
+        /// <summary>
+        /// A result of at most this many rows loads whole on every reset, so every row is loaded
+        /// and <see cref="LoadedItems"/> is the whole list.
+        /// </summary>
+        internal const int WholeLoadRows = MaxLoadedPages * PageSize;
 
         private readonly Func<AchievementQuery, int> _countRows;
         private readonly Func<AchievementQuery, IReadOnlyList<T>> _loadRows;
@@ -87,10 +104,19 @@ namespace PlayniteAchievements.Services.Database
 
         public int Count => _count;
 
-        /// <summary>Replaces the query and reloads, keeping the column sort. UI thread.</summary>
-        public void SetQuery(AchievementQuery query)
+        /// <summary>
+        /// Replaces the query and reloads, keeping the column sort. With
+        /// <paramref name="fromStart"/> the rows around the first index load first, for a list
+        /// the grid shows from its top; otherwise those around the last read index. UI thread.
+        /// </summary>
+        public void SetQuery(AchievementQuery query, bool fromStart = false)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
+            if (fromStart)
+            {
+                _lastIndex = 0;
+            }
+
             Requery();
         }
 
@@ -163,10 +189,22 @@ namespace PlayniteAchievements.Services.Database
                     count = Cap(_countRows(query));
                     pages = new Dictionary<int, IReadOnlyList<T>>();
                     var last = Math.Max(0, (count - 1) / PageSize);
-                    anchor = Math.Min(anchor, last);
-                    for (var page = Math.Max(0, anchor - 1); page <= Math.Min(last, anchor + 1) && page * PageSize < count; page++)
+                    if (count <= WholeLoadRows)
                     {
-                        pages[page] = _loadRows(PageOf(query, page, count));
+                        // Small enough to keep: one read, and every row is loaded from the start.
+                        var rows = count == 0 ? Array.Empty<T>() : _loadRows(query.Page(count, 0));
+                        for (var page = 0; page * PageSize < count; page++)
+                        {
+                            pages[page] = rows.Skip(page * PageSize).Take(PageSize).ToList();
+                        }
+                    }
+                    else
+                    {
+                        anchor = Math.Min(anchor, last);
+                        for (var page = Math.Max(0, anchor - 1); page <= Math.Min(last, anchor + 1) && page * PageSize < count; page++)
+                        {
+                            pages[page] = _loadRows(PageOf(query, page, count));
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -429,8 +467,28 @@ namespace PlayniteAchievements.Services.Database
 
         private void Raise(NotifyCollectionChangedEventArgs args) => CollectionChanged?.Invoke(this, args);
 
-        // IList for WPF: read-only, indexed access; enumeration hands out what is loaded and
-        // placeholders without loading anything.
+        T IReadOnlyList<T>.this[int index] => (T)this[index];
+
+        public IEnumerable LoadedItems
+        {
+            get
+            {
+                foreach (var page in _pages.OrderBy(pair => pair.Key))
+                {
+                    for (var offset = 0; offset < PageSize && page.Key * PageSize + offset < _count; offset++)
+                    {
+                        if (page.Value[offset] != null)
+                        {
+                            yield return page.Value[offset];
+                        }
+                    }
+                }
+            }
+        }
+
+        // IList for WPF: read-only, indexed access; enumeration hands out what is loaded and, for
+        // every other index, one shared placeholder that is neither kept nor loaded for. Only
+        // reading an index, as a virtualizing grid does for the rows it shows, loads.
         public bool IsReadOnly => true;
 
         public bool IsFixedSize => true;
@@ -466,13 +524,19 @@ namespace PlayniteAchievements.Services.Database
 
         public bool Contains(object value) => IndexOf(value) >= 0;
 
-        public IEnumerator GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
             for (var index = 0; index < _count; index++)
             {
-                yield return Peek(index) ?? NewPlaceholder(index);
+                yield return Peek(index) ?? SharedPlaceholder;
             }
         }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        private T _sharedPlaceholder;
+
+        private T SharedPlaceholder => _sharedPlaceholder ?? (_sharedPlaceholder = _newPlaceholder());
 
         public void CopyTo(Array array, int index)
         {
