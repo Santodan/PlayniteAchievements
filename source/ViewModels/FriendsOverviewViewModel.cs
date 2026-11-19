@@ -1548,7 +1548,7 @@ namespace PlayniteAchievements.ViewModels
         // unlocks first for the recent feed, friend, game and definition order otherwise.
         private AchievementQuery ApplyAchievementSort(AchievementQuery query, AchievementQuery scope)
         {
-            if (!string.IsNullOrEmpty(_achievementSortPath) && MapAchievementSort(_achievementSortPath) is AchievementSort column)
+            if (!string.IsNullOrEmpty(_achievementSortPath) && AchievementQuery.SortOfColumn(_achievementSortPath) is AchievementSort column)
             {
                 return query.OrderBy(column, _achievementSortDirection == ListSortDirection.Descending);
             }
@@ -1556,7 +1556,7 @@ namespace PlayniteAchievements.ViewModels
             var configured = AchievementSortHelper.GetConfiguredDefaultSort(
                 _settings?.Persisted,
                 AchievementSortSurface.FriendsOverviewRecentAchievements);
-            if (!configured.PreservesSourceOrder && MapAchievementSort(configured.SortMemberPath) is AchievementSort configuredSort)
+            if (!configured.PreservesSourceOrder && AchievementQuery.SortOfColumn(configured.SortMemberPath) is AchievementSort configuredSort)
             {
                 return query.OrderBy(configuredSort, configured.Direction == ListSortDirection.Descending);
             }
@@ -1564,44 +1564,6 @@ namespace PlayniteAchievements.ViewModels
             return scope.RequireUnlockTime
                 ? query.OrderBy(AchievementSort.UnlockTime, descending: true)
                 : query.OrderBy(AchievementSort.Display);
-        }
-
-        /// <summary>The query order a column's sort member path sorts by; null for a column that does not sort.</summary>
-        internal static AchievementSort? MapAchievementSort(string sortMemberPath)
-        {
-            switch (sortMemberPath)
-            {
-                case "UnlockTime":
-                    return AchievementSort.UnlockTime;
-                case "RaritySortValue":
-                case "GlobalPercent":
-                    return AchievementSort.Rarity;
-                case "DisplayName":
-                    return AchievementSort.Name;
-                case "SortingName":
-                case "GameName":
-                    return AchievementSort.Game;
-                case "FriendName":
-                    return AchievementSort.Friend;
-                case "Points":
-                    return AchievementSort.Points;
-                case "TrophyType":
-                    return AchievementSort.Trophy;
-                case "CategoryLabel":
-                    return AchievementSort.Category;
-                case "CategoryKind":
-                    return AchievementSort.Kind;
-                case "CategoryType":
-                    return AchievementSort.Tags;
-                case "HasAchievementNote":
-                    return AchievementSort.Note;
-                case "CollectionScore":
-                    return AchievementSort.CollectionScore;
-                case "PrestigeScore":
-                    return AchievementSort.PrestigeScore;
-                default:
-                    return null;
-            }
         }
 
         /// <summary>
@@ -2004,7 +1966,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>Sorts the achievements grid by a column; a column with no query order is ignored.</summary>
         public void SortAchievements(string sortMemberPath, ListSortDirection direction)
         {
-            if (MapAchievementSort(sortMemberPath) == null)
+            if (AchievementQuery.SortOfColumn(sortMemberPath) == null)
             {
                 return;
             }
