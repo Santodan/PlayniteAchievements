@@ -865,8 +865,13 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 }
             };
             context.Service.EnsureAllGamesThemeDataLoaded();
+            Assert.AreEqual(0, context.AchievementDataService.CachedSummaryDataForThemeCalls, "read off the UI thread");
 
+            context.Scheduler.RunReads();
             Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            Assert.AreEqual(0, context.Settings.GameSummariesDesc.Count, "applied on the UI thread");
+
+            context.Scheduler.RunUi();
             AssertSummaryNames(context.Settings.DynamicGameSummaries, "Light Cached");
             Assert.AreEqual(0, context.Settings.DynamicLibraryAchievements.Count);
             Assert.AreEqual(1, context.Settings.GameSummariesDesc.Count);
@@ -907,7 +912,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public async Task NotifyCustomDataChanged_CoalescesLightLibraryRefreshes()
+        public void NotifyCustomDataChanged_CoalescesLightLibraryRefreshes()
         {
             using var context = CreateServiceContext();
             var gameId = Guid.NewGuid();
@@ -930,6 +935,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
 
             context.Service.EnsureAllGamesThemeDataLoaded();
+            context.Settle();
             Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
 
             context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
@@ -954,10 +960,41 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             context.Service.NotifyCustomDataChanged(gameId);
             context.Service.NotifyCustomDataChanged(gameId);
 
-            await Task.Delay(700);
+            context.Scheduler.Elapse();
+            context.Settle();
 
             Assert.AreEqual(2, context.AchievementDataService.CachedSummaryDataForThemeCalls);
             AssertSummaryNames(context.Settings.DynamicGameSummaries, "After Coalesce");
+        }
+
+        [TestMethod]
+        public void PlayniteGameChanges_RereadTheLibraryStateAndBoundListsOncePerBurst()
+        {
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            GameAchievementData Data(string name) => new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = new Game { Id = gameId, Name = name },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { Achievement("One", 50.0, unlocked: true, unlockTimeUtc: DateTime.UtcNow.AddDays(-1)) }
+            };
+            UseLibraryData(context, new List<GameAchievementData> { Data("Before Rename") });
+            context.Service.EnsureAllGamesThemeDataLoaded();
+            _ = context.Settings.AllAchievementsUnlockAsc;
+            var rowReads = context.AchievementDataService.RowReads.Count;
+
+            UseLibraryData(context, new List<GameAchievementData> { Data("After Rename") });
+            context.Service.NotifyLibraryGamesChanged();
+            context.Service.NotifyLibraryGamesChanged();
+            Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls, "nothing is read until the burst ends");
+
+            context.Scheduler.Elapse();
+
+            Assert.AreEqual(2, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            AssertSummaryNames(context.Settings.DynamicGameSummaries, "After Rename");
+            Assert.AreEqual(rowReads + 2, context.AchievementDataService.RowReads.Count, "the light state's rarest read and the bound list, once each");
         }
 
         [TestMethod]
@@ -1009,6 +1046,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             context.Service.NotifyCustomDataChanged(gameId);
 
             Assert.AreEqual(2, context.Settings.DynamicLibraryAchievements.Count);
+            context.Scheduler.Elapse();
             await WaitForConditionAsync(() => context.Settings.Achievements.Count == 1);
             AssertAchievementNames(context.Settings.Achievements, "Visible One");
 
