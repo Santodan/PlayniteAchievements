@@ -9,6 +9,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
 using PlayniteAchievements.ViewModels.Items;
@@ -285,18 +286,47 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// (search plus provider/platform filter) applied before the MaxRows cap.
     /// </summary>
     public abstract class ShowcaseAchievementGridWidgetViewModelBase
-        : ShowcaseGridWidgetViewModelBase<AchievementDisplayItem>
+        : ShowcaseGridWidgetViewModelBase<AchievementDisplayItem>, IDisposable
     {
         // The widget instance's shared adapter, so the filters survive view model swaps.
         private readonly ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter> _controlBarSlot;
+        private ShowcaseRows _rows;
 
         protected ShowcaseAchievementGridWidgetViewModelBase()
         {
             _controlBarSlot = new ShowcaseControlBarSlot<CrossGameAchievementControlBarAdapter>(RefreshItems);
         }
 
+        /// <summary>
+        /// The projection's rows, or with a <see cref="ShowcaseWidgetProjection.RowsQuery"/> the
+        /// rows it reads that the bar keeps, in the grid's sort, up to its MaxRows.
+        /// </summary>
+        protected override IEnumerable<AchievementDisplayItem> SelectItems(ShowcaseWidgetProjection projection)
+        {
+            if (projection?.RowsQuery == null)
+            {
+                return projection?.AchievementRows;
+            }
+
+            var spec = SortSpec();
+            var query = Bar().ApplyTo(projection.RowsQuery);
+            query = !spec.PreservesSourceOrder && AchievementQuery.SortOfColumn(spec.SortMemberPath) is AchievementSort sort
+                ? query.OrderBy(sort, spec.Direction == ListSortDirection.Descending)
+                : query.OrderBy(AchievementSort.UnlockTime, descending: true);
+            var cap = PersistedSettings.NormalizeGridMaxRows((GridOptions as GridCommonOptions)?.MaxRows);
+            return (_rows ??= new ShowcaseRows(RefreshItems)).For(cap.HasValue ? query.Page(cap.Value) : query, projection.Snapshot?.GameSummaries);
+        }
+
         protected override IEnumerable<AchievementDisplayItem> FilterItems(
             IEnumerable<AchievementDisplayItem> items)
+        {
+            return Bar().Apply((items ?? Enumerable.Empty<AchievementDisplayItem>())
+                .Where(item => item != null)
+                .ToList());
+        }
+
+        // The widget's bar, bound and shown, over the library's games.
+        private CrossGameAchievementControlBarAdapter Bar()
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
             _controlBarSlot.Adapter.EnableSort();
@@ -304,15 +334,24 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             ControlBar = _controlBarSlot.ShownBar;
 
             var adapter = _controlBarSlot.Adapter;
-            var list = (items ?? Enumerable.Empty<AchievementDisplayItem>())
-                .Where(item => item != null)
-                .ToList();
             adapter.UpdateGames(Projection?.Snapshot?.GameSummaries);
             adapter.GameFilter.SetScope(Projection?.Collection?.GameIds);
             adapter.LocksRows = Projection?.Instance?.Kind == ShowcaseWidgetKind.RecentAchievements &&
                 ShowcaseWidgetOptions.GetAchievementGridSource(Projection.Instance) == ShowcaseAchievementGridSource.UnlockNext;
-            return adapter.Apply(list);
+            return adapter;
         }
+
+        private AchievementSortSpec SortSpec()
+        {
+            var options = GridOptions as AchievementGridOptions;
+            return new AchievementSortSpec(
+                options?.SortColumn ?? GridSortColumns.SourceOrder,
+                options?.SortDescending == false
+                    ? ListSortDirection.Ascending
+                    : ListSortDirection.Descending);
+        }
+
+        public void Dispose() => _rows?.Dispose();
 
         /// <summary>
         /// Applies the surface's configured sort. The source order choice preserves the
@@ -321,12 +360,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         protected override IEnumerable<AchievementDisplayItem> OrderItems(
             IEnumerable<AchievementDisplayItem> items)
         {
-            var options = GridOptions as AchievementGridOptions;
-            var spec = new AchievementSortSpec(
-                options?.SortColumn ?? GridSortColumns.SourceOrder,
-                options?.SortDescending == false
-                    ? ListSortDirection.Ascending
-                    : ListSortDirection.Descending);
+            var spec = SortSpec();
             if (spec.PreservesSourceOrder)
             {
                 return items;
