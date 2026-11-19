@@ -5365,28 +5365,109 @@ namespace PlayniteAchievements.Services.Database
                         : row.FriendAvatarUrl
                 };
 
-                var customData = ResolveFriendAchievementCustomData(playniteGameId, customDataByGameId);
-                // Category rollups render the shared CategoryArtPath; the display-path
-                // properties fall back to the game images when no category art exists.
-                AchievementDisplayItem.ApplyCategoryPresentation(
-                    item,
-                    customData?.AchievementCategoryOrder,
-                    customData?.AchievementCategoryImageOverrides,
-                    item.CategoryLabel,
-                    AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),
-                    playniteGameId);
-                // Only the per-game flag varies; the rest of the snapshot is shared.
-                item.ApplyAppearanceSettings(
-                    baseAppearance.WithSeparateLockedIcons(
-                        customData?.UseSeparateLockedIcons ??
-                        GameCustomDataLookup.ShouldUseSeparateLockedIcons(
-                            playniteGameId,
-                            _plugin?.Settings?.Persisted)));
-
+                FinishFriendItem(item, playniteGameId, row.ProviderCategory, customDataByGameId, baseAppearance);
                 result.Add(item);
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Friend rows of <see cref="AchievementReadService.Rows"/> as display items. With
+        /// <paramref name="compare"/>, each item carries the compare columns as an unnamed
+        /// comparison for the caller to name.
+        /// </summary>
+        internal List<FriendAchievementDisplayItem> MapFriendRowRecords(IEnumerable<AchievementRowRecord> rows, bool compare)
+        {
+            var result = new List<FriendAchievementDisplayItem>();
+            var presentationCache = new Dictionary<Guid, GamePresentation>();
+            var customDataByGameId = new Dictionary<Guid, ResolvedGameCustomData>();
+            var baseAppearance = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(_plugin?.Settings, null, false);
+            foreach (var row in rows ?? Enumerable.Empty<AchievementRowRecord>())
+            {
+                if (row == null || string.IsNullOrWhiteSpace(row.ApiName))
+                {
+                    continue;
+                }
+
+                var playniteGameId = ResolveCachedPlayniteGameId(null, row.PlayniteGameId);
+                var presentation = ResolveGamePresentation(playniteGameId, presentationCache);
+                var item = new FriendAchievementDisplayItem
+                {
+                    ApiName = row.ApiName,
+                    DisplayName = row.DisplayName,
+                    Description = row.Description,
+                    UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath),
+                    LockedIconPath = MakeAbsolutePath(row.LockedIconPath),
+                    PointsValue = row.ScaledPoints ?? row.Points,
+                    CategoryLabel = AchievementCategoryHelper.NormalizeCategoryOrDefault(row.Category),
+                    Tags = AchievementTagHelper.Normalize(row.Tags),
+                    CategoryKind = CategoryKindHelper.Normalize(row.CategoryKind),
+                    TrophyType = row.TrophyType,
+                    Hidden = row.Hidden != 0,
+                    IsCapstone = row.IsCapstone != 0,
+                    GlobalPercentUnlocked = row.GlobalPercentUnlocked,
+                    Rarity = ParseStoredRarity(row.Rarity),
+                    AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),
+                    UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
+                    Unlocked = row.Unlocked != 0,
+                    UnlockedBySelf = row.SelfUnlocked != 0,
+                    SelfUnlockTimeUtc = ParseUtc(row.SelfUnlockTimeUtc),
+                    SelfHasGameData = row.SelfHasGameData != 0,
+                    FriendOwnsGame = row.OwnershipConfirmed != 0,
+                    ProgressNum = row.ProgressNum,
+                    ProgressDenom = row.ProgressDenom,
+                    ProviderKey = row.ProviderKey,
+                    AppId = (int)Math.Max(0, row.ProviderGameId ?? 0),
+                    ProviderGameKey = NormalizeProviderGameKey(row.ProviderGameKey),
+                    GameName = presentation.DisplayName ?? row.GameName,
+                    SortingName = presentation.SortingName ?? presentation.DisplayName ?? row.GameName,
+                    PlayniteGameId = playniteGameId,
+                    GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.GameIconPath),
+                    GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.GameCoverPath),
+                    FriendName = row.UserDisplayName,
+                    FriendExternalUserId = row.ExternalUserId,
+                    FriendAvatarPath = !string.IsNullOrWhiteSpace(row.AvatarPath)
+                        ? MakeAbsolutePath(row.AvatarPath)
+                        : row.AvatarUrl
+                };
+
+                if (compare)
+                {
+                    item.ApplyComparison(null, null, ParseUtc(row.CompareUnlockTimeUtc), row.CompareUnlocked != 0, applicable: row.CompareHasGame != 0);
+                }
+
+                FinishFriendItem(item, playniteGameId, row.ProviderCategory, customDataByGameId, baseAppearance);
+                result.Add(item);
+            }
+
+            return result;
+        }
+
+        // Category rollups render the shared CategoryArtPath; the display-path properties fall
+        // back to the game images when no category art exists. Only the per-game locked-icon flag
+        // of the appearance varies; the rest of the snapshot is shared.
+        private void FinishFriendItem(
+            FriendAchievementDisplayItem item,
+            Guid? playniteGameId,
+            string providerCategory,
+            Dictionary<Guid, ResolvedGameCustomData> customDataByGameId,
+            AchievementDisplayItem.AppearanceSettingsSnapshot baseAppearance)
+        {
+            var customData = ResolveFriendAchievementCustomData(playniteGameId, customDataByGameId);
+            AchievementDisplayItem.ApplyCategoryPresentation(
+                item,
+                customData?.AchievementCategoryOrder,
+                customData?.AchievementCategoryImageOverrides,
+                item.CategoryLabel,
+                AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategory),
+                playniteGameId);
+            item.ApplyAppearanceSettings(
+                baseAppearance.WithSeparateLockedIcons(
+                    customData?.UseSeparateLockedIcons ??
+                    GameCustomDataLookup.ShouldUseSeparateLockedIcons(
+                        playniteGameId,
+                        _plugin?.Settings?.Persisted)));
         }
 
         private ResolvedGameCustomData ResolveFriendAchievementCustomData(
