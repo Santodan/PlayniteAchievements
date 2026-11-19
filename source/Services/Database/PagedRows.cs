@@ -97,12 +97,14 @@ namespace PlayniteAchievements.Services.Database
         private bool _changed;
         private bool _realizing;
         private bool _disposed;
+        private bool _keysLoaded;
 
         /// <param name="loadKeys">Runs off the UI thread; the keys of the query's rows in its order.</param>
         /// <param name="loadRows">Runs off the UI thread; the rows of the keys, in their order.</param>
         /// <param name="newPlaceholder">A row standing in for one not loaded yet.</param>
         /// <param name="maxRows">The most rows the list holds; 0 for no cap.</param>
         /// <param name="update">Brings a row or placeholder handed out up to date from a new read of its key; without it the row is replaced.</param>
+        /// <param name="pendingRows">Placeholders the list holds until the first read lands; they read nothing.</param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
@@ -113,7 +115,8 @@ namespace PlayniteAchievements.Services.Database
             int maxRows = 0,
             Func<TimeSpan> window = null,
             Action<Exception> onError = null,
-            Action<T, T> update = null)
+            Action<T, T> update = null,
+            int pendingRows = 0)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
@@ -124,6 +127,7 @@ namespace PlayniteAchievements.Services.Database
             _maxRows = Math.Max(0, maxRows);
             _onError = onError;
             _update = update;
+            _count = Math.Max(0, pendingRows);
             _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
             Reset();
         }
@@ -135,6 +139,9 @@ namespace PlayniteAchievements.Services.Database
         public AchievementQuery Query => _query;
 
         public int Count => _count;
+
+        /// <summary>Whether the first read has not landed yet; until then every row is a placeholder.</summary>
+        public bool IsPending => !_keysLoaded;
 
         /// <summary>
         /// Replaces the query and reloads. With <paramref name="fromStart"/> the rows around the
@@ -163,6 +170,12 @@ namespace PlayniteAchievements.Services.Database
                 if (index < 0 || index >= _count)
                 {
                     throw new ArgumentOutOfRangeException(nameof(index));
+                }
+
+                // Before the first read lands there are no keys to load pages of.
+                if (!_keysLoaded)
+                {
+                    return Peek(index) ?? NewPlaceholder(index);
                 }
 
                 // A read only looks for a load when it wants or keeps a page it did not before.
@@ -212,7 +225,7 @@ namespace PlayniteAchievements.Services.Database
         public void Realized(int index)
         {
             _realizing = true;
-            if (index < 0 || index >= _count)
+            if (!_keysLoaded || index < 0 || index >= _count)
             {
                 return;
             }
@@ -323,6 +336,11 @@ namespace PlayniteAchievements.Services.Database
             {
                 Apply(keys, pages);
             }
+            else if (pages == null && !_keysLoaded)
+            {
+                // A failed first read leaves no placeholders standing.
+                Apply(Array.Empty<AchievementQuerySql.RowKey>(), new Dictionary<int, IReadOnlyList<T>>());
+            }
 
             _resetting = false;
             _applies++;
@@ -345,6 +363,7 @@ namespace PlayniteAchievements.Services.Database
             var count = keys.Count;
             var oldCount = _count;
             _keys = keys;
+            _keysLoaded = true;
             _version++;
             if (Math.Abs(count - _count) > PageSize)
             {
@@ -693,7 +712,7 @@ namespace PlayniteAchievements.Services.Database
                 if (item == null)
                 {
                     item = NewPlaceholder(index);
-                    if (_keptPages.Add(index / PageSize))
+                    if (_keysLoaded && _keptPages.Add(index / PageSize))
                     {
                         LoadNextPage();
                     }
