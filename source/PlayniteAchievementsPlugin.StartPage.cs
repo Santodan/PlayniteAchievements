@@ -361,15 +361,6 @@ namespace PlayniteAchievements
 
             try
             {
-                detail.Append($"projections={_libraryProjectionService?.DescribeCachedProjections() ?? "n/a"} ");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read projection cache stats.");
-            }
-
-            try
-            {
                 var modern = _settingsViewModel?.Settings?.ModernTheme;
                 if (modern != null)
                 {
