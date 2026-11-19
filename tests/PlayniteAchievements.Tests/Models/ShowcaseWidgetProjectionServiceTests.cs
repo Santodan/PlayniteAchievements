@@ -211,7 +211,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                ReadRows = _ => new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     firstAchievement,
                     rareAchievement,
@@ -1237,7 +1237,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                ReadRows = _ => new List<AchievementDisplayItem> { resolved }
+                PinnedRows = new List<AchievementDisplayItem> { resolved }
             };
             var pins = new List<PinnedAchievementReference>
             {
@@ -1274,13 +1274,35 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
+        public void ASnapshot_SaysWhetherItsBuildReadEveryPin_WhateverTheApiNameCase()
+        {
+            var gameId = Guid.NewGuid();
+            var settings = new ShowcaseSettings();
+            settings.AchievementPinCollections[0].Pins = new List<PinnedAchievementReference>
+            {
+                new PinnedAchievementReference { GameId = gameId, ApiName = "First" },
+                new PinnedAchievementReference { GameId = Guid.Empty, ApiName = "no game" }
+            };
+            var snapshot = new OverviewDataSnapshot { PinKeysAtBuild = OverviewDataSnapshot.PinKeys(settings) };
+            CollectionAssert.AreEqual(new[] { "First" }, OverviewDataSnapshot.Pins(settings).Select(pin => pin.ApiName).ToArray(), "the pins the build reads");
+
+            settings.AchievementPinCollections[0].Pins[0].ApiName = "FIRST";
+            Assert.IsTrue(snapshot.HasSeenAchievementPins(settings));
+
+            settings.AchievementPinCollections[0].Pins.Add(new PinnedAchievementReference { GameId = gameId, ApiName = "Second" });
+            Assert.IsFalse(snapshot.HasSeenAchievementPins(settings), "a pin added since the build asks for a rebuild");
+            Assert.IsFalse(new OverviewDataSnapshot().HasSeenAchievementPins(settings));
+            Assert.IsTrue(new OverviewDataSnapshot().HasSeenAchievementPins(new ShowcaseSettings()));
+        }
+
+        [TestMethod]
         public void PinRows_AreReferenceStableAcrossRebuildsOfTheSameSnapshot()
         {
             var gameId = Guid.NewGuid();
             var missingGameId = Guid.NewGuid();
             var snapshot = new OverviewDataSnapshot
             {
-                ReadRows = _ => new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     new AchievementDisplayItem
                     {
@@ -1351,7 +1373,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                ReadRows = _ => new List<AchievementDisplayItem>
+                PinnedRows = new List<AchievementDisplayItem>
                 {
                     defaultAchievement,
                     selectedAchievement
