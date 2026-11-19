@@ -26,7 +26,9 @@ namespace PlayniteAchievements.Services.Database
         // v23: the custom layer tables (CustomLayerAchievements, CustomLayerGames,
         // CustomLayerCategories) are the only store of custom data; the mirror tables earlier
         // versions rebuilt from GameCustomData are dropped.
-        public const int SchemaVersion = 23;
+        // v24: each custom value has one home in those tables; the v23 tables are dropped and
+        // GameCustomData moves in again.
+        public const int SchemaVersion = 24;
 
         /// <summary>The plugin's one database: platform data, metadata and custom data.</summary>
         internal const string DatabaseFileName = "achievement_cache.db";
