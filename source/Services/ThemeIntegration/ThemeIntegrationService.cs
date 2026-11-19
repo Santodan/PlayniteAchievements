@@ -629,7 +629,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         /// </summary>
         public void EnsureLibraryListLoaded(string name)
         {
-            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name) is AchievementQuery query))
+            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements) is AchievementQuery query))
             {
                 return;
             }
@@ -656,11 +656,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        // The rows each library list reads: the library under the summary rules, goals first in
-        // the whole-library lists, in the list's order.
-        private AchievementQuery LibraryListQuery(string name)
+        // The rows each library list reads of the library under the summary rules (all): goals
+        // first in the whole-library lists, in the list's order.
+        internal static AchievementQuery LibraryListQuery(string name, AchievementQuery all, LibraryAchievementViewState view)
         {
-            var all = _achievementDataService.SummaryQuery();
             var descending = name.EndsWith("Desc", StringComparison.Ordinal);
             switch (name)
             {
@@ -675,7 +674,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 case nameof(ModernThemeBindings.RarestRecentUnlocks):
                     return RarestRecentQuery(all);
                 case nameof(ModernThemeBindings.DynamicLibraryAchievements):
-                    var view = _runtimeState.LibraryAchievements;
                     var query = all.WithGoalsFirst().WhereProvider(IsAllScopeKey(view.ProviderKey) ? null : view.ProviderKey);
                     query = !IsAllScopeKey(view.GameKey) && Guid.TryParse(view.GameKey, out var gameId) ? query.ForGames(new[] { gameId }) : query;
                     return DynamicThemeFilterEvaluator.ApplyAchievementSort(
@@ -688,7 +686,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         // The rarest unlocks of the last 180 days, rarest first.
-        private static AchievementQuery RarestRecentQuery(AchievementQuery all) =>
+        internal static AchievementQuery RarestRecentQuery(AchievementQuery all) =>
             all.WhereUnlocked(true).WhereUnlockTimeKnown().WhereUnlockedBetween(DateTime.Today.AddDays(-180), null).OrderBy(AchievementSort.Rarity);
 
         private void ApplyLibraryList(string name, List<AchievementDetail> items)
@@ -727,7 +725,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private void UpdateLibraryListQuery(string name)
         {
             if (_libraryLists.TryGetValue(name, out var list) &&
-                LibraryListQuery(name) is AchievementQuery query &&
+                LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements) is AchievementQuery query &&
                 AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(list.Query))
             {
                 list.SetQuery(query);
