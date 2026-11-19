@@ -278,6 +278,74 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void RealizedRows_ALandedPageFillsOnePlaceholderPerIdleTurn_NearestTheAnchorFirst()
+        {
+            var rows = Create(5000, update: true);
+            _scheduler.Drain();
+            rows.Realized(0);
+
+            // The grid reads each row, then reports it realized.
+            var shown = new List<Row>();
+            for (var index = 2500; index < 2510; index++)
+            {
+                shown.Add(At(rows, index));
+                rows.Realized(index);
+            }
+
+            _scheduler.RunReads();
+            _scheduler.RunUi();
+
+            Assert.IsTrue(shown.All(row => row.IsPlaceholder), "the landed page fills nothing in the same turn");
+            Assert.IsFalse(rows.LoadedItems.Cast<Row>().Any(row => shown.Contains(row)), "a waiting placeholder is not a loaded row");
+            Assert.AreEqual(1, _scheduler.PendingIdle);
+
+            _scheduler.RunIdle();
+
+            Assert.IsFalse(shown[9].IsPlaceholder, "the row the grid realized last fills first");
+            Assert.AreEqual(2509, shown[9].Index);
+            Assert.IsTrue(shown.Take(9).All(row => row.IsPlaceholder), "one row per idle turn");
+
+            _scheduler.Drain();
+
+            for (var offset = 0; offset < shown.Count; offset++)
+            {
+                Assert.AreSame(shown[offset], At(rows, 2500 + offset), "the placeholder handed out becomes the row");
+                Assert.AreEqual(2500 + offset, shown[offset].Index);
+                Assert.AreEqual(1, shown[offset].Updates);
+            }
+        }
+
+        [TestMethod]
+        public void RealizedRows_AWaitingFillOfAPageDroppedSinceIsNotApplied()
+        {
+            var rows = Create(5000, update: true);
+            _scheduler.Drain();
+            rows.Realized(0);
+            var left = At(rows, 2500);
+            rows.Realized(2500);
+            _scheduler.RunReads();
+            _scheduler.RunUi();
+
+            // The thumb moves on before an idle turn comes; the pages near where it stops push
+            // the one it left out of those kept.
+            for (var stop = 3000; stop < 5000; stop += 100)
+            {
+                At(rows, stop);
+                rows.Realized(stop);
+                while (_scheduler.PendingReads > 0)
+                {
+                    _scheduler.RunReads();
+                    _scheduler.RunUi();
+                }
+            }
+
+            _scheduler.Drain();
+
+            Assert.IsTrue(left.IsPlaceholder, "a row the grid has left is not filled once its page is dropped");
+            Assert.AreEqual(0, left.Updates);
+        }
+
+        [TestMethod]
         public void VirtualizedScroll_KeepsAboutTenPages_AndDropsFarOnesWithoutEvents()
         {
             var rows = Create(5000);
