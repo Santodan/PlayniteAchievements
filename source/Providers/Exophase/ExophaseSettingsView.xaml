@@ -87,7 +87,7 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                    <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.10}"
+                    <Border Background="Transparent"
                             CornerRadius="{StaticResource PlayAch.Radius.Card}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Top.Xs}">
