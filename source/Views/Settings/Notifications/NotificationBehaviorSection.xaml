@@ -42,8 +42,7 @@
                             <CheckBox IsChecked="{Binding Persisted.EnableNotifications}"/>
                         </controls:SettingRow>
                         <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                    IsEnabled="{Binding Persisted.EnableNotifications}"
-                                    Grid.IsSharedSizeScope="True">
+                                    IsEnabled="{Binding Persisted.EnableNotifications}">
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableUnlockToasts}">
                                 <CheckBox IsChecked="{Binding Persisted.EnableUnlockToasts}"/>
                             </controls:SettingRow>
@@ -61,8 +60,7 @@
                                 <CheckBox IsChecked="{Binding Persisted.EnableProgressToasts}"/>
                             </controls:SettingRow>
                             <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.EnableProgressToasts}"
-                                        Grid.IsSharedSizeScope="True">
+                                        IsEnabled="{Binding Persisted.EnableProgressToasts}">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent}"
                                                      Hint="{DynamicResource LOCPlayAch_Settings_ProgressToastIntervalPercent_Hint}"
                                                      Margin="0">

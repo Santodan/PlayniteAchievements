@@ -18,12 +18,12 @@
     <Grid Background="Transparent">
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="20">
+            <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
                 <!-- Who this install is on the Workshop: the name shown on submissions and the
                      random key whose hash owns them. No account exists anywhere else, so the key
                      is the only thing that lets another install update the same items. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
-                    <StackPanel Grid.IsSharedSizeScope="True">
+                    <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Workshop_Account}"
                                    Style="{StaticResource SectionHeaderStyle}"
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>

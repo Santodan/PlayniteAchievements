@@ -130,8 +130,7 @@
                         </controls:SettingRow>
 
                         <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                    IsEnabled="{Binding Persisted.EnableUnlockScreenshots}"
-                                    Grid.IsSharedSizeScope="True">
+                                    IsEnabled="{Binding Persisted.EnableUnlockScreenshots}">
                             <!-- Clean variant: independent rarity threshold + completion bypass -->
                             <Border Style="{StaticResource CaptureVariantCardStyle}">
                                 <StackPanel Grid.IsSharedSizeScope="True">
@@ -141,8 +140,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockScreenshotClean}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotClean}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="CleanRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -172,8 +170,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotWithToast}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="WithToastRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -203,8 +200,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockScreenshotFramed}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockScreenshotFramed}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="FramedRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -291,8 +287,7 @@
                         </controls:SettingRow>
 
                         <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                    IsEnabled="{Binding Persisted.EnableUnlockRecordings}"
-                                    Grid.IsSharedSizeScope="True">
+                                    IsEnabled="{Binding Persisted.EnableUnlockRecordings}">
                             <!-- Clip variants mirror the screenshot variants: each has its own rarity
                                  threshold and completion bypass, and shares the screenshot suffixes. -->
                             <Border Style="{StaticResource CaptureVariantCardStyle}">
@@ -303,8 +298,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockRecordingClean}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockRecordingClean}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="RecordingCleanRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -333,8 +327,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockRecordingWithToast}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockRecordingWithToast}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="RecordingRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -363,8 +356,7 @@
                                                    Style="{StaticResource SubSectionHeaderStyle}"/>
                                     </CheckBox>
                                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                                IsEnabled="{Binding Persisted.UnlockRecordingFramed}"
-                                                Grid.IsSharedSizeScope="True">
+                                                IsEnabled="{Binding Persisted.UnlockRecordingFramed}">
                                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CaptureMinimumRarity}">
                                             <Button x:Name="RecordingFramedRaritiesButton"
                                                     Style="{StaticResource AchievementSelectorButtonStyle}"

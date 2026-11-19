@@ -17,13 +17,14 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
             <!-- ================== HOTKEYS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Title}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Description}"
                                Style="{StaticResource MutedTextStyle}"
@@ -37,8 +38,7 @@
                     <!-- Every hotkey row only applies while the master toggle is on, so the whole
                          group carries the IsEnabled rather than each row. -->
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
-                                Grid.IsSharedSizeScope="True">
+                                IsEnabled="{Binding Persisted.EnableAchievementHotkeys}">
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Hotkeys_EnableGlobal}"
                                              Hint="{DynamicResource LOCPlayAch_Hotkeys_GlobalHelp}">
                             <CheckBox IsChecked="{Binding Persisted.EnableGlobalAchievementHotkeys}"/>

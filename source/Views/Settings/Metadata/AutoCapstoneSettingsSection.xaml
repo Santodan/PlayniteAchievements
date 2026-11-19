@@ -49,6 +49,7 @@
                 <StackPanel Grid.IsSharedSizeScope="True">
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Custom_AutoCapstone}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableAutoCapstoneGeneration}"
                                          Hint="{DynamicResource LOCPlayAch_Settings_EnableAutoCapstoneGeneration_Description}">

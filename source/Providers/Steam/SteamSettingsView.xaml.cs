@@ -83,8 +83,8 @@ namespace PlayniteAchievements.Providers.Steam
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             InitializeComponent();
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
         }
 

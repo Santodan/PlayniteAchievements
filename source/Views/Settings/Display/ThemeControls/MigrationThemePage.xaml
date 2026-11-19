@@ -23,6 +23,7 @@
                     <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                Style="{StaticResource MutedTextStyle}"
@@ -189,6 +190,7 @@
                     <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Revert}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <!-- Revertable Theme Dropdown and Revert Button -->
                     <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.SettingRow}">

@@ -37,9 +37,6 @@ namespace PlayniteAchievements.Providers.Xbox
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Xbox"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_Xbox"));
         }
 
         public override void Initialize(IProviderSettings settings)

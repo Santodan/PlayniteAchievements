@@ -46,8 +46,8 @@ namespace PlayniteAchievements.Providers.GuildWars2
             _validateKeyAsync = validateKeyAsync;
             InitializeComponent();
 
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_GW2"));
         }
 

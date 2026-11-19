@@ -53,6 +53,7 @@
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Header}"
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Description}"
                                Style="{StaticResource MutedTextStyle}"

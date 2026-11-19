@@ -27,8 +27,7 @@
                     <CheckBox IsChecked="{Binding Persisted.EnableUnlockSounds}"/>
                 </controls:SettingRow>
                 <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                            IsEnabled="{Binding Persisted.EnableUnlockSounds}"
-                            Grid.IsSharedSizeScope="True">
+                            IsEnabled="{Binding Persisted.EnableUnlockSounds}">
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_UnlockSoundVolume}">
                         <StackPanel Orientation="Horizontal">
                             <Slider Style="{StaticResource SettingsSliderStyle}"

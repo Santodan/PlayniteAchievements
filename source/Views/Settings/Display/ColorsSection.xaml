@@ -22,14 +22,12 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
-            <Border Style="{StaticResource SectionBorderStyle}"
-                    Background="Transparent"
-                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Colors}"
-                               Style="{StaticResource SectionHeaderStyle}"
-                               Margin="0"/>
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 </StackPanel>
             </Border>
 
@@ -40,7 +38,7 @@
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <!-- One list: the built-in palettes (Default first) and the color sets in
                                  the library (.pacolors files saved here, imported or from the

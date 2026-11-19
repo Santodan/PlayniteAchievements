@@ -18,7 +18,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <Grid>
-            <StackPanel Margin="20">
+            <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
                 <!-- Settings Header -->
                 <Border Style="{StaticResource SectionBorderStyle}">
@@ -82,15 +82,16 @@
 
                 <!-- ================== PRIORITY ================== -->
                 <!-- Every surface follows this order, so it sits on the first page. -->
-                <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <Border Style="{StaticResource SectionBorderStyle}">
                     <ContentControl x:Name="PriorityEditorHost" Focusable="False"/>
                 </Border>
 
                 <!-- ================== FRIENDS ================== -->
-                <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
                                    Style="{StaticResource SectionHeaderStyle}"/>
+                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnableFriendsFeatures}"
                                              Margin="0">
@@ -100,10 +101,11 @@
                 </Border>
 
                 <!-- ================== LANGUAGE ================== -->
-                <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+                <Border Style="{StaticResource SectionBorderStyle}">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
                                    Style="{StaticResource SectionHeaderStyle}"/>
+                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_Language}"
                                              Hint="{DynamicResource LOCPlayAch_Settings_LanguageHint}"

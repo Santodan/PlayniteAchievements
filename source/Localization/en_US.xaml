@@ -903,14 +903,12 @@
 
     <!-- Provider: Game Jolt -->
     <sys:String x:Key="LOCPlayAch_Settings_GameJolt_Help">Log in to Game Jolt in the browser window to read your unlocked trophies. Game Jolt achievements are only tracked for games added by the Game Jolt Library extension, or for games given a manual Game Jolt game ID in Manage Achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GameJolt_Note">Note: Only your own unlocked trophies are read; Game Jolt does not expose achievements without signing in.</sys:String>
 
     <!-- Provider: Meta Quest -->
     <sys:String x:Key="LOCPlayAch_Settings_Meta_Help">Log in to Meta in the browser window to read your unlocked achievements. Meta Quest achievements are tracked for games added by the Meta Quest/Oculus Library extension, or for games given a manual Meta app ID in Manage Achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Meta_Note">Note: Meta records the day an achievement was unlocked but not the time, and publishes no completion rates, so Meta Quest achievements show no unlock time and no rarity.</sys:String>
 
     <!-- Provider: Exophase -->
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authenticate with Exophase to refresh tracked data and choose achievement lists from Exophase.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on checked platforms use Exophase instead of native support. Include games on other platforms individually in Manage Achievements.</sys:String>
@@ -1003,7 +1001,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_SelectedGameGridSort">Selected Game Grid</sys:String>
 
     <!-- Provider: Shared -->
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderAuth">{0} Authentication</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} not configured.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} Connection</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">This platform is disabled. Enable it to track achievements.</sys:String>
