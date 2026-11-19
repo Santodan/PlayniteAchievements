@@ -268,7 +268,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(2, optionReads.Count, "one category and one tag totals read");
             Assert.IsTrue(optionReads.All(read => read.Key.Unlocked == null && read.Key.FriendAccounts.Single().Key == "steam|alice"));
             CollectionAssert.AreEqual(new[] { "Missable" }, typeFilter.Options.ToArray());
-            CollectionAssert.AreEquivalent(new[] { "Side", "Locked Only" }, categoryFilter.Options.ToArray());
+            CollectionAssert.AreEqual(new[] { "Side", "Locked Only" }, categoryFilter.Options.ToArray(), "definition order, not by name");
 
             typeFilter.SetSelected("Missable", true);
             h.Settle();
@@ -304,16 +304,70 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             using var h = new Harness(CreateData()).Load();
 
+            h.Vm.AchievementSearchText = "b";
             h.Vm.AchievementSearchText = "bob";
+            h.Settle();
+            Assert.IsNull(h.Query.SearchText, "typing waits for a pause");
+
+            var keyReads = h.Reads.KeyReads.Count;
+            h.Scheduler.Elapse();
             h.Settle();
 
             Assert.AreEqual("bob", h.Query.SearchText);
+            Assert.AreEqual(keyReads + 1, h.Reads.KeyReads.Count, "one read for the last text");
             CollectionAssert.AreEqual(new[] { "Bob Game One" }, h.Rows);
 
             h.Vm.ClearAchievementSearch();
+            h.Scheduler.Elapse();
             h.Settle();
             Assert.IsNull(h.Query.SearchText);
             Assert.AreEqual(4, h.Rows.Length);
+        }
+
+        [TestMethod]
+        public void FriendSortAndSearch_FollowTheShownNickname()
+        {
+            using var h = new Harness(CreateData(), settings =>
+            {
+                settings.FriendNameDisplayMode = FriendNameDisplayMode.Nickname;
+                settings.AddOrUpdateFriend(new FriendIdentity
+                {
+                    ProviderKey = "Steam",
+                    ExternalUserId = "bob",
+                    DisplayName = "Bob",
+                    ProviderNickname = "Zed"
+                });
+            }).Load();
+
+            h.Vm.SortAchievements("FriendName", ListSortDirection.Ascending);
+            h.Settle();
+            Assert.AreEqual("Zed", h.Query.FriendNames.Single(name => name.Key.ExternalUserId == "bob").Value);
+            Assert.AreEqual("Bob Game One", h.Rows.Last(), "Zed sorts after Cora");
+            Assert.AreEqual("Zed", h.Vm.DisplayedAchievements.Last().FriendName);
+
+            h.Vm.AchievementSearchText = "zed";
+            h.Scheduler.Elapse();
+            h.Settle();
+            CollectionAssert.AreEqual(new[] { "Bob Game One" }, h.Rows);
+        }
+
+        [TestMethod]
+        public void DuringAFriendRefresh_FeedChangesRereadAfterALongerWindow()
+        {
+            using var h = new Harness(CreateData()).Load();
+            var change = FriendCacheChange.ForFriendGameAchievements("Steam", "alice", 20, null);
+
+            h.Reads.Feed.RaiseFriendChange(change);
+            h.Settle();
+            Assert.IsTrue(h.Scheduler.Delays.Count > 0 && h.Scheduler.Delays.All(delay => delay < TimeSpan.FromSeconds(1)));
+            h.Scheduler.Elapse();
+            h.Settle();
+            h.Scheduler.Delays.Clear();
+
+            h.Vm.IsRefreshing = true;
+            h.Reads.Feed.RaiseFriendChange(change);
+            h.Settle();
+            Assert.IsTrue(h.Scheduler.Delays.Count > 0 && h.Scheduler.Delays.All(delay => delay == TimeSpan.FromSeconds(3)));
         }
 
         [TestMethod]
@@ -368,6 +422,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             h.Select(friend: h.Friend("Alice"), game: data.Games[1]);
             h.Vm.AchievementSearchText = "does not match";
+            h.Scheduler.Elapse();
             h.Settle();
 
             Assert.AreEqual(0, h.Vm.DisplayedAchievements.Count);
