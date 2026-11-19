@@ -46,7 +46,8 @@
                             Visibility="{Binding Persisted.EnableAchievementViewItemControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <StackPanel Orientation="Horizontal">
                                 <modern:AchievementViewItemControl Width="60" ShowProgressBar="False" Margin="0,0,16,0"
                                     Style="{StaticResource PreviewThemeControlStyle}"
