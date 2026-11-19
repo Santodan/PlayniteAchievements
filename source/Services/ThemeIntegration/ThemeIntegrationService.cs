@@ -96,7 +96,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // The friend lists and the rows of the friend scope, read once a theme binds friend data.
         private IReadScheduler _friendScheduler;
         private LiveQuery<FriendsOverviewLists> _friendLists;
-        private LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>> _friendRows;
+        private PagedRows<FriendAchievementDisplayItem> _friendRows;
 
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
@@ -595,7 +595,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result))
                 {
-                    ApplyFriendState(new FriendRuntimeState(_friendLists.Result, _runtimeState.Friends?.Rows));
+                    ApplyFriendState(new FriendRuntimeState(_friendLists.Result));
                 }
             };
         }
@@ -605,6 +605,31 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             _friendLists?.SetQuery(_friendLists.Query);
             _friendRows?.SetQuery(_friendRows.Query);
+        }
+
+        /// <summary>
+        /// The rows of the friend scope, as the Friends Overview grid reads them: every friend's
+        /// unlocks with a time, a provider, friend or game's unlocks, or a friend and game's every
+        /// achievement; then the list's filter and sort.
+        /// </summary>
+        private AchievementQuery FriendRowsQuery(FriendRuntimeState state)
+        {
+            var scope = _runtimeState.FriendScope;
+            var friend = state.Lists.FindFriend(scope.UserKey);
+            var game = state.Lists.FindGame(scope.GameKey);
+            var query = FriendsOverviewLists.Scope(AchievementQuery.AllFriends, friend, game)
+                .WithFriendNames(state.Lists.FriendNames)
+                .WhereProvider(FriendOverviewProjection.IsAllScope(scope.ProviderKey) ? null : scope.ProviderKey);
+            query = friend != null && game != null
+                ? query
+                : friend != null || game != null || !FriendOverviewProjection.IsAllScope(scope.ProviderKey)
+                    ? query.WhereUnlocked(true)
+                    : query.WhereUnlocked(true).WhereUnlockTimeKnown();
+            var view = _runtimeState.FriendAchievements;
+            return DynamicThemeFilterEvaluator.ApplyAchievementSort(
+                DynamicThemeFilterEvaluator.ApplyAchievementFilters(query, view.FilterKey),
+                view.SortKey,
+                view.SortDirectionKey);
         }
 
         // A refresh writes every few hundred milliseconds; its changes are read every few seconds.
@@ -2561,9 +2586,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
 
-        // Points the rows read at the scope, as the Friends Overview grid reads it: every friend's
-        // unlocks with a time, newest first; a provider, friend or game's unlocks; or a friend and
-        // game's every achievement.
+        // Reads the scope's rows once friend lists are loaded; the theme's list virtualizes them.
         private void UpdateFriendRowsQuery(FriendRuntimeState state)
         {
             var reads = _friendCache?.FriendReads;
@@ -2572,44 +2595,33 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            var scope = _runtimeState.FriendScope;
-            var friend = state.Lists.FindFriend(scope.UserKey);
-            var game = state.Lists.FindGame(scope.GameKey);
-            var query = FriendsOverviewLists.Scope(AchievementQuery.AllFriends, friend, game);
-            query = friend != null && game != null
-                ? query.OrderBy(AchievementSort.Display)
-                : friend != null || game != null || !FriendOverviewProjection.IsAllScope(scope.ProviderKey)
-                    ? query.WhereUnlocked(true).OrderBy(AchievementSort.Display)
-                    : query.WhereUnlocked(true).WhereUnlockTimeKnown().OrderBy(AchievementSort.UnlockTime, descending: true);
+            var query = FriendRowsQuery(state);
             if (_friendRows != null)
             {
                 if (AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(_friendRows.Query))
                 {
-                    _friendRows.SetQuery(query);
+                    _friendRows.SetQuery(query, fromStart: true);
                 }
 
                 return;
             }
 
-            _friendRows = new LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>>(
+            _friendRows = new PagedRows<FriendAchievementDisplayItem>(
                 reads.Feed,
                 query,
-                read =>
+                reads.SortedKeys,
+                (read, keys) =>
                 {
-                    var rows = reads.Rows(read);
+                    var rows = reads.Rows(read, keys);
                     (_friendLists?.Result ?? FriendsOverviewLists.Empty).StampIdentity(rows, _settings?.Persisted);
+                    AttachFriendAchievementCommands(rows);
                     return rows;
                 },
+                () => new FriendAchievementDisplayItem { IsPlaceholder = true },
                 _friendScheduler,
-                FriendReadWindow,
-                ex => _logger?.Error(ex, "Failed to load friend theme rows."));
-            _friendRows.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(LiveQuery<object>.Result))
-                {
-                    ApplyFriendState(new FriendRuntimeState(_runtimeState.Friends.Lists, _friendRows.Result));
-                }
-            };
+                window: FriendReadWindow,
+                onError: ex => _logger?.Error(ex, "Failed to load friend theme rows."));
+            _settings.ModernTheme.DynamicFriendAchievements = _friendRows;
         }
 
         private void ApplyFriendState(FriendRuntimeState state)
@@ -3694,13 +3706,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var scope = _runtimeState.FriendScope;
             var friendItems = BuildDynamicFriendSummaries(state, _runtimeState.FriendSummaries);
             var gameItems = BuildDynamicFriendGameSummaries(state, _runtimeState.FriendGameSummaries);
-            var achievementItems = BuildDynamicFriendAchievements(state, _runtimeState.FriendAchievements);
             AttachFriendSummaryCommands(friendItems);
-            AttachFriendAchievementCommands(achievementItems);
 
             _settings.ModernTheme.DynamicFriendSummaries = new ObservableCollection<FriendSummaryItem>(friendItems);
             _settings.ModernTheme.DynamicFriendGameSummaries = ProjectFriendGameSummaries(gameItems);
-            _settings.ModernTheme.DynamicFriendAchievements = new ObservableCollection<FriendAchievementDisplayItem>(achievementItems);
 
             _settings.ModernTheme.DynamicFriendScopeProviderKey = scope.ProviderKey;
             _settings.ModernTheme.DynamicFriendScopeProviderLabel = DynamicThemeLabels.GetProviderLabel(scope.ProviderKey);
@@ -4145,43 +4154,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return FriendGameSummarySortTable.Sort(source, viewState).ToList();
         }
 
-        private List<FriendAchievementDisplayItem> BuildDynamicFriendAchievements(
-            FriendRuntimeState state,
-            FriendAchievementViewState viewState)
-        {
-            if (state == null || !state.HasData)
-            {
-                return new List<FriendAchievementDisplayItem>();
-            }
-
-            // The rows of the scope's read; while a new scope's read runs, the last rows that
-            // fall in it.
-            var scope = _runtimeState.FriendScope;
-            var selectedFriend = state.Lists.FindFriend(scope.UserKey);
-            var selectedGame = state.Lists.FindGame(scope.GameKey);
-            IEnumerable<FriendAchievementDisplayItem> source = state.Rows;
-            source = ApplyProviderFilter(source, scope.ProviderKey, item => item.ProviderKey);
-            if (selectedFriend != null)
-            {
-                source = source.Where(achievement => FriendOverviewProjection.IsSameFriend(achievement, selectedFriend));
-            }
-
-            if (selectedGame != null)
-            {
-                source = source.Where(achievement => FriendOverviewProjection.IsSameGame(achievement, selectedGame));
-            }
-
-            source = ApplyDynamicFilterPredicates(
-                source,
-                viewState.FilterKey,
-                FriendAchievementFilterPredicates,
-                // User tags are not in the listed keys but still filter.
-                key => AchievementClassificationFilter.IsFilterKey(key)
-                    ? item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key)
-                    : (Func<FriendAchievementDisplayItem, bool>)null);
-            return FriendAchievementSortTable.Sort(source, viewState).ToList();
-        }
-
         /// <summary>
         /// Apply the composable filter keys of a filter expression to a dynamic collection using
         /// a per-item-type predicate table. Keys without a predicate are ignored.
@@ -4189,8 +4161,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private static IEnumerable<T> ApplyDynamicFilterPredicates<T>(
             IEnumerable<T> source,
             string filterKey,
-            IReadOnlyDictionary<string, Func<T, bool>> predicates,
-            Func<string, Func<T, bool>> fallback = null)
+            IReadOnlyDictionary<string, Func<T, bool>> predicates)
         {
             var items = source ?? Enumerable.Empty<T>();
             foreach (var key in DynamicThemeFilterExpression.Enumerate(filterKey))
@@ -4200,8 +4171,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                var predicate = predicates.TryGetValue(key, out var listed) ? listed : fallback?.Invoke(key);
-                if (predicate != null)
+                if (predicates.TryGetValue(key, out var predicate))
                 {
                     items = items.Where(predicate);
                 }
@@ -4229,49 +4199,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 [DynamicThemeViewKeys.HasLastUnlock] = item => item?.LastUnlockUtc.HasValue == true,
                 [DynamicThemeViewKeys.NoLastUnlock] = item => item != null && !item.LastUnlockUtc.HasValue,
             };
-
-        private static readonly IReadOnlyDictionary<string, Func<FriendAchievementDisplayItem, bool>> FriendAchievementFilterPredicates =
-            CreateFriendAchievementFilterPredicates();
-
-        private static IReadOnlyDictionary<string, Func<FriendAchievementDisplayItem, bool>> CreateFriendAchievementFilterPredicates()
-        {
-            Func<FriendAchievementDisplayItem, bool> Rarity(string key) =>
-                item => item != null && string.Equals(item.Rarity.ToString(), key, StringComparison.OrdinalIgnoreCase);
-            Func<FriendAchievementDisplayItem, bool> Trophy(string key) =>
-                item => string.Equals(item?.TrophyType, key, StringComparison.OrdinalIgnoreCase);
-            Func<FriendAchievementDisplayItem, bool> Classification(string key) =>
-                item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key);
-
-            var predicates = new Dictionary<string, Func<FriendAchievementDisplayItem, bool>>(StringComparer.Ordinal)
-            {
-                [DynamicThemeViewKeys.Unlocked] = item => item?.Unlocked == true,
-                [DynamicThemeViewKeys.Locked] = item => item != null && !item.Unlocked,
-                [DynamicThemeViewKeys.InProgress] = item => item != null && !item.Unlocked && item.HasProgress,
-                [DynamicThemeViewKeys.NoProgress] = item => item != null && !item.HasProgress,
-                [DynamicThemeViewKeys.HasNotes] = item => !string.IsNullOrWhiteSpace(item?.AchievementNote),
-                [DynamicThemeViewKeys.NoNotes] = item => string.IsNullOrWhiteSpace(item?.AchievementNote),
-                [DynamicThemeViewKeys.Capstone] = item => item?.IsCapstone == true,
-                [DynamicThemeViewKeys.Common] = Rarity(DynamicThemeViewKeys.Common),
-                [DynamicThemeViewKeys.Uncommon] = Rarity(DynamicThemeViewKeys.Uncommon),
-                [DynamicThemeViewKeys.Rare] = Rarity(DynamicThemeViewKeys.Rare),
-                [DynamicThemeViewKeys.UltraRare] = Rarity(DynamicThemeViewKeys.UltraRare),
-                [DynamicThemeViewKeys.Platinum] = Trophy(DynamicThemeViewKeys.Platinum),
-                [DynamicThemeViewKeys.Gold] = Trophy(DynamicThemeViewKeys.Gold),
-                [DynamicThemeViewKeys.Silver] = Trophy(DynamicThemeViewKeys.Silver),
-                [DynamicThemeViewKeys.Bronze] = Trophy(DynamicThemeViewKeys.Bronze),
-            };
-
-            // One entry per listed kind and tag, plus the key Side Quest shipped under for themes
-            // that still name it.
-            foreach (var key in DynamicThemeOptionGroups.AchievementCategoryTypeFilterKeys
-                .Where(key => !string.Equals(key, DynamicThemeViewKeys.All, StringComparison.Ordinal))
-                .Concat(new[] { "SideProgression" }))
-            {
-                predicates[key] = Classification(key);
-            }
-
-            return predicates;
-        }
 
         private delegate IOrderedEnumerable<T> DynamicSortPrimary<T>(IEnumerable<T> source, bool descending, StringComparer nameComparer);
 
@@ -4395,34 +4322,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return string.IsNullOrWhiteSpace(item?.SortingName)
                 ? item?.GameName ?? string.Empty
                 : item.SortingName;
-        }
-
-        private static readonly DynamicSortTable<FriendAchievementDisplayItem> FriendAchievementSortTable = CreateFriendAchievementSortTable();
-
-        private static DynamicSortTable<FriendAchievementDisplayItem> CreateFriendAchievementSortTable()
-        {
-            var table = new DynamicSortTable<FriendAchievementDisplayItem>();
-            var tieBreaks = new[]
-            {
-                table.ThenByName(item => item?.FriendName ?? string.Empty),
-                table.ThenByName(item => item?.GameName ?? string.Empty),
-                table.ThenByName(item => item?.DisplayName ?? string.Empty),
-            };
-            table.Add(DynamicThemeViewKeys.Name, table.ByValue<object>(item => item?.DisplayName ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Game, table.ByValue<object>(item => item?.GameName ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Provider, table.ByValue<object>(item => item?.ProviderKey ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Rarity, table.ByValue<object>(item => item?.RaritySortValue ?? double.MaxValue, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Status, table.ByValue<object>(item => item?.Unlocked == true ? 1 : 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Progress, table.ByValue<object>(item => item?.ProgressPercent ?? 0d, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Points, table.ByValue<object>(item => item?.Points ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CollectionScore, table.ByValue<object>(item => item?.CollectionScore ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.PrestigeScore, table.ByValue<object>(item => item?.PrestigeScore ?? 0, tieBreaks));
-            table.Add(DynamicThemeViewKeys.TrophyType, table.ByValue<object>(item => item?.TrophyType ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CategoryType, table.ByValue<object>(item => item?.CategoryType ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.CategoryLabel, table.ByValue<object>(item => item?.CategoryLabel ?? string.Empty, tieBreaks));
-            table.Add(DynamicThemeViewKeys.Notes, table.ByValue<object>(item => item?.AchievementNote ?? string.Empty, tieBreaks));
-            table.SetDefault(table.ByValue<object>(item => item?.UnlockTimeUtc ?? DateTime.MinValue, tieBreaks));
-            return table;
         }
 
         private static readonly DynamicSortTable<GameAchievementSummary> GameSummarySortTable = CreateGameSummarySortTable();
