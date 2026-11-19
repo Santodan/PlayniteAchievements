@@ -266,6 +266,11 @@ namespace PlayniteAchievements.Tests.Views
                 "Views",
                 "Controls",
                 "AchievementCompactItemControl.xaml.cs");
+            // The tile's styles live in a dictionary every tile shares.
+            var itemStyles = ReadRepoFile(
+                "source",
+                "Resources",
+                "AchievementControlStyles.xaml");
             var mosaicViewModel = ReadRepoFile(
                 "source",
                 "ViewModels",
@@ -279,10 +284,12 @@ namespace PlayniteAchievements.Tests.Views
                 "ShowcaseWidgetTemplates.xaml");
 
             Assert.IsFalse(itemXaml.Contains("AncestorType=modern:AchievementCompactListControlBase"));
+            Assert.IsFalse(itemStyles.Contains("AncestorType=modern:AchievementCompactListControlBase"));
             StringAssert.Contains(itemCode, "ShowRarityGlowProperty");
             StringAssert.Contains(itemCode, "AnimateRarityGlowsProperty");
             StringAssert.Contains(itemCode, "UseLargeRarityGlowProperty");
-            StringAssert.Contains(itemXaml, "Converter=\"{StaticResource RarityGlowForTiers}\" ConverterParameter=\"20\"");
+            StringAssert.Contains(itemXaml, "Style=\"{StaticResource PlayAch.CompactItem.SoftGlow}\"");
+            StringAssert.Contains(itemStyles, "Converter=\"{StaticResource RarityGlowForTiers}\" ConverterParameter=\"20\"");
             StringAssert.Contains(mosaicViewModel, "GetMosaicShowRarityGlow");
             StringAssert.Contains(mosaicViewModel, "AnimateRarityGlows");
             StringAssert.Contains(widgetTemplates, "AchievementCompactItemControl");
