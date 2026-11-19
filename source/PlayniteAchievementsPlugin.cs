@@ -81,8 +81,6 @@ namespace PlayniteAchievements
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCacheManager;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly FriendGameAchievementsDataCoordinator _friendGameAchievementsDataCoordinator;
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
         private readonly RayTrackService _rayTrackService;
@@ -1052,19 +1050,6 @@ namespace PlayniteAchievements
                     InitializeIconCacheRelocation();
                     _metadataState.AttachDatabase(_cacheManager as Services.Cache.IMetadataStateDatabase);
                     _friendCacheManager = _cacheManager as Services.Friends.IFriendCacheManager;
-                    _friendsOverviewDataCoordinator = new FriendsOverviewDataCoordinator(
-                        _friendCacheManager,
-                        () => _settingsViewModel?.Settings?.Persisted,
-                        _logger);
-                    _friendGameAchievementsDataCoordinator = new FriendGameAchievementsDataCoordinator(
-                        _friendCacheManager,
-                        () => _settingsViewModel?.Settings?.Persisted,
-                        _logger);
-                    if (_friendCacheManager != null)
-                    {
-                        _friendCacheManager.FriendCacheInvalidated += FriendCacheManager_FriendCacheInvalidated;
-                        _eventSubscriptions.Add(() => _friendCacheManager.FriendCacheInvalidated -= FriendCacheManager_FriendCacheInvalidated);
-                    }
 
                     _cacheManager.CacheInvalidated += (_, args) =>
                     {
@@ -1082,11 +1067,6 @@ namespace PlayniteAchievements
                             InvalidateStartPageData();
                         }
 
-                        // Friend rows carry the user's own unlock state, so the user's changed
-                        // games reach the friends overview as SelfGame scopes it can patch; a
-                        // full invalidation stays full.
-                        InvalidateFriendDataCoordinators(
-                            FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(args));
                         ScheduleRetentionDiagnostics();
                     };
                     // Bitmap eviction is scoped instead of wholesale: normal refreshes never
@@ -1347,8 +1327,6 @@ namespace PlayniteAchievements
                         _manualSourceRegistry,
                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                         _fullscreenControllerNavigationService,
-                        _friendsOverviewDataCoordinator,
-                        _friendGameAchievementsDataCoordinator,
                         // Deliberately the field, not GetStartPageDataCoordinator(): publishing
                         // is an optimization for widget hosts that already exist. Creating the
                         // coordinator here would stand up a process-lifetime service holding a
@@ -1402,7 +1380,6 @@ namespace PlayniteAchievements
                         _windowService.RunRefreshWithGlobalProgressAsync,
                         gameId => _windowService.OpenManageAchievementsView(gameId, ManageAchievementsTab.Overview),
                         _cacheManager as Services.Friends.IFriendCacheManager,
-                        _friendsOverviewDataCoordinator,
                         _achievementHotkeyTargetResolver.ResolveRunningGame,
                         ToggleAchievementCapstoneFromTheme,
                         target => _achievementMarkerToggle.ToggleGoal(target),
@@ -1479,7 +1456,7 @@ namespace PlayniteAchievements
                 Opened = () =>
                 {
                     return new OverviewHostControl(
-                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _libraryProjectionService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, _friendsOverviewDataCoordinator, () => _startPageDataCoordinator),
+                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _libraryProjectionService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, () => _startPageDataCoordinator),
                         _logger,
                         PlayniteApi,
                         _refreshService,
@@ -2354,7 +2331,7 @@ namespace PlayniteAchievements
 
             if (ShouldInvalidateFriendDataForSetting(e.PropertyName))
             {
-                InvalidateFriendDataCoordinators();
+                _themeIntegrationService?.ReloadFriendThemeData();
             }
 
             if (e.PropertyName == nameof(PersistedSettings.RefreshExclusionFilterPresetIds) ||
@@ -2380,24 +2357,10 @@ namespace PlayniteAchievements
             AchievementRarityResolver.RoundDisplayPercentages = persisted?.RoundRarityPercentages ?? false;
             FormattingCulture.Refresh();
             _achievementHotkeyService?.RefreshConfiguration();
-            InvalidateFriendDataCoordinators();
+            _themeIntegrationService?.ReloadFriendThemeData();
             InvalidateStartPageData();
             _tagSyncService?.InitializeAndSubscribeTaggingSettings();
             _filterExclusionRules?.QueueAll();
-        }
-
-        private void FriendCacheManager_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
-        {
-            InvalidateFriendDataCoordinators(e);
-        }
-
-        // Settings-driven callers pass no args (projection-affecting settings need a full
-        // rebuild); cache-driven callers pass the change scope through so the overview
-        // coordinator can patch instead of reloading everything.
-        private void InvalidateFriendDataCoordinators(FriendCacheInvalidatedEventArgs args = null)
-        {
-            _friendsOverviewDataCoordinator?.Invalidate(args);
-            _friendGameAchievementsDataCoordinator?.Invalidate();
         }
 
         private static bool ShouldInvalidateFriendDataForSetting(string propertyName)
@@ -2510,8 +2473,6 @@ namespace PlayniteAchievements
             try { _fullscreenControllerNavigationService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose fullscreenControllerNavigationService"); }
             try { _fullscreenWindowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose fullscreenWindowService"); }
             try { _themeIntegrationService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose themeIntegrationService"); }
-            try { _friendGameAchievementsDataCoordinator?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose friendGameAchievementsDataCoordinator"); }
-            try { _friendsOverviewDataCoordinator?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose friendsOverviewDataCoordinator"); }
             DisposeStartPageViews();
 
             // Shutdown logging system
@@ -2959,11 +2920,6 @@ namespace PlayniteAchievements
             {
                 _logger?.Debug(ex, $"Failed to refresh theme state after custom-data change for gameId={gameId}.");
             }
-
-            // The per-game friend comparison caches its snapshot until something invalidates it,
-            // and its rows carry this game's own category labels. Nothing else on this path
-            // reached it, so a category edit stayed out of that window even across a reopen.
-            _friendGameAchievementsDataCoordinator?.InvalidateGame(gameId);
 
             if (affectsSummaryData)
             {
