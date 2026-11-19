@@ -674,14 +674,14 @@ namespace PlayniteAchievements.Views.Controls
 
         /// <summary>
         /// Identifies the FixedRowHeight dependency property.
-        /// Null or NaN keeps the existing automatic row sizing.
+        /// Null or NaN keeps the automatic row height (see AchievementDataGridControl.RowHeight.cs).
         /// </summary>
         public static readonly DependencyProperty FixedRowHeightProperty =
             DependencyProperty.Register(nameof(FixedRowHeight), typeof(double?),
                 typeof(AchievementDataGridControl), new PropertyMetadata(null, OnRowSizingChanged));
 
         /// <summary>
-        /// Gets or sets a fixed DataGrid row height. Null keeps automatic sizing.
+        /// Gets or sets a fixed DataGrid row height. Null keeps the automatic row height.
         /// </summary>
         public double? FixedRowHeight
         {
@@ -2920,6 +2920,7 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            TrackArtColumns();
             // The category grids' key binds to this control directly: an ancestor binding in
             // XAML only resolves once they join the visual tree, after they have prepared their
             // columns under their own default key, writing into the Overview game list's record.
@@ -3556,7 +3557,7 @@ namespace PlayniteAchievements.Views.Controls
                 rows.Realized(e.Row.GetIndex());
             }
 
-            ApplyFixedRowHeight(e.Row);
+            ApplyRowHeight(e.Row);
             ApplyRowHighlight(e.Row);
         }
 
@@ -3576,7 +3577,7 @@ namespace PlayniteAchievements.Views.Controls
 
             foreach (var row in presenter.Children.OfType<DataGridRow>())
             {
-                ApplyFixedRowHeight(row);
+                ApplyRowHeight(row);
                 ApplyRowHighlight(row);
             }
         }
@@ -3596,39 +3597,6 @@ namespace PlayniteAchievements.Views.Controls
             {
                 row.ClearValue(Control.BackgroundProperty);
             }
-        }
-
-        private void ApplyFixedRowHeight(DataGridRow row)
-        {
-            if (row == null)
-            {
-                return;
-            }
-
-            var fixedHeight = ResolveFixedRowHeight();
-            if (fixedHeight.HasValue)
-            {
-                row.Height = fixedHeight.Value;
-                row.MinHeight = fixedHeight.Value;
-                return;
-            }
-
-            row.ClearValue(FrameworkElement.HeightProperty);
-            row.ClearValue(FrameworkElement.MinHeightProperty);
-        }
-
-        private double? ResolveFixedRowHeight()
-        {
-            var height = FixedRowHeight;
-            if (!height.HasValue ||
-                double.IsNaN(height.Value) ||
-                double.IsInfinity(height.Value) ||
-                height.Value <= 0)
-            {
-                return null;
-            }
-
-            return Math.Max(PersistedSettings.MinimumGridRowHeight, height.Value);
         }
 
         private void AttachColumnPersistence()
