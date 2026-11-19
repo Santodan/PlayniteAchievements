@@ -135,6 +135,8 @@ namespace PlayniteAchievements.Views.Showcase
         private bool _projectedOnce;
         private int _applyDrainApplied;
         private long _applyDrainStartedTicks;
+        private long _applyDrainFirstPassTicks;
+        private long _applyDrainPassTicks;
         private long _applyPassEndedTicks;
 
         // Edit-mode size labels: each column's width along the top edge, each row's height along
@@ -2215,6 +2217,8 @@ namespace PlayniteAchievements.Views.Showcase
             if (_applyQueue.Count == 0)
             {
                 _applyDrainStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+                _applyDrainFirstPassTicks = 0;
+                _applyDrainPassTicks = 0;
                 _applyDrainApplied = 0;
                 // Tracing only: name the dispatcher operations that run between the widget
                 // passes (layout and render ticks, Loaded broadcasts, image completions).
@@ -2256,6 +2260,12 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            var passStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_applyDrainFirstPassTicks == 0)
+            {
+                _applyDrainFirstPassTicks = passStartedTicks;
+            }
+
             try
             {
                 while (_applyQueue.Count > 0)
@@ -2270,6 +2280,14 @@ namespace PlayniteAchievements.Views.Showcase
                     var snapshot = _host.SnapshotFor(request.Widget);
                     if (request.SnapshotOnly && IsProjectedFrom(request.Host, snapshot))
                     {
+                        continue;
+                    }
+
+                    // No snapshot yet: the host keeps its skeleton, which costs no layout, so it
+                    // neither takes a pass of its own nor counts as an applied widget.
+                    if (snapshot == null)
+                    {
+                        request.Host.ShowLoadingPlaceholder();
                         continue;
                     }
 
@@ -2300,15 +2318,21 @@ namespace PlayniteAchievements.Views.Showcase
             }
             finally
             {
+                _applyDrainPassTicks += System.Diagnostics.Stopwatch.GetTimestamp() - passStartedTicks;
                 if (_applyQueue.Count > 0)
                 {
                     ScheduleApplyDrain();
                 }
                 else if (_applyDrainApplied > 0 && PerfScope.PerfTracingEnabled)
                 {
-                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L /
-                                    System.Diagnostics.Stopwatch.Frequency;
-                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs}");
+                    // ms is wall time from the first request to the last pass, so it holds every
+                    // layout and render the drain yielded to (on an open, the whole overview's);
+                    // waitMs is the part before the first pass ran, passMs the drain's own passes.
+                    var frequency = System.Diagnostics.Stopwatch.Frequency;
+                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L / frequency;
+                    var waitMs = (_applyDrainFirstPassTicks - _applyDrainStartedTicks) * 1000L / frequency;
+                    var passMs = _applyDrainPassTicks * 1000L / frequency;
+                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs} waitMs={waitMs} passMs={passMs}");
                     _applyDrainApplied = 0;
                 }
             }
