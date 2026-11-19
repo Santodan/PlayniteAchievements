@@ -503,6 +503,26 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add("r.ExcludedFromSummaries = 0 AND r.IsFiltered = 0 AND r.IsSummaryFiltered = 0");
             }
 
+            if (query.ProviderKey != null)
+            {
+                conditions.Add(ProviderSql + " = ? COLLATE NOCASE");
+                args.Add(query.ProviderKey);
+            }
+
+            foreach (var group in query.KeyGroups ?? Array.Empty<IReadOnlyList<string>>())
+            {
+                conditions.Add(group.Count == 0 ? "0" : "(" + string.Join(" OR ", group.Select(key => KeyCondition(key, args))) + ")");
+            }
+
+            if (query.Achievements != null)
+            {
+                conditions.Add(query.Achievements.Count == 0
+                    ? "0"
+                    : "r.PlayniteGameId IN (" + string.Join(", ", query.Achievements.Select(pair => pair.Key).Distinct().Select(id => "'" + id.ToString("D") + "'")) +
+                      ") AND " + InList("r.PlayniteGameId || char(31) || r.ApiName",
+                          query.Achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value).ToList(), args));
+            }
+
             if (query.RequireUnlockTime)
             {
                 conditions.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
@@ -529,6 +549,57 @@ namespace PlayniteAchievements.Services.Database
             return @"
             WHERE " + string.Join(@"
               AND ", conditions);
+        }
+
+        // A row's game provider: its platform key, else its provider key, else for an authored row
+        // its Playnite game's.
+        private const string ProviderSql =
+            "COALESCE(NULLIF(TRIM(g.ProviderPlatformKey), ''), r.ProviderKey, (SELECT COALESCE(NULLIF(TRIM(pg.ProviderPlatformKey), ''), pg.ProviderKey) " +
+            "FROM Games pg WHERE pg.PlayniteGameId = r.PlayniteGameId LIMIT 1))";
+
+        private const string HasProgressSql = "(r.ProgressNum IS NOT NULL AND r.ProgressDenom > 0)";
+
+        private const string HasNoteSql = "TRIM(COALESCE(r.Note, '')) <> ''";
+
+        // One key of AchievementQuery.KeyGroups.
+        private static string KeyCondition(string key, List<object> args)
+        {
+            switch (key)
+            {
+                case "Unlocked":
+                    return "r.Unlocked = 1";
+                case "Locked":
+                    return "r.Unlocked = 0";
+                case "Visible":
+                    return "COALESCE(r.Hidden, 0) = 0";
+                case "Hidden":
+                    return "r.Hidden = 1";
+                case "InProgress":
+                    return "(r.Unlocked = 0 AND " + HasProgressSql + ")";
+                case "NoProgress":
+                    return "NOT " + HasProgressSql;
+                case "HasNotes":
+                    return HasNoteSql;
+                case "NoNotes":
+                    return "NOT " + HasNoteSql;
+                case "Capstone":
+                    return "r.IsCapstone = 1";
+                case "Common":
+                case "Uncommon":
+                case "Rare":
+                case "UltraRare":
+                    args.Add(key);
+                    return RarityTierSql + " = ?";
+                case "Platinum":
+                case "Gold":
+                case "Silver":
+                case "Bronze":
+                    args.Add(key.ToLowerInvariant());
+                    return TrophySql + " = ?";
+                default:
+                    args.Add(key);
+                    return "pa_classified(r.CategoryKind, r.Tags, ?) = 1";
+            }
         }
 
         // The name a friend row shows: the one From joins for a named account, else the stored one.
@@ -622,7 +693,12 @@ namespace PlayniteAchievements.Services.Database
         private const string TrophyRankSql =
             "CASE LOWER(TRIM(r.TrophyType)) WHEN 'platinum' THEN 4 WHEN 'gold' THEN 3 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 1 ELSE 0 END";
 
-        private static string OrderBy(AchievementQuery query)
+        private static string OrderBy(AchievementQuery query) =>
+            (query.GoalsFirst
+                ? "CASE WHEN r.IsGoal = 1 AND r.Unlocked = 0 THEN 0 ELSE 1 END, CASE WHEN r.IsGoal = 1 AND r.Unlocked = 0 THEN r.GoalOrder END, "
+                : string.Empty) + SortOrder(query);
+
+        private static string SortOrder(AchievementQuery query)
         {
             var direction = query.Descending ? " DESC" : " ASC";
             var friend = query.Friends ? FriendName(query) + " COLLATE NOCASE, " : string.Empty;
@@ -661,6 +737,13 @@ namespace PlayniteAchievements.Services.Database
                     return "pa_collection(r.Rarity)" + direction + tieBreak;
                 case AchievementSort.PrestigeScore:
                     return "pa_prestige(r.GlobalPercentUnlocked, r.Rarity)" + direction + tieBreak;
+                case AchievementSort.Provider:
+                    return ProviderSql + " COLLATE NOCASE" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Progress:
+                    return "CASE WHEN r.Unlocked = 1 THEN 1.0 WHEN " + HasProgressSql + " THEN MIN(1.0, 1.0 * r.ProgressNum / r.ProgressDenom) ELSE 0 END" +
+                           direction + ", " + unlock + tieBreak;
+                case AchievementSort.Status:
+                    return "r.Unlocked" + direction + ", " + unlock + tieBreak;
                 default:
                     return friend + "r.GameName, r.PlayniteGameId, " + display + ", r.UserId";
             }
