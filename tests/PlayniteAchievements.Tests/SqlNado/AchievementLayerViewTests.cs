@@ -46,7 +46,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Definition(db, "custom", "Own", "Desc", 10, "Steam", null, "Softcore|Unobtainable", null, "Common");
                 Metadata(db, "custom", displayName: "Borrowed", points: 50, tags: "Collectable");
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, Category, Tags, Cleared, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, Category, Tags, Cleared, UpdatedUtc)
                       VALUES (?, 'custom', 'Mine', 'My Story', 'Challenge', ?, '');",
                     GameId,
                     (long)AchievementField.Description);
@@ -147,7 +147,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (1, ?, 1);", wonId);
                 db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (2, ?, 0);", wonId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, Note, GoalOrder, CustomOrder, IsFiltered, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Note, GoalOrder, CustomOrder, IsFiltered, UpdatedUtc)
                       VALUES (?, 'open', 'route note', 0, 3, 1, '');",
                     GameId);
 
@@ -192,15 +192,15 @@ namespace PlayniteAchievements.SqlNado.Tests
                     "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (1, ?, 1, '2025-01-01T00:00:00Z');",
                     wonId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, UnlockedIconPath, UnlockTimeUtc, CapstoneAssigned, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, UnlockedIconPath, UnlockTimeUtc, CapstoneAssigned, UpdatedUtc)
                       VALUES (?, 'won', 'custom/won.png', '2026-02-02T00:00:00Z', 1, '');",
                     GameId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, Category, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, Category, UpdatedUtc)
                       VALUES (?, 'custom:mine', 'Mine', 1, 1, 'Side', '');",
                     GameId);
-                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
-                db.ExecuteNonQuery("INSERT INTO AchievementCategories (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerCategories (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
                 db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
 
                 var rows = db.Load<GapRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + ";").ToList();
@@ -260,7 +260,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             WithDatabase(db =>
             {
                 SeedUnlocksAndOverrides(db);
-                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, HasManualLink) VALUES (?, 1);", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, HasManualLink) VALUES (?, 1);", GameId);
 
                 var mine = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " WHERE IsCurrentUser = 1 AND IsAuthored = 0 ORDER BY " + AchievementLayerSql.DisplayOrderSql + ";").ToList();
 
@@ -289,7 +289,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 db.ExecuteNonQuery(
                     "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) SELECT 3, Id, 1, '2023-01-01T00:00:00Z' FROM PlatformDefinitions WHERE ApiName = 'exo';");
                 db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
-                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, ExcludedFromSummaries) VALUES (?, 1);", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, ExcludedFromSummaries) VALUES (?, 1);", GameId);
                 CollectionAssert.DoesNotContain(
                     db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", AchievementLayerSql.AllUsersViewName).Select(row => row.Sql).ToList(),
                     "DisplayOrder",
@@ -320,13 +320,13 @@ namespace PlayniteAchievements.SqlNado.Tests
                   SELECT 1, Id, 1, '2025-01-01T00:00:00Z' FROM PlatformDefinitions
                   UNION ALL SELECT 2, Id, 1, CASE ApiName WHEN 'won' THEN '2024-05-05T00:00:00Z' ELSE '2024-06-06T00:00:00Z' END FROM PlatformDefinitions;");
             db.ExecuteNonQuery(
-                @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, UnlockTimeUtc, Cleared, UpdatedUtc)
+                @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, UnlockTimeUtc, Cleared, UpdatedUtc)
                   VALUES (?, 'won', '2026-02-02T00:00:00Z', 0, ''), (?, 'open', NULL, ?, '');",
                 GameId,
                 GameId,
                 (long)AchievementField.UnlockTime);
             db.ExecuteNonQuery(
-                @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, UpdatedUtc)
+                @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, UpdatedUtc)
                   VALUES (?, 'custom:mine', 'Mine', 1, 1, '2025-05-05T00:00:00Z', '');",
                 GameId);
         }
@@ -372,7 +372,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     Assert.AreEqual("table", TypeOf("PlatformDefinitions"));
                     Assert.AreEqual("view", TypeOf("AchievementDefinitions"));
                     Assert.AreEqual("Borrowed", db.ExecuteScalar<string>("SELECT DisplayName FROM AchievementDefinitions WHERE ApiName = 'a';"));
-                    Assert.AreEqual("22", db.ExecuteScalar<string>("SELECT Value FROM CacheMetadata WHERE Key = 'schema_version';"));
+                    Assert.AreEqual(SqlNadoSchemaManager.SchemaVersion.ToString(), db.ExecuteScalar<string>("SELECT Value FROM CacheMetadata WHERE Key = 'schema_version';"));
 
                     // The metadata layer's foreign key and delete trigger follow the renamed table.
                     db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE ApiName = 'a';");
@@ -404,8 +404,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                         .Select(row => row.Sql)
                         .ToList();
 
-                    // Custom data's mirror, the capture index and the schema's own bookkeeping.
-                    var kept = new[] { "CacheMetadata", "AchievementOverrides", "GameCustomState", "AchievementCategories", "AchievementCaptures", "sqlite_sequence" };
+                    // Custom data, the capture index and the schema's own bookkeeping.
+                    var kept = new[] { "CacheMetadata", "CustomLayerAchievements", "CustomLayerGames", "CustomLayerCategories", "AchievementCaptures", "sqlite_sequence" };
                     CollectionAssert.AreEquivalent(
                         tables,
                         SqlNadoSchemaManager.PlatformAndMetadataTables.Concat(kept).ToList(),
@@ -431,7 +431,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     new SqlNadoSchemaManager(null, path, dir).EnsureSchema(db);
                     db.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
                     db.ExecuteNonQuery("INSERT INTO GameCustomData VALUES ('g', '{}', '');");
-                    db.ExecuteNonQuery("INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, UpdatedUtc) VALUES ('g', 'a', 'Renamed', '');");
+                    db.ExecuteNonQuery("INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, UpdatedUtc) VALUES ('g', 'a', 'Renamed', '');");
                     db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
                     Definition(db, "a", "Platform name", null, null, "Default", null, null, null, "Common");
                     Metadata(db, "a", displayName: "Borrowed");
@@ -444,7 +444,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     }
 
                     Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM GameCustomData;"));
-                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementOverrides;"));
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM CustomLayerAchievements;"));
                 }
             }
             finally
@@ -524,42 +524,9 @@ namespace PlayniteAchievements.SqlNado.Tests
                     db.ExecuteNonQuery(@"CREATE TABLE UserAchievements (
                         Id INTEGER PRIMARY KEY, UserGameProgressId INTEGER NOT NULL, AchievementDefinitionId INTEGER NOT NULL,
                         Unlocked INTEGER NOT NULL, UnlockTimeUtc TEXT NULL, ProgressNum INTEGER NULL, ProgressDenom INTEGER NULL);");
-                    db.ExecuteNonQuery(@"CREATE TABLE AchievementOverrides (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
-                        ApiName TEXT NOT NULL COLLATE NOCASE,
-                        DisplayName TEXT NULL,
-                        Description TEXT NULL,
-                        Points INTEGER NULL,
-                        TrophyType TEXT NULL COLLATE NOCASE,
-                        Category TEXT NULL,
-                        Tags TEXT NULL,
-                        Hidden INTEGER NULL,
-                        Cleared INTEGER NOT NULL DEFAULT 0,
-                        Note TEXT NULL,
-                        GoalOrder INTEGER NULL,
-                        CustomOrder INTEGER NULL,
-                        UnlockedIconPath TEXT NULL,
-                        LockedIconPath TEXT NULL,
-                        UnlockTimeUtc TEXT NULL,
-                        CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
-                        IsAuthored INTEGER NOT NULL DEFAULT 0,
-                        Unlocked INTEGER NOT NULL DEFAULT 0,
-                        ProgressNum INTEGER NULL,
-                        ProgressDenom INTEGER NULL,
-                        ScaledPoints INTEGER NULL,
-                        CategoryKind TEXT NULL,
-                        GlobalPercentUnlocked REAL NULL,
-                        Rarity TEXT NULL,
-                        IsCapstone INTEGER NOT NULL DEFAULT 0,
-                        IsFiltered INTEGER NOT NULL DEFAULT 0,
-                        IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
-                        UpdatedUtc TEXT NOT NULL,
-                        UNIQUE (PlayniteGameId, ApiName));");
+                    AchievementLayerSql.EnsureCustomLayerTables(db);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateGameStateTableSql);
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateCategoriesTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateCapturesTableSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
                     {
