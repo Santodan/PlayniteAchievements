@@ -2625,7 +2625,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 () => new FriendAchievementDisplayItem { IsPlaceholder = true },
                 ReadScheduler,
                 window: FriendReadWindow,
-                onError: ex => _logger?.Error(ex, "Failed to load friend theme rows."));
+                onError: ex => _logger?.Error(ex, "Failed to load friend theme rows."),
+                update: (kept, fresh) => kept.RefreshFrom(fresh));
             _settings.ModernTheme.DynamicFriendAchievements = _friendRows;
         }
 
