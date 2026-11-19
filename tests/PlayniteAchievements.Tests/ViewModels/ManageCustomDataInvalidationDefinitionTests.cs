@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // not, and the reason is the flag: the editor's category, category-type, filter and
             // icon writes pass affectsSummaryData false, and OverviewViewModel.OnCustomDataChanged
             // returns early on exactly that. The scoped invalidation is the only thing that routes
-            // those edits to the overview's per-game fragment path.
+            // those edits to the overview's summary reload.
             StringAssert.Contains(
                 core,
                 "NotifyCacheInvalidated(new[] { _gameId })",
@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var handler = Between(
                 overview,
                 "private void OnCustomDataChanged(object sender, GameCustomDataChangedEventArgs e)",
-                "private void QueueOverviewDelta(");
+                "private void QueueReload(");
 
             StringAssert.Contains(handler, "!e.AffectsSummaryData");
             StringAssert.Contains(handler, "return;");
@@ -86,7 +86,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             StringAssert.Contains(
                 ReadRepoFile("source", "ViewModels", "OverviewViewModel.cs"),
                 "_gameCustomDataStore.CustomDataChanged += OnCustomDataChanged",
-                "The overview's per-game fragment path is how an edit reaches a visible overview.");
+                "The overview's summary reload is how an edit reaches a visible overview.");
             StringAssert.Contains(
                 ReadRepoFile("source", "Services", "Achievements", "AchievementDataService.cs"),
                 "_gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview",
