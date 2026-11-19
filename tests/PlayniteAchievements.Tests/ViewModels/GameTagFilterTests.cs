@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var adapter = new PieControlBarAdapter();
             adapter.UpdateOptions(games);
             adapter.TierFilters.RarityItem.SetSelected(Playnite.SDK.ResourceProvider.GetString("LOCPlayAch_Rarity_Rare"), true);
-            var rare = OverviewLinkedSnapshots.FilterAchievements(source, adapter.MatchesAchievement, adapter.MatchesTally);
+            var rare = OverviewLinkedSnapshots.FilterAchievements(source, adapter.MatchesTally);
 
             Assert.AreEqual(3, rare.TotalAchievements);
             Assert.AreEqual(1, rare.TotalUnlocked);
@@ -138,7 +138,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 }
 
                 return OverviewLinkedSnapshots.FilterAchievements(
-                    source, adapter.MatchesAchievement, adapter.MatchesTally, adapter.KeepsCompletions);
+                    source, adapter.MatchesTally, adapter.KeepsCompletions);
             }
 
             // Every tier without Capstone keeps every achievement, the capstone among them by its
