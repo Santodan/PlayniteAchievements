@@ -27,19 +27,21 @@ namespace PlayniteAchievements.Services.Database
         /// <param name="load">Runs off the UI thread; reads through <see cref="AchievementReadService"/>.</param>
         /// <param name="window">How long after a touching change it reloads; <see cref="DefaultWindow"/> by default.</param>
         /// <param name="onError">Receives a failed load's exception; the last result stays.</param>
+        /// <param name="gate">Holds back reloads for feed changes while closed (<see cref="AchievementDataFeed.Subscribe"/>).</param>
         public LiveQuery(
             AchievementDataFeed feed,
             AchievementQuery query,
             Func<AchievementQuery, T> load,
             IReadScheduler scheduler,
             Func<TimeSpan> window = null,
-            Action<Exception> onError = null)
+            Action<Exception> onError = null,
+            FeedGate gate = null)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _load = load ?? throw new ArgumentNullException(nameof(load));
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _onError = onError;
-            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => DefaultWindow), Load);
+            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => DefaultWindow), Load, gate);
             Load();
         }
 
