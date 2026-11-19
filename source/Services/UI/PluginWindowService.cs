@@ -62,8 +62,6 @@ namespace PlayniteAchievements.Services.UI
         private readonly AchievementDataService _achievementDataService;
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly GameCustomDataStore _gameCustomDataStore;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly FriendGameAchievementsDataCoordinator _friendGameAchievementsDataCoordinator;
         private readonly Func<Widgets.WidgetDataCoordinator> _widgetCoordinatorAccessor;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ManualSourceRegistry _manualSourceRegistry;
@@ -89,8 +87,6 @@ namespace PlayniteAchievements.Services.UI
             ManualSourceRegistry manualSourceRegistry,
             Action ensureAchievementResourcesLoaded,
             FullscreenControllerNavigationService fullscreenControllerNavigationService,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
-            FriendGameAchievementsDataCoordinator friendGameAchievementsDataCoordinator = null,
             Func<Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
             _api = api;
@@ -103,8 +99,6 @@ namespace PlayniteAchievements.Services.UI
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _libraryProjectionService = libraryProjectionService;
             _gameCustomDataStore = gameCustomDataStore;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
-            _friendGameAchievementsDataCoordinator = friendGameAchievementsDataCoordinator;
             _widgetCoordinatorAccessor = widgetCoordinatorAccessor;
             _settings = settings;
             _manualSourceRegistry = manualSourceRegistry ?? throw new ArgumentNullException(nameof(manualSourceRegistry));
@@ -1345,7 +1339,6 @@ namespace PlayniteAchievements.Services.UI
                     _refreshCoordinator,
                     _settings,
                     OverviewLaunchContext.Popout,
-                    _friendsOverviewDataCoordinator,
                     _widgetCoordinatorAccessor);
                 if (!string.IsNullOrWhiteSpace(showcasePageId))
                 {
@@ -1506,7 +1499,7 @@ namespace PlayniteAchievements.Services.UI
                 var isFullscreen = DetectFullscreenMode();
                 var view = new ViewFriendsAchievementsControl(
                     gameId,
-                    _friendGameAchievementsDataCoordinator,
+                    _cacheManager as IFriendCacheManager,
                     _refreshService,
                     _refreshCoordinator,
                     _api,
