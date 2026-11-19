@@ -67,6 +67,7 @@
     <Color x:Key="PlayAch.Color.ProviderHypixel">#F6B31E</Color>
     <Color x:Key="PlayAch.Color.ProviderMeta">#0081FB</Color>
     <Color x:Key="PlayAch.Color.ProviderMinecraft">#866043</Color>
+    <Color x:Key="PlayAch.Color.ProviderExophase">#2F8AB3</Color>
     <Color x:Key="PlayAch.Color.MigrationAccent">#FF37A7C8</Color>
     <Color x:Key="PlayAch.Color.MigrationAccentPressed">#FF2D8FAB</Color>
 
@@ -151,6 +152,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderHypixel" Color="{StaticResource PlayAch.Color.ProviderHypixel}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderMeta" Color="{StaticResource PlayAch.Color.ProviderMeta}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderMinecraft" Color="{StaticResource PlayAch.Color.ProviderMinecraft}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderExophase" Color="{StaticResource PlayAch.Color.ProviderExophase}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccent" Color="{StaticResource PlayAch.Color.MigrationAccent}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccentPressed" Color="{StaticResource PlayAch.Color.MigrationAccentPressed}"/>
 
