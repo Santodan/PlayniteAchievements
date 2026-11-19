@@ -93,6 +93,10 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly Dictionary<string, ShowcaseWidgetControl> _hostCache =
             new Dictionary<string, ShowcaseWidgetControl>(StringComparer.OrdinalIgnoreCase);
 
+        // Each host's pending Unlock Next pool read; disposed with the control so a kept snapshot holds no host.
+        private readonly Dictionary<ShowcaseWidgetControl, IDisposable> _unlockNextRequests =
+            new Dictionary<ShowcaseWidgetControl, IDisposable>();
+
         // Throttles SnapshotChanged-driven re-projections: the overview's delta pipeline
         // raises the event every few hundred milliseconds during a refresh, and each
         // re-projection walks the full snapshot per widget. The first event of a burst
@@ -294,6 +298,12 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _hostCache.Clear();
+            foreach (var request in _unlockNextRequests.Values)
+            {
+                request?.Dispose();
+            }
+
+            _unlockNextRequests.Clear();
             _host.DataChanged -= Host_DataChanged;
             ShowcaseConfigurationEvents.Changed -= ShowcaseConfigurationEvents_Changed;
             Common.LocalDayRollover.Unsubscribe(LocalDayRollover_DayChanged);
@@ -2344,7 +2354,16 @@ namespace PlayniteAchievements.Views.Showcase
             if (snapshot.NeedsUnlockNextRead(maxPerGame))
             {
                 host.ShowLoadingPlaceholder();
-                snapshot.RequestUnlockNextPool(maxPerGame, () => QueueWidgetApply(host, widget, blockId, snapshotOnly: false));
+                if (_unlockNextRequests.TryGetValue(host, out var prior))
+                {
+                    prior?.Dispose();
+                }
+
+                _unlockNextRequests[host] = snapshot.RequestUnlockNextPool(maxPerGame, () =>
+                {
+                    _unlockNextRequests.Remove(host);
+                    QueueWidgetApply(host, widget, blockId, snapshotOnly: false);
+                });
                 return;
             }
 
