@@ -16,6 +16,7 @@ using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.Showcase.Widgets;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.Overview
@@ -284,10 +285,11 @@ namespace PlayniteAchievements.Services.Overview
 
             gameRowScope?.Dispose();
 
-            using (PerfScope.Start(_logger, "Overview.Build.PinnedAndUnlockNext", thresholdMs: 25))
+            var listed = ShowcaseRows.ById(snapshot.GameSummaries);
+            snapshot.ReadRows = query => LoadRows(settings, query, games: listed);
+            using (PerfScope.Start(_logger, "Overview.Build.UnlockNext", thresholdMs: 25))
             {
-                LoadPinnedAchievements(settings, snapshot);
-                BuildUnlockNextCandidates(settings, snapshot, presentationByGameId, cancel);
+                BuildUnlockNextCandidates(settings, snapshot, listed);
             }
 
             snapshot.GameSummaries = snapshot.GameSummaries
@@ -350,63 +352,21 @@ namespace PlayniteAchievements.Services.Overview
             return snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
         }
 
-        // Every pinned row, locked ones included, read for the pinned games the snapshot lists. A
-        // pin without a row (a game left out, a renamed achievement) renders as a placeholder.
-        private void LoadPinnedAchievements(PlayniteAchievementsSettings settings, OverviewDataSnapshot snapshot)
-        {
-            var pins = (settings?.Persisted?.Showcase?.AchievementPinCollections ?? new List<PinnedAchievementCollection>())
-                .Where(collection => collection?.Pins != null)
-                .SelectMany(collection => collection.Pins)
-                .Where(pin => pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
-                .ToList();
-
-            // Recorded before reading, including pins whose row turns out to be unavailable: the
-            // set says which pins this build considered, not which it found.
-            var keys = new HashSet<string>(
-                pins.Select(pin => OverviewDataSnapshot.AchievementPinKey(pin.GameId, pin.ApiName)),
-                StringComparer.Ordinal);
-            snapshot.AchievementPinKeysAtBuild = keys;
-            var listed = snapshot.GameSummaries
-                .Where(game => game?.PlayniteGameId != null)
-                .GroupBy(game => game.PlayniteGameId.Value)
-                .ToDictionary(group => group.Key, group => group.First());
-            var games = pins.Select(pin => pin.GameId).Where(listed.ContainsKey).Distinct().ToList();
-            if (games.Count == 0)
-            {
-                return;
-            }
-
-            try
-            {
-                snapshot.PinnedAchievements = LoadRows(settings, AchievementQuery.CurrentUser.WithSummaryRules().ForGames(games), games: listed)
-                    .Where(row => keys.Contains(OverviewDataSnapshot.AchievementPinKey(row.PlayniteGameId ?? Guid.Empty, row.ApiName)))
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug($"[Overview] Failed to load pinned achievements: {ex.Message}");
-            }
-        }
-        // The snapshot's achievement rows are unlocked-only (one display row per locked
-        // definition costs hundreds of MB on the 32-bit host). Unlock Next needs
-        // locked rows, so hydrate a bounded candidate pool the same way the pinned-locked path
-        // does - per game, as deep as the largest Max per game asks, and skipped entirely unless
-        // a live widget asks for it.
-        //
-        // The pool is a superset that dominates every per-widget combination of criterion and
-        // window, because editing those options re-projects from the existing snapshot without
-        // rebuilding it. Narrowing happens in ShowcaseWidgetProjectionService, which is free.
+        // The bounded pool of locked rows Unlock Next draws from, read when a widget asks for it: a
+        // superset of every widget's criterion and window, since editing those options re-projects
+        // from the snapshot. The candidate games' locked rows are read once, and the rows each
+        // game keeps are then read as display rows.
         private void BuildUnlockNextCandidates(
             PlayniteAchievementsSettings settings,
             OverviewDataSnapshot snapshot,
-            Dictionary<Guid, GamePresentation> presentationByGameId,
-            CancellationToken cancel)
+            IReadOnlyDictionary<Guid, GameSummaryItem> listed)
         {
             // Both layouts read this snapshot, so the pool covers whichever asks for more.
             var maxPerGame = Math.Max(
                 ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.Showcase),
                 ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.OverviewMiniShowcase));
-            if (snapshot == null || maxPerGame <= 0)
+            var reads = _achievementDataService.CacheReads;
+            if (maxPerGame <= 0 || reads == null)
             {
                 return;
             }
@@ -414,73 +374,26 @@ namespace PlayniteAchievements.Services.Overview
             var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
             snapshot.UnlockNextPoolBuilt = true;
             snapshot.UnlockNextPoolSlice = slice;
-
-            var pool = new List<AchievementDisplayItem>();
-            foreach (var summary in UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries))
-            {
-                cancel.ThrowIfCancellationRequested();
-
-                var gameId = summary.PlayniteGameId.Value;
-                GameAchievementData gameData = null;
-                try
-                {
-                    gameData = _achievementDataService.GetGameAchievementDataForOverview(gameId);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug($"[Overview] Failed to load Unlock Next data for {gameId}: {ex.Message}");
-                }
-
-                if (gameData?.Achievements == null)
-                {
-                    continue;
-                }
-
-                var appearance = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
-                    settings,
-                    gameData.PlayniteGameId,
-                    gameData.UseSeparateLockedIconsWhenAvailable);
-                var categoryMemo = new AchievementDisplayItem.CategoryPresentationMemo();
-                var presentation = ResolveGamePresentation(gameId, presentationByGameId);
-                foreach (var detail in UnlockNextCandidateSelector.SelectAchievements(gameData.Achievements, slice))
-                {
-                    var item = AchievementDisplayItem.Create(
-                        gameData,
-                        detail,
-                        settings,
-                        playniteGameIdOverride: gameData.PlayniteGameId ?? gameId,
-                        appearanceSettings: appearance,
-                        categoryMemo: categoryMemo);
-                    if (item != null)
-                    {
-                        ApplyGamePresentation(item, presentation);
-                        pool.Add(item);
-                    }
-                }
-            }
-
-            snapshot.UnlockNextCandidates = pool;
-        }
-
-        /// <summary>
-        /// Stamps Playnite's view of the game onto a row built by per-game hydration. That path
-        /// names and illustrates a game the way its provider does, while the snapshot's unlocked
-        /// rows carry Playnite's display name and artwork; without this the same game reads
-        /// differently depending on which path produced the row.
-        /// </summary>
-        private static void ApplyGamePresentation(
-            AchievementDisplayItem item,
-            GamePresentation presentation)
-        {
-            if (item == null || presentation == null)
+            var games = UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries).Select(game => game.PlayniteGameId.Value).ToList();
+            if (games.Count == 0)
             {
                 return;
             }
 
-            item.GameIconPath = presentation.IconPath;
-            item.GameCoverPath = presentation.CoverPath;
-            item.GameName = presentation.DisplayName ?? item.GameName;
-            item.SortingName = presentation.SortingName ?? item.SortingName;
+            try
+            {
+                var query = AchievementQuery.CurrentUser.WithSummaryRules().ForGames(games).WhereUnlocked(false).OrderBy(AchievementSort.Display);
+                var keys = reads.Reads.Rows(query)
+                    .GroupBy(row => row.PlayniteGameId)
+                    .SelectMany(game => UnlockNextCandidateSelector.SelectAchievements(game.ToList(), row => row.GlobalPercentUnlocked, row => row.ApiName, slice))
+                    .Select(AchievementReadService.KeyOf)
+                    .ToList();
+                snapshot.UnlockNextCandidates = LoadRows(settings, query, keys, listed);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[Overview] Failed to load Unlock Next candidates: {ex.Message}");
+            }
         }
 
         /// <summary>
