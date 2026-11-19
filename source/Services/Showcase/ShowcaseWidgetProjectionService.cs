@@ -342,6 +342,9 @@ namespace PlayniteAchievements.Services.Showcase
 
             /// <summary>Unlock Next candidates still locked, with their game summary attached.</summary>
             public IReadOnlyList<UnlockNextCandidate> UnlockNextPool;
+
+            /// <summary>The candidate list <see cref="UnlockNextPool"/> was built from.</summary>
+            public List<AchievementDisplayItem> UnlockNextSource;
         }
 
         /// <summary>
@@ -1509,13 +1512,16 @@ namespace PlayniteAchievements.Services.Showcase
                 return new List<UnlockNextCandidate>();
             }
 
+            // Keyed by the candidate list too: the pool lands on the snapshot after its first
+            // projections, as a new list.
             var cache = DerivedCache.GetOrCreateValue(snapshot);
-            if (cache.UnlockNextPool != null)
+            var candidates = snapshot.UnlockNextCandidates ?? new List<AchievementDisplayItem>();
+            if (cache.UnlockNextPool != null && ReferenceEquals(cache.UnlockNextSource, snapshot.UnlockNextCandidates))
             {
                 return cache.UnlockNextPool;
             }
 
-            var candidates = snapshot.UnlockNextCandidates ?? new List<AchievementDisplayItem>();
+            cache.UnlockNextSource = snapshot.UnlockNextCandidates;
             if (candidates.Count == 0)
             {
                 cache.UnlockNextPool = new List<UnlockNextCandidate>();
