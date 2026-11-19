@@ -39,7 +39,10 @@ namespace PlayniteAchievements.Services.Achievements
             return CachedSummaryDataForTheme;
         }
 
-        internal AchievementQuery SummaryQuery() => AchievementQuery.CurrentUser.WithSummaryRules();
+        /// <summary>The summary query each call returns; the summary rules alone by default.</summary>
+        internal Func<AchievementQuery> Summary { get; set; }
+
+        internal AchievementQuery SummaryQuery() => Summary?.Invoke() ?? AchievementQuery.CurrentUser.WithSummaryRules();
 
         internal List<CachedRecentUnlockData> ReadRows(AchievementQuery query)
         {
