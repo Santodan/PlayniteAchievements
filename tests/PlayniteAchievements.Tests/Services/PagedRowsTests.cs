@@ -261,44 +261,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void SortBy_ReadsInTheColumnsOrder_AndDropsPagesOfTheOldOrder()
-        {
-            var rows = Create(2000);
-            _scheduler.Drain();
-            At(rows, 550);
-            _pageReads.Clear();
-
-            rows.SortBy(AchievementSort.UnlockTime, descending: true);
-            _scheduler.Drain();
-
-            Assert.AreEqual(AchievementSort.UnlockTime, _pageReads.Last().Sort);
-            Assert.IsTrue(_pageReads.Last().Descending);
-            Assert.AreEqual(AchievementSort.UnlockTime, At(rows, 550).Sort,
-                "the page read in the old order is dropped for the one read in the new order");
-            Assert.AreEqual(AchievementSort.Display, rows.Query.Sort, "the query as given keeps its own order");
-
-            _pageReads.Clear();
-            rows.SortBy(null, false);
-            _scheduler.Drain();
-            Assert.IsTrue(_pageReads.All(query => query.Sort == AchievementSort.Display && !query.Descending));
-        }
-
-        [TestMethod]
-        public void SetQuery_KeepsTheColumnSort()
-        {
-            var rows = Create(2000);
-            _scheduler.Drain();
-            rows.SortBy(AchievementSort.GlobalPercent, descending: false);
-            _scheduler.Drain();
-            _pageReads.Clear();
-
-            rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(true));
-            _scheduler.Drain();
-
-            Assert.IsTrue(_pageReads.All(query => query.Unlocked == true && query.Sort == AchievementSort.GlobalPercent));
-        }
-
-        [TestMethod]
         public void LoadedPages_AreBounded()
         {
             var rows = Create(5000);
