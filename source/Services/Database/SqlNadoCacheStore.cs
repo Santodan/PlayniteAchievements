@@ -6148,10 +6148,10 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>.</summary>
-        public void RemoveAchievementCapturesExcept(ISet<Guid> keep)
+        /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>; returns those games.</summary>
+        public List<Guid> RemoveAchievementCapturesExcept(ISet<Guid> keep)
         {
-            WithDb(db =>
+            return WithDb(db =>
             {
                 var stale = db.Load<CaptureRow>("SELECT DISTINCT PlayniteGameId FROM AchievementCaptures;")
                     .Select(row => row.PlayniteGameId)
@@ -6165,7 +6165,7 @@ namespace PlayniteAchievements.Services.Database
                     }
                 });
 
-                return stale.Count;
+                return stale.Select(id => Guid.TryParse(id, out var gameId) ? gameId : Guid.Empty).Where(id => id != Guid.Empty).ToList();
             });
         }
 
