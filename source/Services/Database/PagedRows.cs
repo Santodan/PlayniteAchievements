@@ -7,13 +7,6 @@ using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
 {
-    /// <summary>Rows whose order a grid's column header sets through the query.</summary>
-    internal interface ISortableRows
-    {
-        /// <summary>Orders by <paramref name="sort"/>, or by the query's own order when null.</summary>
-        void SortBy(AchievementSort? sort, bool descending);
-    }
-
     /// <summary>
     /// A row list that holds only some of its rows. Code that scans rows for a property of the
     /// list (a favorite, a second game, a category) reads <see cref="LoadedItems"/>, which never
@@ -30,12 +23,12 @@ namespace PlayniteAchievements.Services.Database
     /// first load, for a virtualizing grid. A load reads the sorted keys of every matching row
     /// and keeps them; a page is then the columns of a slice of those keys. Reading an index that
     /// is not loaded returns a placeholder and loads its page and the pages on either side; when
-    /// the page arrives, each placeholder handed out is replaced in place. A query change, a sort
-    /// or a touching feed change reads the keys again with the pages around the last read index
+    /// the page arrives, each placeholder handed out is replaced in place. A query change or a
+    /// touching feed change reads the keys again with the pages around the last read index
     /// and applies them in place, keeping the other loaded pages until they are read again. All
     /// state is changed on the UI thread.
     /// </summary>
-    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, ISortableRows, IPartiallyLoadedRows, IDisposable
+    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, IPartiallyLoadedRows, IDisposable
         where T : class
     {
         public const int PageSize = 100;
@@ -61,10 +54,7 @@ namespace PlayniteAchievements.Services.Database
         private readonly HashSet<int> _wantedPages = new HashSet<int>();
         private readonly Dictionary<int, T> _placeholders = new Dictionary<int, T>();
         private AchievementQuery _query;
-        private AchievementQuery _effectiveQuery;
         private IReadOnlyList<AchievementQuerySql.RowKey> _keys = Array.Empty<AchievementQuerySql.RowKey>();
-        private AchievementSort? _sort;
-        private bool _descending;
         private int _count;
         private int _lastIndex;
         private int _version;
@@ -88,26 +78,25 @@ namespace PlayniteAchievements.Services.Database
             Func<TimeSpan> window = null,
             Action<Exception> onError = null)
         {
-            _query = _effectiveQuery = query ?? throw new ArgumentNullException(nameof(query));
+            _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
             _loadRows = loadRows ?? throw new ArgumentNullException(nameof(loadRows));
             _newPlaceholder = newPlaceholder ?? throw new ArgumentNullException(nameof(newPlaceholder));
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _maxRows = Math.Max(0, maxRows);
             _onError = onError;
-            _subscription = feed?.Subscribe(() => _effectiveQuery, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
+            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
             Reset();
         }
 
         public event NotifyCollectionChangedEventHandler CollectionChanged;
 
-        /// <summary>The query as given, without a column sort.</summary>
         public AchievementQuery Query => _query;
 
         public int Count => _count;
 
         /// <summary>
-        /// Replaces the query and reloads, keeping the column sort. With
+        /// Replaces the query and reloads. With
         /// <paramref name="fromStart"/> the rows around the first index load first, for a list
         /// the grid shows from its top; otherwise those around the last read index. UI thread.
         /// </summary>
@@ -119,14 +108,8 @@ namespace PlayniteAchievements.Services.Database
                 _lastIndex = 0;
             }
 
-            Requery();
-        }
-
-        public void SortBy(AchievementSort? sort, bool descending)
-        {
-            _sort = sort;
-            _descending = descending;
-            Requery();
+            _version++;
+            Reset();
         }
 
         public object this[int index]
@@ -158,13 +141,6 @@ namespace PlayniteAchievements.Services.Database
             _wantedPages.Clear();
         }
 
-        private void Requery()
-        {
-            _effectiveQuery = _sort.HasValue ? _query.OrderBy(_sort.Value, _descending) : _query;
-            _version++;
-            Reset();
-        }
-
         private void Reset()
         {
             if (_disposed)
@@ -179,7 +155,7 @@ namespace PlayniteAchievements.Services.Database
             }
 
             _resetting = true;
-            var query = _effectiveQuery;
+            var query = _query;
             var version = _version;
             var anchor = _lastIndex / PageSize;
             _scheduler.Run(() =>
@@ -324,7 +300,7 @@ namespace PlayniteAchievements.Services.Database
             var next = _wantedPages.OrderBy(page => Math.Abs(page - current)).First();
             _wantedPages.Remove(next);
             _pageLoading = true;
-            var query = _effectiveQuery;
+            var query = _query;
             var version = _version;
             var keys = Slice(_keys, next * PageSize, Math.Min(_count, (next + 1) * PageSize));
             _scheduler.Run(() =>
