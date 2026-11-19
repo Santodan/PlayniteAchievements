@@ -998,6 +998,26 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void BoundLibraryLists_ReadTheHiddenGamesAndWindowOfEachRead()
+        {
+            using var context = CreateServiceContext();
+            var hidden = Guid.NewGuid();
+            UseLibraryData(context, new List<GameAchievementData>());
+            context.AchievementDataService.Summary = () => AchievementQuery.CurrentUser.WithSummaryRules().ExceptGames(new[] { hidden });
+            _ = context.Settings.RarestRecentUnlocks;
+            AchievementQuery LastListRead() => context.AchievementDataService.RowReads.Last(query => query.Limit == 0);
+            CollectionAssert.AreEqual(new[] { hidden }, LastListRead().ExceptGameIds.ToArray());
+
+            // The game is shown again, or summaries stop leaving hidden games out.
+            context.AchievementDataService.Summary = null;
+            context.Service.NotifyLibraryGamesChanged();
+            context.Scheduler.Elapse();
+
+            Assert.IsNull(LastListRead().ExceptGameIds);
+            Assert.AreEqual(DateTime.Today.AddDays(-180), LastListRead().UnlockedFromDay);
+        }
+
+        [TestMethod]
         public async Task NotifyCustomDataChanged_RefreshesLoadedThemeBindings()
         {
             using var context = CreateServiceContext();
