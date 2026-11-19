@@ -4122,6 +4122,13 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // A list holding only some rows is sorted by its query, never reordered here.
+            if (ItemsSource is IPartiallyLoadedRows)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (GridSortRequestEventArgs.Of(e)?.IsReset == true)
             {
                 DataGridSortingHelper.HandleSorting(sender, e, AchievementsDataGrid);
@@ -4212,7 +4219,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void ReplaceItemsInSource(List<AchievementDisplayItem> items)
         {
-            if (items == null)
+            if (items == null || ItemsSource is IPartiallyLoadedRows)
             {
                 return;
             }
