@@ -1311,11 +1311,9 @@ namespace PlayniteAchievements
                         _manualSourceRegistry,
                         () => _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings),
                         _fullscreenControllerNavigationService,
-                        // Deliberately the field, not GetStartPageDataCoordinator(): publishing
-                        // is an optimization for widget hosts that already exist. Creating the
-                        // coordinator here would stand up a process-lifetime service holding a
-                        // full-library snapshot for a user who has no start page at all.
-                        () => _startPageDataCoordinator);
+                        // Created on first use, start page or not: it keeps the Overview's
+                        // snapshot across closes, so a re-open with unchanged data reads nothing.
+                        GetStartPageDataCoordinator);
 
                     _achievementHotkeyTargetResolver = new AchievementHotkeyTargetResolver(PlayniteApi, _logger);
                     _achievementHotkeyService = new AchievementHotkeyService(
@@ -1439,7 +1437,7 @@ namespace PlayniteAchievements
                 Opened = () =>
                 {
                     return new OverviewHostControl(
-                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, () => _startPageDataCoordinator),
+                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, GetStartPageDataCoordinator),
                         _logger,
                         PlayniteApi,
                         _refreshService,
