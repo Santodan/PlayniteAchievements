@@ -1458,9 +1458,7 @@ namespace PlayniteAchievements.ViewModels
                 _logger?.Debug("[Overview] RefreshViewAsync requested by: " + DescribeRefreshCaller());
             }
 
-            // Ensure the UI gets a chance to paint before we begin heavy work.
-            await Task.Yield();
-
+            // The build starts now, off the UI thread, ahead of whatever UI work follows the call.
             var version = Interlocked.Increment(ref _refreshVersion);
 
             var newCts = new CancellationTokenSource();
