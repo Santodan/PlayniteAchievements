@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Playnite.SDK;
-using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services.ThemeMigration
 {
@@ -16,6 +15,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private const string BackupFolderName = "PlayniteAchievements_backup";
+
+        private static readonly HashSet<string> ScannedExtensions =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".xaml", ".ps1", ".cs" };
 
         public ThemeDiscoveryService(ILogger logger, IPlayniteAPI playniteApi)
         {
@@ -54,8 +56,6 @@ namespace PlayniteAchievements.Services.ThemeMigration
             /// </summary>
             public bool ModernizeOnly { get; set; }
             public string CurrentThemeVersion { get; set; }
-            public string CachedMigratedThemeVersion { get; set; }
-            public bool UpgradedSinceLastMigration { get; set; }
 
             /// <summary>
             /// Gets the best available name for display purposes.
@@ -79,12 +79,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// Discovers all themes in the Playnite themes directory.
         /// </summary>
         /// <param name="themesRootPath">Root path to the themes directory.</param>
-        /// <param name="themeMigrationVersionCache">
-        /// Optional cache mapping ThemePath -> last migrated theme.yaml Version.
-        /// When provided, discovery will flag themes that have upgraded versions since migration.
-        /// </param>
-        /// <returns>List of discovered themes.</returns>
-        public List<ThemeInfo> DiscoverThemes(string themesRootPath, IReadOnlyDictionary<string, ThemeMigrationCacheEntry> themeMigrationVersionCache = null)
+        /// <returns>List of discovered themes, Desktop themes first.</returns>
+        public List<ThemeInfo> DiscoverThemes(string themesRootPath)
         {
             var themes = new List<ThemeInfo>();
 
@@ -103,9 +99,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             try
             {
                 // Playnite themes are organized in Desktop and Fullscreen subdirectories
-                var subDirectories = new[] { "Desktop", "Fullscreen" };
-
-                foreach (var subDir in subDirectories)
+                foreach (var subDir in new[] { "Desktop", "Fullscreen" })
                 {
                     var subDirPath = Path.Combine(themesRootPath, subDir);
                     if (!Directory.Exists(subDirPath))
@@ -114,75 +108,11 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         continue;
                     }
 
-                    var themeDirectories = Directory.GetDirectories(subDirPath);
-                    // _logger.Info($"Found {themeDirectories.Length} themes in {subDir}");
-
-                    foreach (var themeDir in themeDirectories)
+                    foreach (var themeDir in Directory.GetDirectories(subDirPath))
                     {
-                        var dirInfo = new DirectoryInfo(themeDir);
-                        // Strip ID suffix from directory name (e.g., "Stellar_ab1234" -> "Stellar")
-                        var cleanDirName = StripThemeIdSuffix(dirInfo.Name);
-                        var themeName = $"{subDir}/{cleanDirName}";
-
-                        // _logger.Debug($"Processing theme: {themeName} at {themeDir}");
-
-                        var backupPath = Path.Combine(themeDir, BackupFolderName);
-                        var hasBackup = Directory.Exists(backupPath);
-                        // _logger.Debug($"Theme has backup: {hasBackup}");
-
-                        // Read theme.yaml version/name first for display/cache metadata.
-                        string currentVersion = null;
-                        ThemeYamlVersionReader.TryReadThemeVersion(themeDir, out currentVersion);
-
-                        string displayName = null;
-                        ThemeYamlVersionReader.TryReadThemeName(themeDir, out displayName);
-
-                        // Check if theme contains legacy references that still need migration.
-                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport, hasLegacyPlayniteAchievementsReference) = ScanTheme(themeDir, _logger);
-
-                        // A theme that already targets PlayniteAchievements through legacy controls can be modernized.
-                        // Fullscreen themes only support Limited migration, which has nothing to change for them.
-                        var modernizeOnly = hasNativePlayniteAchievementsSupport && hasLegacyPlayniteAchievementsReference;
-                        var isFullscreenTheme = string.Equals(subDir, "Fullscreen", StringComparison.OrdinalIgnoreCase);
-
-                        // Compare against cached migrated version (optional)
-                        string cachedVersion = null;
-                        bool upgradedSinceLastMigration = false;
-                        if (themeMigrationVersionCache != null &&
-                            themeMigrationVersionCache.TryGetValue(themeDir, out var cached) &&
-                            cached != null &&
-                            !string.IsNullOrWhiteSpace(cached.MigratedThemeVersion) &&
-                            !string.IsNullOrWhiteSpace(currentVersion))
-                        {
-                            cachedVersion = cached.MigratedThemeVersion;
-                            upgradedSinceLastMigration = !string.Equals(cachedVersion, currentVersion, StringComparison.OrdinalIgnoreCase);
-                        }
-
-                        var themeInfo = new ThemeInfo
-                        {
-                            DisplayName = displayName,
-                            ThemeType = subDir,
-                            Name = themeName,
-                            Path = themeDir,
-                            HasBackup = hasBackup,
-                            NeedsMigration = !hasBackup &&
-                                             ((needsMigration && !hasNativePlayniteAchievementsSupport) ||
-                                              (modernizeOnly && !isFullscreenTheme)),
-                            CouldNotScan = couldNotScan &&
-                                           !hasNativePlayniteAchievementsSupport,
-                            ModernizeOnly = modernizeOnly,
-                            CurrentThemeVersion = currentVersion,
-                            CachedMigratedThemeVersion = cachedVersion,
-                            UpgradedSinceLastMigration = upgradedSinceLastMigration
-                        };
-
-                        themes.Add(themeInfo);
-
-                        // _logger.Info($"Discovered theme: {themeName}, NeedsMigration: {themeInfo.NeedsMigration}, HasBackup: {hasBackup}, CouldNotScan: {couldNotScan}");
+                        themes.Add(CreateThemeInfo(themeDir, subDir));
                     }
                 }
-
-                // _logger.Info($"Discovered {themes.Count} themes, {themes.Count(t => t.NeedsMigration)} need migration.");
             }
             catch (Exception ex)
             {
@@ -190,6 +120,58 @@ namespace PlayniteAchievements.Services.ThemeMigration
             }
 
             return themes;
+        }
+
+        /// <summary>
+        /// Discovers one theme directory, for refreshing a single theme after it changed.
+        /// Returns null when the directory no longer exists.
+        /// </summary>
+        public ThemeInfo DiscoverTheme(string themeDir)
+        {
+            if (string.IsNullOrWhiteSpace(themeDir) || !Directory.Exists(themeDir))
+            {
+                return null;
+            }
+
+            // The parent folder is the theme type: Themes/Desktop/<theme> or Themes/Fullscreen/<theme>.
+            var themeType = Path.GetFileName(Path.GetDirectoryName(themeDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+            return CreateThemeInfo(themeDir, themeType);
+        }
+
+        private ThemeInfo CreateThemeInfo(string themeDir, string themeType)
+        {
+            var dirInfo = new DirectoryInfo(themeDir);
+            // Strip ID suffix from directory name (e.g., "Stellar_ab1234" -> "Stellar")
+            var cleanDirName = StripThemeIdSuffix(dirInfo.Name);
+
+            var hasBackup = Directory.Exists(Path.Combine(themeDir, BackupFolderName));
+
+            ThemeYamlVersionReader.TryReadThemeVersion(themeDir, out var currentVersion);
+            ThemeYamlVersionReader.TryReadThemeName(themeDir, out var displayName);
+
+            // Check if theme contains legacy references that still need migration.
+            var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport, hasLegacyPlayniteAchievementsReference) = ScanTheme(themeDir, _logger);
+
+            // A theme that already targets PlayniteAchievements through legacy controls can be modernized.
+            // Fullscreen themes only support Limited migration, which has nothing to change for them.
+            var modernizeOnly = hasNativePlayniteAchievementsSupport && hasLegacyPlayniteAchievementsReference;
+            var isFullscreenTheme = string.Equals(themeType, "Fullscreen", StringComparison.OrdinalIgnoreCase);
+
+            return new ThemeInfo
+            {
+                DisplayName = displayName,
+                ThemeType = themeType,
+                Name = $"{themeType}/{cleanDirName}",
+                Path = themeDir,
+                HasBackup = hasBackup,
+                NeedsMigration = !hasBackup &&
+                                 ((needsMigration && !hasNativePlayniteAchievementsSupport) ||
+                                  (modernizeOnly && !isFullscreenTheme)),
+                CouldNotScan = couldNotScan &&
+                               !hasNativePlayniteAchievementsSupport,
+                ModernizeOnly = modernizeOnly,
+                CurrentThemeVersion = currentVersion
+            };
         }
 
         /// <summary>
@@ -256,62 +238,47 @@ namespace PlayniteAchievements.Services.ThemeMigration
             {
                 var dirInfo = new DirectoryInfo(themePath);
 
-                // Search recursively for XAML, PS1, and CS files
+                // One walk of the theme folder for the XAML, PS1 and CS files, outside the backup folder.
                 var filesToCheck = new List<string>();
-
                 try
                 {
-                    filesToCheck.AddRange(dirInfo.GetFiles("*.xaml", SearchOption.AllDirectories).Select(f => f.FullName));
+                    foreach (var file in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
+                    {
+                        if (ScannedExtensions.Contains(file.Extension) &&
+                            file.FullName.IndexOf(BackupFolderName, StringComparison.Ordinal) < 0)
+                        {
+                            filesToCheck.Add(file.FullName);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    logger?.Debug(ex, $"Could not search for XAML files in {themePath}");
+                    logger?.Debug(ex, $"Could not list all files in {themePath}");
                 }
 
-                try
-                {
-                    filesToCheck.AddRange(dirInfo.GetFiles("*.ps1", SearchOption.AllDirectories).Select(f => f.FullName));
-                }
-                catch (Exception ex)
-                {
-                    logger?.Debug(ex, $"Could not search for PS1 files in {themePath}");
-                }
-
-                try
-                {
-                    filesToCheck.AddRange(dirInfo.GetFiles("*.cs", SearchOption.AllDirectories).Select(f => f.FullName));
-                }
-                catch (Exception ex)
-                {
-                    logger?.Debug(ex, $"Could not search for CS files in {themePath}");
-                }
-
-                // Remove duplicates and filter out backup folder
-                filesToCheck = filesToCheck
-                    .Where(f => !f.Contains(BackupFolderName))
-                    .Distinct()
-                    .ToList();
-
-                // _logger.Debug($"Found {filesToCheck.Count} files to check in theme: {themePath}");
-
-                foreach (var file in filesToCheck.Take(100))
+                foreach (var file in filesToCheck)
                 {
                     try
                     {
                         var content = File.ReadAllText(file);
                         filesRead++;
 
-                        if (ContainsNativePlayniteAchievementsSupport(content))
+                        // Each flag only ever turns on, so a check already satisfied by an
+                        // earlier file is skipped.
+                        if (!foundNativePlayniteAchievementsSupport &&
+                            ContainsNativePlayniteAchievementsSupport(content))
                         {
                             foundNativePlayniteAchievementsSupport = true;
                         }
 
-                        if (ContainsLegacyPlayniteAchievementsReference(content))
+                        if (!foundLegacyPlayniteAchievementsReference &&
+                            ContainsLegacyPlayniteAchievementsReference(content))
                         {
                             foundLegacyPlayniteAchievementsReference = true;
                         }
 
-                        if (ContainsMigratableReference(content))
+                        if (!foundMigratableReference &&
+                            ContainsMigratableReference(content))
                         {
                             foundMigratableReference = true;
                         }
