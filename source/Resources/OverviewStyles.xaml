@@ -54,10 +54,22 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="helpers:PlaceholderCell.Shape"
+                Value="{Binding Column.(helpers:PlaceholderCell.Shape), RelativeSource={RelativeSource Self}}"/>
+        <!-- A row standing in until the grid's first read lands, drawn as the achievement grids
+             draw their unloaded rows. -->
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                <Setter Property="Template" Value="{StaticResource PlayAch.PlaceholderCellTemplate}"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="ToolTip" Value="{x:Null}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="GameSummariesImageCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
         <Setter Property="Padding" Value="0"/>
+        <Setter Property="helpers:PlaceholderCell.Shape" Value="Block"/>
     </Style>
 
     <Style x:Key="GameSummariesGridRowBaseStyle" TargetType="DataGridRow">
