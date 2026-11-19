@@ -21,8 +21,8 @@ namespace PlayniteAchievements.Services.Overview
             Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true).ForGames(
                 (GameSummaries ?? new List<GameSummaryItem>()).Where(game => game?.PlayniteGameId != null).Select(game => game.PlayniteGameId.Value));
 
-        /// <summary>The rows of every achievement pin, locked ones included, hydrated at build.</summary>
-        public List<AchievementDisplayItem> PinnedAchievements { get; set; } = new List<AchievementDisplayItem>();
+        /// <summary>Reads the display rows of a query on the calling thread, for the achievements a widget names (its pins); null for none.</summary>
+        internal Func<Database.AchievementQuery, IReadOnlyList<AchievementDisplayItem>> ReadRows { get; set; }
 
         /// <summary>
         /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty unless
@@ -69,53 +69,6 @@ namespace PlayniteAchievements.Services.Overview
         /// achievement counts. A count over the games' tallies applies it too.
         /// </summary>
         public Func<Models.Achievements.AchievementTally, bool> TallyFilter { get; set; }
-
-        /// <summary>
-        /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
-        /// hydrated <see cref="PinnedAchievements"/>. A pin added afterwards is absent here, so
-        /// its row was never hydrated; consumers rebuild off
-        /// <see cref="HasSeenAchievementPins"/>. A pin whose game data is unavailable stays in
-        /// the set, so it does not trigger a rebuild on every configuration change.
-        /// </summary>
-        public HashSet<string> AchievementPinKeysAtBuild { get; set; } =
-            new HashSet<string>(StringComparer.Ordinal);
-
-        public static string AchievementPinKey(Guid gameId, string apiName) =>
-            gameId.ToString("N") + "|" + (apiName ?? string.Empty).ToUpperInvariant();
-
-        /// <summary>Whether this snapshot's build already accounted for every current achievement pin.</summary>
-        public bool HasSeenAchievementPins(ShowcaseSettings showcase)
-        {
-            var collections = showcase?.AchievementPinCollections;
-            if (collections == null)
-            {
-                return true;
-            }
-
-            foreach (var collection in collections)
-            {
-                if (collection?.Pins == null)
-                {
-                    continue;
-                }
-
-                foreach (var pin in collection.Pins)
-                {
-                    if (pin == null || pin.GameId == Guid.Empty || string.IsNullOrWhiteSpace(pin.ApiName))
-                    {
-                        continue;
-                    }
-
-                    if (AchievementPinKeysAtBuild == null ||
-                        !AchievementPinKeysAtBuild.Contains(AchievementPinKey(pin.GameId, pin.ApiName)))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
 
         /// <summary>
         /// Unlock counts per local calendar day (keys at 00:00, Kind Unspecified; compare by value),
