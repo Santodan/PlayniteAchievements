@@ -82,10 +82,10 @@ namespace PlayniteAchievements.Services.Cache
 
         /// <summary>
         /// Calls <paramref name="rerun"/> on the UI thread once per <paramref name="window"/> in
-        /// which a change touching <paramref name="query"/> arrived, at the end of that window.
-        /// Disposing stops it, a pending call included.
+        /// which a change touching <paramref name="query"/> arrived, at the end of that window; the
+        /// window is read when its first change arrives. Disposing stops it, a pending call included.
         /// </summary>
-        public IDisposable Subscribe(Func<AchievementQuery> query, IReadScheduler scheduler, TimeSpan window, Action rerun)
+        public IDisposable Subscribe(Func<AchievementQuery> query, IReadScheduler scheduler, Func<TimeSpan> window, Action rerun)
         {
             var pending = false;
             var disposed = false;
@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Services.Cache
                     }
 
                     pending = true;
-                    scheduler.PostAfter(window, () =>
+                    scheduler.PostAfter(window(), () =>
                     {
                         pending = false;
                         if (!disposed)
