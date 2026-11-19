@@ -25,10 +25,6 @@
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
     </Style>
 
-    <Style x:Key="ProviderTitleOnlyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ProviderTitleTextStyle}">
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
-    </Style>
-
     <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
 
 
