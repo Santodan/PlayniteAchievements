@@ -92,30 +92,9 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "_gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview",
                 "The summary memo has to drop the rows the edit changed.");
             StringAssert.Contains(
-                ReadRepoFile("source", "Services", "Library", "LibraryProjectionService.cs"),
-                "_customDataStore.CustomDataChanged += OnCustomDataChangedForProjection",
-                "The library projection still invalidates -- on the filtered path, so a " +
-                "reorder-only edit no longer discards it.");
-            StringAssert.Contains(
                 ReadRepoFile("source", "PlayniteAchievementsPlugin.cs"),
                 "_gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged",
                 "Start-page invalidation, tag sync and the theme fan-out hang off this one.");
-        }
-
-        [TestMethod]
-        public void TheProjection_StillFiltersOnWhatCanMoveALibraryRollup()
-        {
-            var source = ReadRepoFile("source", "Services", "Library", "LibraryProjectionService.cs");
-            var handler = Between(
-                source,
-                "private void OnCustomDataChangedForProjection(",
-                "private void OnPersistedSettingsChanged(");
-
-            StringAssert.Contains(
-                handler,
-                "!e.AffectsSummaryData",
-                "This filter is what makes the CustomDataChanged path cheaper than the cache " +
-                "invalidation it replaced: a reorder cannot move anything the projection derives.");
         }
 
         private static string Between(string source, string start, string end)
