@@ -9,7 +9,6 @@ using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Hydration;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.Achievements
@@ -19,26 +18,6 @@ namespace PlayniteAchievements.Services.Achievements
     /// </summary>
     public sealed class AchievementDataService
     {
-        private static readonly IReadOnlyDictionary<string, string> EmptyIconOverrides =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly HashSet<string> OverviewProjectionAffectingSettings =
-            new HashSet<string>(StringComparer.Ordinal)
-            {
-                nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable),
-                nameof(PersistedSettings.IncludeHiddenGamesInSummaries)
-            };
-
-        private sealed class SummaryCustomizationData
-        {
-            public ResolvedGameCustomData Resolved { get; set; } = ResolvedGameCustomData.Empty;
-
-            public IReadOnlyDictionary<string, string> UnlockedIconOverrides { get; set; } =
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            public IReadOnlyDictionary<string, string> LockedIconOverrides { get; set; } =
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-
         private readonly ICacheManager _cacheService;
         private readonly ICacheReadOptimizations _cacheReadOptimizations;
         private readonly IAchievementOverrideMirror _overrideMirror;
@@ -50,35 +29,6 @@ namespace PlayniteAchievements.Services.Achievements
         // Persisted instance, so a captured instance would keep serving the values the
         // user reverted.
         private readonly PlayniteAchievementsSettings _settings;
-        private PersistedSettingsSubscription _persistedSubscription;
-        private readonly object _overviewProjectionCacheSync = new object();
-
-        /// <summary>
-        /// A memoized summary plus the games whose contribution to it is known to be stale. An
-        /// entry with no dirty games is served as-is; one with dirty games is patched per game on
-        /// the next read rather than rebuilt. Patching lazily -- on read rather than on the
-        /// change event -- collapses an editing burst into one patch and keeps the scoped SQL
-        /// read off the editor's save path.
-        /// </summary>
-        private sealed class OverviewSummaryMemoEntry
-        {
-            public OverviewSummaryMemoEntry(CachedSummaryData data)
-            {
-                Data = data;
-            }
-
-            public CachedSummaryData Data { get; set; }
-
-            public HashSet<Guid> DirtyGameIds { get; } = new HashSet<Guid>();
-        }
-
-        private readonly Dictionary<int, OverviewSummaryMemoEntry> _overviewSummaryCacheByLimit =
-            new Dictionary<int, OverviewSummaryMemoEntry>();
-
-        // Bumped on every invalidation; a summary loaded before an invalidation must not be
-        // memoized after it (it may have been built against since-replaced filter mirror rows).
-        private int _overviewProjectionGeneration;
-
         private PersistedSettings Persisted => _settings.Persisted;
 
         public AchievementDataService(
@@ -99,7 +49,10 @@ namespace PlayniteAchievements.Services.Achievements
             _cacheReadOptimizations = cacheService as ICacheReadOptimizations;
             _overrideMirror = cacheService as IAchievementOverrideMirror;
             _hydrator = new GameDataHydrator(api, settings, _gameCustomDataStore);
-            SubscribeOverviewProjectionInvalidation();
+            if (_gameCustomDataStore != null)
+            {
+                _gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview;
+            }
         }
 
         public GameAchievementData GetGameAchievementData(string playniteGameId)
@@ -316,11 +269,34 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        internal CachedSummaryData GetCachedSummaryData(int recentAchievementDetailLimit = 0)
+        /// <summary>
+        /// The library summary from the resolved rows, with games Playnite hides left out when
+        /// summaries leave hidden games out.
+        /// </summary>
+        internal CachedSummaryData GetCachedSummaryDataForOverview(int recentAchievementDetailLimit = 0)
         {
             try
             {
-                return _cacheReadOptimizations?.LoadCachedSummaryDataFast(recentAchievementDetailLimit);
+                var hidden = new HashSet<Guid>();
+                AddPlayniteHiddenGameIds(hidden);
+                var summary = _cacheReadOptimizations?.LoadCachedSummaryDataFast(
+                    Math.Max(0, recentAchievementDetailLimit),
+                    hidden,
+                    AuthoredGame);
+                var separateLockedIcons = new Dictionary<Guid, bool>();
+                foreach (var row in summary?.Achievements.Concat(summary.RecentUnlocks) ?? Enumerable.Empty<CachedRecentUnlockData>())
+                {
+                    var gameId = row.PlayniteGameId ?? Guid.Empty;
+                    if (!separateLockedIcons.TryGetValue(gameId, out var separate))
+                    {
+                        separate = GameCustomDataLookup.ShouldUseSeparateLockedIcons(gameId, Persisted, _gameCustomDataStore);
+                        separateLockedIcons[gameId] = separate;
+                    }
+
+                    row.UseSeparateLockedIconsWhenAvailable = separate;
+                }
+
+                return summary;
             }
             catch (Exception ex)
             {
@@ -329,246 +305,23 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        internal CachedSummaryData GetCachedSummaryDataForOverview(int recentAchievementDetailLimit = 0)
-        {
-            var normalizedLimit = Math.Max(0, recentAchievementDetailLimit);
-            int generation;
-            CachedSummaryData patchBase = null;
-            List<Guid> dirtyGameIds = null;
-
-            lock (_overviewProjectionCacheSync)
-            {
-                if (_overviewSummaryCacheByLimit.TryGetValue(normalizedLimit, out var entry))
-                {
-                    if (entry.DirtyGameIds.Count == 0)
-                    {
-                        return entry.Data;
-                    }
-
-                    // Snapshot and patch outside the lock; the entry stays dirty until the patch
-                    // is installed, so a concurrent reader either waits or takes the same path.
-                    patchBase = entry.Data;
-                    dirtyGameIds = entry.DirtyGameIds.ToList();
-                }
-
-                generation = _overviewProjectionGeneration;
-            }
-
-            if (patchBase != null && dirtyGameIds != null && dirtyGameIds.Count > 0)
-            {
-                var patched = TryPatchOverviewSummary(patchBase, dirtyGameIds, normalizedLimit, generation);
-                if (patched != null)
-                {
-                    return patched;
-                }
-
-                // The patch refused, so fall through to the full rebuild below and drop the
-                // stale entry rather than serve from it again.
-                lock (_overviewProjectionCacheSync)
-                {
-                    _overviewSummaryCacheByLimit.Remove(normalizedLimit);
-                }
-            }
-
-            var summaryData = GetCachedSummaryData(normalizedLimit);
-            if (summaryData == null)
-            {
-                _logger?.Debug("[OverviewPerf] Cached summary fast path unavailable because cached summary data could not be loaded.");
-                return null;
-            }
-
-            CachedSummaryData hydratedSummary;
-            try
-            {
-                hydratedSummary = ApplyOverviewSummaryHydration(summaryData, normalizedLimit);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to hydrate cached summary data for overview");
-                hydratedSummary = summaryData;
-            }
-
-            lock (_overviewProjectionCacheSync)
-            {
-                // Memoize only when no invalidation landed mid-load; a stale result is still
-                // returned to this caller (bounded staleness) but must not outlive the
-                // invalidation in the memo.
-                if (generation == _overviewProjectionGeneration)
-                {
-                    _overviewSummaryCacheByLimit[normalizedLimit] = new OverviewSummaryMemoEntry(hydratedSummary);
-                }
-
-                return hydratedSummary;
-            }
-        }
-
-        /// <summary>
-        /// Re-reads and re-hydrates each named game on its own, then splices the result into
-        /// <paramref name="patchBase"/>. Returns null when anything about the patch is not
-        /// expressible, in which case the caller rebuilds.
-        /// </summary>
-        private CachedSummaryData TryPatchOverviewSummary(
-            CachedSummaryData patchBase,
-            List<Guid> dirtyGameIds,
-            int normalizedLimit,
-            int generation)
-        {
-            // Only the unbounded read is patchable. A bounded one trims rows library-wide, and a
-            // row trimmed away cannot be recovered from one game's slice.
-            if (normalizedLimit != 0 ||
-                dirtyGameIds.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
-            {
-                return null;
-            }
-
-            CachedSummaryData patched;
-            using (var scope = Common.PerfScope.Start(_logger, "Overview.PatchCachedSummary", thresholdMs: 25))
-            {
-                scope?.SetContext("games=" + dirtyGameIds.Count);
-
-                var slices = new Dictionary<Guid, CachedSummaryData>();
-                foreach (var gameId in dirtyGameIds)
-                {
-                    CachedSummaryData slice;
-                    try
-                    {
-                        slice = _cacheReadOptimizations?.LoadCachedSummaryDataForGameFast(gameId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Error(ex, $"Scoped summary read failed for game {gameId}.");
-                        return null;
-                    }
-
-                    if (slice == null)
-                    {
-                        return null;
-                    }
-
-                    try
-                    {
-                        // Same hydration code as the whole-library path, narrowed to this game.
-                        slices[gameId] = ApplyOverviewSummaryHydration(slice, 0, new[] { gameId });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Error(ex, $"Scoped summary hydration failed for game {gameId}.");
-                        return null;
-                    }
-                }
-
-                patched = OverviewSummaryPatcher.Patch(patchBase, dirtyGameIds, slices);
-            }
-
-            if (patched == null)
-            {
-                return null;
-            }
-
-            lock (_overviewProjectionCacheSync)
-            {
-                // Same rule the full path uses: install only when no invalidation landed while
-                // the patch was being built. If one did, this caller still gets the patched
-                // result (bounded staleness) and the ids stay dirty for the next read to retry.
-                if (generation == _overviewProjectionGeneration &&
-                    _overviewSummaryCacheByLimit.TryGetValue(normalizedLimit, out var entry))
-                {
-                    entry.Data = patched;
-                    entry.DirtyGameIds.Clear();
-                }
-            }
-
-            return patched;
-        }
-
         internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
             return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
         }
 
-        /// <summary>
-        /// <paramref name="scopeGameIds"/> narrows the custom-data context to one game's slice.
-        /// Every step below is already keyed by PlayniteGameId, so the scoped and whole-library
-        /// paths run the same code -- which is the strongest guarantee available that a patched
-        /// summary equals a full rebuild.
-        /// </summary>
-        private CachedSummaryData ApplyOverviewSummaryHydration(
-            CachedSummaryData summaryData,
-            int recentAchievementDetailLimit,
-            IReadOnlyCollection<Guid> scopeGameIds = null)
+        /// <summary>A game with only authored achievements: named by Playnite, shown as its custom provider.</summary>
+        private CachedGameSummaryData AuthoredGame(Guid gameId)
         {
-            summaryData ??= new CachedSummaryData();
-            summaryData.Games ??= new List<CachedGameSummaryData>();
-            summaryData.RecentUnlocks ??= new List<CachedRecentUnlockData>();
-            summaryData.Achievements ??= new List<CachedRecentUnlockData>();
-            summaryData.GlobalUnlockCountsByDate ??= new Dictionary<DateTime, int>();
-            summaryData.UnlockCountsByDateByGame ??= new Dictionary<Guid, Dictionary<DateTime, int>>();
-
-            var (customDataByGameId, excludedSummaryIds) = BuildOverviewCustomDataContext(scopeGameIds);
-            if (excludedSummaryIds != null && excludedSummaryIds.Count > 0)
+            var customData = LoadCustomData(gameId);
+            return new CachedGameSummaryData
             {
-                summaryData.Games = summaryData.Games
-                    .Where(game => game?.PlayniteGameId.HasValue != true || !excludedSummaryIds.Contains(game.PlayniteGameId.Value))
-                    .ToList();
-
-                summaryData.RecentUnlocks = summaryData.RecentUnlocks
-                    .Where(recent => recent?.PlayniteGameId.HasValue != true || !excludedSummaryIds.Contains(recent.PlayniteGameId.Value))
-                    .ToList();
-
-                summaryData.Achievements = summaryData.Achievements
-                    .Where(item => item?.PlayniteGameId.HasValue != true ||
-                                   !excludedSummaryIds.Contains(item.PlayniteGameId.Value))
-                    .ToList();
-
-                RemoveExcludedTimelineCounts(
-                    summaryData.GlobalUnlockCountsByDate,
-                    summaryData.UnlockCountsByDateByGame,
-                    excludedSummaryIds);
-            }
-
-            // The query tallies provider tags and capstone flags; the user's tag and capstone edits
-            // move their achievements before the merge adds the custom achievements, whose edits it
-            // applies itself.
-            ApplyEditsToTallies(summaryData.Games, customDataByGameId);
-
-            // SQL summaries never see custom achievements, which live only in custom data.
-            CustomAchievementSummaryMerger.Merge(
-                summaryData,
-                customDataByGameId,
-                excludedSummaryIds,
-                recentAchievementDetailLimit,
-                gameId => GetGame(gameId)?.Name,
-                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
-                ResolveCustomProviderPlatformKey);
-
-            var gameIdsNeedingCompletionOverrides = new HashSet<Guid>(
-                summaryData.Games
-                    .Where(game => game?.PlayniteGameId.HasValue == true && !game.IsCompleted)
-                    .Select(game => game.PlayniteGameId.Value)
-                    .Where(gameId => gameId != Guid.Empty));
-
-            var achievementDetails = summaryData.Achievements.Count > 0
-                ? summaryData.Achievements
-                : summaryData.RecentUnlocks;
-            var achievementGameIds = new HashSet<Guid>(
-                achievementDetails
-                    .Where(item => item?.PlayniteGameId.HasValue == true)
-                    .Select(item => item.PlayniteGameId.Value)
-                    .Where(gameId => gameId != Guid.Empty));
-            gameIdsNeedingCompletionOverrides.UnionWith(achievementGameIds);
-
-            var customizationByGameId = BuildSummaryCustomizationByGameId(
-                gameIdsNeedingCompletionOverrides,
-                achievementGameIds,
-                customDataByGameId);
-            ApplyGameSummaryCustomization(
-                summaryData.Games,
-                customizationByGameId,
-                summaryData.Achievements,
-                unlockedListIsPartial: recentAchievementDetailLimit > 0);
-            ApplyAchievementSummaryCustomization(achievementDetails, customizationByGameId, summaryData);
-
-            return summaryData;
+                ProviderKey = CustomAchievementProjectionService.ProviderKey,
+                ProviderPlatformKey = ResolveCustomProviderPlatformKey(customData?.CustomProviderId),
+                GameName = GetGame(gameId)?.Name,
+                RaritySource = CustomAchievementProjectionService.ResolveRaritySource(customData?.CustomAchievements) ?? RaritySource.None,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
         }
 
         /// <summary>
@@ -577,116 +330,11 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         public event EventHandler<TalliesChangedEventArgs> TalliesChanged;
 
-        // The query counts provider tags and provider capstone flags; the user's tag edits and
-        // edited capstone sets move their achievements to where the user put them.
-        private void ApplyEditsToTallies(
-            IEnumerable<CachedGameSummaryData> games,
-            IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
-        {
-            var edits = new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>();
-            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
-            {
-                if (!(game?.PlayniteGameId is Guid gameId) || gameId == Guid.Empty || edits.ContainsKey(gameId))
-                {
-                    continue;
-                }
-
-                GameCustomDataFile customData = null;
-                customDataByGameId?.TryGetValue(gameId, out customData);
-                var tagEdits = TagEdits(customData);
-                var capstones = EditedCapstones(gameId, customData);
-                if (tagEdits.Count > 0 || capstones != null)
-                {
-                    edits[gameId] = (tagEdits, capstones);
-                }
-            }
-
-            if (edits.Count == 0)
-            {
-                return;
-            }
-
-            var states = LoadTallyStates(edits);
-            if (states == null)
-            {
-                return;
-            }
-
-            foreach (var game in games ?? Enumerable.Empty<CachedGameSummaryData>())
-            {
-                if (game?.PlayniteGameId is Guid gameId &&
-                    edits.TryGetValue(gameId, out var gameEdits) &&
-                    states.TryGetValue(gameId, out var gameStates))
-                {
-                    game.Tallies = AchievementTallyBuilder.ApplyEdits(
-                        game.Tallies,
-                        gameStates,
-                        gameEdits.Tags,
-                        gameEdits.Capstones);
-                }
-            }
-        }
-
-        // The tallied states of the achievements the edits move: each tag-edited one, and for an
-        // edited capstone set both its members and the provider capstones it may have dropped.
-        private Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadTallyStates(
-            IReadOnlyDictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)> edits)
-        {
-            var wanted = edits.ToDictionary(
-                pair => pair.Key,
-                pair =>
-                {
-                    var names = new HashSet<string>(pair.Value.Tags.Keys, StringComparer.OrdinalIgnoreCase);
-                    names.UnionWith(pair.Value.Capstones ?? Enumerable.Empty<string>());
-                    return names;
-                });
-            var capstoneGames = new HashSet<Guid>(edits.Where(pair => pair.Value.Capstones != null).Select(pair => pair.Key));
-            return _cacheReadOptimizations?.LoadAchievementTallyStatesFast(wanted, capstoneGames);
-        }
-
-        /// <summary>
-        /// The ApiNames of a game's user-edited capstone set, which replaces the provider's flags;
-        /// null while the game goes by the provider's.
-        /// </summary>
-        private HashSet<string> EditedCapstones(Guid gameId, GameCustomDataFile customData)
-        {
-            var capstones = customData != null && customData.CapstonesMaterialized
-                ? customData.Capstones ?? new List<CapstoneAssignment>()
-                : null;
-            if (capstones == null)
-            {
-                return null;
-            }
-
-            return new HashSet<string>(
-                capstones
-                    .Select(capstone => NormalizeText(capstone?.ApiName))
-                    .Where(apiName => !string.IsNullOrWhiteSpace(apiName)),
-                StringComparer.OrdinalIgnoreCase);
-        }
-
-        private static Dictionary<string, AchievementOverride> TagEdits(GameCustomDataFile customData)
-        {
-            var edits = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in customData?.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
-            {
-                if (!string.IsNullOrWhiteSpace(pair.Key) && AchievementTallyBuilder.HasTagEdit(pair.Value))
-                {
-                    edits[pair.Key.Trim()] = pair.Value;
-                }
-            }
-
-            return edits;
-        }
-
-        /// <summary>
-        /// Recounts one game's tallies after a tag edit and puts them on the cached summary in
-        /// place: two small reads for the game, not a summary patch and the whole-library refresh
-        /// that follows one.
-        /// </summary>
+        /// <summary>Recounts one game's tallies after a tag edit and raises <see cref="TalliesChanged"/>.</summary>
         private void RefreshTallies(Guid gameId)
         {
-            if (gameId == Guid.Empty || _cacheReadOptimizations == null)
+            var reads = _cacheReadOptimizations?.Reads;
+            if (gameId == Guid.Empty || reads == null)
             {
                 return;
             }
@@ -694,84 +342,12 @@ namespace PlayniteAchievements.Services.Achievements
             AchievementTally[] totals;
             using (Common.PerfScope.Start(_logger, "Overview.RefreshTallies", thresholdMs: 10))
             {
-                GameCustomDataFile customData = null;
-                _gameCustomDataStore?.TryLoad(gameId, out customData);
-                totals = _cacheReadOptimizations.LoadTalliesForGameFast(gameId);
-                var edits = TagEdits(customData);
-                var capstones = EditedCapstones(gameId, customData);
-                if (edits.Count > 0 || capstones != null)
-                {
-                    var states = LoadTallyStates(
-                        new Dictionary<Guid, (Dictionary<string, AchievementOverride> Tags, HashSet<string> Capstones)>
-                        {
-                            [gameId] = (edits, capstones)
-                        });
-                    if (states != null && states.TryGetValue(gameId, out var gameStates))
-                    {
-                        totals = AchievementTallyBuilder.ApplyEdits(totals, gameStates, edits, capstones);
-                    }
-                }
-
-                var builder = AchievementTallyBuilder.From(totals);
-                CustomAchievementSummaryMerger.AddCustomAchievementTags(
-                    builder,
-                    gameId,
-                    customData,
-                    PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService);
-                totals = builder.Build();
-            }
-
-            lock (_overviewProjectionCacheSync)
-            {
-                foreach (var entry in _overviewSummaryCacheByLimit.Values)
-                {
-                    foreach (var game in entry?.Data?.Games ?? new List<CachedGameSummaryData>())
-                    {
-                        if (game?.PlayniteGameId == gameId)
-                        {
-                            game.Tallies = totals;
-                        }
-                    }
-                }
+                totals = SummaryCacheReader.Tallies(reads.Totals(
+                    AchievementQuery.CurrentUser.WithSummaryRules().ForGames(new[] { gameId }),
+                    AchievementGroup.Tally));
             }
 
             TalliesChanged?.Invoke(this, new TalliesChangedEventArgs(gameId, totals));
-        }
-
-        private Dictionary<Guid, SummaryCustomizationData> BuildSummaryCustomizationByGameId(
-            IEnumerable<Guid> playniteGameIds,
-            ISet<Guid> includeIconOverrideGameIds,
-            IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
-        {
-            var result = new Dictionary<Guid, SummaryCustomizationData>();
-            if (playniteGameIds == null)
-            {
-                return result;
-            }
-
-            includeIconOverrideGameIds ??= new HashSet<Guid>();
-
-            foreach (var gameId in playniteGameIds.Where(id => id != Guid.Empty).Distinct())
-            {
-                GameCustomDataFile customData = null;
-                customDataByGameId?.TryGetValue(gameId, out customData);
-                var resolved = ResolveSummaryCustomData(gameId, customData);
-
-                var includeIconOverrides = includeIconOverrideGameIds.Contains(gameId);
-
-                result[gameId] = new SummaryCustomizationData
-                {
-                    Resolved = resolved,
-                    UnlockedIconOverrides = includeIconOverrides
-                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.UnlockedIconPath)
-                        : EmptyIconOverrides,
-                    LockedIconOverrides = includeIconOverrides
-                        ? AchievementOverride.Project(customData?.AchievementOverrides, o => o.LockedIconPath)
-                        : EmptyIconOverrides
-                };
-            }
-
-            return result;
         }
 
         private Dictionary<Guid, GameCustomDataFile> LoadCustomDataByGameId()
@@ -887,77 +463,6 @@ namespace PlayniteAchievements.Services.Achievements
                 else
                 {
                     result.Remove(pair.Key);
-                }
-            }
-
-            return result;
-        }
-
-        private ResolvedGameCustomData ResolveSummaryCustomData(Guid gameId, GameCustomDataFile customData)
-        {
-            if (gameId == Guid.Empty)
-            {
-                return ResolvedGameCustomData.Empty;
-            }
-
-            return customData != null
-                ? GameCustomDataLookup.BuildResolvedFromRecord(customData, Persisted)
-                : new ResolvedGameCustomData { UseSeparateLockedIcons = Persisted?.UseSeparateLockedIconsWhenAvailable == true };
-        }
-
-        /// <summary>
-        /// When <paramref name="scopeGameIds"/> is given, loads only those games' custom data and
-        /// narrows the exclusion set to them. LoadCustomDataByGameId goes through
-        /// GameCustomDataStore.LoadAll, which deep-clones every stored record on every call, so
-        /// an unscoped context costs one clone per game in the library per hydration.
-        /// </summary>
-        private (Dictionary<Guid, GameCustomDataFile> customDataByGameId, HashSet<Guid> excludedSummaryIds)
-            BuildOverviewCustomDataContext(IReadOnlyCollection<Guid> scopeGameIds = null)
-        {
-            if (scopeGameIds == null || scopeGameIds.Count == 0)
-            {
-                var all = LoadCustomDataByGameId();
-                return (all, ResolveExcludedSummaryGameIds(() => all));
-            }
-
-            var scoped = new Dictionary<Guid, GameCustomDataFile>();
-            foreach (var gameId in scopeGameIds)
-            {
-                if (gameId == Guid.Empty || _gameCustomDataStore == null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (_gameCustomDataStore.TryLoad(gameId, out var record) && record != null)
-                    {
-                        scoped[gameId] = record;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"Failed to load custom data for game {gameId} during scoped hydration.");
-                }
-            }
-
-            // Narrowed to the scope: the exclusion filter must only ever remove rows belonging to
-            // games this pass actually re-read, or a patch would drop rows it never replaced.
-            var excluded = ResolveExcludedSummaryGameIds(() => scoped);
-            excluded?.IntersectWith(scopeGameIds);
-            return (scoped, excluded);
-        }
-
-        private static List<string> CloneCategoryOrder(IEnumerable<string> source)
-        {
-            var result = new List<string>();
-            var seen = new HashSet<string>(CategoryPathHelper.LabelComparer);
-            foreach (var value in source ?? Enumerable.Empty<string>())
-            {
-                var normalized = AchievementCategoryHelper.NormalizeCategoryOrDefault(value);
-                if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
-                {
-                    result.Add(normalized);
                 }
             }
 
@@ -1094,402 +599,7 @@ namespace PlayniteAchievements.Services.Achievements
             return visibleAchievements;
         }
 
-        private void ApplyGameSummaryCustomization(
-            IList<CachedGameSummaryData> games,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId,
-            IReadOnlyList<CachedRecentUnlockData> unlockedAchievements,
-            bool unlockedListIsPartial = false)
-        {
-            if (games == null || games.Count == 0 || customizationByGameId == null || customizationByGameId.Count == 0)
-            {
-                return;
-            }
-
-            // Built once from the unlocked rows already in hand, and only for the games that need
-            // it. This used to load each materialized game's whole achievement payload, which made
-            // every summary hydration cost one full per-game cache read per capstone the user had
-            // ever set -- a price that grew with use and was paid holding the cache lock.
-            //
-            // A bounded read holds only the most recent unlocks, so there the rows in hand cannot
-            // say whether an older capstone was earned, and every stored capstone read as locked.
-            // That read asks for exactly the capstones instead.
-            var unlockedByGameId = unlockedListIsPartial
-                ? LoadUnlockedCapstoneApiNamesByGame(games, customizationByGameId)
-                : BuildUnlockedApiNamesByGame(
-                    unlockedAchievements,
-                    games,
-                    customizationByGameId);
-
-            foreach (var game in games)
-            {
-                if (game == null || !game.PlayniteGameId.HasValue)
-                {
-                    continue;
-                }
-
-                if (!customizationByGameId.TryGetValue(game.PlayniteGameId.Value, out var customization) ||
-                    customization == null)
-                {
-                    continue;
-                }
-
-                // The summary SQL counts the provider seed, which is the right answer only while a
-                // game is untouched. Once the user has edited its capstones the stored set is the
-                // truth, and it can move completion either way: nominating a second capstone can
-                // un-finish a game just as dropping one can finish it.
-                var resolved = customization.Resolved;
-                if (resolved?.CapstonesMaterialized != true)
-                {
-                    continue;
-                }
-
-                unlockedByGameId.TryGetValue(game.PlayniteGameId.Value, out var unlockedApiNames);
-                ApplyStoredCapstoneCompletion(game, resolved, unlockedApiNames);
-            }
-        }
-
-        /// <summary>
-        /// Unlocked capstone ApiNames per materialized game, read for exactly the stored capstones
-        /// rather than taken from a summary's unlock rows.
-        /// </summary>
-        /// <remarks>
-        /// Authored capstones are answered from their definitions, since the cache never holds
-        /// them; provider ones take one query for the whole set.
-        /// </remarks>
-        private Dictionary<Guid, HashSet<string>> LoadUnlockedCapstoneApiNamesByGame(
-            IList<CachedGameSummaryData> games,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId)
-        {
-            var result = new Dictionary<Guid, HashSet<string>>();
-            var wanted = new Dictionary<Guid, HashSet<string>>();
-            foreach (var game in games)
-            {
-                var gameId = game?.PlayniteGameId;
-                if (!gameId.HasValue ||
-                    !customizationByGameId.TryGetValue(gameId.Value, out var customization) ||
-                    customization?.Resolved?.CapstonesMaterialized != true)
-                {
-                    continue;
-                }
-
-                var resolved = customization.Resolved;
-                var unlockedCustom = new HashSet<string>(
-                    (resolved.CustomAchievements ?? new List<CustomAchievementDefinition>())
-                        .Where(definition => definition?.Unlocked == true)
-                        .Select(definition => CustomAchievementProjectionService.BuildApiName(definition.Id)),
-                    StringComparer.OrdinalIgnoreCase);
-
-                foreach (var assignment in resolved.Capstones ?? new List<CapstoneAssignment>())
-                {
-                    var apiName = NormalizeText(assignment?.ApiName);
-                    if (string.IsNullOrWhiteSpace(apiName))
-                    {
-                        continue;
-                    }
-
-                    AddApiName(unlockedCustom.Contains(apiName) ? result : wanted, gameId.Value, apiName);
-                }
-            }
-
-            if (wanted.Count == 0)
-            {
-                return result;
-            }
-
-            var unlockedProvider = _cacheReadOptimizations?.LoadUnlockedApiNamesFast(wanted);
-            foreach (var pair in unlockedProvider ?? new Dictionary<Guid, HashSet<string>>())
-            {
-                foreach (var apiName in pair.Value ?? new HashSet<string>())
-                {
-                    AddApiName(result, pair.Key, apiName);
-                }
-            }
-
-            return result;
-        }
-
-        private static void AddApiName(Dictionary<Guid, HashSet<string>> target, Guid gameId, string apiName)
-        {
-            if (!target.TryGetValue(gameId, out var set))
-            {
-                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                target[gameId] = set;
-            }
-
-            set.Add(apiName);
-        }
-
-        /// <summary>
-        /// Unlocked ApiNames per game, for the materialized games only, so the capstone correction
-        /// can count earned capstones without re-reading anything.
-        /// </summary>
-        private static Dictionary<Guid, HashSet<string>> BuildUnlockedApiNamesByGame(
-            IReadOnlyList<CachedRecentUnlockData> unlockedAchievements,
-            IList<CachedGameSummaryData> games,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId)
-        {
-            var result = new Dictionary<Guid, HashSet<string>>();
-            if (unlockedAchievements == null || unlockedAchievements.Count == 0)
-            {
-                return result;
-            }
-
-            var wanted = new HashSet<Guid>();
-            foreach (var game in games)
-            {
-                var gameId = game?.PlayniteGameId;
-                if (gameId.HasValue &&
-                    customizationByGameId.TryGetValue(gameId.Value, out var customization) &&
-                    customization?.Resolved?.CapstonesMaterialized == true)
-                {
-                    wanted.Add(gameId.Value);
-                }
-            }
-
-            if (wanted.Count == 0)
-            {
-                return result;
-            }
-
-            foreach (var unlock in unlockedAchievements)
-            {
-                var gameId = unlock?.PlayniteGameId;
-                if (gameId == null || !wanted.Contains(gameId.Value))
-                {
-                    continue;
-                }
-
-                var apiName = NormalizeText(unlock.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName))
-                {
-                    continue;
-                }
-
-                if (!result.TryGetValue(gameId.Value, out var set))
-                {
-                    set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    result[gameId.Value] = set;
-                }
-
-                set.Add(apiName);
-            }
-
-            return result;
-        }
-
-        private static readonly string[] PlatinumApiNameSeparator =
-            { CachedGameSummaryData.PlatinumApiNameSeparator };
-
-        private static HashSet<string> SplitPlatinumApiNames(string packed)
-        {
-            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrWhiteSpace(packed))
-            {
-                return result;
-            }
-
-            foreach (var part in packed.Split(PlatinumApiNameSeparator, StringSplitOptions.RemoveEmptyEntries))
-            {
-                var apiName = NormalizeText(part);
-                if (!string.IsNullOrWhiteSpace(apiName))
-                {
-                    result.Add(apiName);
-                }
-            }
-
-            return result;
-        }
-
-        private static bool IsFilteredFromSummary(ResolvedGameCustomData resolved, string apiName)
-        {
-            return resolved?.FilteredAchievementApiNames?.Contains(apiName) == true ||
-                   resolved?.SummaryFilteredAchievementApiNames?.Contains(apiName) == true;
-        }
-
-        /// <summary>
-        /// Recomputes a summary row's capstone counts and completion from the game's stored set.
-        /// </summary>
-        /// <remarks>
-        /// The stored set is taken as the total without checking that each entry still exists,
-        /// because the write path prunes entries whose achievement the provider no longer sends.
-        /// </remarks>
-        private static void ApplyStoredCapstoneCompletion(
-            CachedGameSummaryData game,
-            ResolvedGameCustomData resolved,
-            HashSet<string> unlockedApiNames)
-        {
-            var platinums = SplitPlatinumApiNames(game.PlatinumApiNames);
-            var total = 0;
-            var unlocked = 0;
-            var capstonesThatAreNotPlatinum = 0;
-            foreach (var assignment in resolved.Capstones ?? new List<CapstoneAssignment>())
-            {
-                var apiName = NormalizeText(assignment?.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName))
-                {
-                    continue;
-                }
-
-                // A filtered capstone is out of the counts like any filtered achievement, so it no
-                // longer stands for finishing the game either; filtering it is how a capstone the
-                // user does not want is set aside without deleting it. Dropped from the platinums
-                // too, so it does not resurface there as a platinum that is not a capstone.
-                if (IsFilteredFromSummary(resolved, apiName))
-                {
-                    platinums.Remove(apiName);
-                    continue;
-                }
-
-                total++;
-                if (unlockedApiNames != null && unlockedApiNames.Contains(apiName))
-                {
-                    unlocked++;
-                }
-
-                if (!platinums.Contains(apiName))
-                {
-                    capstonesThatAreNotPlatinum++;
-                }
-            }
-
-            game.CapstoneTotal = total;
-            game.CapstoneUnlocked = unlocked;
-            // The stored set replaces both halves of the identity: the query counted the capstones
-            // the provider flagged, which this game no longer goes by.
-            game.CapstonesNotPlatinum = capstonesThatAreNotPlatinum;
-            game.PlatinumsNotCapstone = platinums.Count - (total - capstonesThatAreNotPlatinum);
-            game.IsCompleted =
-                (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements) ||
-                (total > 0 && unlocked >= total);
-        }
-
-        /// <param name="timeline">
-        /// The summary whose unlock-date counts SQL bucketed by the recorded unlock time. An
-        /// unlock-time override moves its row's count to the overridden date (or drops it when the
-        /// override clears the time), matching the Overview's delta rebuild, which counts rows by
-        /// their overridden time; otherwise the calendar changed between full and delta builds.
-        /// </param>
-        private void ApplyAchievementSummaryCustomization(
-            IList<CachedRecentUnlockData> achievements,
-            IReadOnlyDictionary<Guid, SummaryCustomizationData> customizationByGameId,
-            CachedSummaryData timeline)
-        {
-            if (achievements == null || achievements.Count == 0)
-            {
-                return;
-            }
-
-            var defaultUseSeparateLockedIcons = Persisted?.UseSeparateLockedIconsWhenAvailable == true;
-            foreach (var achievement in achievements)
-            {
-                if (achievement == null)
-                {
-                    continue;
-                }
-
-                achievement.UseSeparateLockedIconsWhenAvailable = defaultUseSeparateLockedIcons;
-
-                if (!achievement.PlayniteGameId.HasValue ||
-                    !customizationByGameId.TryGetValue(achievement.PlayniteGameId.Value, out var customization) ||
-                    customization == null)
-                {
-                    continue;
-                }
-
-                var resolved = customization.Resolved ?? ResolvedGameCustomData.Empty;
-                achievement.UseSeparateLockedIconsWhenAvailable = resolved.UseSeparateLockedIcons;
-
-                var apiName = NormalizeText(achievement.ApiName);
-                if (string.IsNullOrWhiteSpace(apiName))
-                {
-                    continue;
-                }
-
-                if (resolved.CapstonesMaterialized)
-                {
-                    achievement.IsCapstone = resolved.Capstones?.Any(capstone => capstone.Matches(apiName)) == true;
-                }
-
-                // Summary rows read the resolved view, which already carries the user's text,
-                // points, trophy type, category and tags. What stays outside SQL is applied here
-                // as the hydrator applies it: unlock time, note, category kind and icons.
-                resolved.AchievementOverrides.TryGetValue(apiName, out var userOverride);
-                achievement.Category = CategoryPathHelper.NormalizePath(achievement.Category);
-                if (userOverride != null)
-                {
-                    var countedDate = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue
-                        ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
-                        : (DateTime?)null;
-                    userOverride?.ApplyUnlockTimeTo(achievement, resolved.HasManualLink);
-                    MoveTimelineCount(timeline, achievement, countedDate);
-                }
-
-                achievement.AchievementNote = userOverride?.Note;
-                achievement.CategoryKind = CategoryKindHelper.ResolveEffective(
-                    resolved.GetStoredCategoryKind(achievement.Category),
-                    achievement.CategoryKind);
-
-                var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(unlockedOverride))
-                {
-                    achievement.UnlockedIconPath = ResolveCustomIconOverridePath(
-                        unlockedOverride,
-                        achievement.PlayniteGameId.Value);
-                }
-
-                var lockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.LockedIconOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(lockedOverride))
-                {
-                    achievement.LockedIconPath = ResolveCustomIconOverridePath(
-                        lockedOverride,
-                        achievement.PlayniteGameId.Value);
-                }
-            }
-        }
-
-        private static void MoveTimelineCount(
-            CachedSummaryData timeline,
-            CachedRecentUnlockData achievement,
-            DateTime? countedDate)
-        {
-            if (timeline == null || !countedDate.HasValue)
-            {
-                return;
-            }
-
-            var newDate = achievement.UnlockTimeUtc.HasValue
-                ? Overview.UnlockDayCounts.DayOf(achievement.UnlockTimeUtc.Value)
-                : (DateTime?)null;
-            if (newDate == countedDate)
-            {
-                return;
-            }
-
-            // Only a row SQL actually counted is moved; a date missing from the bucket means it was
-            // not (a filtered row, or a read without the timeline), and there is nothing to move.
-            if (!Overview.UnlockDayCounts.RemoveDay(
-                    timeline.GlobalUnlockCountsByDate,
-                    timeline.UnlockCountsByDateByGame,
-                    achievement.PlayniteGameId,
-                    countedDate.Value))
-            {
-                return;
-            }
-
-            if (newDate.HasValue)
-            {
-                Overview.UnlockDayCounts.AddDay(
-                    timeline.GlobalUnlockCountsByDate,
-                    timeline.UnlockCountsByDateByGame,
-                    achievement.PlayniteGameId,
-                    newDate.Value);
-            }
-        }
-
-        /// <summary>
-        /// The per-achievement override record for a summary row, resolving through the legacy
-        /// mirror maps when the resolved data predates the record.
-        /// </summary>
+        /// <summary>A stored icon override as the plugin displays it.</summary>
         private static string ResolveCustomIconOverridePath(string value, Guid playniteGameId)
         {
             var normalized = NormalizeText(value);
@@ -1509,85 +619,8 @@ namespace PlayniteAchievements.Services.Achievements
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
-        private static void RemoveExcludedTimelineCounts(
-            IDictionary<DateTime, int> globalCounts,
-            IDictionary<Guid, Dictionary<DateTime, int>> countsByGame,
-            ISet<Guid> excludedSummaryIds)
-        {
-            if (globalCounts == null || countsByGame == null || excludedSummaryIds == null || excludedSummaryIds.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var gameId in excludedSummaryIds)
-            {
-                if (!countsByGame.TryGetValue(gameId, out var excludedCounts) || excludedCounts == null)
-                {
-                    continue;
-                }
-
-                foreach (var kvp in excludedCounts)
-                {
-                    if (!globalCounts.TryGetValue(kvp.Key, out var existing))
-                    {
-                        continue;
-                    }
-
-                    var remaining = existing - kvp.Value;
-                    if (remaining > 0)
-                    {
-                        globalCounts[kvp.Key] = remaining;
-                    }
-                    else
-                    {
-                        globalCounts.Remove(kvp.Key);
-                    }
-                }
-
-                countsByGame.Remove(gameId);
-            }
-        }
-
-        private void SubscribeOverviewProjectionInvalidation()
-        {
-            _cacheService.CacheInvalidated += OnCacheInvalidatedForOverview;
-            _cacheService.CacheDeltaUpdated += OnOverviewProjectionSourceChanged;
-
-            if (_gameCustomDataStore != null)
-            {
-                _gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview;
-            }
-
-            // Tracks the current Persisted instance so the invalidation keeps working
-            // after a settings cancel replaces it. The swap itself invalidates, since it
-            // can revert any of the projection-affecting settings in one step.
-            _persistedSubscription = new PersistedSettingsSubscription(
-                _settings,
-                OnPersistedSettingsChanged,
-                // Wholesale: a settings swap can revert any projection-affecting setting at
-                // once, which is not expressible as a per-game patch.
-                () => InvalidateOverviewProjectionCaches());
-        }
-
-        private void OnPersistedSettingsChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (ShouldInvalidateOverviewProjectionCaches(e?.PropertyName))
-            {
-                InvalidateOverviewProjectionCaches();
-            }
-        }
-
-        private void OnOverviewProjectionSourceChanged(object sender, EventArgs e)
-        {
-            InvalidateOverviewProjectionCaches();
-        }
-
-        // Ordering invariant: the filter mirror is written BEFORE the summary memo is cleared,
-        // so no reader can cache a summary built against stale mirror rows. This relies on the
-        // handler being synchronous and on AchievementDataService subscribing to
-        // CustomDataChanged before every other summary consumer (it is constructed before
-        // LibraryProjectionService in the plugin ctor, and multicast handlers run in
-        // subscription order).
+        // Written synchronously inside CustomDataChanged, so the mirror is current before any
+        // reader that handles the same event reads the resolved views.
         private void OnCustomDataChangedForOverview(object sender, GameCustomDataChangedEventArgs e)
         {
             // The custom layer mirror carries every field the resolved view shows, notes, goals
@@ -1595,33 +628,11 @@ namespace PlayniteAchievements.Services.Achievements
             // when nothing moved.
             SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
 
-            // A change that moves no summary (goals, order) stops here. A tag edit moves only the
-            // game's tallies, which are recounted on their own.
-            if (e != null && !e.AffectsSummaryData)
+            // A tag edit moves only the game's tallies, which are recounted on their own.
+            if (e != null && !e.AffectsSummaryData && e.AffectsTagTotals)
             {
-                if (e.AffectsTagTotals)
-                {
-                    RefreshTallies(e.PlayniteGameId);
-                }
-
-                return;
+                RefreshTallies(e.PlayniteGameId);
             }
-
-            // Names the one game that moved, so the next read patches its contribution instead
-            // of re-running five unfiltered whole-library queries.
-            var changedGameId = e?.PlayniteGameId ?? Guid.Empty;
-            InvalidateOverviewProjectionCaches(
-                changedGameId == Guid.Empty ? null : new[] { changedGameId });
-        }
-
-        private void OnCacheInvalidatedForOverview(object sender, CacheInvalidatedEventArgs e)
-        {
-            // The editor raises a scoped invalidation for its own game on top of the store's
-            // CustomDataChanged, and it is the only route by which an edit that does not affect
-            // summary data reaches the overview. Honouring the scope here is what stops that
-            // second raise from costing a whole-library rebuild.
-            InvalidateOverviewProjectionCaches(
-                e?.IsFull == false && e.ChangedGameIds.Count > 0 ? e.ChangedGameIds : null);
         }
 
         private void SyncAchievementFiltersForGame(Guid playniteGameId)
@@ -1649,8 +660,7 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
-        /// Reconciles the whole AchievementFilters mirror against the custom-data store and
-        /// clears the summary memo. Called at startup (covers legacy migrations that bypass
+        /// Reconciles the whole AchievementFilters mirror against the custom-data store. Called at startup (covers legacy migrations that bypass
         /// CustomDataChanged) and after full cache invalidations.
         /// </summary>
         internal void SyncAllAchievementFiltersFromCustomData()
@@ -1690,7 +700,6 @@ namespace PlayniteAchievements.Services.Achievements
 
             _overrideMirror.ResyncAllAchievementOverrides(entriesByGameId);
             _overrideMirror.ReplaceGameCustomStates(states);
-            InvalidateOverviewProjectionCaches();
         }
 
         /// <summary>
@@ -1847,103 +856,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             return entry;
-        }
-
-        /// <summary>
-        /// A Playnite-owned field that decides summary membership (Hidden) changed for these
-        /// games. Nothing in the achievement cache moved, so no store event reaches the memo;
-        /// marking the games dirty makes the next read re-run the exclusion for them.
-        /// </summary>
-        public void InvalidateSummariesForPlayniteGames(IReadOnlyList<Guid> gameIds)
-        {
-            if (gameIds == null || gameIds.Count == 0 || Persisted?.IncludeHiddenGamesInSummaries != false)
-            {
-                return;
-            }
-
-            InvalidateOverviewProjectionCaches(gameIds);
-        }
-
-        /// <summary>
-        /// Drops the memoized overview summaries. With <paramref name="changedGameIds"/> the
-        /// unbounded entry is instead marked dirty for those games, so the next read patches
-        /// their contribution rather than re-running five whole-library queries. Passing null --
-        /// a settings change, a full cache invalidation, a library-wide filter resync -- keeps
-        /// the wholesale behaviour.
-        /// </summary>
-        private void InvalidateOverviewProjectionCaches(IReadOnlyList<Guid> changedGameIds = null)
-        {
-            var scoped = changedGameIds?.Where(id => id != Guid.Empty).ToList();
-            if (scoped == null ||
-                scoped.Count == 0 ||
-                scoped.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
-            {
-                lock (_overviewProjectionCacheSync)
-                {
-                    _overviewProjectionGeneration++;
-                    _overviewSummaryCacheByLimit.Clear();
-                }
-
-                return;
-            }
-
-            lock (_overviewProjectionCacheSync)
-            {
-                // Still bumped for every invalidation, so a summary loaded before this point is
-                // never memoized after it. The generation guards the install, not the dirty set.
-                _overviewProjectionGeneration++;
-
-                // Bounded-limit entries cannot be patched (a trimmed row cannot be recovered),
-                // so they are dropped as before. Only the unbounded entry carries dirty games.
-                var boundedLimits = _overviewSummaryCacheByLimit.Keys.Where(limit => limit != 0).ToList();
-                foreach (var limit in boundedLimits)
-                {
-                    _overviewSummaryCacheByLimit.Remove(limit);
-                }
-
-                if (!_overviewSummaryCacheByLimit.TryGetValue(0, out var entry))
-                {
-                    // Nothing memoized to patch; the next read takes the full path anyway.
-                    return;
-                }
-
-                foreach (var gameId in scoped)
-                {
-                    entry.DirtyGameIds.Add(gameId);
-                }
-
-                // Past the cap the patch stops paying for itself against a rebuild.
-                if (entry.DirtyGameIds.Count > Models.CacheInvalidatedEventArgs.MaxScopedGames)
-                {
-                    _overviewSummaryCacheByLimit.Remove(0);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Memoized overview summaries retained right now (one per requested limit) and the
-        /// achievement rows they hold, for memory diagnostics.
-        /// </summary>
-        internal void GetOverviewMemoStats(out int entries, out int achievementRows)
-        {
-            lock (_overviewProjectionCacheSync)
-            {
-                entries = _overviewSummaryCacheByLimit.Count;
-                achievementRows = 0;
-                foreach (var cached in _overviewSummaryCacheByLimit.Values)
-                {
-                    // Counts rows held, not distinct rows: a patched envelope shares most of its
-                    // rows with the one it replaced, so this over-reports retention slightly.
-                    achievementRows += cached?.Data?.Achievements?.Count ?? 0;
-                    achievementRows += cached?.Data?.RecentUnlocks?.Count ?? 0;
-                }
-            }
-        }
-
-        private static bool ShouldInvalidateOverviewProjectionCaches(string propertyName)
-        {
-            return string.IsNullOrWhiteSpace(propertyName) ||
-                   OverviewProjectionAffectingSettings.Contains(propertyName);
         }
 
         private List<GameAchievementData> LoadAllCachedGameData()
