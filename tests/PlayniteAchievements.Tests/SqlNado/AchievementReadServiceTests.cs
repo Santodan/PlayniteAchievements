@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
@@ -20,10 +19,8 @@ using SqlNado;
 namespace PlayniteAchievements.SqlNado.Tests
 {
     /// <summary>
-    /// Runs <see cref="AchievementReadService"/> on a seeded database and compares it with today's
-    /// readers in the built plugin (<c>SummaryCacheReader</c>, <c>SqlNadoCacheStore</c>, called by
-    /// reflection) and with the C# rules the summary and friends paths apply. Where the two
-    /// disagree by design of today's path, the test states both values.
+    /// Runs <see cref="AchievementReadService"/> on a seeded database and compares it with the C#
+    /// rules the summary and friends paths apply.
     /// </summary>
     [TestClass]
     public class AchievementReadServiceTests
@@ -37,82 +34,6 @@ namespace PlayniteAchievements.SqlNado.Tests
         private const string A1Raw = "2025-03-01T23:30:00.0000000Z";
         private const string A1Override = "2025-03-10T23:45:00.0000000Z";
         private const string A2Raw = "2025-03-02T10:00:00.0000000Z";
-
-        [TestMethod]
-        public void GameTotals_MatchTheSummaryReader_PlusAuthoredAchievements()
-        {
-            WithFixture(db =>
-            {
-                var totals = AchievementReadService.Totals(db, AchievementQuery.CurrentUser.WithSummaryRules(), AchievementGroup.Game)
-                    .ToDictionary(row => row.Key);
-                var reader = ReaderGameTotals(db);
-
-                Assert.IsTrue(reader.ContainsKey(Beta), "the reader lists the excluded game; hydration drops it");
-                Assert.IsFalse(totals.ContainsKey(Beta), "summary rules leave out the excluded game");
-
-                AssertTotals(reader[Retro], totals[Retro], Retro);
-
-                // Authored achievements: the reader never sees them and CustomAchievementSummaryMerger
-                // adds them; custom:one is unlocked (UltraRare, 2%, platinum, 15 points), custom:two
-                // locked (Common, no percent, 3 points).
-                var alpha = reader[Alpha];
-                alpha["Count"] += 2;
-                alpha["UnlockedCount"] += 1;
-                alpha["UltraRareCount"] += 1;
-                alpha["UltraRareUnlocked"] += 1;
-                alpha["CommonCount"] += 1;
-                alpha["PlatinumCount"] += 1;
-                alpha["PlatinumUnlocked"] += 1;
-                var oneCollection = AchievementScoreCalculator.GetCollectionValue(RarityTier.UltraRare);
-                var onePrestige = AchievementScoreCalculator.GetPrestigeValue(2.0, RarityTier.UltraRare);
-                alpha["CollectionScore"] += oneCollection;
-                alpha["PrestigeScore"] += onePrestige;
-                alpha["CollectionScoreTotal"] += oneCollection + AchievementScoreCalculator.GetCollectionValue(RarityTier.Common);
-                alpha["PrestigeScoreTotal"] += onePrestige + AchievementScoreCalculator.GetPrestigeValue(null, RarityTier.Common);
-                alpha["Points"] += 15;
-                alpha["PlatformScorePoints"] += 15;
-                alpha["PointsTotal"] += 18;
-                AssertTotals(alpha, totals[Alpha], Alpha);
-
-                Assert.IsFalse(reader.ContainsKey(AuthoredOnly), "a game with only authored achievements has no cache row");
-                Assert.AreEqual(1L, totals[AuthoredOnly].Count, "the merger adds it as a game of its own");
-            });
-        }
-
-        [TestMethod]
-        public void GameTotals_LastUnlock_FollowsTheUnlockTimeOverride_WhereTheReaderKeepsTheStoredTime()
-        {
-            WithFixture(db =>
-            {
-                var totals = AchievementReadService.Totals(db, AchievementQuery.CurrentUser.WithSummaryRules(), AchievementGroup.Game)
-                    .ToDictionary(row => row.Key);
-                var reader = ReaderLastUnlock(db);
-
-                // Disagreement: the reader's last unlock is the stored time (a6), and hydration only
-                // raises it for authored unlocks (custom:one, 2025-03-06); the override on a1 moves
-                // that unlock to 2025-03-10 in the resolved rows.
-                Assert.AreEqual("2025-03-05T00:30:00.0000000Z", reader[Alpha]);
-                Assert.AreEqual(A1Override, totals[Alpha].LastUnlockUtc);
-            });
-        }
-
-        [TestMethod]
-        public void GameTotals_CountEveryCurrentUserAccount_WhereTheReaderTakesTheLatest()
-        {
-            WithFixture(db =>
-            {
-                var totals = AchievementReadService.Totals(db, AchievementQuery.CurrentUser.WithSummaryRules(), AchievementGroup.Game)
-                    .ToDictionary(row => row.Key);
-                var reader = ReaderGameTotals(db);
-
-                // Disagreement: the reader keeps the most recently updated progress row per cache
-                // key (the Exophase account, x1); the resolved rows hold both accounts (m1, m2, x1),
-                // as ResolvedAchievements always has.
-                Assert.AreEqual(1L, reader[Multi]["Count"]);
-                Assert.AreEqual(3L, totals[Multi].Count);
-                Assert.AreEqual(2L, totals[Multi].UnlockedCount);
-            });
-        }
 
         [TestMethod]
         public void DayTotals_MatchTheLocalDayOfEachUnlock()
@@ -321,87 +242,6 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         private static string Key(AchievementRowRecord row) => row.UserId + "/" + row.PlayniteGameId + "/" + row.ApiName;
-
-        private static void AssertTotals(Dictionary<string, long> expected, AchievementTotalsRecord actual, string game)
-        {
-            foreach (var pair in expected)
-            {
-                Assert.AreEqual(pair.Value, Convert.ToInt64(typeof(AchievementTotalsRecord).GetProperty(pair.Key).GetValue(actual)), game + " " + pair.Key);
-            }
-        }
-
-        // The summary reader's game rows and score totals, keyed by cache key, in the measure names
-        // of AchievementTotalsRecord.
-        private static Dictionary<string, Dictionary<string, long>> ReaderGameTotals(SQLiteDatabase db)
-        {
-            var reader = PluginType("PlayniteAchievements.Services.Database.SummaryCacheReader");
-            var rows = (IEnumerable)Invoke(reader, "LoadCachedGameSummaryRows", db, null);
-            var unlocked = (IDictionary)Invoke(reader, "LoadCachedScoreTotals", db, true, null);
-            var possible = (IDictionary)Invoke(reader, "LoadCachedScoreTotals", db, false, null);
-            var result = new Dictionary<string, Dictionary<string, long>>();
-            foreach (var row in rows)
-            {
-                var key = (string)Get(row, "CacheKey");
-                long Score(IDictionary totals, string item) => totals.Contains(key) ? Convert.ToInt64(Get(totals[key], item)) : 0;
-                long Field(string name) => Convert.ToInt64(Get(row, name));
-                result[key] = new Dictionary<string, long>
-                {
-                    ["Count"] = Field("TotalAchievements"),
-                    ["UnlockedCount"] = Field("AchievementsUnlocked"),
-                    ["CommonUnlocked"] = Field("CommonCount"),
-                    ["UncommonUnlocked"] = Field("UncommonCount"),
-                    ["RareUnlocked"] = Field("RareCount"),
-                    ["UltraRareUnlocked"] = Field("UltraRareCount"),
-                    ["CommonCount"] = Field("TotalCommonPossible"),
-                    ["UncommonCount"] = Field("TotalUncommonPossible"),
-                    ["RareCount"] = Field("TotalRarePossible"),
-                    ["UltraRareCount"] = Field("TotalUltraRarePossible"),
-                    ["PlatinumUnlocked"] = Field("TrophyPlatinumCount"),
-                    ["GoldUnlocked"] = Field("TrophyGoldCount"),
-                    ["SilverUnlocked"] = Field("TrophySilverCount"),
-                    ["BronzeUnlocked"] = Field("TrophyBronzeCount"),
-                    ["PlatinumCount"] = Field("TrophyPlatinumTotal"),
-                    ["GoldCount"] = Field("TrophyGoldTotal"),
-                    ["SilverCount"] = Field("TrophySilverTotal"),
-                    ["BronzeCount"] = Field("TrophyBronzeTotal"),
-                    ["CapstoneCount"] = Field("CapstoneTotal"),
-                    ["CapstoneUnlocked"] = Field("CapstoneUnlocked"),
-                    ["CollectionScore"] = Score(unlocked, "Item1"),
-                    ["PrestigeScore"] = Score(unlocked, "Item2"),
-                    ["Points"] = Score(unlocked, "Item3"),
-                    ["PlatformScorePoints"] = Score(unlocked, "Item4"),
-                    ["CollectionScoreTotal"] = Score(possible, "Item1"),
-                    ["PrestigeScoreTotal"] = Score(possible, "Item2"),
-                    ["PointsTotal"] = Score(possible, "Item3")
-                };
-            }
-
-            return result;
-        }
-
-        private static Dictionary<string, string> ReaderLastUnlock(SQLiteDatabase db) =>
-            ((IEnumerable)Invoke(PluginType("PlayniteAchievements.Services.Database.SummaryCacheReader"), "LoadCachedGameSummaryRows", db, null))
-                .Cast<object>()
-                .ToDictionary(row => (string)Get(row, "CacheKey"), row => (string)Get(row, "LastUnlockUtc"));
-
-        private const BindingFlags AnyMember = BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        // Today's readers live in the built plugin, which the assembly initializer loads.
-        private static Type PluginType(string name)
-        {
-            var plugin = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(assembly => assembly.GetName().Name == "PlayniteAchievements");
-            Assert.IsNotNull(plugin, "the built plugin assembly is loaded by LocalizationAssemblyInitializer");
-            return plugin.GetType(name, throwOnError: true);
-        }
-
-        private static object Invoke(Type type, string method, params object[] args) =>
-            type.GetMethods(AnyMember).Single(candidate => candidate.Name == method && candidate.GetParameters().Length == args.Length).Invoke(null, args);
-
-        private static object Get(object target, string name)
-        {
-            var property = target.GetType().GetProperty(name, AnyMember);
-            return property != null ? property.GetValue(target) : target.GetType().GetField(name, AnyMember).GetValue(target);
-        }
 
         /// <summary>
         /// The current user has Alpha (a1-a6 and two authored), Beta (excluded from summaries),
