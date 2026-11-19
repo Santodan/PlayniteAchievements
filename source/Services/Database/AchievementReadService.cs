@@ -1,4 +1,5 @@
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Friends;
 using SqlNado;
 using System;
 using System.Collections.Generic;
@@ -216,6 +217,21 @@ namespace PlayniteAchievements.Services.Database
         public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
             (IReadOnlyList<AchievementRowRecord>)_withReadDb(db => Rows(db, query, keys));
 
+        /// <summary>The library games of the provider games <paramref name="changes"/> name.</summary>
+        public IReadOnlyList<Guid> LibraryGamesOf(IEnumerable<FriendCacheChange> changes) =>
+            (IReadOnlyList<Guid>)_withReadDb(db => LibraryGamesOf(db, changes));
+
+        internal static IReadOnlyList<Guid> LibraryGamesOf(SQLiteDatabase db, IEnumerable<FriendCacheChange> changes) =>
+            changes
+                .SelectMany(change => db.Load<KeyRow>(
+                    "SELECT DISTINCT PlayniteGameId AS Key FROM Games WHERE ProviderKey = ? AND PlayniteGameId IS NOT NULL " +
+                    "AND ((? > 0 AND ProviderGameId = ?) OR ProviderGameKey = ?);",
+                    change.ProviderKey, change.AppId, change.AppId, change.ProviderGameKey))
+                .Select(row => Guid.TryParse(row.Key, out var id) ? id : Guid.Empty)
+                .Where(id => id != Guid.Empty)
+                .Distinct()
+                .ToList();
+
         internal static IReadOnlyList<AchievementRowRecord> Rows(SQLiteDatabase db, AchievementQuery query)
         {
             var command = AchievementQuerySql.Rows(query);
@@ -238,13 +254,17 @@ namespace PlayniteAchievements.Services.Database
             }
 
             var command = AchievementQuerySql.Rows(query, keys);
-            var byKey = new Dictionary<(long, long, long), AchievementRowRecord>();
+            var byKey = new Dictionary<(long, long, long, string, string), AchievementRowRecord>();
             foreach (var row in db.Load<AchievementRowRecord>(command.Sql, command.Args))
             {
-                byKey[(row.UserId ?? 0, row.GameId ?? 0, row.DefinitionId ?? 0)] = row;
+                byKey[row.IsAuthored != 0
+                    ? (0, 0, 0, row.PlayniteGameId, row.ApiName)
+                    : (row.UserId ?? 0, row.GameId ?? 0, row.DefinitionId ?? 0, null, null)] = row;
             }
 
-            return keys.Select(key => byKey.TryGetValue((key.UserId, key.GameId, key.DefinitionId), out var row) ? row : null)
+            return keys.Select(key => byKey.TryGetValue(
+                    (key.UserId ?? 0, key.GameId ?? 0, key.DefinitionId ?? 0, key.PlayniteGameId, key.ApiName),
+                    out var row) ? row : null)
                 .Where(row => row != null)
                 .ToList();
         }
