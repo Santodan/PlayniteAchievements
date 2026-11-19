@@ -2257,7 +2257,7 @@ namespace PlayniteAchievements.Views.Showcase
                         }
                     }
 
-                    ApplyWidgetProjection(request.Host, request.Widget, snapshot);
+                    ApplyWidgetProjection(request.Host, request.Widget, request.BlockId, snapshot);
                     _applyPassEndedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                     _applyDrainApplied++;
                     // A strip holds a few light charts that change together (one filter click
@@ -2325,11 +2325,22 @@ namespace PlayniteAchievements.Views.Showcase
         private void ApplyWidgetProjection(
             ShowcaseWidgetControl host,
             ShowcaseWidgetInstanceSettings widget,
+            string blockId,
             OverviewDataSnapshot snapshot)
         {
             if (snapshot == null)
             {
                 host.ShowLoadingPlaceholder();
+                return;
+            }
+
+            // An Unlock Next widget waits for its pool, read once per snapshot when a shown
+            // widget first asks; until then it keeps what it shows.
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(widget);
+            if (snapshot.NeedsUnlockNextRead(maxPerGame))
+            {
+                host.ShowLoadingPlaceholder();
+                snapshot.RequestUnlockNextPool(maxPerGame, () => QueueWidgetApply(host, widget, blockId, snapshotOnly: false));
                 return;
             }
 
@@ -3509,18 +3520,12 @@ namespace PlayniteAchievements.Views.Showcase
             Rebuild();
         }
 
-        // Every other widget option re-projects from the snapshot already in hand. Unlock Next is
-        // the exception: its locked achievements are not in the snapshot at all, and the overview
-        // builder only hydrates them when a widget asks. Switching a mosaic to that source is
-        // therefore an option edit that needs the snapshot rebuilt, as is raising Max per game
-        // past the depth the pool was built to. A pin the build never read is the same case.
+        // Every widget option re-projects from the snapshot already in hand (an Unlock Next
+        // widget reads its pool when projected). A pin the build never read needs the snapshot
+        // rebuilt.
         private void EnsureSnapshotCoversLayout()
         {
-            var snapshot = _overview.LatestSnapshot;
-            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(Layout);
-            if ((maxPerGame <= 0 ||
-                 (snapshot?.UnlockNextPoolBuilt == true && snapshot.UnlockNextPoolSlice >= UnlockNextCandidateSelector.SliceFor(maxPerGame))) &&
-                snapshot?.HasSeenAchievementPins(Layout) != false)
+            if (_overview.LatestSnapshot?.HasSeenAchievementPins(Layout) != false)
             {
                 return;
             }
