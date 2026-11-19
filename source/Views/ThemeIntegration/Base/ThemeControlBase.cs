@@ -296,16 +296,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected virtual bool UsesLegacyThemeBindings => false;
 
         /// <summary>
-        /// Gets a value indicating whether this control needs all-games/library theme data.
-        /// </summary>
-        protected virtual bool RequiresLibraryThemeData => false;
-
-        /// <summary>
-        /// Gets a value indicating whether this control needs full all-games achievement lists.
-        /// </summary>
-        protected virtual bool RequiresHeavyLibraryThemeData => false;
-
-        /// <summary>
         /// Determines whether a change raised from <see cref="PlayniteAchievementsSettings"/> should trigger a refresh.
         /// </summary>
         protected virtual bool ShouldHandleSettingsDataChange(string propertyName) => false;
@@ -394,12 +384,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         private void ThemeControlBase_Loaded(object sender, RoutedEventArgs e)
         {
             AttachWheelScrollClaim();
-
-            if (RequiresLibraryThemeData || RequiresHeavyLibraryThemeData)
-            {
-                Plugin?.ThemeIntegrationService?.EnsureAllGamesThemeDataLoaded(
-                    includeHeavyAchievementLists: RequiresHeavyLibraryThemeData);
-            }
 
             if (!EnableAutomaticThemeDataUpdates)
             {
