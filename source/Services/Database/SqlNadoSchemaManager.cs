@@ -23,7 +23,10 @@ namespace PlayniteAchievements.Services.Database
         // holds what metadata sources supplied, AchievementOverrides carries the whole custom
         // layer, and AchievementDefinitions is the view resolving custom over metadata over
         // platform, which the plugin and other add-ons read.
-        public const int SchemaVersion = 22;
+        // v23: the custom layer tables (CustomLayerAchievements, CustomLayerGames,
+        // CustomLayerCategories) are the only store of custom data; the mirror tables earlier
+        // versions rebuilt from GameCustomData are dropped.
+        public const int SchemaVersion = 23;
 
         /// <summary>The plugin's one database: platform data, metadata and custom data.</summary>
         internal const string DatabaseFileName = "achievement_cache.db";
@@ -31,7 +34,7 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>
         /// Every table of the platform and metadata layers, children first. Clearing these clears
         /// the platform data of every game, and the metadata stored against it, while the custom
-        /// data tables, their mirror and the capture index stay.
+        /// layer tables and the capture index stay.
         /// </summary>
         internal static readonly IReadOnlyList<string> PlatformAndMetadataTables = new[]
         {
@@ -205,7 +208,7 @@ namespace PlayniteAchievements.Services.Database
 
             EnsureFriendOwnershipTable(db);
             EnsureProviderGameDefinitionStateTable(db);
-            EnsureAchievementOverridesTable(db);
+            AchievementLayerSql.EnsureCustomLayerTables(db);
             EnsureMetadataStateTables(db);
 
             var storedVersion = GetStoredSchemaVersion(db);
@@ -415,7 +418,6 @@ namespace PlayniteAchievements.Services.Database
             EnsureFriendOwnershipIndexes(db);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
-            EnsureAchievementOverridesTable(db);
             EnsureMetadataStateTables(db);
             EnsureMetadataStateIndexes(db);
             EnsureAchievementLayers(db);
@@ -429,13 +431,17 @@ namespace PlayniteAchievements.Services.Database
         {
             ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
-            ExecuteSafe(db, AchievementLayerSql.CreateGameStateTableSql);
-            ExecuteSafe(db, "DROP TABLE IF EXISTS AchievementCategoryKinds;");
-            ExecuteSafe(db, AchievementLayerSql.CreateCategoriesTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateCapturesTableSql);
             foreach (var sql in AchievementLayerSql.RecreateViewSql())
             {
                 ExecuteSafe(db, sql);
+            }
+
+            // Derived from GameCustomData, which the custom layer tables replace. An earlier
+            // version run on this database recreates and rebuilds them for itself.
+            foreach (var table in AchievementLayerSql.RetiredMirrorTables)
+            {
+                ExecuteSafe(db, "DROP TABLE IF EXISTS " + table + ";");
             }
         }
 
@@ -470,68 +476,6 @@ namespace PlayniteAchievements.Services.Database
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_FriendOwnership_LastScraped
                 ON FriendOwnership (LastScrapedUtc, LastScrapeStatus);");
-        }
-
-        // Derived mirror of the per-game custom data records in the GameCustomData table, flattened
-        // into rows the views and summary queries can join. Fully resynced from
-        // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
-        // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
-        // anti-join probe.
-        /// <summary>
-        /// The per-achievement override mirror: the SQL-side view of the custom-data store's
-        /// per-achievement records, so summary aggregates can resolve user customization in a join
-        /// instead of a hydration pass.
-        /// </summary>
-        /// <remarks>
-        /// This supersedes the narrower AchievementFilters table, which carried only the two filter
-        /// kinds as (game, apiName, kind) rows. The old table is dropped rather than migrated: the
-        /// mirror is derived state, fully rebuilt from the blob by the startup resync, so copying
-        /// rows would only duplicate what the resync writes anyway.
-        /// </remarks>
-        private void EnsureAchievementOverridesTable(SQLiteDatabase db)
-        {
-            // Derived state the startup resync rebuilds, so a table from before the custom layer
-            // columns is dropped rather than altered.
-            var existing = GetColumnNames(db, "AchievementOverrides");
-            if (existing.Count > 0 && !existing.Contains("IsAuthored"))
-            {
-                ExecuteSafe(db, "DROP TABLE AchievementOverrides;");
-            }
-
-            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementOverrides (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
-                ApiName TEXT NOT NULL COLLATE NOCASE,
-                DisplayName TEXT NULL,
-                Description TEXT NULL,
-                Points INTEGER NULL,
-                TrophyType TEXT NULL COLLATE NOCASE,
-                Category TEXT NULL,
-                Tags TEXT NULL,
-                Hidden INTEGER NULL,
-                Cleared INTEGER NOT NULL DEFAULT 0,
-                Note TEXT NULL,
-                GoalOrder INTEGER NULL,
-                CustomOrder INTEGER NULL,
-                UnlockedIconPath TEXT NULL,
-                LockedIconPath TEXT NULL,
-                UnlockTimeUtc TEXT NULL,
-                CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
-                IsAuthored INTEGER NOT NULL DEFAULT 0,
-                Unlocked INTEGER NOT NULL DEFAULT 0,
-                ProgressNum INTEGER NULL,
-                ProgressDenom INTEGER NULL,
-                ScaledPoints INTEGER NULL,
-                CategoryKind TEXT NULL,
-                GlobalPercentUnlocked REAL NULL,
-                Rarity TEXT NULL,
-                IsCapstone INTEGER NOT NULL DEFAULT 0,
-                IsFiltered INTEGER NOT NULL DEFAULT 0,
-                IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
-                UpdatedUtc TEXT NOT NULL,
-                UNIQUE (PlayniteGameId, ApiName)
-            );");
-            ExecuteSafe(db, "DROP TABLE IF EXISTS AchievementFilters;");
         }
 
         private void EnsureProviderGameDefinitionStateTable(SQLiteDatabase db)
@@ -906,7 +850,7 @@ namespace PlayniteAchievements.Services.Database
             ReconcileProviderGameDefinitionStateTable(db, ref backupPath);
             EnsureProviderGameDefinitionStateTable(db);
             EnsureProviderGameDefinitionStateIndexes(db);
-            EnsureAchievementOverridesTable(db);
+            AchievementLayerSql.EnsureCustomLayerTables(db);
             ReconcileMetadataStateTables(db, ref backupPath);
             EnsureMetadataStateTables(db);
             EnsureMetadataStateIndexes(db);
@@ -1304,15 +1248,6 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(friendOwnershipColumns, "LastScrapeDetail", "FriendOwnership", missing);
             EnsureRequiredColumn(friendOwnershipColumns, "CreatedUtc", "FriendOwnership", missing);
             EnsureRequiredColumn(friendOwnershipColumns, "UpdatedUtc", "FriendOwnership", missing);
-
-            var achievementOverrideColumns = GetColumnNames(db, "AchievementOverrides");
-            EnsureRequiredColumn(achievementOverrideColumns, "PlayniteGameId", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "ApiName", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "Points", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "TrophyType", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "IsFiltered", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "IsSummaryFiltered", "AchievementOverrides", missing);
-            EnsureRequiredColumn(achievementOverrideColumns, "UpdatedUtc", "AchievementOverrides", missing);
 
             var providerGameDefinitionStateColumns = GetColumnNames(db, "ProviderGameDefinitionState");
             EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderKey", "ProviderGameDefinitionState", missing);
