@@ -2427,41 +2427,6 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _projectedOnce = true;
-
-            if (PerfScope.PerfTracingEnabled)
-            {
-                using (var layout = PerfScope.Start(Logger, "Showcase.Widget.Layout", thresholdMs: 10, context: context))
-                {
-                    host.UpdateLayout();
-                    layout?.SetContext(context + " " + DescribeRealizedRows(host));
-                }
-            }
-        }
-
-        // Tracing only: how many DataGrid rows the layout pass realized inside the host, so a
-        // slow grid widget can be read as per-row cost versus a virtualization failure.
-        private static string DescribeRealizedRows(ShowcaseWidgetControl host)
-        {
-            // The achievement grid control hosts several DataGrids (category list, drill, rows);
-            // the populated one is the one whose rows were realized.
-            var grid = Views.Helpers.VisualTreeHelpers.FindVisualChildren<DataGrid>(host)
-                .OrderByDescending(candidate => candidate.Items.Count)
-                .FirstOrDefault();
-            if (grid == null)
-            {
-                return string.Empty;
-            }
-
-            var realized = 0;
-            for (var index = 0; index < grid.Items.Count; index++)
-            {
-                if (grid.ItemContainerGenerator.ContainerFromIndex(index) != null)
-                {
-                    realized++;
-                }
-            }
-
-            return $"items={grid.Items.Count} realized={realized} gridHeight={grid.ActualHeight:0}";
         }
 
         private static string DescribeProjection(ShowcaseWidgetProjection projection)
