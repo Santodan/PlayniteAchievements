@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -150,7 +153,7 @@ namespace PlayniteAchievements.Tests.StartPage
         }
 
         [TestMethod]
-        public async Task DetachPublisher_WithNoListeners_ReleasesRetainedSnapshot()
+        public async Task DetachPublisher_WithNoListeners_KeepsSnapshotAcrossCloses()
         {
             var buildCount = 0;
             var coordinator = new WidgetDataCoordinator(() =>
@@ -164,12 +167,94 @@ namespace PlayniteAchievements.Tests.StartPage
             coordinator.Publish(published);
             coordinator.DetachPublisher();
 
-            // Nothing is subscribed, so the published snapshot must not stay retained; the
-            // next pull rebuilds instead of handing back the overview's old row set.
-            var rebuilt = await coordinator.GetSnapshotAsync(default);
+            // Kept until a change makes it stale, so a re-open with unchanged data reads nothing.
+            Assert.AreSame(published, coordinator.CurrentSnapshot());
+            Assert.AreSame(published, await coordinator.GetSnapshotAsync(default));
+            Assert.AreEqual(0, buildCount);
 
-            Assert.AreNotSame(published, rebuilt);
+            coordinator.Invalidate();
+
+            Assert.IsNull(coordinator.CurrentSnapshot());
+            Assert.AreNotSame(published, await coordinator.GetSnapshotAsync(default));
             Assert.AreEqual(1, buildCount);
+        }
+
+        [TestMethod]
+        public void MarkStale_StopsAdoptionBeforeTheCoalescedInvalidate()
+        {
+            var raised = 0;
+            var coordinator = new WidgetDataCoordinator(() => new OverviewDataSnapshot());
+            coordinator.SnapshotInvalidated += (_, __) => raised++;
+            coordinator.Publish(new OverviewDataSnapshot());
+            raised = 0;
+
+            coordinator.MarkStale();
+
+            Assert.IsNull(coordinator.CurrentSnapshot());
+            Assert.AreEqual(0, raised, "the coalesced Invalidate notifies later");
+        }
+
+        [TestMethod]
+        public async Task BuildLandingAfterMarkStale_ServesTheCallerButStaysStale()
+        {
+            using (var started = new ManualResetEventSlim(false))
+            using (var release = new ManualResetEventSlim(false))
+            {
+                var coordinator = new WidgetDataCoordinator(() =>
+                {
+                    started.Set();
+                    release.Wait(5000);
+                    return new OverviewDataSnapshot { TotalGames = 1 };
+                });
+
+                var request = coordinator.GetSnapshotAsync(default);
+                Assert.IsTrue(started.Wait(2000));
+                coordinator.MarkStale();
+                release.Set();
+
+                Assert.AreEqual(1, (await request).TotalGames);
+                Assert.IsNull(coordinator.CurrentSnapshot(), "the build read data from before the change");
+            }
+        }
+
+        [TestMethod]
+        public void KeptSnapshot_DoesNotReachAClosedView()
+        {
+            using (var gate = new ManualResetEventSlim(false))
+            {
+                var coordinator = new WidgetDataCoordinator(() => new OverviewDataSnapshot());
+                var snapshot = new OverviewDataSnapshot
+                {
+                    UnlockNextReader = slice =>
+                    {
+                        gate.Wait(5000);
+                        return new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>();
+                    }
+                };
+                coordinator.AttachPublisher();
+                coordinator.Publish(snapshot);
+
+                // A view asks for the pool, then closes while the read is still running.
+                var view = OpenAndCloseView(snapshot);
+                coordinator.DetachPublisher();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+
+                Assert.AreSame(snapshot, coordinator.CurrentSnapshot());
+                Assert.IsFalse(view.IsAlive, "the kept snapshot must not hold a closed view");
+                gate.Set();
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference OpenAndCloseView(OverviewDataSnapshot snapshot)
+        {
+            var view = new object();
+            var request = snapshot.RequestUnlockNextPool(3, () => GC.KeepAlive(view));
+            Assert.IsNotNull(request);
+            request.Dispose();
+            return new WeakReference(view);
         }
 
         [TestMethod]
