@@ -20,6 +20,7 @@
         <StackPanel>
             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Tags}"
                        Style="{StaticResource SectionHeaderStyle}"/>
+            <Border Style="{StaticResource SectionAccentRuleStyle}"/>
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Tags_Hint}"
                        Style="{StaticResource MutedTextStyle}"
                        Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"
