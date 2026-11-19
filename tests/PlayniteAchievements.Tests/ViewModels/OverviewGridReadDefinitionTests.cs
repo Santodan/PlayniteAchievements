@@ -70,9 +70,10 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(rows.Contains("games.TryGetValue"), "no games lookup fills the provider");
             StringAssert.Contains(rows, "return BuildRows(settings, rows);");
 
-            // The snapshot that lands at open does not read the grids again.
+            // The snapshot that lands at open does not read the grids again; a kept view shown
+            // again after a change does.
             var activate = Between(source, "public void SetActive(bool isActive)", "public Task RefreshViewAsync()");
-            StringAssert.Contains(activate, "RefreshViewAsync(opening: true)");
+            StringAssert.Contains(activate, "RefreshViewAsync(opening: _latestSnapshot == null)");
             StringAssert.Contains(source, "ApplySnapshot(snapshot, gameEntries, readsCurrent: opening)");
             var apply = Between(source, "private void ApplySnapshot(", "private bool IsTransientRebuildSnapshot");
             StringAssert.Contains(apply, "if (!readsCurrent)");
