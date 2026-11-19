@@ -229,38 +229,16 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         /// <remarks>
         /// No window function, so SQLite applies any filter before reading the layers; queries
-        /// order by <see cref="DisplayOrderSql"/> instead of a row number.
+        /// order by <see cref="DisplayOrderSql"/> instead of a row number. Unlocked and locked
+        /// definitions are separate halves with a constant <c>Unlocked</c>, so a filter on it skips
+        /// the other half and an unlocked read starts from the unlocked rows.
         /// </remarks>
         private static string AllUsersViewSql()
         {
-            var unlockTimeBit = (int)AchievementField.UnlockTime;
-            var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
             var authored = string.Join(",\n                ", PublicColumnNames.Select(name =>
                 (AuthoredColumns.TryGetValue(name, out var expression) ? expression : "a." + name) + " AS " + name));
-            return "CREATE VIEW " + AllUsersViewName + @" AS SELECT
-                " + platform + @",
-                g.PlayniteGameId AS PlayniteGameId,
-                g.GameName AS GameName,
-                g.ProviderKey AS ProviderKey,
-                COALESCE(ua.Unlocked, 0) AS Unlocked,
-                CASE WHEN usr.IsCurrentUser = 1 AND COALESCE(ua.Unlocked, 0) = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
-                     WHEN usr.IsCurrentUser = 1 AND COALESCE(ua.Unlocked, 0) = 1 AND (COALESCE(c.Cleared, 0) & " + unlockTimeBit + @") <> 0 THEN NULL
-                     ELSE ua.UnlockTimeUtc END AS UnlockTimeUtc,
-                ua.ProgressNum AS ProgressNum,
-                ua.ProgressDenom AS ProgressDenom,
-                COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
-                0 AS IsAuthored,
-                " + CaptureColumns + @",
-                usr.Id AS UserId,
-                usr.IsCurrentUser AS IsCurrentUser
-              FROM UserGameProgress ugp
-              INNER JOIN Users usr ON usr.Id = ugp.UserId
-              INNER JOIN Games g ON g.Id = ugp.GameId
-              INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
-              LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
-              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName
+            return "CREATE VIEW " + AllUsersViewName + " AS " + PlatformRowsSql(unlocked: true) + @"
+            UNION ALL " + PlatformRowsSql(unlocked: false) + @"
             UNION ALL SELECT
                 " + authored + @",
                 a.PlayniteGameId AS PlayniteGameId,
@@ -279,6 +257,48 @@ namespace PlayniteAchievements.Services.Database
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
               WHERE a.IsAuthored = 1;";
+        }
+
+        /// <summary>
+        /// The definitions of each game a user has, the unlocked ones or the rest. Unlock-time
+        /// overrides and clears apply to the current user's unlocked rows.
+        /// </summary>
+        private static string PlatformRowsSql(bool unlocked)
+        {
+            var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
+            var unlockTime = unlocked
+                ? @"CASE WHEN usr.IsCurrentUser = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
+                     WHEN usr.IsCurrentUser = 1 AND (COALESCE(c.Cleared, 0) & " + (int)AchievementField.UnlockTime + @") <> 0 THEN NULL
+                     ELSE ua.UnlockTimeUtc END"
+                : "ua.UnlockTimeUtc";
+            var achievements = unlocked
+                ? @"INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
+              INNER JOIN " + ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId AND ad.GameId = ugp.GameId"
+                : @"INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
+              LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id";
+            return @"SELECT
+                " + platform + @",
+                g.PlayniteGameId AS PlayniteGameId,
+                g.GameName AS GameName,
+                g.ProviderKey AS ProviderKey,
+                " + (unlocked ? "1" : "0") + @" AS Unlocked,
+                " + unlockTime + @" AS UnlockTimeUtc,
+                ua.ProgressNum AS ProgressNum,
+                ua.ProgressDenom AS ProgressDenom,
+                COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
+                0 AS IsAuthored,
+                " + CaptureColumns + @",
+                usr.Id AS UserId,
+                usr.IsCurrentUser AS IsCurrentUser
+              FROM UserGameProgress ugp
+              INNER JOIN Users usr ON usr.Id = ugp.UserId
+              INNER JOIN Games g ON g.Id = ugp.GameId
+              " + achievements + @"
+              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName" +
+              (unlocked ? string.Empty : @"
+              WHERE ua.Unlocked IS NOT 1");
         }
 
         private static string IsCleared(AchievementField field, string layer = "m") =>
