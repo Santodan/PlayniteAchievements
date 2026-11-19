@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Services.Database
     /// is changed on the UI thread.
     /// </para>
     /// </summary>
-    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, INotifyPropertyChanged, IPartiallyLoadedRows, IRealizedRows, IDisposable
+    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, INotifyPropertyChanged, IPartiallyLoadedRows, IRealizedRows, IDisposable, Common.IRetentionProbe
         where T : class
     {
         public const int PageSize = 100;
@@ -118,6 +118,7 @@ namespace PlayniteAchievements.Services.Database
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
             _loadRows = loadRows ?? throw new ArgumentNullException(nameof(loadRows));
+            Common.RetentionProbes.Register(this);
             _newPlaceholder = newPlaceholder ?? throw new ArgumentNullException(nameof(newPlaceholder));
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _maxRows = Math.Max(0, maxRows);
@@ -227,12 +228,18 @@ namespace PlayniteAchievements.Services.Database
         public void Dispose()
         {
             _disposed = true;
+            Common.RetentionProbes.Unregister(this);
             _subscription?.Dispose();
             _pages.Clear();
             _placeholders.Clear();
             _wantedPages.Clear();
             _keptPages.Clear();
         }
+
+        string Common.IRetentionProbe.RetentionProbeName => "pagedRows";
+
+        string Common.IRetentionProbe.DescribeRetention() =>
+            $"rows={_count} pages={_pages.Count} placeholders={_placeholders.Count}";
 
         private void Reset()
         {
