@@ -541,11 +541,6 @@ namespace PlayniteAchievements.Services.Cache
             _feed.Raise(args ?? CacheInvalidatedEventArgs.FullInvalidation, null);
         }
 
-        private void RaiseFriendCacheInvalidatedEvent(FriendCacheInvalidatedEventArgs args)
-        {
-            _feed.Raise(null, args ?? FriendCacheInvalidatedEventArgs.FullInvalidation);
-        }
-
         private void RaiseOrDeferFriendCacheInvalidatedEvent(FriendCacheChange change)
         {
             _feed.RaiseFriendChange(change);
