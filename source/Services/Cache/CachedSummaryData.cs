@@ -195,6 +195,15 @@ namespace PlayniteAchievements.Services.Cache
 
         public string AchievementNote { get; set; }
 
+        /// <summary>The position in the game's goal list; null when not a goal.</summary>
+        public int? GoalOrder { get; set; }
+
+        /// <summary>The category's position in the game's category order; null when it has none.</summary>
+        public int? CategoryOrder { get; set; }
+
+        /// <summary>The user's image for the category; null when it has none.</summary>
+        public string CategoryArtPath { get; set; }
+
         public double? GlobalPercentUnlocked { get; set; }
 
         public RarityTier Rarity { get; set; }
