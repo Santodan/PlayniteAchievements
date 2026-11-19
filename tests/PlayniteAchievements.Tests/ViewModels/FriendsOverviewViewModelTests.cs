@@ -161,7 +161,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var data = CreateData();
             var locked = Locked(data, "AAA Locked");
-            data.AllAchievements = new[] { locked }.Concat(data.AllUnlockedAchievements).ToList();
+            data.AllAchievements = new[] { locked }.Concat(data.AllAchievements).ToList();
             using var h = new Harness(data).Load();
 
             Assert.AreEqual(0, h.Vm.SelectedFriendGameAllAchievements.Count, "no pair, no rollup source");
@@ -187,7 +187,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var locked = Locked(data, "Alice Locked");
             var hiddenLocked = Locked(data, "Alice Hidden Locked");
             hiddenLocked.Hidden = true;
-            data.AllAchievements = data.AllUnlockedAchievements.Concat(new[] { locked, hiddenLocked }).ToList();
+            data.AllAchievements = data.AllAchievements.Concat(new[] { locked, hiddenLocked }).ToList();
             using var h = new Harness(data).Load();
 
             var toggles = h.Vm.AchievementsControlBar.Items.OfType<GridToggleFilter>().ToList();
@@ -224,7 +224,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void UnlockStateTogglesSurviveLeavingThePair_AndFilterOnlyWhereOffered()
         {
             var data = CreateData();
-            data.AllAchievements = data.AllUnlockedAchievements.Concat(new[] { Locked(data, "Alice Locked") }).ToList();
+            data.AllAchievements = data.AllAchievements.Concat(new[] { Locked(data, "Alice Locked") }).ToList();
             using var h = new Harness(data);
             var saved = new List<string>();
             h.Vm.PersistAchievementUnlockToggles(null, saved.Add);
@@ -255,7 +255,7 @@ namespace PlayniteAchievements.Tests.ViewModels
         {
             var data = CreateData();
             var locked = Locked(data, "Alice Locked", "Base|Missable", "Locked Only");
-            data.AllAchievements = data.AllUnlockedAchievements.Concat(new[] { locked }).ToList();
+            data.AllAchievements = data.AllAchievements.Concat(new[] { locked }).ToList();
             using var h = new Harness(data).Load();
             var typeFilter = GetTypeFilter(h.Vm);
             var categoryFilter = GetCategoryFilter(h.Vm);
@@ -566,7 +566,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var locked = CreateAchievement("Steam", "dana-steam", "Dana Steam", 10, gameOneId, "Game One", "Dana Locked", "Story", "Main", new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc));
             locked.Unlocked = false;
             locked.UnlockTimeUtc = null;
-            data.AllAchievements = data.AllUnlockedAchievements.Concat(new[] { unlocked, locked }).ToList();
+            data.AllAchievements = data.AllAchievements.Concat(new[] { unlocked, locked }).ToList();
             using var h = new Harness(data, settings => settings.AddOrUpdateFriendMergeGroup(
                 new[] { FriendAccountRef.From("Steam", "dana-steam"), FriendAccountRef.From("RetroAchievements", "dana-ra") },
                 nickname: "Dana")).Load();
@@ -751,8 +751,8 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void CompareWithSelf_UsesTheRowsOwnState()
         {
             var data = CreateData();
-            data.AllUnlockedAchievements[0].UnlockedBySelf = true;
-            data.AllUnlockedAchievements[0].SelfHasGameData = true;
+            data.AllAchievements[0].UnlockedBySelf = true;
+            data.AllAchievements[0].SelfHasGameData = true;
             using var h = new Harness(data).Load();
             h.Select(game: data.Games[0]);
 
@@ -798,7 +798,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(rowReads, h.Reads.RowReads.Count, "Bob's rows are untouched");
             Assert.AreEqual(listLoads + 1, h.Reads.ListLoads);
 
-            data.AllUnlockedAchievements.Add(CreateAchievement("Steam", "bob", "Bob", 10, data.Games[0].PlayniteGameId.Value, "Game One", "Bob Later", "Base", "Main", new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
+            data.AllAchievements.Add(CreateAchievement("Steam", "bob", "Bob", 10, data.Games[0].PlayniteGameId.Value, "Game One", "Bob Later", "Base", "Main", new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
             h.Reads.Feed.RaiseFriendChange(FriendCacheChange.ForFriendGameAchievements("Steam", "bob", 10, null));
             h.Settle();
             Assert.AreEqual(rowReads, h.Reads.RowReads.Count, "nothing reruns before the window ends");
@@ -1182,8 +1182,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             {
                 Friends = friends,
                 Games = games,
-                RecentUnlocks = new List<FriendAchievementDisplayItem> { allUnlocked[0] },
-                AllUnlockedAchievements = allUnlocked,
+                AllAchievements = allUnlocked,
                 FriendGameLinks = new List<FriendGameLinkItem>
                 {
                     new FriendGameLinkItem
