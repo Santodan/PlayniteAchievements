@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Services.Overview
@@ -67,39 +66,27 @@ namespace PlayniteAchievements.Services.Overview
         }
 
         /// <summary>
-        /// The locked rows worth retaining for one game: the most commonly unlocked (what both
-        /// criteria rank by) plus the head of its own order, which carries achievements that have
-        /// no global percentage. Hidden rows stay in; the projection drops them unless the widget
-        /// opts in.
+        /// The locked rows worth retaining for one game, of its locked rows in its own order: the
+        /// most commonly unlocked (what both criteria rank by) plus the head of its order, which
+        /// carries achievements that have no global percentage. Hidden rows stay in; the
+        /// projection drops them unless the widget opts in.
         /// </summary>
-        public static IReadOnlyList<AchievementDetail> SelectAchievements(
-            IEnumerable<AchievementDetail> achievements) =>
-            SelectAchievements(achievements, PerGameSlice);
-
-        /// <inheritdoc cref="SelectAchievements(IEnumerable{AchievementDetail})"/>
         /// <param name="slice">Rows taken from each ranking; see <see cref="SliceFor"/>.</param>
-        public static IReadOnlyList<AchievementDetail> SelectAchievements(
-            IEnumerable<AchievementDetail> achievements,
+        public static IReadOnlyList<T> SelectAchievements<T>(
+            IReadOnlyList<T> lockedInOrder,
+            Func<T, double?> percent,
+            Func<T, string> apiName,
             int slice)
         {
-            var locked = (achievements ?? new List<AchievementDetail>())
-                .Where(detail => detail != null && !detail.Unlocked)
-                .ToList();
-
-            var byOrder = locked
-                .OrderBy(detail => detail.DefaultOrderIndex)
-                .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
-                .Take(slice);
-
             // An achievement with no global percentage is not known to be easy, so it never takes
             // a slot in the commonness slice; the order slice still carries it.
-            var byCommonness = locked
-                .Where(detail => detail.GlobalPercentUnlocked.HasValue)
-                .OrderByDescending(detail => detail.GlobalPercentUnlocked.Value)
-                .ThenBy(detail => detail.ApiName, StringComparer.OrdinalIgnoreCase)
+            var byCommonness = lockedInOrder
+                .Where(row => percent(row).HasValue)
+                .OrderByDescending(row => percent(row).Value)
+                .ThenBy(apiName, StringComparer.OrdinalIgnoreCase)
                 .Take(slice);
 
-            return byOrder.Concat(byCommonness).Distinct().ToList();
+            return lockedInOrder.Take(slice).Concat(byCommonness).Distinct().ToList();
         }
 
         /// <summary>
