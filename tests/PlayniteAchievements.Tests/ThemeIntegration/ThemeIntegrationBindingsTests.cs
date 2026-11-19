@@ -2302,6 +2302,28 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void FriendDynamicLists_AFriendColumnHeaderSortsTheQuery_WhichTheSortCommandStillRefuses()
+        {
+            var data = CreateFriendOverviewData();
+            var cache = new FakeFriendCache(data);
+            using var context = CreateServiceContext(friendCache: cache);
+            WaitForFriendThemeData(context);
+
+            context.Service.SortFriendAchievements("FriendName", DynamicThemeViewKeys.Ascending);
+            context.Settle();
+
+            var read = cache.Reads.KeyReads.Last();
+            Assert.AreEqual(AchievementSort.Friend, read.Sort);
+            Assert.IsFalse(read.Descending);
+
+            context.Settings.SortDynamicFriendAchievementsCommand.Execute("FriendName");
+            Assert.AreEqual("FriendName", context.Settings.DynamicFriendAchievementsSortKey, "the command refuses the column; the header's sort stays");
+            context.Settings.SortDynamicFriendAchievementsCommand.Execute(DynamicThemeViewKeys.Rarity);
+            context.Settle();
+            Assert.AreEqual(AchievementSort.Rarity, cache.Reads.KeyReads.Last().Sort);
+        }
+
+        [TestMethod]
         public void FriendDynamicLists_RowLocalCommandsUpdateFriendGameSummariesDirectly()
         {
             var data = CreateFriendOverviewData();
