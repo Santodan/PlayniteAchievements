@@ -956,7 +956,35 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void RebuildProgress_FinalFriendReport_ReloadsOverviewData()
+        public void RebuildProgress_FinalFriendReport_DoesNotForceAFullCacheReload()
+        {
+            var cache = new StubFriendCache(CreateData());
+            var refreshRuntime = new RefreshRuntime();
+            var viewModel = CreateViewModel(
+                cache,
+                refreshRuntime: refreshRuntime,
+                cacheInvalidationDebounceInterval: TimeSpan.Zero);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+            var callsAfterLoad = cache.LoadFriendsOverviewDataCalls;
+
+            refreshRuntime.RaiseRebuildProgress(new ProgressReport
+            {
+                Mode = RefreshModeType.FriendsFull,
+                CurrentStep = 1,
+                TotalSteps = 1,
+                Message = "Friends refresh complete."
+            });
+
+            // The run's own writes carry the change scope; the final report alone must not
+            // drop a current snapshot and reload every friend row.
+            Assert.IsFalse(
+                SpinWait.SpinUntil(
+                    () => cache.LoadFriendsOverviewDataCalls != callsAfterLoad,
+                    TimeSpan.FromMilliseconds(500)));
+        }
+
+        [TestMethod]
+        public void RebuildProgress_FinalFriendReport_ShowsTheRunsInvalidatedData()
         {
             var initialData = CreateData();
             var updatedData = CreateData();
@@ -980,6 +1008,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual(3, viewModel.FilteredFriends.Count);
 
             cache.Data = updatedData;
+            // The run's writes invalidate the friend cache before the final report.
+            refreshRuntime.RaiseFriendCacheInvalidated();
             refreshRuntime.RaiseRebuildProgress(new ProgressReport
             {
                 Mode = RefreshModeType.FriendsFull,
