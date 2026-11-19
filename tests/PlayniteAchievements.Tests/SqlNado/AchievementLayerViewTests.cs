@@ -228,7 +228,6 @@ namespace PlayniteAchievements.SqlNado.Tests
             public long Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
             public long IsAuthored { get; set; }
-            public long DisplayOrder { get; set; }
         }
 
         [TestMethod]
@@ -238,19 +237,17 @@ namespace PlayniteAchievements.SqlNado.Tests
             {
                 SeedUnlocksAndOverrides(db);
 
-                var rows = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " ORDER BY IsCurrentUser, DisplayOrder;").ToList();
+                var rows = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " ORDER BY IsCurrentUser, " + AchievementLayerSql.DisplayOrderSql + ";").ToList();
 
                 var friend = rows.Where(row => row.IsCurrentUser == 0).ToList();
                 CollectionAssert.AreEqual(new[] { "won", "open" }, friend.Select(row => row.ApiName).ToList(), "the friend's rows in display order");
                 Assert.IsTrue(friend.All(row => row.UserId == 2 && row.IsAuthored == 0), "authored achievements are the current user's only");
-                CollectionAssert.AreEqual(new long[] { 0, 1 }, friend.Select(row => row.DisplayOrder).ToList(), "numbered per user");
                 Assert.AreEqual("2024-05-05T00:00:00Z", friend[0].UnlockTimeUtc, "the friend's own time, not the user's override");
                 Assert.AreEqual("2024-06-06T00:00:00Z", friend[1].UnlockTimeUtc, "the user's clear does not apply to friends");
 
                 var mine = rows.Where(row => row.IsCurrentUser == 1).ToList();
                 CollectionAssert.AreEqual(new[] { "won", "open", "custom:mine" }, mine.Select(row => row.ApiName).ToList());
-                Assert.IsTrue(mine.All(row => row.UserId == null));
-                CollectionAssert.AreEqual(new long[] { 0, 1, 2 }, mine.Select(row => row.DisplayOrder).ToList());
+                CollectionAssert.AreEqual(new long?[] { 1, 1, null }, mine.Select(row => row.UserId).ToList(), "the account's id; authored rows have none");
                 Assert.AreEqual("2026-02-02T00:00:00Z", mine[0].UnlockTimeUtc, "the user's override");
                 Assert.IsNull(mine[1].UnlockTimeUtc, "the user's clear");
                 Assert.AreEqual(1, mine[2].IsAuthored);
@@ -276,6 +273,10 @@ namespace PlayniteAchievements.SqlNado.Tests
                     "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) SELECT 3, Id, 1, '2023-01-01T00:00:00Z' FROM PlatformDefinitions WHERE ApiName = 'exo';");
                 db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
                 db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, ExcludedFromSummaries) VALUES (?, 1);", GameId);
+                CollectionAssert.DoesNotContain(
+                    db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", AchievementLayerSql.AllUsersViewName).Select(row => row.Sql).ToList(),
+                    "DisplayOrder",
+                    "the all-users view has no window");
                 db.ExecuteNonQuery(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "SqlNado", "resolved-achievements-before-all-users.sql")));
 
                 string Columns(string view) => string.Join(",", db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", view).Select(row => row.Sql));
