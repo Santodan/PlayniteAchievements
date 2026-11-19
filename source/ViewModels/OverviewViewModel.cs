@@ -629,7 +629,11 @@ namespace PlayniteAchievements.ViewModels
         public ObservableCollection<GameSummaryItem> GameSummaries { get; }
 
         /// <summary>The Achievements grid's rows, loaded as the grid shows them; null until the first summary.</summary>
-        public System.Collections.IList RecentAchievements => _recent;
+        // Skeleton rows while the grid has no read yet (a game filter waits for the snapshot).
+        public System.Collections.IList RecentAchievements => (System.Collections.IList)_recent ?? _recentPlaceholders;
+
+        private readonly List<AchievementDisplayItem> _recentPlaceholders =
+            PlaceholderRows.Create(() => new AchievementDisplayItem { IsPlaceholder = true });
         public GridControlBarViewModel GameSummariesControlBar { get; private set; }
         public GridControlBarViewModel RecentAchievementsControlBar { get; private set; }
         public GridControlBarViewModel SelectedGameAchievementsControlBar => _selectedGameControlBar.ControlBar;
