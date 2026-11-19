@@ -38,9 +38,6 @@ namespace PlayniteAchievements.Providers.Exophase
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"));
         }
 
         public override void Initialize(IProviderSettings settings)
