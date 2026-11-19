@@ -1909,7 +1909,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                     LockedIconPath = NormalizeString(definition.LockedIconPath),
                     Points = NormalizeNonNegativeInt(definition.Points),
                     ScaledPoints = NormalizeNonNegativeInt(definition.ScaledPoints),
-                    Category = AchievementCategoryHelper.NormalizeCategoryOrDefault(definition.Category),
+                    Category = CategoryPathHelper.NormalizePath(definition.Category),
                     // Before v9 the type field held kinds and tags together.
                     Tags = splitLegacyTypes
                         ? LegacyCategoryTypes.SplitTags(definition.CategoryKind)
