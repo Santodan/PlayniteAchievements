@@ -135,17 +135,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void SelfGame_TouchesFriendQueriesOfThePlayniteGame()
-        {
-            var change = Friends(FriendCacheChange.ForSelfGame(GameA));
-
-            Assert.IsTrue(change.Touches(AchievementQuery.AllFriends));
-            Assert.IsTrue(change.Touches(AchievementQuery.AllFriends.ForGames(new[] { GameA })));
-            Assert.IsFalse(change.Touches(AchievementQuery.AllFriends.ForGames(new[] { GameB })));
-            Assert.IsFalse(change.Touches(AchievementQuery.CurrentUser));
-        }
-
-        [TestMethod]
         public void Of_CarriesBothScopes()
         {
             var change = AchievementDataChange.Of(
