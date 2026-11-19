@@ -125,5 +125,110 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.IsTrue(byDefault.Descending);
             });
         }
+
+        [TestMethod]
+        public void HiddenAndCapstoneSorts_PutTheFlaggedRowsFirstWhenDescending_ThenByName()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                db.ExecuteNonQuery("UPDATE PlatformDefinitions SET Hidden = 1 WHERE ApiName IN ('a5', 'b1');");
+                foreach (var sort in new[] { ("Hidden", (Func<AchievementRowRecord, long>)(row => row.Hidden)), ("Capstone", row => row.IsCapstone) })
+                {
+                    foreach (var direction in new[] { "Descending", "Ascending" })
+                    {
+                        var rows = AchievementReadService.Rows(db, DynamicThemeFilterEvaluator.ApplyAchievementSort(AchievementQuery.CurrentUser, sort.Item1, direction));
+                        var flags = rows.Select(sort.Item2).ToList();
+                        CollectionAssert.AreEqual(
+                            (direction == "Descending" ? flags.OrderByDescending(flag => flag) : flags.OrderBy(flag => flag)).ToList(),
+                            flags,
+                            sort.Item1 + " " + direction);
+                        Assert.IsTrue(flags.Distinct().Count() == 2, sort.Item1 + " has rows of both kinds");
+                        foreach (var group in rows.GroupBy(sort.Item2))
+                        {
+                            var names = group.Select(row => row.DisplayName.ToUpperInvariant()).ToList();
+                            CollectionAssert.AreEqual(names.OrderBy(name => name, StringComparer.Ordinal).ToList(), names, sort.Item1 + " names ascend");
+                        }
+                    }
+                }
+            });
+        }
+
+        [TestMethod]
+        public void EqualSortKeys_OrderByGameName_TheSameOnEveryReadAndInTheKeys()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                var query = AchievementQuery.CurrentUser.OrderBy(AchievementSort.Points);
+                var rows = AchievementReadService.Rows(db, query);
+                foreach (var group in rows.GroupBy(row => row.ScaledPoints ?? row.Points ?? 0).Where(group => group.Select(row => row.GameName).Distinct().Count() > 1))
+                {
+                    var games = group.Select(row => (row.GameName ?? string.Empty).ToUpperInvariant()).ToList();
+                    CollectionAssert.AreEqual(games.OrderBy(name => name, StringComparer.Ordinal).ToList(), games, "points " + group.Key);
+                }
+
+                Assert.IsTrue(rows.GroupBy(row => row.ScaledPoints ?? row.Points ?? 0).Any(group => group.Select(row => row.GameName).Distinct().Count() > 1),
+                    "some equal points span games");
+                CollectionAssert.AreEqual(rows.Select(Key).ToList(), AchievementReadService.Rows(db, query).Select(Key).ToList(), "a second read");
+                CollectionAssert.AreEqual(
+                    rows.Select(AchievementReadService.KeyOf).Select(key => key.DefinitionId + key.ApiName + key.UserId).ToList(),
+                    AchievementReadService.SortedKeys(db, query).Select(key => key.DefinitionId + key.ApiName + key.UserId).ToList(),
+                    "the keys read in the rows' order");
+            });
+        }
+
+        private sealed class PlanRow
+        {
+            public string Detail { get; set; }
+        }
+
+        [TestMethod]
+        public void Achievements_MatchApiNamesIgnoringCase_WithTheSamePlan()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                var upper = AchievementQuery.CurrentUser.ForAchievements(new[]
+                {
+                    new KeyValuePair<Guid, string>(Guid.Parse(Alpha), "A4"),
+                    new KeyValuePair<Guid, string>(Guid.Parse(Alpha), "CUSTOM:ONE")
+                });
+                CollectionAssert.AreEquivalent(
+                    new[] { Alpha + "/a4", Alpha + "/custom:one" },
+                    AchievementReadService.Rows(db, upper).Select(Key).ToList());
+
+                // The collation leaves the plan as it was: the game term still narrows the view.
+                var command = AchievementQuerySql.Rows(upper);
+                string Plan(string sql) => string.Join("\n", db.Load<PlanRow>("EXPLAIN QUERY PLAN " + sql, command.Args).Select(row => row.Detail));
+                StringAssert.Contains(command.Sql, ") COLLATE NOCASE IN (");
+                StringAssert.Contains(Plan(command.Sql), "SEARCH g USING INDEX IX_Games_PlayniteGameId");
+                Assert.AreEqual(Plan(command.Sql.Replace(") COLLATE NOCASE IN (", ") IN (")), Plan(command.Sql));
+            });
+        }
+
+        [TestMethod]
+        public void LibraryListItems_CarryCategoryOrderArtAndGoals()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO AchievementCategories (PlayniteGameId, Category, SortIndex, ImagePath) VALUES (?1, 'Default', 2, 'art/default.png');",
+                    Alpha);
+                db.ExecuteNonQuery(
+                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    Alpha, "2025-01-01T00:00:00.0000000Z");
+                db.ExecuteNonQuery("UPDATE AchievementOverrides SET GoalOrder = 0 WHERE ApiName = 'a1';");
+
+                var items = LibraryRuntimeStateBuilder.Details(
+                    AchievementReadService.Rows(db, AchievementQuery.CurrentUser.ForGames(new[] { Guid.Parse(Alpha) }))
+                        .Select(row => SummaryCacheReader.MapRow(row, null, path => path == null ? null : "C:\\data\\" + path)),
+                    api: null).ToDictionary(item => item.ApiName);
+
+                Assert.IsTrue(items["a3"].IsGoal);
+                Assert.AreEqual(1, items["a3"].GoalOrderIndex);
+                Assert.IsFalse(items["a1"].IsGoal, "an unlocked goal is no goal");
+                Assert.AreEqual(int.MaxValue, items["a1"].GoalOrderIndex);
+                Assert.AreEqual(2, items["a3"].CategoryOrderIndex);
+                Assert.AreEqual("C:\\data\\art/default.png", items["a3"].CategoryArtPath);
+            });
+        }
     }
 }
