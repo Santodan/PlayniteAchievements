@@ -101,6 +101,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
+
+        // Runs once the library state is applied; set by a command that needs it before it was read.
+        private Action _afterLibraryState;
         private readonly Dictionary<Guid, RelayCommand> _openViewAchievementsCommands =
             new Dictionary<Guid, RelayCommand>();
         private readonly Dictionary<Guid, RelayCommand> _openManageAchievementsCommands =
@@ -1217,24 +1220,24 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded();
-
-            var state = _runtimeState.Library ?? new LibraryRuntimeState();
-            var viewState = _runtimeState.LibraryAchievements;
-            var providerKey = ResolveGameSummaryProviderKeyForGame(state, gameId);
-
-            viewState.HasUserSelection = true;
-            viewState.GameKey = gameId.ToString("D");
-            viewState.GameLabel = ResolveGameLabel(gameId);
-            if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+            WithLibraryState(() =>
             {
-                viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
-                    ? DynamicThemeViewKeys.All
-                    : providerKey;
-            }
+                var viewState = _runtimeState.LibraryAchievements;
+                var providerKey = ResolveGameSummaryProviderKeyForGame(_runtimeState.Library, gameId);
 
-            ApplyDynamicLibraryAchievementBindings();
-            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+                viewState.HasUserSelection = true;
+                viewState.GameKey = gameId.ToString("D");
+                viewState.GameLabel = ResolveGameLabel(gameId);
+                if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+                {
+                    viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
+                        ? DynamicThemeViewKeys.All
+                        : providerKey;
+                }
+
+                ApplyDynamicLibraryAchievementBindings();
+                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+            });
         }
 
         private void FilterDynamicGameSummariesByRunningGame()
@@ -1246,24 +1249,38 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded();
-
-            var state = _runtimeState.Library ?? new LibraryRuntimeState();
-            var viewState = _runtimeState.GameSummaries;
-            var providerKey = ResolveGameSummaryProviderKeyForGame(state, gameId);
-
-            viewState.HasUserSelection = true;
-            viewState.GameKey = gameId.ToString("D");
-            viewState.GameLabel = ResolveGameLabel(gameId);
-            if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+            WithLibraryState(() =>
             {
-                viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
-                    ? DynamicThemeViewKeys.All
-                    : providerKey;
-            }
+                var viewState = _runtimeState.GameSummaries;
+                var providerKey = ResolveGameSummaryProviderKeyForGame(_runtimeState.Library, gameId);
 
-            ApplyDynamicGameSummaryBindings();
-            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+                viewState.HasUserSelection = true;
+                viewState.GameKey = gameId.ToString("D");
+                viewState.GameLabel = ResolveGameLabel(gameId);
+                if (!ProviderScopeMatches(viewState.ProviderKey, providerKey))
+                {
+                    viewState.ProviderKey = string.IsNullOrWhiteSpace(providerKey)
+                        ? DynamicThemeViewKeys.All
+                        : providerKey;
+                }
+
+                ApplyDynamicGameSummaryBindings();
+                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+            });
+        }
+
+        // Runs apply now when the library state is loaded, else once its read lands.
+        private void WithLibraryState(Action apply)
+        {
+            EnsureAllGamesThemeDataLoaded();
+            if (_hasLoadedLibraryState)
+            {
+                apply();
+            }
+            else
+            {
+                _afterLibraryState += apply;
+            }
         }
 
         private void FilterDynamicFriendScopeByRunningGame(string commandName)
@@ -1888,6 +1905,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     {
                         _hasLoadedLibraryState = true;
                         ApplyLibraryState(state);
+                        var after = _afterLibraryState;
+                        _afterLibraryState = null;
+                        after?.Invoke();
                     }
                 });
             });
