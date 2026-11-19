@@ -125,6 +125,10 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly Queue<WidgetApplyRequest> _applyQueue = new Queue<WidgetApplyRequest>();
         private readonly HashSet<ShowcaseWidgetControl> _applyQueued = new HashSet<ShowcaseWidgetControl>();
         private bool _applyDrainScheduled;
+
+        // Whether any widget has received a projection, so a strip's first data waits for the
+        // grids' render (see QueueSnapshotRefresh).
+        private bool _projectedOnce;
         private int _applyDrainApplied;
         private long _applyDrainStartedTicks;
         private long _applyPassEndedTicks;
@@ -2364,6 +2368,8 @@ namespace PlayniteAchievements.Views.Showcase
                 host.Apply(projection);
             }
 
+            _projectedOnce = true;
+
             if (PerfScope.PerfTracingEnabled)
             {
                 using (var layout = PerfScope.Start(Logger, "Showcase.Widget.Layout", thresholdMs: 10, context: context))
@@ -3377,11 +3383,13 @@ namespace PlayniteAchievements.Views.Showcase
             // click for up to a second. A widget whose view did not change is skipped cheaply.
             // The queued widgets apply in this pass too, which runs at Normal priority ahead of
             // the next render, so the strip changes in the same frame as the grids and the
-            // dropdown that set the filter rather than a render later.
+            // dropdown that set the filter rather than a render later. The first data of a
+            // fresh strip is the exception: the grids render first, and the strip fills from its
+            // placeholders in the Background pass right after.
             if (_host.IsStrip)
             {
                 RefreshWidgetData(includeCachedHosts: true);
-                if (_applyQueue.Count > 0)
+                if (_applyQueue.Count > 0 && _projectedOnce)
                 {
                     DrainApplyQueue();
                 }
