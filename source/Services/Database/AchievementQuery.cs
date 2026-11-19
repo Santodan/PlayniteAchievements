@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>The cached game name, ignoring case.</summary>
         Game,
 
-        /// <summary>The friend's provider display name, ignoring case; the current user's rows have none.</summary>
+        /// <summary>The friend's name, as <see cref="AchievementQuery.FriendNames"/> gives it, ignoring case; the current user's rows have none.</summary>
         Friend,
 
         /// <summary>The achievement's points.</summary>
@@ -62,8 +62,7 @@ namespace PlayniteAchievements.Services.Database
         Game,
 
         /// <summary>
-        /// The friend, as <c>FriendsOverviewDerivations.BuildFriendScoreKey</c> spells it
-        /// (provider key, unit separator, external user id). Friend queries only.
+        /// The friend: provider key, unit separator, external user id. Friend queries only.
         /// </summary>
         Friend,
 
@@ -128,6 +127,12 @@ namespace PlayniteAchievements.Services.Database
         /// null for none.
         /// </summary>
         public IReadOnlyList<FriendAccountRef> CompareAccounts { get; private set; }
+
+        /// <summary>
+        /// Friend queries: the name each of these accounts shows instead of its stored one, which
+        /// the friend sort and search read; null for the stored names.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<FriendAccountRef, string>> FriendNames { get; private set; }
 
         /// <summary>Only rows with a resolved unlock time.</summary>
         public bool RequireUnlockTime { get; private set; }
@@ -229,6 +234,18 @@ namespace PlayniteAchievements.Services.Database
             {
                 var list = Accounts(accounts);
                 query.CompareAccounts = list?.Count > 0 ? list : null;
+            });
+
+        /// <summary>Sorts and searches these accounts by the given names; null or empty for the stored names.</summary>
+        public AchievementQuery WithFriendNames(IEnumerable<KeyValuePair<FriendAccountRef, string>> names) =>
+            With(query =>
+            {
+                // One name per account, so the join adds no rows.
+                var list = names?.Where(name => name.Key != null && name.Value != null)
+                    .GroupBy(name => name.Key.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToList();
+                query.FriendNames = list?.Count > 0 ? list : null;
             });
 
         public AchievementQuery WhereUnlockTimeKnown(bool require = true) => With(query => query.RequireUnlockTime = require);
