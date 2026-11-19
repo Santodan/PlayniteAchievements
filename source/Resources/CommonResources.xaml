@@ -1742,6 +1742,16 @@
     <!-- A settings section: no fill and no padding, so the theme's background shows through and
          the section's header and rows line up with the page margin. Spacing between sections and
          the section header mark the groups. -->
+    <!-- The short accent line under a settings section header. -->
+    <Style x:Key="PlayAch.SectionAccentRuleStyle" TargetType="Border">
+        <Setter Property="Height" Value="2"/>
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="CornerRadius" Value="1"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+        <Setter Property="Margin" Value="0,0,0,14"/>
+    </Style>
+
     <Style x:Key="PlayAch.SectionBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
