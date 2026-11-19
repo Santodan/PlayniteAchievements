@@ -4,7 +4,6 @@ using PlayniteAchievements.Services.Cache;
 using SqlNado;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
@@ -22,7 +21,7 @@ namespace PlayniteAchievements.Services.Database
         /// game is kept.
         /// </param>
         /// <param name="authoredGame">The identity of a game with only authored achievements.</param>
-        /// <param name="limit">0 for every unlocked row in <see cref="CachedSummaryData.Achievements"/>; else the newest dated unlocks in <see cref="CachedSummaryData.RecentUnlocks"/>.</param>
+        /// <param name="limit">The newest dated unlocks to read into <see cref="CachedSummaryData.RecentUnlocks"/>; 0 for none.</param>
         /// <param name="excludedGameIds">Games left out on top of the summary rules.</param>
         public static CachedSummaryData Load(
             SQLiteDatabase db,
@@ -95,37 +94,28 @@ namespace PlayniteAchievements.Services.Database
                 game.CapstoneTotal = (int)totals.CapstoneCount;
                 game.CapstoneUnlocked = (int)totals.CapstoneUnlocked;
                 game.LastUnlockUtc = AchievementSqlFunctions.ParseUtc(totals.LastUnlockUtc);
+                game.LastCapstoneUnlockUtc = AchievementSqlFunctions.ParseUtc(totals.LastCapstoneUnlockUtc);
+                game.FirstPlatinumUnlockUtc = AchievementSqlFunctions.ParseUtc(totals.FirstPlatinumUnlockUtc);
 
                 // Finishing takes every capstone, not any one of them.
                 game.IsCompleted = (game.UnlockedAchievements >= game.TotalAchievements) ||
                                    (game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal);
             }
 
-            // Keys are local calendar days, as UnlockDayCounts.DayOf gives them.
-            foreach (var day in AchievementReadService.Totals(db, query.WhereUnlockTimeKnown(), AchievementGroup.GameDay))
-            {
-                var parts = day.Key.Split('\u001f');
-                Overview.UnlockDayCounts.AddDay(
-                    result.GlobalUnlockCountsByDate,
-                    result.UnlockCountsByDateByGame,
-                    Guid.TryParse(parts[0], out var id) ? id : (Guid?)null,
-                    DateTime.ParseExact(parts[1], "yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    (int)day.Count);
-            }
-
-            var unlocked = query.WhereUnlocked(true).OrderBy(AchievementSort.UnlockTime, descending: true);
-            var rows = AchievementReadService.Rows(db, limit > 0 ? unlocked.WhereUnlockTimeKnown().Page(limit + 1) : unlocked)
-                .Select(row => MapRow(row, games, absolutePath))
+            // Days are local calendar days, as UnlockDayCounts.DayOf gives them.
+            result.Unlocks = AchievementReadService.Totals(db, query.WhereUnlocked(true), AchievementGroup.DayTally)
+                .Select(Overview.UnlockFact.From)
+                .Where(fact => fact != null)
                 .ToList();
+            Overview.UnlockFact.CountDays(result.Unlocks, result.GlobalUnlockCountsByDate, result.UnlockCountsByDateByGame);
             if (limit > 0)
             {
-                result.HasMoreRecentUnlocks = rows.Count > limit;
+                var rows = AchievementReadService.Rows(db, query.WhereUnlocked(true).WhereUnlockTimeKnown()
+                        .OrderBy(AchievementSort.UnlockTime, descending: true)
+                        .Page(limit + 1))
+                    .Select(row => MapRow(row, games, absolutePath))
+                    .ToList();
                 result.RecentUnlocks = rows.Take(limit).ToList();
-            }
-            else
-            {
-                result.Achievements = rows;
-                result.RecentUnlocks = rows.Where(row => row.UnlockTimeUtc.HasValue).ToList();
             }
 
             return result;
