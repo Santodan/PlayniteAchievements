@@ -76,24 +76,23 @@ namespace PlayniteAchievements.Services.Database
                     INNER JOIN Users su ON su.Id = sp.UserId AND su.IsCurrentUser = 1
                     WHERE sg.PlayniteGameId = r.PlayniteGameId) THEN 1 ELSE 0 END AS SelfHasGameData";
 
-        /// <summary>One friend row's identity, as <see cref="PageKeys"/> reads a page of them.</summary>
-        internal sealed class PageKey
+        /// <summary>One row's identity, as <see cref="SortedKeys"/> reads them.</summary>
+        internal sealed class RowKey
         {
             public long UserId { get; set; }
-            public long? GameId { get; set; }
-            public string ApiName { get; set; }
-            public string PlayniteGameId { get; set; }
+            public long GameId { get; set; }
+            public long DefinitionId { get; set; }
         }
 
         /// <summary>
         /// The current user's unlocks of each game's achievements across their accounts, with the
-        /// latest resolved time; only of <paramref name="playniteGameIds"/> when given.
+        /// latest resolved time; only of the Playnite games of <paramref name="gameIds"/> when given.
         /// </summary>
-        private static string SelfCtes(IReadOnlyList<string> playniteGameIds, List<object> args) => @"WITH SelfUnlocks AS (
+        private static string SelfCtes(IReadOnlyList<long> gameIds, List<object> args) => @"WITH SelfUnlocks AS (
                 SELECT s.PlayniteGameId AS PlayniteGameId, s.ApiName AS ApiName, MAX(s.UnlockTimeUtc) AS UnlockTimeUtc
                 FROM " + AchievementLayerSql.AllUsersViewName + @" s
                 WHERE s.IsCurrentUser = 1 AND s.IsAuthored = 0 AND s.Unlocked = 1" +
-                (playniteGameIds == null ? string.Empty : " AND " + InList("s.PlayniteGameId", playniteGameIds, args)) + @"
+                (gameIds == null ? string.Empty : " AND s.PlayniteGameId IN (SELECT sg.PlayniteGameId FROM Games sg WHERE " + InList("sg.Id", gameIds.Cast<object>().ToList(), args) + ")") + @"
                 GROUP BY s.PlayniteGameId, s.ApiName
             )";
 
@@ -130,15 +129,14 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
-        /// The identities of a page of friend rows in the query's order: the sort and the page
-        /// without the display columns, which <see cref="Rows(AchievementQuery, IReadOnlyList{PageKey})"/>
-        /// then reads for these rows only.
+        /// The identities of the matching rows in the query's order, without the display columns,
+        /// which <see cref="Rows(AchievementQuery, IReadOnlyList{RowKey})"/> then reads for some of them.
         /// </summary>
-        public static Command PageKeys(AchievementQuery query)
+        public static Command SortedKeys(AchievementQuery query)
         {
             var args = new List<object>();
-            var sql = "SELECT r.UserId AS UserId, r.GameId AS GameId, r.ApiName AS ApiName, r.PlayniteGameId AS PlayniteGameId" +
-                      From(query) + Where(query, args) + " ORDER BY " + OrderBy(query) + " LIMIT ? OFFSET ?;";
+            var sql = "SELECT r.UserId AS UserId, r.GameId AS GameId, r.Id AS DefinitionId" +
+                      From(query, args) + Where(query, args) + " ORDER BY " + OrderBy(query) + " LIMIT ? OFFSET ?;";
             args.Add(query.Limit > 0 ? query.Limit : -1);
             args.Add(query.Offset);
             return new Command(sql, args.ToArray());
@@ -149,25 +147,24 @@ namespace PlayniteAchievements.Services.Database
         /// with every column <see cref="Rows(AchievementQuery)"/> reads; a few rows beyond the keys
         /// may match, which the caller drops.
         /// </summary>
-        public static Command Rows(AchievementQuery query, IReadOnlyList<PageKey> keys) =>
-            Rows(query, keys ?? Array.Empty<PageKey>(), ordered: false);
+        public static Command Rows(AchievementQuery query, IReadOnlyList<RowKey> keys) =>
+            Rows(query, keys ?? Array.Empty<RowKey>(), ordered: false);
 
         /// <summary>A page of rows, in the query's order, with the friend identity and self state for friend rows.</summary>
         public static Command Rows(AchievementQuery query) => Rows(query, null, ordered: true);
 
-        private static Command Rows(AchievementQuery query, IReadOnlyList<PageKey> keys, bool ordered)
+        private static Command Rows(AchievementQuery query, IReadOnlyList<RowKey> keys, bool ordered)
         {
             var args = new List<object>();
             var sql = new StringBuilder();
             var compare = query.Friends && query.CompareAccounts != null;
+            var gameIds = keys?.Select(key => key.GameId).Distinct().ToList();
             if (query.Friends)
             {
-                sql.Append(SelfCtes(
-                    keys?.Select(key => key.PlayniteGameId).Where(id => id != null).Distinct(StringComparer.Ordinal).ToList(),
-                    args));
+                sql.Append(SelfCtes(gameIds, args));
                 if (compare)
                 {
-                    sql.Append(CompareCtes(query, keys?.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().ToList(), args));
+                    sql.Append(CompareCtes(query, gameIds, args));
                 }
 
                 sql.Append(' ');
@@ -185,7 +182,7 @@ namespace PlayniteAchievements.Services.Database
                 CASE WHEN cg.GameId IS NULL THEN 0 ELSE 1 END AS CompareHasGame"
                 : @",
                 0 AS CompareUnlocked, NULL AS CompareUnlockTimeUtc, 0 AS CompareHasGame");
-            sql.Append(From(query));
+            sql.Append(From(query, args));
             if (query.Friends)
             {
                 sql.Append(SelfJoins);
@@ -201,8 +198,8 @@ namespace PlayniteAchievements.Services.Database
             {
                 // Each term narrows the view's arms on their own columns.
                 sql.Append(" AND ").Append(InList("r.UserId", keys.Select(key => key.UserId).Distinct().Cast<object>().ToList(), args));
-                sql.Append(" AND ").Append(InList("r.GameId", keys.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().Cast<object>().ToList(), args));
-                sql.Append(" AND ").Append(InList("r.ApiName", keys.Select(key => key.ApiName).Distinct(StringComparer.Ordinal).Cast<object>().ToList(), args));
+                sql.Append(" AND ").Append(InList("r.GameId", gameIds.Cast<object>().ToList(), args));
+                sql.Append(" AND ").Append(InList("r.Id", keys.Select(key => key.DefinitionId).Distinct().Cast<object>().ToList(), args));
             }
 
             if (!ordered)
@@ -254,7 +251,8 @@ namespace PlayniteAchievements.Services.Database
                 COUNT(Percent) AS PercentCount,
                 MIN(Percent) AS MinPercent,
                 SUM(Hidden * (1 - Unlocked)) AS HiddenLockedCount,
-                MIN(CategoryOrder) AS MinCategoryOrder
+                MIN(CategoryOrder) AS MinCategoryOrder,
+                MIN(DisplayOrder) AS FirstDisplayOrder
             FROM (" + TotalsRows(query, group, args) + @")
             GROUP BY Key;";
             return new Command(sql, args.ToArray());
@@ -277,8 +275,9 @@ namespace PlayniteAchievements.Services.Database
                 CASE WHEN " + SoftcoreSql + @" THEN 1 ELSE 0 END AS Softcore,
                 r.UnlockTimeUtc AS UnlockTimeUtc,
                 r.GlobalPercentUnlocked AS Percent,
-                r.CategoryOrder AS CategoryOrder" +
-                From(query) + Where(query, args) + @"
+                r.CategoryOrder AS CategoryOrder,
+                " + (group == AchievementGroup.Category ? DisplayOrderText : "NULL") + @" AS DisplayOrder" +
+                From(query, args) + Where(query, args) + @"
             LIMIT -1";
             if (!query.DistinctAchievements)
             {
@@ -289,17 +288,22 @@ namespace PlayniteAchievements.Services.Database
             return @"SELECT Key, MAX(Unlocked) AS Unlocked, MAX(Tier) AS Tier, MAX(Trophy) AS Trophy,
                 MAX(IsCapstone) AS IsCapstone, MAX(Hidden) AS Hidden, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
                 MIN(Softcore) AS Softcore, MAX(CASE WHEN Unlocked = 1 THEN UnlockTimeUtc END) AS UnlockTimeUtc,
-                MAX(Percent) AS Percent, MIN(CategoryOrder) AS CategoryOrder
+                MAX(Percent) AS Percent, MIN(CategoryOrder) AS CategoryOrder, MIN(DisplayOrder) AS DisplayOrder
             FROM (" + rows + @")
             GROUP BY Key, DefinitionGameId, DefinitionApiName
             LIMIT -1";
         }
 
+        // AchievementLayerSql.DisplayOrderSql as text that sorts the same way, for the first row of a group.
+        private const string DisplayOrderText =
+            "printf('%d%011d%d%011d%d%015d', r.CustomOrder IS NULL, COALESCE(r.CustomOrder, 0), r.MetadataOrder IS NULL, " +
+            "COALESCE(r.MetadataOrder, 0), r.IsAuthored, COALESCE(r.Id, 0))";
+
         /// <summary>The number of matching rows; the query's page is ignored.</summary>
         public static Command Count(AchievementQuery query)
         {
             var args = new List<object>();
-            var sql = "SELECT COUNT(*)" + From(query) + Where(query, args) + ";";
+            var sql = "SELECT COUNT(*)" + From(query, args) + Where(query, args) + ";";
             return new Command(sql, args.ToArray());
         }
 
@@ -308,16 +312,40 @@ namespace PlayniteAchievements.Services.Database
         {
             var args = new List<object>();
             var key = KeySql(query, group);
-            var sql = "SELECT DISTINCT " + key + " AS Key" + From(query) + Where(query, args) + ";";
+            var sql = "SELECT DISTINCT " + key + " AS Key" + From(query, args) + Where(query, args) + ";";
             return new Command(sql, args.ToArray());
         }
 
-        private static string From(AchievementQuery query) => @"
+        // Friend queries join the shown names of the accounts that have one, as fn.column3.
+        private static string From(AchievementQuery query, List<object> args)
+        {
+            var sql = @"
             FROM " + AchievementLayerSql.AllUsersViewName + @" r
             LEFT JOIN Games g ON g.Id = r.GameId
-            LEFT JOIN Users u ON u.Id = r.UserId" +
-            (query.Friends ? @"
-            INNER JOIN FriendOwnership fo ON fo.UserId = r.UserId AND fo.GameId = r.GameId" : string.Empty);
+            LEFT JOIN Users u ON u.Id = r.UserId";
+            if (!query.Friends)
+            {
+                return sql;
+            }
+
+            sql += @"
+            INNER JOIN FriendOwnership fo ON fo.UserId = r.UserId AND fo.GameId = r.GameId";
+            if (query.FriendNames == null)
+            {
+                return sql;
+            }
+
+            foreach (var name in query.FriendNames)
+            {
+                args.Add(name.Key.ProviderKey);
+                args.Add(name.Key.ExternalUserId);
+                args.Add(name.Value);
+            }
+
+            return sql + @"
+            LEFT JOIN (VALUES " + string.Join(", ", query.FriendNames.Select(_ => "(?, ?, ?)")) + @") fn
+              ON fn.column1 = u.ProviderKey COLLATE NOCASE AND fn.column2 = u.ExternalUserId COLLATE NOCASE";
+        }
 
         private static string Where(AchievementQuery query, List<object> args)
         {
@@ -431,7 +459,7 @@ namespace PlayniteAchievements.Services.Database
             {
                 // The fields each surface's search index joins today.
                 conditions.Add(query.Friends
-                    ? "pa_search(?, u.DisplayName, r.GameName, r.DisplayName, r.Description, r.Category, r.ProviderKey) = 1"
+                    ? "pa_search(?, " + FriendName(query) + ", r.GameName, r.DisplayName, r.Description, r.Category, r.ProviderKey) = 1"
                     : "pa_search(?, r.GameName, r.DisplayName) = 1");
                 args.Add(query.SearchText);
             }
@@ -468,6 +496,10 @@ namespace PlayniteAchievements.Services.Database
             WHERE " + string.Join(@"
               AND ", conditions);
         }
+
+        // The name a friend row shows: the one From joins for a named account, else the stored one.
+        private static string FriendName(AchievementQuery query) =>
+            query.FriendNames == null ? "u.DisplayName" : "COALESCE(fn.column3, u.DisplayName)";
 
         // The Users ids of the accounts; no row when there are none.
         private static string AccountUsers(IReadOnlyList<FriendAccountRef> accounts, List<object> args)
@@ -552,7 +584,7 @@ namespace PlayniteAchievements.Services.Database
         private static string OrderBy(AchievementQuery query)
         {
             var direction = query.Descending ? " DESC" : " ASC";
-            var friend = query.Friends ? "u.DisplayName COLLATE NOCASE, " : string.Empty;
+            var friend = query.Friends ? FriendName(query) + " COLLATE NOCASE, " : string.Empty;
             var tieBreak = ", " + friend + "r.PlayniteGameId, r.GameId, r.ApiName, r.UserId";
             var unlock = UnlockBucketSql + ", r.UnlockTimeUtc" + direction;
             var display = string.Join(", ", AchievementLayerSql.DisplayOrderSql.Split(',').Select(term => "r." + term.Trim()));
@@ -570,7 +602,7 @@ namespace PlayniteAchievements.Services.Database
                     return "r.GameName COLLATE NOCASE" + direction + ", " + unlock + tieBreak;
                 case AchievementSort.Friend:
                     return query.Friends
-                        ? "u.DisplayName COLLATE NOCASE" + direction + ", " + unlock + tieBreak
+                        ? FriendName(query) + " COLLATE NOCASE" + direction + ", " + unlock + tieBreak
                         : unlock + tieBreak;
                 case AchievementSort.Points:
                     return "COALESCE(r.ScaledPoints, r.Points, 0)" + direction + tieBreak;
