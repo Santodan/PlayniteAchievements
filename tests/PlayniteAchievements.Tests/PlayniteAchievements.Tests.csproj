@@ -240,6 +240,9 @@
     <Compile Include="..\..\source\Services\Achievements\AchievementLayers.cs" Link="Source\Services\Achievements\AchievementLayers.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementLayerSql.cs" Link="Source\Services\Database\AchievementLayerSql.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementSqlFunctions.cs" Link="Source\Services\Database\AchievementSqlFunctions.cs" />
+    <Compile Include="..\..\source\Services\Database\AchievementQuery.cs" Link="Source\Services\Database\AchievementQuery.cs" />
+    <Compile Include="..\..\source\Services\Database\AchievementQuerySql.cs" Link="Source\Services\Database\AchievementQuerySql.cs" />
+    <Compile Include="..\..\source\Services\Database\AchievementReadService.cs" Link="Source\Services\Database\AchievementReadService.cs" />
     <Compile Include="..\..\source\Services\Database\SqlNadoSchemaManager.cs" Link="Source\Services\Database\SqlNadoSchemaManager.cs" />
     <Compile Include="..\..\source\Services\Database\Rows\CacheMetadataRow.cs" Link="Source\Services\Database\Rows\CacheMetadataRow.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementTagRegistry.cs" Link="Source\Services\Achievements\AchievementTagRegistry.cs" />
