@@ -96,8 +96,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                     Read(db, nameof(ModernThemeBindings.MostRecentUnlocks)));
 
                 // The fixture's unlocks are of 2025; move two into the window.
-                db.ExecuteNonQuery("UPDATE AchievementOverrides SET UnlockTimeUtc = ? WHERE ApiName = 'a1';", DateTime.UtcNow.AddDays(-3).ToString("o"));
-                db.ExecuteNonQuery("UPDATE AchievementOverrides SET UnlockTimeUtc = ? WHERE ApiName = 'custom:one';", DateTime.UtcNow.AddDays(-30).ToString("o"));
+                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET UnlockTimeUtc = ? WHERE ApiName = 'a1';", DateTime.UtcNow.AddDays(-3).ToString("o"));
+                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET UnlockTimeUtc = ? WHERE ApiName = 'custom:one';", DateTime.UtcNow.AddDays(-30).ToString("o"));
                 var cutoff = DateTime.UtcNow.AddDays(-180);
                 var recent = Details(db).Where(detail => detail.Unlocked && detail.UnlockTimeUtc >= cutoff).ToList();
                 Assert.AreEqual(2, recent.Count);
@@ -133,9 +133,9 @@ namespace PlayniteAchievements.SqlNado.Tests
             {
                 // A goal on a locked achievement: a3, and the authored custom:two first.
                 db.ExecuteNonQuery(
-                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
                     AchievementReadServiceTests.Alpha, "2025-01-01T00:00:00.0000000Z");
-                db.ExecuteNonQuery("UPDATE AchievementOverrides SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
+                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
                 test(db);
             });
     }
