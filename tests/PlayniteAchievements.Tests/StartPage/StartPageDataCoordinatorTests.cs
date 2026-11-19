@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services.Overview;
-using PlayniteAchievements.Services.StartPage;
+using PlayniteAchievements.Services.Widgets;
 
 namespace PlayniteAchievements.Tests.StartPage
 {
@@ -13,7 +13,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task GetSnapshotAsync_ReusesSnapshotUntilInvalidated()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot { TotalGames = buildCount };
@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Tests.StartPage
         [TestMethod]
         public void Invalidate_RaisesSnapshotInvalidated()
         {
-            var coordinator = new StartPageDataCoordinator(() => new OverviewDataSnapshot());
+            var coordinator = new WidgetDataCoordinator(() => new OverviewDataSnapshot());
             var raised = false;
             coordinator.SnapshotInvalidated += (_, __) => raised = true;
 
@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Tests.StartPage
             using (var started = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
-                var coordinator = new StartPageDataCoordinator(() =>
+                var coordinator = new WidgetDataCoordinator(() =>
                 {
                     Interlocked.Increment(ref buildCount);
                     started.Set();
@@ -75,7 +75,7 @@ namespace PlayniteAchievements.Tests.StartPage
             using (var firstStarted = new ManualResetEventSlim())
             using (var releaseFirst = new ManualResetEventSlim())
             {
-                var coordinator = new StartPageDataCoordinator(() =>
+                var coordinator = new WidgetDataCoordinator(() =>
                 {
                     var build = Interlocked.Increment(ref buildCount);
                     if (build == 1)
@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task Publish_UpdatesSnapshotAndRaisesEventWithoutBuilding()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot();
@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task AttachPublisher_SuppressesRebuildOnInvalidateUntilDetached()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot { TotalGames = 100 + buildCount };
@@ -153,7 +153,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task DetachPublisher_WithNoListeners_ReleasesRetainedSnapshot()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot { TotalGames = buildCount };
@@ -176,7 +176,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task DetachPublisher_WithListeners_KeepsRetainedSnapshot()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot();
@@ -202,7 +202,7 @@ namespace PlayniteAchievements.Tests.StartPage
             using (var started = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
-                var coordinator = new StartPageDataCoordinator(() =>
+                var coordinator = new WidgetDataCoordinator(() =>
                 {
                     Interlocked.Increment(ref buildCount);
                     started.Set();
@@ -227,7 +227,7 @@ namespace PlayniteAchievements.Tests.StartPage
         public async Task AttachPublisher_WithNoSnapshot_FallsBackToSingleBuild()
         {
             var buildCount = 0;
-            var coordinator = new StartPageDataCoordinator(() =>
+            var coordinator = new WidgetDataCoordinator(() =>
             {
                 buildCount++;
                 return new OverviewDataSnapshot { TotalGames = buildCount };
