@@ -109,6 +109,13 @@ namespace PlayniteAchievements.ViewModels
         private string _achievementSearchText;
         private string _selectedRefreshMode = RefreshModeType.FriendsRecent.GetKey();
         private readonly RefreshHeaderProgressTracker _progressTracker;
+        private int _searchVersion;
+
+        private static readonly TimeSpan SearchDelay = TimeSpan.FromMilliseconds(250);
+
+        // How long after a change the reads rerun while friends refresh: a refresh writes every
+        // few hundred milliseconds.
+        private static readonly TimeSpan RefreshingWindow = TimeSpan.FromSeconds(3);
 
         /// <param name="reads">The window's reads; null shows no data.</param>
         /// <param name="scheduler">Where reads run and apply; the application dispatcher by default.</param>
@@ -417,7 +424,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _achievementSearchText, value))
                 {
-                    UpdateAchievementQueries();
+                    // The rows are read again once typing pauses.
+                    var version = ++_searchVersion;
+                    _scheduler.PostAfter(SearchDelay, () =>
+                    {
+                        if (version == _searchVersion)
+                        {
+                            UpdateAchievementQueries();
+                        }
+                    });
                 }
             }
         }
@@ -463,7 +478,7 @@ namespace PlayniteAchievements.ViewModels
         public bool IsRefreshing
         {
             get => _isRefreshing;
-            private set
+            internal set
             {
                 if (SetValueAndReturn(ref _isRefreshing, value))
                 {
@@ -707,7 +722,8 @@ namespace PlayniteAchievements.ViewModels
                 AchievementQuery.AllFriends,
                 LoadLists,
                 _scheduler,
-                onError: ex => OnReadFailed(ex, "Failed to load friends overview lists."));
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friends overview lists."));
             _lists.PropertyChanged += OnListsChanged;
             UpdateAchievementQueries();
         }
@@ -727,11 +743,11 @@ namespace PlayniteAchievements.ViewModels
         {
             using (PerfScope.Start(_logger, "FriendsOverview.LoadLists", thresholdMs: 25))
             {
-                var lists = _reads.LoadLists();
-                var totals = _reads.Totals(query.WhereUnlocked(true), AchievementGroup.FriendGame);
-                return FriendsOverviewLists.Build(lists, totals, _settings?.Persisted);
+                return FriendsOverviewLists.Load(_reads, _settings?.Persisted);
             }
         }
+
+        private TimeSpan ReadWindow() => IsRefreshing ? RefreshingWindow : LiveQuery<object>.DefaultWindow;
 
         private void OnListsChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -1534,7 +1550,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>The grid's query: the scope, the bar's filters, search, sort and compare.</summary>
         internal AchievementQuery BuildAchievementQuery(AchievementQuery scope)
         {
-            var query = _achievementsBar.ApplyTo(scope);
+            var query = _achievementsBar.ApplyTo(scope).WithFriendNames(_current.FriendNames);
             if (SearchQuery.From(AchievementSearchText).HasValue)
             {
                 query = query.WhereSearch(AchievementSearchText);
@@ -1639,12 +1655,13 @@ namespace PlayniteAchievements.ViewModels
                 _achievements = new PagedRows<FriendAchievementDisplayItem>(
                     _reads.Feed,
                     query,
-                    CountRows,
+                    LoadKeys,
                     LoadRows,
                     () => new FriendAchievementDisplayItem { IsPlaceholder = true },
                     _scheduler,
-                    maxRows: cap ?? 0,
-                    onError: ex => OnReadFailed(ex, "Failed to load friend achievement rows."));
+                    cap ?? 0,
+                    ReadWindow,
+                    ex => OnReadFailed(ex, "Failed to load friend achievement rows."));
                 OnPropertyChanged(nameof(DisplayedAchievements));
                 return;
             }
@@ -1660,19 +1677,19 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private int CountRows(AchievementQuery query)
+        private IReadOnlyList<AchievementQuerySql.RowKey> LoadKeys(AchievementQuery query)
         {
-            using (PerfScope.Start(_logger, "FriendsOverview.CountRows", thresholdMs: 25))
+            using (PerfScope.Start(_logger, "FriendsOverview.LoadKeys", thresholdMs: 25))
             {
-                return _reads.Count(query);
+                return _reads.SortedKeys(query);
             }
         }
 
-        private IReadOnlyList<FriendAchievementDisplayItem> LoadRows(AchievementQuery query)
+        private IReadOnlyList<FriendAchievementDisplayItem> LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
         {
-            using (PerfScope.Start(_logger, "FriendsOverview.LoadRows", thresholdMs: 25, context: "limit=" + query.Limit))
+            using (PerfScope.Start(_logger, "FriendsOverview.LoadRows", thresholdMs: 25, context: "rows=" + keys.Count))
             {
-                var rows = _reads.Rows(query) ?? Array.Empty<FriendAchievementDisplayItem>();
+                var rows = _reads.Rows(query, keys) ?? Array.Empty<FriendAchievementDisplayItem>();
                 _rowDecoration.Apply(rows);
                 return rows;
             }
@@ -1711,7 +1728,8 @@ namespace PlayniteAchievements.ViewModels
                 query,
                 read => _reads.Totals(read, AchievementGroup.ProviderGame),
                 _scheduler,
-                onError: ex => OnReadFailed(ex, "Failed to load favorite friends' games."));
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load favorite friends' games."));
             _favoriteGames.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
@@ -1759,7 +1777,8 @@ namespace PlayniteAchievements.ViewModels
                 scope,
                 LoadBarOptions,
                 _scheduler,
-                onError: ex => OnReadFailed(ex, "Failed to load friend achievement filter options."));
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friend achievement filter options."));
             _barOptions.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
@@ -1776,6 +1795,7 @@ namespace PlayniteAchievements.ViewModels
             var tags = _reads.Totals(scope, AchievementGroup.Tag);
             long count = 0, unlocked = 0, hiddenLocked = 0, trophies = 0;
             var orders = new Dictionary<string, long>(StringComparer.Ordinal);
+            var firstRows = new Dictionary<string, string>(StringComparer.Ordinal);
             var labels = new List<string>();
             foreach (var total in categories)
             {
@@ -1788,10 +1808,14 @@ namespace PlayniteAchievements.ViewModels
                 {
                     labels.Add(label);
                     orders[label] = total.MinCategoryOrder ?? long.MaxValue;
+                    firstRows[label] = total.FirstDisplayOrder ?? string.Empty;
+                    continue;
                 }
-                else if (total.MinCategoryOrder.HasValue && total.MinCategoryOrder < order)
+
+                orders[label] = Math.Min(order, total.MinCategoryOrder ?? long.MaxValue);
+                if (string.CompareOrdinal(total.FirstDisplayOrder ?? string.Empty, firstRows[label]) < 0)
                 {
-                    orders[label] = total.MinCategoryOrder.Value;
+                    firstRows[label] = total.FirstDisplayOrder;
                 }
             }
 
@@ -1803,10 +1827,10 @@ namespace PlayniteAchievements.ViewModels
                 HasTrophies = trophies > 0,
                 GameId = SelectedGameIdOf(scope),
                 Tags = tags.Where(total => total.Key != null).Select(total => total.Key).ToList(),
-                // The custom category order first, then the rest by name.
+                // The custom category order first, then the rest in definition order.
                 CategoryLabels = labels
                     .OrderBy(label => orders[label])
-                    .ThenBy(label => label, StringComparer.CurrentCultureIgnoreCase)
+                    .ThenBy(label => firstRows[label], StringComparer.Ordinal)
                     .ToList()
             };
         }
@@ -1851,7 +1875,8 @@ namespace PlayniteAchievements.ViewModels
                     return rows;
                 },
                 _scheduler,
-                onError: ex => OnReadFailed(ex, "Failed to load friend pair rows."));
+                ReadWindow,
+                ex => OnReadFailed(ex, "Failed to load friend pair rows."));
             _pairRows.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
@@ -2061,7 +2086,7 @@ namespace PlayniteAchievements.ViewModels
 
         private bool HasFriendGamePairData(FriendSummaryItem friend, FriendGameSummaryItem game)
         {
-            return _current.Projection.HasFriendGamePairData(friend, game);
+            return _current.HasPairData(friend, game);
         }
 
         private static bool IsSameFriend(FriendSummaryItem left, FriendSummaryItem right)
