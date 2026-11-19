@@ -49,6 +49,9 @@ namespace PlayniteAchievements.Services.Tests
                 update: update
                     ? (kept, fresh) =>
                     {
+                        kept.Index = fresh.Index;
+                        kept.Key = fresh.Key;
+                        kept.IsPlaceholder = fresh.IsPlaceholder;
                         kept.Version = fresh.Version;
                         kept.Sort = fresh.Sort;
                         kept.Updates++;
@@ -163,6 +166,35 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(550, ((Row)replace.NewItems[0]).Index);
             Assert.AreEqual(550, At(rows, 550).Index);
             Assert.AreEqual(2000, rows.Count);
+        }
+
+        [TestMethod]
+        public void UnloadedRow_WithAnUpdate_IsFilledInPlace_WithoutAReplace()
+        {
+            var rows = Create(2000, update: true);
+            _scheduler.Drain();
+            _events.Clear();
+            _properties.Clear();
+
+            var placeholder = At(rows, 550);
+            var copy = ((IEnumerable<Row>)rows).ToList();
+            _scheduler.Drain();
+
+            Assert.AreSame(placeholder, At(rows, 550), "the object handed out is the row");
+            Assert.IsFalse(placeholder.IsPlaceholder);
+            Assert.AreEqual(550, placeholder.Index);
+            Assert.AreEqual(1, placeholder.Updates);
+            Assert.AreSame(copy[1999], At(rows, 1999), "a placeholder enumeration handed out is filled too");
+            Assert.AreEqual(1999, copy[1999].Index);
+            Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Replace), "nothing is replaced");
+            Assert.IsTrue(_properties.Contains("Item[]"), "the fill is announced as an indexer change");
+            Assert.AreEqual(550, rows.IndexOf(placeholder));
+            Assert.IsTrue(rows.LoadedItems.Cast<Row>().Contains(placeholder));
+
+            _version = 1;
+            Publish();
+            Assert.AreSame(placeholder, At(rows, 550), "a rerun keeps the filled row");
+            Assert.AreEqual(1, placeholder.Version);
         }
 
         [TestMethod]
