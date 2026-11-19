@@ -151,6 +151,11 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="AchievementRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                        <Setter Property="Template" Value="{StaticResource AchievementPlaceholderRowTemplate}"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
 
