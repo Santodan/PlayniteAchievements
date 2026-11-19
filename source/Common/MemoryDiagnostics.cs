@@ -139,7 +139,8 @@ namespace PlayniteAchievements.Common
         /// detail string, which is itself expensive.
         /// </para>
         /// </summary>
-        public static void LogRetained(ILogger logger, string point, string detail = null)
+        /// <param name="describe">Builds the detail after the collection, so a census in it counts only what is still rooted.</param>
+        public static void LogRetained(ILogger logger, string point, Func<string> describe = null)
         {
             if (!RetentionReportEnabled)
             {
@@ -159,7 +160,7 @@ namespace PlayniteAchievements.Common
                 return;
             }
 
-            Log(logger, point, detail);
+            Log(logger, point, describe?.Invoke());
         }
 
         /// <summary>
