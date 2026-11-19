@@ -6716,6 +6716,7 @@ namespace PlayniteAchievements.Services.Database
                 _db.EnableStatementsCache = true;
                 // The custom data store writes to this database on its own connection.
                 _db.BusyTimeout = ConnectionBusyTimeoutMs;
+                AchievementSqlFunctions.Register(_db);
                 _schemaManager.EnsureSchema(_db);
                 EnsureLegacyAchievementPercentNormalization(_db);
                 _initialized = true;
@@ -6861,6 +6862,7 @@ namespace PlayniteAchievements.Services.Database
                 SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX);
             _readDb.EnableStatementsCache = true;
             _readDb.BusyTimeout = ConnectionBusyTimeoutMs;
+            AchievementSqlFunctions.Register(_readDb);
 
             // Pragmas are per-connection, so the ones EnsureSchema applies to the write
             // connection never reached this one -- and this is the connection that runs the
@@ -8016,12 +8018,7 @@ namespace PlayniteAchievements.Services.Database
             return value;
         }
 
-        internal static RarityTier ParseStoredRarity(string value)
-        {
-            return RarityTierExtensions.TryParse(value, out var rarity)
-                ? rarity
-                : RarityTier.Common;
-        }
+        internal static RarityTier ParseStoredRarity(string value) => AchievementSqlFunctions.ParseStoredRarity(value);
 
         private static string NormalizeMarkerApiName(string value)
         {
@@ -8108,20 +8105,7 @@ namespace PlayniteAchievements.Services.Database
             return null;
         }
 
-        internal static DateTime? ParseUtc(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
-            {
-                return DateTimeUtilities.AsUtcKind(parsed);
-            }
-
-            return null;
-        }
+        internal static DateTime? ParseUtc(string value) => AchievementSqlFunctions.ParseUtc(value);
 
         private static string ToIso(DateTime dateTime)
         {
