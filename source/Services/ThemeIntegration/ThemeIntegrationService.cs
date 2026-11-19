@@ -770,8 +770,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         // Typed, or IsFull and ChangedGameIds are invisible and every per-game edit pays for a
-        // whole-library theme refresh. A scoped invalidation names the games that moved, and a
-        // current-user achievement edit cannot move friend data at all.
+        // whole-library theme refresh. A scoped invalidation names the games that moved.
         private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
             var isScoped = e?.IsFull == false;
@@ -809,10 +808,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
             }
 
-            if (!isScoped)
-            {
-                _friendsOverviewDataCoordinator?.Invalidate();
-            }
+            // Friend rows carry the user's own unlock state for each game, so a scoped change
+            // patches those games' friend rows and a full one rebuilds.
+            _friendsOverviewDataCoordinator?.Invalidate(
+                FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(e));
         }
 
         private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
