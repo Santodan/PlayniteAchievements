@@ -260,8 +260,6 @@ namespace PlayniteAchievements.ViewModels
             ClearGameSelectionCommand = new RelayCommand(_ => ClearGameSelection());
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameSummaryItem));
 
-            // A refresh write raises a delta; every other write reaches the feed.
-            _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             if (_cacheReads?.Feed != null)
             {
                 _cacheReads.Feed.AchievementDataChanged += OnAchievementDataChanged;
@@ -2478,14 +2476,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void OnCacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
-        {
-            if (_isActive && e != null)
-            {
-                QueueReload();
-            }
-        }
-
         // A change of the data the summary reads: the projection's copy is stale too, even for a
         // write that raised no cache event of its own (an override or a capture).
         private void OnAchievementDataChanged(object sender, AchievementDataChange e)
@@ -3552,10 +3542,6 @@ namespace PlayniteAchievements.ViewModels
             {
                 _progressTracker.PropertyChanged -= OnProgressTrackerChanged;
                 _progressTracker.Dispose();
-            }
-            if (_refreshService != null)
-            {
-                _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
             }
             if (_cacheReads?.Feed != null)
             {
