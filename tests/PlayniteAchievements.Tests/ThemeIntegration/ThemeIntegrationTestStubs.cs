@@ -651,17 +651,6 @@ namespace PlayniteAchievements.ViewModels
             return new AchievementDisplayItem();
         }
 
-        public static AchievementDisplayItem CreateRecent(
-            PlayniteAchievements.Models.Achievements.GameAchievementData gameData,
-            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
-            PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
-            string gameIconPath,
-            string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null)
-        {
-            return new AchievementDisplayItem();
-        }
-
         public static AppearanceSettingsSnapshot CreateAppearanceSettingsSnapshot(
             PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
             Guid? playniteGameId,
