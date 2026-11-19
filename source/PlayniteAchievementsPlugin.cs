@@ -124,6 +124,9 @@ namespace PlayniteAchievements
         /// <summary>Last seen answer to "does any widget draw from the Unlock Next pool?".</summary>
         private int _unlockNextPoolSlice;
 
+        /// <summary>The achievement pins as last seen.</summary>
+        private HashSet<string> _achievementPinKeys = new HashSet<string>();
+
         private readonly BackgroundUpdater _backgroundUpdates;
         private Services.Workshop.WorkshopUpdateChecker _workshopUpdateChecker;
         private readonly InGameAchievementMonitor _inGameMonitor;
@@ -2599,6 +2602,7 @@ namespace PlayniteAchievements
             // projection never hydrated, so that one option edit has to drop the cache. Widget
             // options live in a nested string bag and raise no settings PropertyChanged, which is
             // why this listens to the showcase's own change event instead.
+            _achievementPinKeys = Services.Overview.OverviewDataSnapshot.PinKeys(Settings?.Persisted?.Showcase);
             ShowcaseConfigurationEvents.Changed += OnShowcaseConfigurationChanged;
             _eventSubscriptions.Add(() => ShowcaseConfigurationEvents.Changed -= OnShowcaseConfigurationChanged);
 
@@ -3103,9 +3107,10 @@ namespace PlayniteAchievements
 
         /// <summary>
         /// Rebuilds the start page's snapshots when the showcase starts needing the Unlock Next
-        /// candidate pool, so the next build fills it in. Only a deeper pool matters - the source
-        /// newly used, or Max per game raised past the built depth; a widget dropping the source
-        /// or lowering the value leaves a harmless pool behind until the next rebuild.
+        /// candidate pool, or gains an achievement pin, so the next build reads it. Only a deeper
+        /// pool matters - the source newly used, or Max per game raised past the built depth; a
+        /// widget dropping the source or lowering the value leaves a harmless pool behind until the
+        /// next rebuild.
         /// </summary>
         private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
         {
@@ -3114,7 +3119,10 @@ namespace PlayniteAchievements
             var slice = maxPerGame > 0 ? Services.Overview.UnlockNextCandidateSelector.SliceFor(maxPerGame) : 0;
             var poolNewlyRequired = slice > _unlockNextPoolSlice;
             _unlockNextPoolSlice = slice;
-            if (poolNewlyRequired)
+            var pinKeys = Services.Overview.OverviewDataSnapshot.PinKeys(showcase);
+            var pinAdded = !pinKeys.IsSubsetOf(_achievementPinKeys);
+            _achievementPinKeys = pinKeys;
+            if (poolNewlyRequired || pinAdded)
             {
                 ScheduleStartPageInvalidate();
             }
