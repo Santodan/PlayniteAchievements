@@ -158,6 +158,27 @@ namespace PlayniteAchievements.Services.Tests
             Assert.IsFalse(change.AllFriends);
         }
 
+        [TestMethod]
+        public void NamedAccounts_AreTouchedByTheirOwnAndTheCompareAccountsChanges()
+        {
+            var query = AchievementQuery.AllFriends
+                .ForFriendAccounts(new[] { Models.Settings.FriendAccountRef.From("Steam", "f1"), Models.Settings.FriendAccountRef.From("Xbox", "x1") })
+                .CompareWith(new[] { Models.Settings.FriendAccountRef.From("Steam", "f2") });
+
+            Assert.IsTrue(Friends(FriendCacheChange.ForFriendGameAchievements("Steam", "f1", 10, null)).Touches(query));
+            Assert.IsTrue(Friends(FriendCacheChange.ForFriendGameAchievements("Xbox", "x1", 10, null)).Touches(query), "a merged friend's other account");
+            Assert.IsTrue(Friends(FriendCacheChange.ForFriendOwnership("Steam", "f2")).Touches(query), "the compare side's ownership");
+            Assert.IsFalse(Friends(FriendCacheChange.ForFriendGameAchievements("Steam", "f3", 10, null)).Touches(query));
+            Assert.IsFalse(Friends(FriendCacheChange.ForRoster("GOG")).Touches(query), "a roster of a provider none of them is on");
+            Assert.IsTrue(Friends(FriendCacheChange.ForRoster("Xbox")).Touches(query));
+
+            var none = AchievementQuery.AllFriends.ForFriendAccounts(new Models.Settings.FriendAccountRef[0]);
+            Assert.IsFalse(Friends(FriendCacheChange.ForFriendGameAchievements("Steam", "f1", 10, null)).Touches(none));
+
+            var game = query.ForProviderGame("Steam", 10, null);
+            Assert.IsFalse(Friends(FriendCacheChange.ForFriendGameAchievements("Steam", "f1", 20, null)).Touches(game), "another game of theirs");
+        }
+
         private static AchievementDataChange Friends(FriendCacheChange change) =>
             AchievementDataChange.Of(null, FriendCacheInvalidatedEventArgs.Scoped(new[] { change }));
     }
