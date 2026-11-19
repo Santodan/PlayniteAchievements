@@ -35,6 +35,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         // threads so per-game events can be filtered without a dispatcher round-trip per event.
         private volatile string _currentGameIdText;
 
+        // Game whose data was last requested. DataContextChanged, GameContextChanged and Loaded
+        // each name the game; it is read once until a cache change or Unloaded clears this.
+        private string _requestedGameIdText;
+
         #region IntegrationViewItemWithProgressBar Property
 
         public static readonly DependencyProperty IntegrationViewItemWithProgressBarProperty =
@@ -99,6 +103,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         {
             UnsubscribeFromCacheEvents();
             _cacheRefreshQueued = false;
+            _requestedGameIdText = null;
         }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -331,6 +336,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 return;
             }
 
+            _requestedGameIdText = null;
             TryUpdateFromDataContext();
         }
 
@@ -359,6 +365,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             else
             {
                 _currentGameIdText = null;
+                _requestedGameIdText = null;
                 ClearData();
             }
         }
@@ -369,8 +376,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             // whole-library loads (projection warms, friends overview snapshots) holding
             // the cache lock, and this runs once per visible grid item.
             var gameIdText = gameId.ToString();
+            var dataService = Plugin?.AchievementDataService;
+            if (dataService == null || string.Equals(_requestedGameIdText, gameIdText, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _requestedGameIdText = gameIdText;
             ViewItemAchievementDataLoader.LoadAsync(
-                Plugin?.AchievementDataService,
+                dataService,
                 gameId,
                 Dispatcher,
                 isStale: () => !string.Equals(_currentGameIdText, gameIdText, StringComparison.OrdinalIgnoreCase),
