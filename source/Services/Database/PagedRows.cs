@@ -45,7 +45,10 @@ namespace PlayniteAchievements.Services.Database
     /// <para>
     /// A virtualizing grid whose rows differ in height reads every index on each layout pass, so
     /// once it reports a realized row (<see cref="Realized"/>) only realized rows move the anchor
-    /// and want pages, and its reads neither move it nor count as a sweep.
+    /// and want pages, and its reads neither move it nor count as a sweep. For such a grid a
+    /// landed page fills the placeholders it handed out one per idle turn, nearest the anchor
+    /// first: filling a row builds what shows it, and a whole page at once would do that in the
+    /// frame of a drag step. Until its turn a placeholder stands in as before.
     /// </para>
     /// <para>
     /// A query change or a touching feed change reads the keys again with the pages around the
@@ -81,6 +84,9 @@ namespace PlayniteAchievements.Services.Database
         private readonly HashSet<int> _wantedPages = new HashSet<int>();
         private readonly HashSet<int> _keptPages = new HashSet<int>();
         private readonly Dictionary<int, T> _placeholders = new Dictionary<int, T>();
+        // Rows read for placeholders handed out to a grid, waiting for their idle turn.
+        private readonly Dictionary<int, T> _fills = new Dictionary<int, T>();
+        private bool _filling;
         private AchievementQuery _query;
         private IReadOnlyList<AchievementQuerySql.RowKey> _keys = Array.Empty<AchievementQuerySql.RowKey>();
         private int _count;
@@ -245,6 +251,7 @@ namespace PlayniteAchievements.Services.Database
             _subscription?.Dispose();
             _pages.Clear();
             _placeholders.Clear();
+            _fills.Clear();
             _wantedPages.Clear();
             _keptPages.Clear();
         }
@@ -372,6 +379,7 @@ namespace PlayniteAchievements.Services.Database
                 _wantedPages.Clear();
                 _keptPages.Clear();
                 _placeholders.Clear();
+                _fills.Clear();
                 _count = count;
                 foreach (var page in pages)
                 {
@@ -528,7 +536,15 @@ namespace PlayniteAchievements.Services.Database
                     before = placeholder;
                 }
 
+                if (kept == null && before != null && _update != null && index < _count && _realizing)
+                {
+                    // The placeholder stays where it is until its turn.
+                    _fills[index] = rows[offset];
+                    continue;
+                }
+
                 _placeholders.Remove(index);
+                _fills.Remove(index);
                 if (kept != null && _update != null && sameKey?.Invoke(index) == true)
                 {
                     _update(kept, rows[offset]);
@@ -550,6 +566,64 @@ namespace PlayniteAchievements.Services.Database
                     Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, rows[offset], before, index));
                 }
             }
+
+            ScheduleFill();
+        }
+
+        private void ScheduleFill()
+        {
+            if (!_filling && _fills.Count > 0)
+            {
+                _filling = true;
+                _scheduler.PostIdle(FillNext);
+            }
+        }
+
+        // Fills the waiting placeholder nearest the anchor; one whose page was dropped or read
+        // again since is left to that.
+        private void FillNext()
+        {
+            _filling = false;
+            if (_disposed)
+            {
+                return;
+            }
+
+            var index = -1;
+            foreach (var waiting in _fills.Keys)
+            {
+                if (index < 0 || Math.Abs(waiting - _anchor) < Math.Abs(index - _anchor))
+                {
+                    index = waiting;
+                }
+            }
+
+            if (index < 0)
+            {
+                return;
+            }
+
+            var row = _fills[index];
+            _fills.Remove(index);
+            if (index < _count &&
+                _placeholders.TryGetValue(index, out var placeholder) &&
+                _pages.TryGetValue(index / PageSize, out var items) &&
+                items[index % PageSize] == null)
+            {
+                _placeholders.Remove(index);
+                _update(placeholder, row);
+                items[index % PageSize] = placeholder;
+                _changed = true;
+            }
+
+            if (_fills.Count > 0)
+            {
+                ScheduleFill();
+            }
+            else
+            {
+                Notify(_count);
+            }
         }
 
         // Far pages go back to unloaded without an event: no virtualizing consumer holds rows
@@ -565,6 +639,10 @@ namespace PlayniteAchievements.Services.Database
             {
                 _pages.Remove(far);
                 _stalePages.Remove(far);
+                foreach (var waiting in _fills.Keys.Where(index => index / PageSize == far).ToList())
+                {
+                    _fills.Remove(waiting);
+                }
             }
         }
 
@@ -601,6 +679,7 @@ namespace PlayniteAchievements.Services.Database
         private void Forget(int index)
         {
             _placeholders.Remove(index);
+            _fills.Remove(index);
             if (_pages.TryGetValue(index / PageSize, out var items))
             {
                 items[index % PageSize] = null;
