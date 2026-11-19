@@ -7,6 +7,7 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
@@ -238,6 +239,26 @@ namespace PlayniteAchievements.SqlNado.Tests
                     Assert.AreEqual(rows, AchievementReadService.SortedKeys(db, query).Count);
                     Assert.AreEqual(1, AchievementReadService.SortedKeys(db, query.Page(1, 1)).Count);
                 }
+            });
+        }
+
+        [TestMethod]
+        public void KeyedReads_InlineTheirIds_SoThousandsOfKeysBindNoVariablePerKey()
+        {
+            WithFixture(db =>
+            {
+                var query = AchievementQuery.AllFriends.CompareWith(new[] { FriendAccountRef.From("Steam", "b") });
+                var keys = AchievementReadService.SortedKeys(db, query).ToList();
+
+                // Keys of rows gone since the keys were read: one per user, game and definition id.
+                var gone = Enumerable.Range(1000, 5000).Select(id => new AchievementQuerySql.RowKey { UserId = id, GameId = id, DefinitionId = id });
+                var command = AchievementQuerySql.Rows(query, keys.Concat(gone).ToList());
+
+                Assert.AreEqual(4, command.Args.Length, "the compare account's provider and id in each compare table; every id is inline");
+                CollectionAssert.AreEqual(
+                    AchievementReadService.Rows(db, query, keys).Select(Key).ToList(),
+                    AchievementReadService.Rows(db, query, keys.Concat(gone).ToList()).Select(Key).ToList());
+                Assert.IsTrue(keys.Count > 0);
             });
         }
 
