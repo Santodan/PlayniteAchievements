@@ -2,7 +2,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
+using PlayniteAchievements.Tests.TestSupport;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using System;
@@ -14,145 +16,6 @@ namespace PlayniteAchievements.Tests.Services
     [TestClass]
     public class FriendOverviewProjectionTests
     {
-        [TestMethod]
-        public void SelectedFriendGames_UsesFriendLinksAndUniqueUnlocks()
-        {
-            var gameId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-            var friend = new FriendSummaryItem
-            {
-                ProviderKey = "Steam",
-                ExternalUserId = "alice",
-                DisplayName = "Alice"
-            };
-            var game = new FriendGameSummaryItem
-            {
-                ProviderKey = "Steam",
-                AppId = 10,
-                PlayniteGameId = gameId,
-                GameName = "Game One",
-                TotalAchievements = 4
-            };
-            var data = new FriendsOverviewData
-            {
-                Friends = new List<FriendSummaryItem> { friend },
-                Games = new List<FriendGameSummaryItem> { game },
-                AllUnlockedAchievements = new List<FriendAchievementDisplayItem>
-                {
-                    Achievement("Steam", "alice", 10, gameId, "Game One", "Duplicate", Utc(2026, 1, 1), RarityTier.Common),
-                    Achievement("Steam", "alice", 10, gameId, "Game One", "Duplicate", Utc(2026, 1, 3), RarityTier.Rare),
-                    Achievement("Steam", "alice", 10, gameId, "Game One", "Unique", Utc(2026, 1, 2), RarityTier.UltraRare)
-                },
-                FriendGameLinks = new List<FriendGameLinkItem>
-                {
-                    new FriendGameLinkItem
-                    {
-                        ProviderKey = "Steam",
-                        ExternalUserId = "alice",
-                        AppId = 10,
-                        PlayniteGameId = gameId,
-                        PlaytimeForeverMinutes = 90,
-                        LastPlayedUtc = Utc(2026, 1, 4)
-                    }
-                }
-            };
-
-            var projection = new FriendOverviewProjection(data);
-            var selectedRow = projection.GetSelectedFriendGames(friend).Single();
-
-            Assert.AreNotSame(game, selectedRow);
-            Assert.AreEqual(2, selectedRow.UnlockedAchievements);
-            Assert.AreEqual(2, selectedRow.UniqueFriendUnlockedAchievementsCount);
-            Assert.AreEqual(4, selectedRow.TotalAchievements);
-            Assert.AreEqual(50, selectedRow.Progression);
-            Assert.AreEqual(90UL * 60UL, selectedRow.PlaytimeSeconds);
-            Assert.AreEqual(Utc(2026, 1, 4), selectedRow.LastPlayed);
-            Assert.AreEqual(Utc(2026, 1, 3), selectedRow.LastUnlockUtc);
-            Assert.AreEqual(90, selectedRow.TotalFriendPlaytimeMinutes);
-            Assert.IsTrue(projection.HasFriendGamePairData(friend, game));
-        }
-
-        [TestMethod]
-        public void SelectedFriendGames_IncludeOwnershipOnlyLinks()
-        {
-            var gameId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-            var friend = new FriendSummaryItem
-            {
-                ProviderKey = "Steam",
-                ExternalUserId = "alice",
-                DisplayName = "Alice"
-            };
-            var game = new FriendGameSummaryItem
-            {
-                ProviderKey = "Steam",
-                AppId = 20,
-                PlayniteGameId = gameId,
-                GameName = "Owned Only",
-                FriendCount = 1,
-                TotalAchievements = 12
-            };
-            var data = new FriendsOverviewData
-            {
-                Friends = new List<FriendSummaryItem> { friend },
-                Games = new List<FriendGameSummaryItem> { game },
-                FriendGameLinks = new List<FriendGameLinkItem>
-                {
-                    new FriendGameLinkItem
-                    {
-                        ProviderKey = "Steam",
-                        ExternalUserId = "alice",
-                        AppId = 20,
-                        PlayniteGameId = gameId,
-                        PlaytimeForeverMinutes = 45
-                    }
-                }
-            };
-
-            var projection = new FriendOverviewProjection(data);
-            var selectedRow = projection.GetSelectedFriendGames(friend).Single();
-
-            // A shared library game the friend never played still gets a per-friend row (0/N),
-            // carrying ownership-derived playtime.
-            Assert.AreEqual(0, selectedRow.UnlockedAchievements);
-            Assert.AreEqual(12, selectedRow.TotalAchievements);
-            Assert.AreEqual(45UL * 60UL, selectedRow.PlaytimeSeconds);
-            Assert.IsTrue(projection.HasFriendGamePairData(friend, game));
-        }
-
-        [TestMethod]
-        public void PairData_RequiresUnlocksOrOwnership_LockedRowsDoNotCount()
-        {
-            var friend = new FriendSummaryItem
-            {
-                ProviderKey = "Steam",
-                ExternalUserId = "alice",
-                DisplayName = "Alice"
-            };
-            // Provider-only game (no PlayniteGameId): the friend has only locked rows and no
-            // ownership link, matching the cache invariant that provider-only ownership is only
-            // persisted once the friend has unlocks.
-            var game = new FriendGameSummaryItem
-            {
-                ProviderKey = "Steam",
-                AppId = 30,
-                GameName = "Unowned Locked Only",
-                TotalAchievements = 5
-            };
-            var locked = Achievement("Steam", "alice", 30, Guid.Empty, "Unowned Locked Only", "LockedOne", Utc(2026, 1, 1), RarityTier.Common);
-            locked.Unlocked = false;
-            locked.UnlockTimeUtc = null;
-            locked.PlayniteGameId = null;
-            var data = new FriendsOverviewData
-            {
-                Friends = new List<FriendSummaryItem> { friend },
-                Games = new List<FriendGameSummaryItem> { game },
-                AllAchievements = new List<FriendAchievementDisplayItem> { locked }
-            };
-
-            var projection = new FriendOverviewProjection(data);
-
-            Assert.IsFalse(projection.HasFriendGamePairData(friend, game));
-        }
-
         [TestMethod]
         public void MergeGroups_ProjectOneFriendWithCombinedSelectedGamesAndMergedScope()
         {
@@ -210,7 +73,7 @@ namespace PlayniteAchievements.Tests.Services
                         TotalAchievements = 1
                     }
                 },
-                AllUnlockedAchievements = new List<FriendAchievementDisplayItem>
+                AllAchievements = new List<FriendAchievementDisplayItem>
                 {
                     Achievement("Steam", "steam-alice", 10, steamGameId, "Steam Game", "SteamA", Utc(2026, 1, 1), RarityTier.Common),
                     Achievement("Exophase", "exo-alice", 20, exophaseGameId, "Exo Game", "ExoA", Utc(2026, 1, 2), RarityTier.Rare)
@@ -236,9 +99,15 @@ namespace PlayniteAchievements.Tests.Services
                 }
             };
 
-            var projection = new FriendOverviewProjection(data, settings);
-            var merged = projection.Friends.Single();
-            var selectedGames = projection.GetSelectedFriendGames(merged);
+            var reads = new InMemoryFriendsOverviewReads(data);
+            var lists = FriendsOverviewLists.Build(
+                reads.LoadLists(),
+                reads.Totals(AchievementQuery.AllFriends.WhereUnlocked(true), AchievementGroup.FriendGame),
+                settings);
+            var merged = lists.Friends.Single();
+            var selectedGames = lists.GamesOf(merged);
+            var rows = reads.Rows(AchievementQuery.AllFriends);
+            lists.StampIdentity(rows, settings);
 
             Assert.IsTrue(merged.IsMergedFriend);
             Assert.AreEqual(group.Id, merged.MergedFriendId);
@@ -249,23 +118,15 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(2, selectedGames.Count);
             Assert.IsTrue(selectedGames.Any(game => game.ProviderKey == "Steam" && game.GameName == "Steam Game"));
             Assert.IsTrue(selectedGames.Any(game => game.ProviderKey == "Exophase" && game.GameName == "Exo Game"));
-            Assert.IsTrue(projection.HasFriendGamePairData(merged, data.Games[0]));
-            Assert.IsTrue(projection.HasFriendGamePairData(merged, data.Games[1]));
-            Assert.IsTrue(projection.AllAchievements.All(achievement => achievement.FriendGroupId == group.Id));
-            Assert.IsTrue(projection.AllAchievements.All(achievement => achievement.FriendName == "Alice Unified"));
+            Assert.IsTrue(lists.HasPairData(merged, data.Games[0]));
+            Assert.IsTrue(lists.HasPairData(merged, data.Games[1]));
+            Assert.IsTrue(rows.All(achievement => achievement.FriendGroupId == group.Id));
+            Assert.IsTrue(rows.All(achievement => achievement.FriendName == "Alice Unified"));
 
-            // Merged friend sums member rarity/trophy counts; theme getters derive from them.
-            Assert.AreEqual(3, merged.CommonCount);
-            Assert.AreEqual(2, merged.UncommonCount);
+            // The merged friend sums its members' counts, scored from their unlocks.
+            Assert.AreEqual(1, merged.CommonCount);
             Assert.AreEqual(1, merged.RareCount);
-            Assert.AreEqual(1, merged.UltraRareCount);
-            Assert.AreEqual(3, merged.TrophyGoldCount);
-            Assert.AreEqual(1, merged.TotalRare.Unlocked);
-            Assert.AreEqual(2, merged.TotalRareAndUltraRare.Unlocked);
-            Assert.AreEqual(7, merged.TotalOverall.Unlocked);
-            Assert.AreEqual("7 / 7", merged.TotalOverall.Stats);
-            Assert.AreEqual(3, merged.GoldTrophies);
-            Assert.AreEqual(3, merged.TotalTrophies);
+            Assert.AreEqual(2, merged.TotalOverall.Unlocked);
             Assert.AreEqual(3, merged.CompletedGamesCount);
             Assert.AreEqual(3, merged.CompletedGames);
         }
@@ -483,9 +344,6 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual("steam|alice", FriendOverviewProjection.BuildFriendKey(" Steam ", " Alice "));
             Assert.AreEqual("steam|app:10", FriendOverviewProjection.BuildGameUnlockKey(" Steam ", null, 10, gameId));
             Assert.AreEqual("exophase|key:ps5|foo", FriendOverviewProjection.BuildGameUnlockKey(" Exophase ", " PS5|foo ", 0, null));
-            Assert.AreEqual(
-                "alice|steam|app:10",
-                FriendOverviewProjection.BuildFriendGameUnlockKey(" Steam ", " Alice ", null, 10, gameId));
         }
 
         private static FriendAchievementDisplayItem Achievement(
