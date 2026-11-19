@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Overview
         internal Func<int, List<AchievementDisplayItem>> UnlockNextReader { get; set; }
 
         private int _unlockNextReadingSlice;
-        private Action _unlockNextLanded;
+        private readonly List<Action> _unlockNextLanded = new List<Action>();
 
         /// <summary>Whether a widget asking for <paramref name="maxPerGame"/> waits for a pool read.</summary>
         internal bool NeedsUnlockNextRead(int maxPerGame) =>
@@ -75,20 +75,22 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>
         /// Reads the pool deep enough for <paramref name="maxPerGame"/>, once per depth, and runs
         /// <paramref name="landed"/> on the calling thread's context after the pool is attached.
-        /// UI thread.
+        /// Disposing the result drops <paramref name="landed"/>, so a closed view is not held by a
+        /// kept snapshot. UI thread.
         /// </summary>
-        internal void RequestUnlockNextPool(int maxPerGame, Action landed)
+        internal IDisposable RequestUnlockNextPool(int maxPerGame, Action landed)
         {
-            if (!NeedsUnlockNextRead(maxPerGame))
+            if (!NeedsUnlockNextRead(maxPerGame) || landed == null)
             {
-                return;
+                return null;
             }
 
-            _unlockNextLanded += landed;
+            _unlockNextLanded.Add(landed);
+            var request = new LandedRequest(this, landed);
             var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
             if (_unlockNextReadingSlice >= slice)
             {
-                return;
+                return request;
             }
 
             _unlockNextReadingSlice = slice;
@@ -109,9 +111,9 @@ namespace PlayniteAchievements.Services.Overview
                         : new List<AchievementDisplayItem>();
                     UnlockNextPoolBuilt = true;
                     UnlockNextPoolSlice = slice;
-                    var notify = _unlockNextLanded;
-                    _unlockNextLanded = null;
-                    notify?.Invoke();
+                    var notify = _unlockNextLanded.ToList();
+                    _unlockNextLanded.Clear();
+                    notify.ForEach(landedAction => landedAction());
                 }
 
                 if (context != null)
@@ -123,6 +125,25 @@ namespace PlayniteAchievements.Services.Overview
                     Attach();
                 }
             }, System.Threading.Tasks.TaskScheduler.Default);
+            return request;
+        }
+
+        private sealed class LandedRequest : IDisposable
+        {
+            private OverviewDataSnapshot _snapshot;
+            private readonly Action _landed;
+
+            public LandedRequest(OverviewDataSnapshot snapshot, Action landed)
+            {
+                _snapshot = snapshot;
+                _landed = landed;
+            }
+
+            public void Dispose()
+            {
+                _snapshot?._unlockNextLanded.Remove(_landed);
+                _snapshot = null;
+            }
         }
 
         /// <summary>
