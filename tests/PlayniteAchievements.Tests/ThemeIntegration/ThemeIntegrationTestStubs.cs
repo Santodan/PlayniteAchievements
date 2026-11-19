@@ -628,6 +628,13 @@ namespace PlayniteAchievements.ViewModels
             HasComparison = true;
         }
 
+        public virtual void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            DisplayName = fresh.DisplayName;
+            Unlocked = fresh.Unlocked;
+            UnlockTimeUtc = fresh.UnlockTimeUtc;
+        }
+
         public void ClearComparison()
         {
             HasComparison = false;
