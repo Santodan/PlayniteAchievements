@@ -1542,6 +1542,19 @@ namespace PlayniteAchievements.ViewModels.Items
             VideoCapturePath = sourceItem.VideoCapturePath;
         }
 
+        /// <summary>
+        /// Brings this row up to date from a new read of the same achievement, keeping what the
+        /// read does not carry: the reveal, and the capture marks and comparison stamped later.
+        /// </summary>
+        public virtual void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            var revealed = IsRevealed;
+            var captures = (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath);
+            UpdateFrom(fresh);
+            IsRevealed = revealed;
+            (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath) = captures;
+        }
+
         public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
         {
             ApplyAppearanceSettings(CreateAppearanceSettingsSnapshot(
