@@ -12,7 +12,8 @@ using PlayniteAchievements.Services.Overview;
 namespace PlayniteAchievements.Services.Widgets
 {
     /// <summary>
-    /// Owns the cached aggregate achievement snapshot shared by widget hosts.
+    /// Owns the cached aggregate achievement snapshot shared by widget hosts and the Overview.
+    /// It is kept for the session, across Overview closes, until a data change marks it stale.
     /// Layout, profile, and pin changes do not invalidate this cache.
     /// </summary>
     public class WidgetDataCoordinator : IDisposable
@@ -24,6 +25,8 @@ namespace PlayniteAchievements.Services.Widgets
         private Task<OverviewDataSnapshot> _buildTask;
         private int _generation;
         private int _buildGeneration;
+        private int _changes;
+        private int _buildChanges;
         private int _publisherCount;
         private bool _invalidated = true;
         private bool _disposed;
@@ -68,15 +71,29 @@ namespace PlayniteAchievements.Services.Widgets
                 {
                     _publisherCount--;
                 }
+            }
+        }
 
-                // The retained snapshot exists to serve widget hosts. With the last publisher
-                // gone (the overview closing) and nothing subscribed, nothing needs it; the stale
-                // flag makes the next pull rebuild on demand.
-                if (_publisherCount == 0 && SnapshotInvalidated == null)
-                {
-                    _snapshot = null;
-                    _invalidated = true;
-                }
+        /// <summary>The retained snapshot while no data change has marked it stale; otherwise null.</summary>
+        public OverviewDataSnapshot CurrentSnapshot()
+        {
+            lock (_syncRoot)
+            {
+                return _disposed || _invalidated ? null : _snapshot;
+            }
+        }
+
+        /// <summary>
+        /// Marks the snapshot stale at once for a change whose <see cref="Invalidate"/> is
+        /// coalesced to later, so nothing adopts it in between. Builds already running still land
+        /// for their waiting callers, but leave the snapshot stale.
+        /// </summary>
+        public void MarkStale()
+        {
+            lock (_syncRoot)
+            {
+                _invalidated = true;
+                _changes++;
             }
         }
 
@@ -112,6 +129,7 @@ namespace PlayniteAchievements.Services.Widgets
             lock (_syncRoot)
             {
                 _invalidated = true;
+                _changes++;
                 _generation++;
             }
 
@@ -131,6 +149,7 @@ namespace PlayniteAchievements.Services.Widgets
 
                 Task<OverviewDataSnapshot> task;
                 int taskGeneration;
+                int taskChanges;
                 lock (_syncRoot)
                 {
                     ThrowIfDisposed();
@@ -153,13 +172,16 @@ namespace PlayniteAchievements.Services.Widgets
                     {
                         task = _buildTask;
                         taskGeneration = _buildGeneration;
+                        taskChanges = _buildChanges;
                     }
                     else
                     {
                         taskGeneration = _generation;
+                        taskChanges = _changes;
                         task = Task.Run(BuildSnapshot);
                         _buildTask = task;
                         _buildGeneration = taskGeneration;
+                        _buildChanges = taskChanges;
                     }
                 }
 
@@ -176,7 +198,7 @@ namespace PlayniteAchievements.Services.Widgets
                         if (isCurrentGeneration)
                         {
                             _snapshot = snapshot ?? new OverviewDataSnapshot();
-                            _invalidated = false;
+                            _invalidated = taskChanges != _changes;
                         }
                     }
 
