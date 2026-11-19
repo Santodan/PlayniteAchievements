@@ -15,8 +15,6 @@ namespace PlayniteAchievements.Services.Cache
     /// </remarks>
     internal interface ICacheReadOptimizations
     {
-        List<GameAchievementData> LoadAllGameDataFast();
-
         /// <summary>
         /// Every cached game with its identity (name, provider, ids) and no achievements, for
         /// lookups that would otherwise read every achievement in the library.
