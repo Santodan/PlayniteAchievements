@@ -47,10 +47,6 @@ namespace PlayniteAchievements.Services.Showcase
         /// <summary>0 = no unlocks; 1..4 = percentile bucket among the window's active days,
         /// with the busiest day always 4.</summary>
         public int Intensity { get; set; }
-
-        /// <summary>The achievements unlocked on this local day in unlock order, or null when
-        /// none; the rows are the snapshot's own instances, shared across windows.</summary>
-        public IReadOnlyList<AchievementDisplayItem> Unlocks { get; set; }
     }
 
     public sealed class ShowcaseActivityCalendar
@@ -245,9 +241,19 @@ namespace PlayniteAchievements.Services.Showcase
 
         public ShowcaseProfileSettings Profile { get; set; }
 
-        /// <summary>Grid-ready achievement rows (pinned or recent, per widget kind).</summary>
+        /// <summary>Grid-ready achievement rows (pinned or Unlock Next, per widget source).</summary>
         public IReadOnlyList<AchievementDisplayItem> AchievementRows { get; set; } =
             Array.Empty<AchievementDisplayItem>();
+
+        /// <summary>
+        /// The unlocks a grid or mosaic reads itself: the snapshot's, within the widget's
+        /// collection. Null when <see cref="AchievementRows"/> or <see cref="MosaicAchievements"/>
+        /// hold the rows.
+        /// </summary>
+        internal Database.AchievementQuery RowsQuery { get; set; }
+
+        /// <summary>Whether a grid or mosaic has any row to show.</summary>
+        public bool HasRows { get; set; }
 
         public ShowcaseActivityCalendar ActivityCalendar { get; set; } =
             new ShowcaseActivityCalendar();
@@ -330,11 +336,6 @@ namespace PlayniteAchievements.Services.Showcase
             public DateTime StatisticsDay;
 
             public DailyScoreDeltas ScoreDeltas;
-
-            /// <summary>Unlocked rows grouped by local unlock day, each day in unlock order.</summary>
-            public Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>> UnlocksByDay;
-
-            public IReadOnlyList<AchievementDisplayItem> AllAchievementRows;
 
             public readonly Dictionary<string, IReadOnlyList<AchievementDisplayItem>> PinRows =
                 new Dictionary<string, IReadOnlyList<AchievementDisplayItem>>(StringComparer.Ordinal);
@@ -432,8 +433,15 @@ namespace PlayniteAchievements.Services.Showcase
                     {
                         result.ResolvedPinCollectionId = result.Collection.CollectionId;
                     }
+                    else if (ShowcaseWidgetOptions.GetMosaicSource(instance) != ShowcaseMosaicSource.UnlockNext)
+                    {
+                        result.RowsQuery = CollectionQuery(snapshot, result.Collection).WhereUnlockTimeKnown();
+                        result.HasRows = snapshot.Unlocks.Any(fact => fact.Day.HasValue && result.Collection?.ContainsGame(fact.GameId) != false);
+                        break;
+                    }
 
                     result.MosaicAchievements = ResolveMosaic(snapshot, settings, instance, int.MaxValue);
+                    result.HasRows = result.MosaicAchievements.Count > 0;
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
                     // The collapsed Achievements Grid: every unlocked achievement by default, an
@@ -445,15 +453,20 @@ namespace PlayniteAchievements.Services.Showcase
                         result.ResolvedPinCollectionId = result.Collection.CollectionId;
                         result.Achievements = ResolvePinnedAchievements(snapshot, result.Collection.Pins);
                         result.AchievementRows = ResolvePinRowsCached(snapshot, result.Achievements);
+                        result.HasRows = result.AchievementRows.Count > 0;
                         break;
                     }
 
-                    result.AchievementRows = LimitToCollection(
-                        ShowcaseWidgetOptions.GetAchievementGridSource(instance) == ShowcaseAchievementGridSource.UnlockNext
-                            // Uncapped here: the grid's MaxRows applies after its search filter.
-                            ? ResolveUnlockNext(snapshot, instance, int.MaxValue, now)
-                            : ResolveAllAchievements(snapshot),
-                        result.Collection);
+                    if (ShowcaseWidgetOptions.GetAchievementGridSource(instance) == ShowcaseAchievementGridSource.UnlockNext)
+                    {
+                        // Uncapped here: the grid's MaxRows applies after its search filter.
+                        result.AchievementRows = LimitToCollection(ResolveUnlockNext(snapshot, instance, int.MaxValue, now), result.Collection);
+                        result.HasRows = result.AchievementRows.Count > 0;
+                        break;
+                    }
+
+                    result.RowsQuery = CollectionQuery(snapshot, result.Collection);
+                    result.HasRows = snapshot.Unlocks.Any(fact => result.Collection?.ContainsGame(fact.GameId) != false);
                     break;
                 case ShowcaseWidgetKind.GameSummaries:
                     // The collapsed Game Summaries Grid: the library by default, or the Playnite
@@ -638,7 +651,6 @@ namespace PlayniteAchievements.Services.Showcase
         {
             snapshot = snapshot ?? new OverviewDataSnapshot();
             var summaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
-            var achievements = snapshot.Achievements ?? new List<AchievementDisplayItem>();
             var counts = snapshot.GlobalUnlockCountsByDate ?? new Dictionary<DateTime, int>();
 
             // One pass over the day counts: the library can hold years of them and this runs for
@@ -663,18 +675,8 @@ namespace PlayniteAchievements.Services.Showcase
                 }
             }
 
-            // One pass over the achievements, accumulating instead of materializing the
-            // ~tens of thousands of rarity percentages just to average them.
-            var rarityCount = 0;
-            var raritySum = 0d;
-            foreach (var item in achievements)
-            {
-                if (item?.Unlocked == true && item.GlobalPercentUnlocked.HasValue)
-                {
-                    rarityCount++;
-                    raritySum += item.GlobalPercentUnlocked.Value;
-                }
-            }
+            var rarityCount = snapshot.Unlocks.Sum(fact => fact.PercentCount);
+            var raritySum = snapshot.Unlocks.Sum(fact => fact.PercentSum);
 
             CalculateStreaks(counts, now.Date, out var currentStreak, out var longestStreak);
 
@@ -782,12 +784,10 @@ namespace PlayniteAchievements.Services.Showcase
             OverviewDataSnapshot snapshot,
             IEnumerable<PinnedAchievementReference> pins)
         {
-            var achievements = snapshot?.Achievements ?? new List<AchievementDisplayItem>();
+            var achievements = snapshot?.PinnedAchievements ?? new List<AchievementDisplayItem>();
 
-            // Index by (game id, case-insensitive api name) so each pin resolves in O(1)
-            // instead of scanning every achievement. The first entry wins on a key collision,
-            // mirroring the prior FirstOrDefault; achievements without a Playnite game id cannot
-            // match a pinned reference and are skipped.
+            // Index by (game id, case-insensitive api name). The first entry wins on a key
+            // collision; achievements without a Playnite game id cannot match a pin.
             var lookup = new Dictionary<(Guid, string), AchievementDisplayItem>();
             foreach (var item in achievements)
             {
@@ -941,32 +941,13 @@ namespace PlayniteAchievements.Services.Showcase
             return row;
         }
 
-        /// <summary>
-        /// Every unlocked achievement in the snapshot, newest unlock first, so the grid's Default
-        /// sort reads as newest unlocks. The snapshot also carries locked pinned goals (hydrated for
-        /// the pinned widgets); they stay out of this source, where they read as spoiler-covered
-        /// rows among the unlocks. Cached per snapshot because the full library is sorted once, not
-        /// per dashboard rebuild; the MaxRows cap applies in the widget view model after its search
-        /// filter.
-        /// </summary>
-        public static IReadOnlyList<AchievementDisplayItem> ResolveAllAchievements(
-            OverviewDataSnapshot snapshot)
+        /// <summary>The snapshot's unlocks within a game collection; the snapshot's own while there is none.</summary>
+        internal static Database.AchievementQuery CollectionQuery(
+            OverviewDataSnapshot snapshot,
+            ShowcaseCollectionScope collection)
         {
-            if (snapshot == null)
-            {
-                return new List<AchievementDisplayItem>();
-            }
-
-            var cache = DerivedCache.GetOrCreateValue(snapshot);
-            if (cache.AllAchievementRows == null)
-            {
-                cache.AllAchievementRows = (snapshot.Achievements ?? new List<AchievementDisplayItem>())
-                    .Where(item => item != null && item.Unlocked)
-                    .OrderByDescending(item => item.UnlockTimeUtc ?? DateTime.MinValue)
-                    .ToList();
-            }
-
-            return cache.AllAchievementRows;
+            var query = snapshot.UnlockQuery();
+            return collection == null ? query : query.ForGames(query.GameIds.Where(id => collection.ContainsGame(id)));
         }
 
         /// <summary>
@@ -1152,19 +1133,12 @@ namespace PlayniteAchievements.Services.Showcase
             var max = 0;
             var total = 0;
             var activeDays = 0;
-            var unlocksByDay = GetUnlocksByDay(snapshot);
             foreach (var day in EnumerateDailyWindow(start, endDate, counts))
             {
                 max = Math.Max(max, day.Count);
                 total += day.Count;
-                IReadOnlyList<AchievementDisplayItem> unlocks = null;
-                if (day.Count > 0)
-                {
-                    activeDays++;
-                    unlocksByDay.TryGetValue(day.Date, out unlocks);
-                }
-
-                days.Add(new ShowcaseActivityDay { Date = day.Date, Count = day.Count, Unlocks = unlocks });
+                activeDays += day.Count > 0 ? 1 : 0;
+                days.Add(new ShowcaseActivityDay { Date = day.Date, Count = day.Count });
             }
 
             var activeCounts = days
@@ -1195,56 +1169,6 @@ namespace PlayniteAchievements.Services.Showcase
                 TotalCount = total,
                 ActiveDayCount = activeDays
             };
-        }
-
-        /// <summary>
-        /// The snapshot's unlocked rows grouped by local unlock day, folded once per snapshot the
-        /// way the score deltas are. A calendar cell hands its day's list to the day popup, so the
-        /// lists hold the snapshot's own row instances and die with the snapshot; undated unlocks
-        /// have no day and are left out, matching the day counts.
-        /// </summary>
-        private static Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>> GetUnlocksByDay(
-            OverviewDataSnapshot snapshot)
-        {
-            if (snapshot == null)
-            {
-                return new Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>>();
-            }
-
-            var cache = DerivedCache.GetOrCreateValue(snapshot);
-            if (cache.UnlocksByDay != null)
-            {
-                return cache.UnlocksByDay;
-            }
-
-            var grouped = new Dictionary<DateTime, List<AchievementDisplayItem>>();
-            foreach (var item in snapshot.Achievements ?? new List<AchievementDisplayItem>())
-            {
-                if (item?.Unlocked != true || !item.UnlockTimeUtc.HasValue)
-                {
-                    continue;
-                }
-
-                var day = UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value);
-                if (!grouped.TryGetValue(day, out var rows))
-                {
-                    rows = new List<AchievementDisplayItem>();
-                    grouped[day] = rows;
-                }
-
-                rows.Add(item);
-            }
-
-            var index = new Dictionary<DateTime, IReadOnlyList<AchievementDisplayItem>>(grouped.Count);
-            foreach (var pair in grouped)
-            {
-                // Chronological within the day, so the list reads as the day's activity.
-                pair.Value.Sort((left, right) => left.UnlockTimeUtc.Value.CompareTo(right.UnlockTimeUtc.Value));
-                index[pair.Key] = pair.Value;
-            }
-
-            cache.UnlocksByDay = index;
-            return index;
         }
 
         /// <summary>
@@ -1318,9 +1242,8 @@ namespace PlayniteAchievements.Services.Showcase
 
         /// <summary>
         /// The points family per game, from the game summary, which already folds in the game's
-        /// override and its effective platform key. Achievement rows carry the raw provider key,
-        /// so an Exophase Xbox unlock is resolved through its game here. A game whose points count
-        /// toward no card maps to null.
+        /// override and its effective platform key. A game whose points count toward no card maps
+        /// to null.
         /// </summary>
         private static Dictionary<Guid, string> BuildPointsFamiliesByGame(OverviewDataSnapshot snapshot)
         {
@@ -1337,9 +1260,8 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// Per-day score earned, folded out of the achievement list once per snapshot. This is the
-        /// only step that scales with the library, so changing a chart's range re-windows these
-        /// deltas instead of rescanning every achievement.
+        /// Per-day score earned, folded out of the snapshot's unlocks once per snapshot, so changing
+        /// a chart's range re-windows these deltas.
         /// </summary>
         private static DailyScoreDeltas GetDailyScoreDeltas(OverviewDataSnapshot snapshot)
         {
@@ -1356,43 +1278,28 @@ namespace PlayniteAchievements.Services.Showcase
 
             var deltas = new DailyScoreDeltas();
             var familiesByGame = BuildPointsFamiliesByGame(snapshot);
-            // Single pass over the full achievement list - materializing the unlocked subset
-            // would allocate a list the size of the user's whole unlock history.
-            foreach (var item in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+            foreach (var fact in snapshot.Unlocks)
             {
-                if (item?.Unlocked != true)
-                {
-                    continue;
-                }
-
                 deltas.SawUnlocked = true;
-                var family = item.PlayniteGameId.HasValue &&
-                    familiesByGame.TryGetValue(item.PlayniteGameId.Value, out var gameFamily)
-                        ? gameFamily
-                        : PointsFamilies.FromProviderKey(item.ProviderKey);
-                var platformPoints = item.Points;
-                // Softcore unlocks are left out, as in the points totals.
-                var hasPlatformScore = platformPoints > 0 &&
-                    family != null &&
-                    !AchievementTagHelper.IsSoftcore(item.Tags);
-
-                if (item.UnlockTimeUtc.HasValue)
+                familiesByGame.TryGetValue(fact.GameId, out var family);
+                // Softcore unlocks are left out of the platform points, as in the points totals.
+                var platformPoints = family != null ? fact.PlatformScorePoints : 0;
+                if (fact.Day is DateTime day)
                 {
-                    var day = UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value);
                     deltas.Collection.TryGetValue(day, out var collection);
-                    deltas.Collection[day] = collection + item.CollectionScore;
+                    deltas.Collection[day] = collection + fact.CollectionScore;
                     deltas.Prestige.TryGetValue(day, out var prestige);
-                    deltas.Prestige[day] = prestige + item.PrestigeScore;
-                    if (hasPlatformScore)
+                    deltas.Prestige[day] = prestige + fact.PrestigeScore;
+                    if (platformPoints > 0)
                     {
                         deltas.AddPoints(family, day, platformPoints);
                     }
                 }
                 else
                 {
-                    deltas.BaselineCollection += item.CollectionScore;
-                    deltas.BaselinePrestige += item.PrestigeScore;
-                    if (hasPlatformScore)
+                    deltas.BaselineCollection += fact.CollectionScore;
+                    deltas.BaselinePrestige += fact.PrestigeScore;
+                    if (platformPoints > 0)
                     {
                         deltas.AddPointsBaseline(family, platformPoints);
                     }
@@ -1520,13 +1427,12 @@ namespace PlayniteAchievements.Services.Showcase
                     achievements = ResolveUnlockNext(snapshot, instance, int.MaxValue);
                     break;
                 default:
+                    // The recent unlocks are read by the widget itself (see RowsQuery).
                     achievements = ShowsPinsInPinOrder(instance, collection)
                         ? ResolvePinnedAchievements(snapshot, collection.Pins)
                             .Where(item => !item.IsMissing)
                             .Select(item => item.Achievement)
-                        : (snapshot?.RecentAchievements ?? new List<AchievementDisplayItem>())
-                            .Where(item => item != null)
-                            .OrderByDescending(item => item.UnlockTimeUtc);
+                        : Enumerable.Empty<AchievementDisplayItem>();
                     break;
             }
 
@@ -1592,9 +1498,8 @@ namespace PlayniteAchievements.Services.Showcase
         }
 
         /// <summary>
-        /// The snapshot's candidate pool, dropping anything unlocked since it was built (a delta
-        /// tick carries the pool forward rather than rehydrating it) and pairing each row with its
-        /// game summary. Cached per snapshot because it scans the library's unlocked rows once.
+        /// The snapshot's candidate pool, each row paired with its game summary, cached per
+        /// snapshot.
         /// </summary>
         private static IReadOnlyList<UnlockNextCandidate> ResolveUnlockNextPool(
             OverviewDataSnapshot snapshot)
@@ -1626,20 +1531,12 @@ namespace PlayniteAchievements.Services.Showcase
                 }
             }
 
-            var unlockedSince = BuildUnlockedKeySet(snapshot, candidates);
             var pool = new List<UnlockNextCandidate>(candidates.Count);
             foreach (var achievement in candidates)
             {
                 if (achievement == null ||
                     achievement.Unlocked ||
                     achievement.PlayniteGameId == null)
-                {
-                    continue;
-                }
-
-                if (unlockedSince.Contains(UnlockNextKey(
-                        achievement.PlayniteGameId.Value,
-                        achievement.ApiName)))
                 {
                     continue;
                 }
@@ -1656,44 +1553,6 @@ namespace PlayniteAchievements.Services.Showcase
             cache.UnlockNextPool = pool;
             return pool;
         }
-
-        /// <summary>
-        /// Keys of pool achievements that the snapshot now reports as unlocked. Built from the
-        /// pool's own keys so the scan over the library's unlocked rows allocates nothing per row.
-        /// </summary>
-        private static HashSet<string> BuildUnlockedKeySet(
-            OverviewDataSnapshot snapshot,
-            IReadOnlyList<AchievementDisplayItem> candidates)
-        {
-            var poolKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var candidate in candidates)
-            {
-                if (candidate?.PlayniteGameId != null)
-                {
-                    poolKeys.Add(UnlockNextKey(candidate.PlayniteGameId.Value, candidate.ApiName));
-                }
-            }
-
-            var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var item in snapshot.Achievements ?? new List<AchievementDisplayItem>())
-            {
-                if (item?.Unlocked != true || item.PlayniteGameId == null)
-                {
-                    continue;
-                }
-
-                var key = UnlockNextKey(item.PlayniteGameId.Value, item.ApiName);
-                if (poolKeys.Contains(key))
-                {
-                    unlocked.Add(key);
-                }
-            }
-
-            return unlocked;
-        }
-
-        private static string UnlockNextKey(Guid gameId, string apiName) =>
-            gameId.ToString("N") + "|" + (apiName ?? string.Empty);
 
         /// <summary>
         /// One ranked list across every game. Easiest leads with the most commonly earned;
