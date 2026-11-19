@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Services.Database;
@@ -20,7 +19,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private readonly Action _loaded;
         private LiveQuery<IReadOnlyList<AchievementDisplayItem>> _live;
         private string _key;
-        private IReadOnlyDictionary<Guid, GameSummaryItem> _games;
 
         /// <param name="loaded">Runs on the UI thread when a read lands.</param>
         public ShowcaseRows(Action loaded)
@@ -29,8 +27,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>The rows of <paramref name="query"/> once read; until then the last query's.</summary>
-        /// <param name="games">The library's games, which give authored rows their provider.</param>
-        public IReadOnlyList<AchievementDisplayItem> For(AchievementQuery query, IEnumerable<GameSummaryItem> games)
+        public IReadOnlyList<AchievementDisplayItem> For(AchievementQuery query)
         {
             var feed = PlayniteAchievementsPlugin.Instance?.AchievementDataService?.CacheReads?.Feed;
             var dispatcher = Application.Current?.Dispatcher;
@@ -39,14 +36,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 return Array.Empty<AchievementDisplayItem>();
             }
 
-            _games = ById(games);
             var key = AchievementQuerySql.KeyOf(query);
             if (_live == null)
             {
                 _live = new LiveQuery<IReadOnlyList<AchievementDisplayItem>>(
                     feed,
                     query,
-                    read => Load(read, _games),
+                    read => Load(read),
                     new DispatcherReadScheduler(dispatcher),
                     onError: ex => Logger.Warn(ex, "Failed to read a widget's achievement rows."));
                 _live.PropertyChanged += (_, e) =>
@@ -67,20 +63,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         /// <summary>The display rows of <paramref name="query"/>, read on the calling thread.</summary>
-        public static IReadOnlyList<AchievementDisplayItem> Load(AchievementQuery query, IReadOnlyDictionary<Guid, GameSummaryItem> games)
+        public static IReadOnlyList<AchievementDisplayItem> Load(AchievementQuery query)
         {
             var plugin = PlayniteAchievementsPlugin.Instance;
             return plugin?.AchievementDataService == null
                 ? Array.Empty<AchievementDisplayItem>()
                 : (IReadOnlyList<AchievementDisplayItem>)new OverviewDataBuilder(plugin.AchievementDataService, null, plugin.PlayniteApi, null)
-                    .LoadRows(plugin.Settings, query, games: games);
+                    .LoadRows(plugin.Settings, query);
         }
-
-        public static IReadOnlyDictionary<Guid, GameSummaryItem> ById(IEnumerable<GameSummaryItem> games) =>
-            (games ?? Enumerable.Empty<GameSummaryItem>())
-                .Where(game => game?.PlayniteGameId != null)
-                .GroupBy(game => game.PlayniteGameId.Value)
-                .ToDictionary(group => group.Key, group => group.First());
 
         public void Dispose()
         {
