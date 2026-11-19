@@ -49,8 +49,8 @@ CREATE VIEW ResolvedAchievementsBefore AS SELECT u.*,
               INNER JOIN Games g ON g.Id = ugp.GameId
               INNER JOIN AchievementDefinitions ad ON ad.GameId = ugp.GameId
               LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN CustomLayerAchievements c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN CustomLayerGames gs ON gs.PlayniteGameId = g.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName
             UNION ALL SELECT
                 NULL AS Id,
@@ -81,8 +81,8 @@ CREATE VIEW ResolvedAchievementsBefore AS SELECT u.*,
                 a.GoalOrder IS NOT NULL AS IsGoal,
                 a.GoalOrder AS GoalOrder,
                 a.CustomOrder AS CustomOrder,
-                (SELECT k.SortIndex FROM AchievementCategories k WHERE k.PlayniteGameId = a.PlayniteGameId AND k.Category = COALESCE(a.Category, 'Default')) AS CategoryOrder,
-                (SELECT k.ImagePath FROM AchievementCategories k WHERE k.PlayniteGameId = a.PlayniteGameId AND k.Category = COALESCE(a.Category, 'Default')) AS CategoryArtPath,
+                (SELECT k.SortIndex FROM CustomLayerCategories k WHERE k.PlayniteGameId = a.PlayniteGameId AND k.Category = COALESCE(a.Category, 'Default')) AS CategoryOrder,
+                (SELECT k.ImagePath FROM CustomLayerCategories k WHERE k.PlayniteGameId = a.PlayniteGameId AND k.Category = COALESCE(a.Category, 'Default')) AS CategoryArtPath,
                 a.PlayniteGameId AS PlayniteGameId,
                 (SELECT gn.GameName FROM Games gn WHERE gn.PlayniteGameId = a.PlayniteGameId AND gn.GameName IS NOT NULL LIMIT 1) AS GameName,
                 NULL AS ProviderKey,
@@ -93,7 +93,7 @@ CREATE VIEW ResolvedAchievementsBefore AS SELECT u.*,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
                 1 AS IsAuthored,
                 cap.CleanPath AS CleanCapturePath, cap.NotificationPath AS NotificationCapturePath, cap.FramedPath AS FramedCapturePath, cap.VideoPath AS VideoCapturePath
-              FROM AchievementOverrides a
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
+              FROM CustomLayerAchievements a
+              LEFT JOIN CustomLayerGames gs ON gs.PlayniteGameId = a.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
               WHERE a.IsAuthored = 1) u;
