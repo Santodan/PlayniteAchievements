@@ -49,8 +49,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             InitializeComponent();
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements"));
         }
 
