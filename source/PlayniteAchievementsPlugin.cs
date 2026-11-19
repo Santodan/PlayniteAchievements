@@ -1422,6 +1422,10 @@ namespace PlayniteAchievements
 
         // === Overview ===
 
+        // Playnite calls Opened on every visit to the sidebar view. One host for the session keeps
+        // the overview built while another view is shown, so a visit only shows it again.
+        private OverviewHostControl _overviewHost;
+
         public override IEnumerable<SidebarItem> GetSidebarItems()
         {
             if (_settingsViewModel?.Settings?.Persisted?.ShowSidebarButton != true)
@@ -1434,15 +1438,12 @@ namespace PlayniteAchievements
                 Title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 Type = SiderbarItemType.View,
                 Icon = GetOverviewIcon(),
-                Opened = () =>
-                {
-                    return new OverviewHostControl(
-                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, GetStartPageDataCoordinator),
-                        _logger,
-                        PlayniteApi,
-                        _refreshService,
-                        this);
-                }
+                Opened = () => _overviewHost ?? (_overviewHost = new OverviewHostControl(
+                    () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings, OverviewLaunchContext.Sidebar, GetStartPageDataCoordinator),
+                    _logger,
+                    PlayniteApi,
+                    _refreshService,
+                    this))
             };
 
         }
