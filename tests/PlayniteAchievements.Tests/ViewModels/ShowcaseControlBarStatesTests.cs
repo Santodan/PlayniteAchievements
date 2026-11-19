@@ -354,25 +354,20 @@ namespace PlayniteAchievements.Tests.ViewModels
         [TestMethod]
         public void TagFilter_OffersGlobalTagsThenThePickedGamesSharedTags()
         {
-            var first = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "First" };
-            var second = new GameSummaryItem { PlayniteGameId = Guid.NewGuid(), GameName = "Second" };
-            var firstRow = new AchievementDisplayItem
+            var first = new GameSummaryItem
             {
-                PlayniteGameId = first.PlayniteGameId,
-                ApiName = "a",
-                Unlocked = true,
-                Tags = "first-only|shared-source"
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "First",
+                Tallies = new[] { new PlayniteAchievements.Models.Achievements.AchievementTally("first-only|shared-source", 1, 1) }
             };
-            var secondRow = new AchievementDisplayItem
+            var second = new GameSummaryItem
             {
-                PlayniteGameId = second.PlayniteGameId,
-                ApiName = "b",
-                Unlocked = true,
-                Tags = "shared-source"
+                PlayniteGameId = Guid.NewGuid(),
+                GameName = "Second",
+                Tallies = new[] { new PlayniteAchievements.Models.Achievements.AchievementTally("shared-source", 1, 1) }
             };
             var adapter = new CrossGameAchievementControlBarAdapter();
             adapter.UpdateGames(new[] { first, second });
-            adapter.Apply(new[] { firstRow, secondRow });
 
             CollectionAssert.AreEqual(
                 AchievementTagRegistry.GetAssignableKeys(null).ToArray(),
