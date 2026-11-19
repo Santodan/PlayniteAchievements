@@ -90,7 +90,13 @@ namespace PlayniteAchievements.Services.Friends
         FriendRemoved,
 
         /// <summary>The provider's friend roster changed (friends added or removed).</summary>
-        Roster
+        Roster,
+
+        /// <summary>
+        /// The current user's data for one Playnite game changed. Every friend row for that game
+        /// carries the user's own unlock state and whether the user has data for the game.
+        /// </summary>
+        SelfGame
     }
 
     public sealed class FriendCacheChange : IEquatable<FriendCacheChange>
@@ -100,13 +106,15 @@ namespace PlayniteAchievements.Services.Friends
             string providerKey,
             string externalUserId,
             int appId,
-            string providerGameKey)
+            string providerGameKey,
+            Guid playniteGameId = default)
         {
             Kind = kind;
             ProviderKey = providerKey ?? string.Empty;
             ExternalUserId = externalUserId;
             AppId = appId;
             ProviderGameKey = providerGameKey;
+            PlayniteGameId = playniteGameId;
         }
 
         public FriendCacheChangeKind Kind { get; }
@@ -121,6 +129,9 @@ namespace PlayniteAchievements.Services.Friends
 
         /// <summary>Null when the change is not game-scoped or the key is unknown.</summary>
         public string ProviderGameKey { get; }
+
+        /// <summary>The Playnite game a SelfGame change names; Guid.Empty for every other kind.</summary>
+        public Guid PlayniteGameId { get; }
 
         public static FriendCacheChange ForFriendGameAchievements(
             string providerKey, string externalUserId, int appId, string providerGameKey) =>
@@ -138,6 +149,9 @@ namespace PlayniteAchievements.Services.Friends
         public static FriendCacheChange ForRoster(string providerKey) =>
             new FriendCacheChange(FriendCacheChangeKind.Roster, providerKey, null, 0, null);
 
+        public static FriendCacheChange ForSelfGame(Guid playniteGameId) =>
+            new FriendCacheChange(FriendCacheChangeKind.SelfGame, null, null, 0, null, playniteGameId);
+
         public bool Equals(FriendCacheChange other)
         {
             if (other is null)
@@ -147,6 +161,7 @@ namespace PlayniteAchievements.Services.Friends
 
             return Kind == other.Kind &&
                    AppId == other.AppId &&
+                   PlayniteGameId == other.PlayniteGameId &&
                    string.Equals(ProviderKey, other.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
                    string.Equals(ExternalUserId, other.ExternalUserId, StringComparison.OrdinalIgnoreCase) &&
                    string.Equals(ProviderGameKey, other.ProviderGameKey, StringComparison.OrdinalIgnoreCase);
@@ -160,6 +175,7 @@ namespace PlayniteAchievements.Services.Friends
             {
                 var hash = (int)Kind;
                 hash = (hash * 397) ^ AppId;
+                hash = (hash * 397) ^ PlayniteGameId.GetHashCode();
                 hash = (hash * 397) ^ StringComparer.OrdinalIgnoreCase.GetHashCode(ProviderKey ?? string.Empty);
                 hash = (hash * 397) ^ (ExternalUserId == null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(ExternalUserId));
                 hash = (hash * 397) ^ (ProviderGameKey == null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(ProviderGameKey));
@@ -193,6 +209,26 @@ namespace PlayniteAchievements.Services.Friends
             return changes == null || changes.Count == 0
                 ? FullInvalidation
                 : new FriendCacheInvalidatedEventArgs(false, changes);
+        }
+
+        /// <summary>
+        /// The friend-side scope of a current-user cache invalidation: one SelfGame change per
+        /// changed game, or a full invalidation when the source was full or unscoped.
+        /// </summary>
+        public static FriendCacheInvalidatedEventArgs FromSelfCacheInvalidation(
+            PlayniteAchievements.Models.CacheInvalidatedEventArgs args)
+        {
+            if (args == null || args.IsFull)
+            {
+                return FullInvalidation;
+            }
+
+            var changes = args.ChangedGameIds
+                .Where(gameId => gameId != Guid.Empty)
+                .Distinct()
+                .Select(FriendCacheChange.ForSelfGame)
+                .ToList();
+            return Scoped(changes);
         }
     }
 
