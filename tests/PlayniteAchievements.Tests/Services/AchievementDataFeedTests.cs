@@ -174,5 +174,49 @@ namespace PlayniteAchievements.Services.Tests
             scheduler.Drain();
             Assert.AreEqual(1, reruns, "disposing drops the pending rerun");
         }
+
+        [TestMethod]
+        public void Subscribe_WhileTheGateIsClosed_MarksStale_AndRerunsOnceWhenItOpens()
+        {
+            var scheduler = new ManualReadScheduler();
+            var gate = new FeedGate();
+            var reruns = 0;
+            var subscription = _feed.Subscribe(
+                () => AchievementQuery.CurrentUser.ForGames(new[] { GameA }),
+                scheduler,
+                () => TimeSpan.FromMilliseconds(300),
+                () => reruns++,
+                gate);
+
+            gate.IsOpen = false;
+            _feed.Publish(AchievementDataChange.ForGames(new[] { GameA }));
+            _feed.Publish(AchievementDataChange.Full);
+            scheduler.Drain();
+            Assert.AreEqual(0, scheduler.PendingTimers, "a closed gate starts no window");
+            Assert.AreEqual(0, reruns);
+
+            gate.IsOpen = true;
+            Assert.AreEqual(1, reruns, "opening reruns the stale subscription once");
+            gate.IsOpen = false;
+            gate.IsOpen = true;
+            Assert.AreEqual(1, reruns, "with nothing changed meanwhile, opening reruns nothing");
+
+            // A window that ends after the gate closed is held back too.
+            _feed.Publish(AchievementDataChange.Full);
+            scheduler.Drain();
+            gate.IsOpen = false;
+            scheduler.Elapse();
+            scheduler.Drain();
+            Assert.AreEqual(1, reruns);
+            gate.IsOpen = true;
+            Assert.AreEqual(2, reruns);
+
+            gate.IsOpen = false;
+            _feed.Publish(AchievementDataChange.Full);
+            scheduler.Drain();
+            subscription.Dispose();
+            gate.IsOpen = true;
+            Assert.AreEqual(2, reruns, "a disposed subscription is not rerun");
+        }
     }
 }
