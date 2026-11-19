@@ -588,6 +588,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         /// <summary>
+        /// A header click of the theme friend grid on a column no theme sort key names: the sort key
+        /// is the column, which the list's query reads and the theme sort commands never accept.
+        /// </summary>
+        internal void SortFriendAchievements(string sortMemberPath, string directionKey)
+        {
+            var view = _runtimeState.FriendAchievements;
+            view.HasUserSelection = true;
+            view.SortKey = sortMemberPath;
+            view.SortDirectionKey = directionKey;
+            ApplyDynamicFriendBindings();
+            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
+        }
+
+        /// <summary>
         /// The rows of the friend scope, as the Friends Overview grid reads them: every friend's
         /// unlocks with a time, a provider, friend or game's unlocks, or a friend and game's every
         /// achievement; then the list's filter and sort.
