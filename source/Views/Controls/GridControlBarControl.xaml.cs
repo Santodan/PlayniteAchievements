@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -309,16 +311,17 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // Weak: a widget's bar lives in ShowcaseControlBarStates for the session.
             if (e.OldValue is GridControlBarViewModel oldBar)
             {
-                oldBar.PropertyChanged -= control.ControlBar_PropertyChanged;
-                oldBar.Items.CollectionChanged -= control.ControlBarItems_CollectionChanged;
+                PropertyChangedEventManager.RemoveHandler(oldBar, control.ControlBar_PropertyChanged, string.Empty);
+                CollectionChangedEventManager.RemoveHandler(oldBar.Items, control.ControlBarItems_CollectionChanged);
             }
 
             if (e.NewValue is GridControlBarViewModel newBar)
             {
-                newBar.PropertyChanged += control.ControlBar_PropertyChanged;
-                newBar.Items.CollectionChanged += control.ControlBarItems_CollectionChanged;
+                PropertyChangedEventManager.AddHandler(newBar, control.ControlBar_PropertyChanged, string.Empty);
+                CollectionChangedEventManager.AddHandler(newBar.Items, control.ControlBarItems_CollectionChanged);
             }
 
             control.RebuildShownItems();
@@ -333,14 +336,15 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            // Weak: the options are the session-lifetime persisted settings.
             if (e.OldValue is System.ComponentModel.INotifyPropertyChanged oldOptions)
             {
-                oldOptions.PropertyChanged -= control.GridOptions_PropertyChanged;
+                PropertyChangedEventManager.RemoveHandler(oldOptions, control.GridOptions_PropertyChanged, string.Empty);
             }
 
             if (e.NewValue is System.ComponentModel.INotifyPropertyChanged newOptions)
             {
-                newOptions.PropertyChanged += control.GridOptions_PropertyChanged;
+                PropertyChangedEventManager.AddHandler(newOptions, control.GridOptions_PropertyChanged, string.Empty);
             }
 
             control.ApplyHiddenItems();
@@ -399,13 +403,13 @@ namespace PlayniteAchievements.Views.Controls
 
             foreach (var item in _watchedPanelItems)
             {
-                item.PropertyChanged -= PanelItem_PropertyChanged;
+                PropertyChangedEventManager.RemoveHandler(item, PanelItem_PropertyChanged, string.Empty);
             }
 
             _watchedPanelItems.Clear();
             foreach (var item in panel)
             {
-                item.PropertyChanged += PanelItem_PropertyChanged;
+                PropertyChangedEventManager.AddHandler(item, PanelItem_PropertyChanged, string.Empty);
                 _watchedPanelItems.Add(item);
             }
 
