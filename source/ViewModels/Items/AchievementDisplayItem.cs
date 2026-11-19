@@ -1879,43 +1879,6 @@ namespace PlayniteAchievements.ViewModels.Items
             return item;
         }
 
-        public static AchievementDisplayItem CreateRecent(
-            GameAchievementData gameData,
-            AchievementDetail achievement,
-            PlayniteAchievementsSettings settings,
-            string gameIconPath,
-            string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null,
-            CategoryPresentationMemo categoryMemo = null)
-        {
-            if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
-            {
-                return null;
-            }
-
-            var item = CreateBaseItem(
-                gameData,
-                achievement,
-                gameData?.PlayniteGameId,
-                ResolvePoints(achievement, gameData),
-                categoryMemo);
-            item.GameIconPath = gameIconPath;
-            item.GameCoverPath = gameCoverPath;
-            ApplyCategoryPresentation(
-                item,
-                gameData,
-                item.CategoryLabel,
-                achievement.ProviderCategory,
-                gameData?.PlayniteGameId,
-                categoryMemo);
-            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
-                settings,
-                gameData?.PlayniteGameId,
-                gameData?.UseSeparateLockedIconsWhenAvailable);
-            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
-            return item;
-        }
-
         public static bool IsAppearanceSettingPropertyName(string propertyName)
         {
             switch (NormalizePersistedPropertyName(propertyName))
