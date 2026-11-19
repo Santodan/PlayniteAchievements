@@ -6,6 +6,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
@@ -52,8 +53,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IFriendCacheManager _friendCache;
         private readonly Captures.CaptureLibraryService _captureLibrary;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly bool _ownsFriendsOverviewDataCoordinator;
         private readonly Func<RefreshRequest, string, bool, Action<bool>, Task> _runRefreshWithGlobalProgressAsync;
         private readonly Action<Guid> _openManageAchievementsView;
         // Injected rather than resolved here so this service stays free of the overrides service
@@ -81,11 +80,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private int _librarySuspensionCount;
         private bool _librarySuspensionHasPendingRefresh;
         private bool _librarySuspensionPendingHeavyLists;
-#if TEST
-        private static readonly TimeSpan FriendRefreshDelay = TimeSpan.Zero;
-#else
-        private static readonly TimeSpan FriendRefreshDelay = TimeSpan.FromMilliseconds(500);
-#endif
         private const int ThemeRecentUnlockSummaryLimit = 10;
 
         private readonly object _updateGate = new object();
@@ -97,22 +91,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private CancellationTokenSource _activeUpdateCts;
         private Guid? _appliedGameId;
         private DateTime _appliedLastUpdatedUtc;
-        private readonly object _friendRefreshGate = new object();
-        private Task _friendRefreshRunner;
-        private CancellationTokenSource _friendRefreshCts;
-        private int _friendRefreshRequestVersion;
-        private int _friendRefreshAppliedVersion;
         private volatile bool _hasFriendThemeConsumers;
 
-        // On-demand locked-row rows for the dynamic friend pair scope (friend + game both
-        // selected). The friend runtime state carries unlocked rows only; the selected game's
-        // full rows (locked included) are fetched once per game key and swapped in, mirroring
-        // FriendsOverviewViewModel's pair comparison.
-        private List<FriendAchievementDisplayItem> _dynamicFriendPairRows;
-        private string _dynamicFriendPairKey;
-        private string _dynamicFriendPairKeyInFlight;
-        private int _dynamicFriendPairFetchVersion;
-        internal Task DynamicFriendPairFetchTask { get; private set; }
+        // The friend lists and the rows of the friend scope, read once a theme binds friend data.
+        private IReadScheduler _friendScheduler;
+        private LiveQuery<FriendsOverviewLists> _friendLists;
+        private LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>> _friendRows;
 
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
@@ -136,11 +120,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             Func<RefreshRequest, string, bool, Action<bool>, Task> runRefreshWithGlobalProgressAsync = null,
             Action<Guid> openManageAchievementsView = null,
             IFriendCacheManager friendCache = null,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<AchievementHotkeyTargetResolution> resolveRunningGameTarget = null,
             Action<AchievementMarkerTarget> toggleAchievementCapstone = null,
             Action<AchievementMarkerTarget> toggleAchievementGoal = null,
-            Captures.CaptureLibraryService captureLibrary = null)
+            Captures.CaptureLibraryService captureLibrary = null,
+            IReadScheduler friendScheduler = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
@@ -150,11 +134,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 #endif
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _friendCache = friendCache;
-            _ownsFriendsOverviewDataCoordinator = friendsOverviewDataCoordinator == null && friendCache != null;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator ??
-                (friendCache != null
-                    ? new FriendsOverviewDataCoordinator(friendCache, () => _settings?.Persisted, logger)
-                    : null);
+            _friendScheduler = friendScheduler;
             _runRefreshWithGlobalProgressAsync = runRefreshWithGlobalProgressAsync ?? RunRefreshWithoutGlobalProgressAsync;
             _openManageAchievementsView = openManageAchievementsView;
             _toggleAchievementCapstone = toggleAchievementCapstone;
@@ -496,16 +476,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _captureLibrary.CapturesChanged += CaptureLibrary_CapturesChanged;
             }
 
-            if (_friendCache != null)
-            {
-                _friendCache.FriendCacheInvalidated += FriendCache_FriendCacheInvalidated;
-            }
-
-            if (_friendsOverviewDataCoordinator != null)
-            {
-                _friendsOverviewDataCoordinator.SnapshotInvalidated += FriendsOverviewCoordinator_SnapshotInvalidated;
-            }
-
             // The friend runtime state is built on demand: the first read of a friend data
             // property (or a friend scope command) registers demand and triggers the build.
             // Themes without friend bindings never pay the full friends-overview snapshot cost.
@@ -525,22 +495,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
             }
             catch { }
-            try
-            {
-                if (_friendsOverviewDataCoordinator != null)
-                {
-                    _friendsOverviewDataCoordinator.SnapshotInvalidated -= FriendsOverviewCoordinator_SnapshotInvalidated;
-                }
-            }
-            catch { }
-            try
-            {
-                if (_friendCache != null)
-                {
-                    _friendCache.FriendCacheInvalidated -= FriendCache_FriendCacheInvalidated;
-                }
-            }
-            catch { }
+            _friendLists?.Dispose();
+            _friendRows?.Dispose();
 
             lock (_refreshLock)
             {
@@ -556,17 +512,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _activeUpdateCts = null;
             }
 
-            lock (_friendRefreshGate)
-            {
-                try { _friendRefreshCts?.Cancel(); } catch { }
-                try { _friendRefreshCts?.Dispose(); } catch { }
-                _friendRefreshCts = null;
-            }
-
-            if (_ownsFriendsOverviewDataCoordinator)
-            {
-                try { _friendsOverviewDataCoordinator?.Dispose(); } catch { }
-            }
         }
 
         public void NotifySelectionChanged(Guid? selectedGameId)
@@ -630,14 +575,41 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // volatile-read fast path so it is safe on the UI thread during binding.
         public void EnsureFriendThemeDataLoaded()
         {
-            if (_hasFriendThemeConsumers || _friendCache == null)
+            var reads = _friendCache?.FriendReads;
+            if (_hasFriendThemeConsumers || reads == null)
             {
                 return;
             }
 
             _hasFriendThemeConsumers = true;
-            RequestFriendStateRefresh();
+            _friendScheduler = _friendScheduler ?? new DispatcherReadScheduler(
+                _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher);
+            _friendLists = new LiveQuery<FriendsOverviewLists>(
+                reads.Feed,
+                AchievementQuery.AllFriends,
+                _ => FriendsOverviewLists.Load(reads, _settings?.Persisted),
+                _friendScheduler,
+                FriendReadWindow,
+                ex => _logger?.Error(ex, "Failed to load friend theme lists."));
+            _friendLists.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result))
+                {
+                    ApplyFriendState(new FriendRuntimeState(_friendLists.Result, _runtimeState.Friends?.Rows));
+                }
+            };
         }
+
+        /// <summary>Reads the friend lists and rows again, for a setting they show.</summary>
+        public void ReloadFriendThemeData()
+        {
+            _friendLists?.SetQuery(_friendLists.Query);
+            _friendRows?.SetQuery(_friendRows.Query);
+        }
+
+        // A refresh writes every few hundred milliseconds; its changes are read every few seconds.
+        private TimeSpan FriendReadWindow() =>
+            _refreshService.IsRebuilding ? TimeSpan.FromSeconds(3) : LiveQuery<object>.DefaultWindow;
 
         /// <param name="refreshLibraryState">
         /// False when the change cannot move anything the library-wide lists read. The selected-game
@@ -802,29 +774,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[ThemeIntegration] Failed to request selected-game theme update after cache invalidation.");
-            }
-
-            // Friend rows carry the user's own unlock state for each game, so a scoped change
-            // patches those games' friend rows and a full one rebuilds.
-            _friendsOverviewDataCoordinator?.Invalidate(
-                FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(e));
-        }
-
-        private void FriendCache_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
-        {
-            _friendsOverviewDataCoordinator?.Invalidate(e);
-        }
-
-        // Every invalidation path funnels through the coordinator (cache invalidation handlers
-        // here, the plugin's friend-cache handler, and the post-start warm), so its
-        // SnapshotInvalidated event is the single trigger for consumed rebuilds. Staleness is
-        // always recorded; without consumers the rebuild (and its full friends-overview
-        // snapshot) is skipped.
-        private void FriendsOverviewCoordinator_SnapshotInvalidated(object sender, EventArgs e)
-        {
-            if (_hasFriendThemeConsumers)
-            {
-                RequestFriendStateRefresh();
             }
         }
 
@@ -1774,17 +1723,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             RequestLibraryRefresh(includeHeavyAchievementLists);
         }
-
-        internal Task FriendRefreshTaskForTests
-        {
-            get
-            {
-                lock (_friendRefreshGate)
-                {
-                    return _friendRefreshRunner ?? Task.CompletedTask;
-                }
-            }
-        }
 #endif
 
         private void RequestLibraryRefresh(
@@ -2623,138 +2561,62 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
 
-        private void RequestFriendStateRefresh()
+        // Points the rows read at the scope, as the Friends Overview grid reads it: every friend's
+        // unlocks with a time, newest first; a provider, friend or game's unlocks; or a friend and
+        // game's every achievement.
+        private void UpdateFriendRowsQuery(FriendRuntimeState state)
         {
-            if (_friendCache == null)
+            var reads = _friendCache?.FriendReads;
+            if (_friendLists?.Result == null || reads == null)
             {
                 return;
             }
 
-            lock (_friendRefreshGate)
+            var scope = _runtimeState.FriendScope;
+            var friend = state.Lists.FindFriend(scope.UserKey);
+            var game = state.Lists.FindGame(scope.GameKey);
+            var query = FriendsOverviewLists.Scope(AchievementQuery.AllFriends, friend, game);
+            query = friend != null && game != null
+                ? query.OrderBy(AchievementSort.Display)
+                : friend != null || game != null || !FriendOverviewProjection.IsAllScope(scope.ProviderKey)
+                    ? query.WhereUnlocked(true).OrderBy(AchievementSort.Display)
+                    : query.WhereUnlocked(true).WhereUnlockTimeKnown().OrderBy(AchievementSort.UnlockTime, descending: true);
+            if (_friendRows != null)
             {
-                _friendRefreshRequestVersion++;
-                try { _friendRefreshCts?.Cancel(); } catch { }
-                try { _friendRefreshCts?.Dispose(); } catch { }
-                _friendRefreshCts = new CancellationTokenSource();
-
-                if (_friendRefreshRunner == null || _friendRefreshRunner.IsCompleted)
+                if (AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(_friendRows.Query))
                 {
-                    _friendRefreshRunner = Task.Run(RunFriendStateRefreshLoop);
+                    _friendRows.SetQuery(query);
                 }
+
+                return;
             }
+
+            _friendRows = new LiveQuery<IReadOnlyList<FriendAchievementDisplayItem>>(
+                reads.Feed,
+                query,
+                read =>
+                {
+                    var rows = reads.Rows(read);
+                    (_friendLists?.Result ?? FriendsOverviewLists.Empty).StampIdentity(rows, _settings?.Persisted);
+                    return rows;
+                },
+                _friendScheduler,
+                FriendReadWindow,
+                ex => _logger?.Error(ex, "Failed to load friend theme rows."));
+            _friendRows.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result))
+                {
+                    ApplyFriendState(new FriendRuntimeState(_runtimeState.Friends.Lists, _friendRows.Result));
+                }
+            };
         }
 
-        private async Task RunFriendStateRefreshLoop()
-        {
-            while (true)
-            {
-                int version;
-                CancellationToken token;
-                lock (_friendRefreshGate)
-                {
-                    version = _friendRefreshRequestVersion;
-                    token = _friendRefreshCts?.Token ?? CancellationToken.None;
-                }
-
-                try
-                {
-                    await Task.Delay(FriendRefreshDelay, token).ConfigureAwait(false);
-                    var state = await BuildFriendStateAsync(token).ConfigureAwait(false);
-                    token.ThrowIfCancellationRequested();
-
-                    void Apply()
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            return;
-                        }
-
-                        lock (_friendRefreshGate)
-                        {
-                            if (version < _friendRefreshRequestVersion ||
-                                version <= _friendRefreshAppliedVersion)
-                            {
-                                return;
-                            }
-
-                            _friendRefreshAppliedVersion = version;
-                        }
-
-                        ApplyFriendState(state, notify: true);
-                    }
-
-                    var uiDispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                    if (uiDispatcher == null)
-                    {
-                        Apply();
-                    }
-                    else
-                    {
-                        uiDispatcher.InvokeIfNeeded(Apply, DispatcherPriority.Background);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed to refresh friend theme runtime state.");
-                }
-
-                lock (_friendRefreshGate)
-                {
-                    if (version >= _friendRefreshRequestVersion)
-                    {
-                        return;
-                    }
-                }
-            }
-        }
-
-        private async Task<FriendRuntimeState> BuildFriendStateAsync(CancellationToken token)
-        {
-            if (_friendsOverviewDataCoordinator == null)
-            {
-                return FriendRuntimeState.Empty;
-            }
-
-            try
-            {
-                token.ThrowIfCancellationRequested();
-                FriendsOverviewSnapshot snapshot;
-                using (PerfScope.Start(_logger, "ThemeFriends.BuildState", thresholdMs: 25))
-                {
-                    snapshot = await _friendsOverviewDataCoordinator
-                        .GetSnapshotAsync(token)
-                        .ConfigureAwait(false);
-                }
-
-                token.ThrowIfCancellationRequested();
-                return new FriendRuntimeState(snapshot?.Projection);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to build friend theme runtime state.");
-                return FriendRuntimeState.Empty;
-            }
-        }
-
-        private void ApplyFriendState(FriendRuntimeState state, bool notify)
+        private void ApplyFriendState(FriendRuntimeState state)
         {
             _runtimeState.Friends = state ?? FriendRuntimeState.Empty;
-            // The pair rows were loaded against the previous snapshot's cache state; drop them
-            // so a still-selected pair re-fetches during the binding rebuild below.
-            ResetDynamicFriendPairRows();
-            ValidateDynamicFriendScope(_runtimeState.Friends);
             ApplyDynamicFriendBindings(updateOptions: false);
-            if (notify)
-            {
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
-            }
+            NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
 
         private void ValidateDynamicFriendScope(FriendRuntimeState state)
@@ -2773,7 +2635,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             if (!FriendOverviewProjection.IsAllScope(scope.UserKey))
             {
-                var friend = state.Projection?.FindFriend(scope.UserKey);
+                var friend = state.Lists.FindFriend(scope.UserKey);
                 if (friend == null ||
                     !FriendMatchesProvider(friend, scope.ProviderKey))
                 {
@@ -3827,6 +3689,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             var state = _runtimeState.Friends ?? FriendRuntimeState.Empty;
             ValidateDynamicFriendScope(state);
+            UpdateFriendRowsQuery(state);
 
             var scope = _runtimeState.FriendScope;
             var friendItems = BuildDynamicFriendSummaries(state, _runtimeState.FriendSummaries);
@@ -3849,7 +3712,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // Surface the scoped friend as a single bindable item so themes can show that friend's
             // whole-library rarity/trophy rollup next to their scoped achievements list. Null when no
             // individual friend is scoped (FindFriend returns null for the all-friends scope).
-            var scopeSummary = state.Projection?.FindFriend(scope.UserKey);
+            var scopeSummary = state.Lists.FindFriend(scope.UserKey);
             if (scopeSummary != null)
             {
                 AttachFriendSummaryCommands(new[] { scopeSummary });
@@ -3949,10 +3812,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             string providerKey,
             string userKey)
         {
-            var projection = state?.Projection;
-            var selectedFriend = projection?.FindFriend(userKey);
+            var selectedFriend = state?.Lists.FindFriend(userKey);
             IEnumerable<FriendGameSummaryItem> games = selectedFriend != null
-                ? projection.GetSelectedFriendGames(selectedFriend)
+                ? state.Lists.GamesOf(selectedFriend)
                 : state?.AggregateGames ?? Enumerable.Empty<FriendGameSummaryItem>();
 
             return games.Where(game => game != null && ProviderMatches(game.ProviderKey, providerKey));
@@ -4042,7 +3904,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All);
             }
 
-            var friend = state?.Projection?.FindFriend(userKey);
+            var friend = state?.Lists.FindFriend(userKey);
             return !string.IsNullOrWhiteSpace(friend?.DisplayName)
                 ? friend.DisplayName
                 : userKey ?? string.Empty;
@@ -4055,7 +3917,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return DynamicThemeLabels.GetLabel(DynamicThemeViewKeys.All, DynamicThemeViewKeys.All);
             }
 
-            var game = state?.Projection?.FindGame(gameKey);
+            var game = state?.Lists.FindGame(gameKey);
             return !string.IsNullOrWhiteSpace(game?.GameName)
                 ? game.GameName
                 : gameKey ?? string.Empty;
@@ -4232,19 +4094,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendRuntimeState state,
             FriendSummaryViewState viewState)
         {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
+            if (state == null || !state.HasData)
             {
                 return new List<FriendSummaryItem>();
             }
 
             var scope = _runtimeState.FriendScope;
-            var selectedGame = projection.FindGame(scope.GameKey);
+            var selectedGame = state.Lists.FindGame(scope.GameKey);
             IEnumerable<FriendSummaryItem> source = state.Friends ?? Enumerable.Empty<FriendSummaryItem>();
             source = source.Where(friend => FriendMatchesProvider(friend, scope.ProviderKey));
             if (selectedGame != null)
             {
-                source = source.Where(friend => projection.HasFriendGamePairData(friend, selectedGame));
+                source = source.Where(friend => state.Lists.HasPairData(friend, selectedGame));
             }
 
             source = ApplyDynamicFilterPredicates(source, viewState.FilterKey, FriendSummaryFilterPredicates);
@@ -4261,17 +4122,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendRuntimeState state,
             FriendGameSummaryViewState viewState)
         {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
+            if (state == null || !state.HasData)
             {
                 return new List<FriendGameSummaryItem>();
             }
 
             var scope = _runtimeState.FriendScope;
-            var selectedFriend = projection.FindFriend(scope.UserKey);
-            var selectedGame = projection.FindGame(scope.GameKey);
+            var selectedFriend = state.Lists.FindFriend(scope.UserKey);
+            var selectedGame = state.Lists.FindGame(scope.GameKey);
             IEnumerable<FriendGameSummaryItem> source = selectedFriend != null
-                ? projection.GetSelectedFriendGames(selectedFriend)
+                ? state.Lists.GamesOf(selectedFriend)
                 : state.AggregateGames ?? Enumerable.Empty<FriendGameSummaryItem>();
 
             source = ApplyProviderFilter(source, scope.ProviderKey, item => item.ProviderKey);
@@ -4289,30 +4149,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             FriendRuntimeState state,
             FriendAchievementViewState viewState)
         {
-            var projection = state?.Projection;
-            if (projection == null || !state.HasData)
+            if (state == null || !state.HasData)
             {
                 return new List<FriendAchievementDisplayItem>();
             }
 
+            // The rows of the scope's read; while a new scope's read runs, the last rows that
+            // fall in it.
             var scope = _runtimeState.FriendScope;
-            var selectedFriend = projection.FindFriend(scope.UserKey);
-            var selectedGame = projection.FindGame(scope.GameKey);
-            var hasScopedSelection =
-                !FriendOverviewProjection.IsAllScope(scope.ProviderKey) ||
-                selectedFriend != null ||
-                selectedGame != null;
-
-            // Same selection logic as the friends overview: only the single friend + single
-            // game pair shows locked rows (loaded on demand); every other scoped view stays on
-            // the snapshot's unlocked rows, and no scope keeps the recent-unlocks feed.
-            IEnumerable<FriendAchievementDisplayItem> source =
-                selectedFriend != null && selectedGame != null
-                    ? ResolveDynamicFriendPairSource(state, selectedGame)
-                    : hasScopedSelection
-                        ? state.AllAchievements ?? Enumerable.Empty<FriendAchievementDisplayItem>()
-                        : state.RecentUnlocks ?? Enumerable.Empty<FriendAchievementDisplayItem>();
-
+            var selectedFriend = state.Lists.FindFriend(scope.UserKey);
+            var selectedGame = state.Lists.FindGame(scope.GameKey);
+            IEnumerable<FriendAchievementDisplayItem> source = state.Rows;
             source = ApplyProviderFilter(source, scope.ProviderKey, item => item.ProviderKey);
             if (selectedFriend != null)
             {
@@ -4333,100 +4180,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     ? item => item != null && AchievementClassificationFilter.Matches(item.CategoryKind, item.Tags, key)
                     : (Func<FriendAchievementDisplayItem, bool>)null);
             return FriendAchievementSortTable.Sort(source, viewState).ToList();
-        }
-
-        // Returns the pair scope's achievement source: the on-demand full rows when loaded for
-        // the selected game (a loaded-but-empty result falls back instead of blanking the
-        // lists), otherwise the snapshot's unlocked rows while the fetch runs.
-        private IEnumerable<FriendAchievementDisplayItem> ResolveDynamicFriendPairSource(
-            FriendRuntimeState state,
-            FriendGameSummaryItem selectedGame)
-        {
-            IEnumerable<FriendAchievementDisplayItem> fallback =
-                state.AllAchievements ?? Enumerable.Empty<FriendAchievementDisplayItem>();
-            var key = FriendOverviewProjection.GetGameScopeKey(selectedGame);
-            if (FriendOverviewProjection.IsAllScope(key))
-            {
-                return fallback;
-            }
-
-            if (_dynamicFriendPairRows != null &&
-                string.Equals(_dynamicFriendPairKey, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return _dynamicFriendPairRows.Count > 0 ? _dynamicFriendPairRows : fallback;
-            }
-
-            BeginDynamicFriendPairFetch(key, selectedGame);
-            return fallback;
-        }
-
-        private void BeginDynamicFriendPairFetch(string key, FriendGameSummaryItem game)
-        {
-            if (_friendCache == null ||
-                game == null ||
-                string.Equals(_dynamicFriendPairKeyInFlight, key, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            _dynamicFriendPairKeyInFlight = key;
-            var version = Interlocked.Increment(ref _dynamicFriendPairFetchVersion);
-            var gameScope = FriendCacheChange.ForGameDefinition(
-                game.ProviderKey,
-                game.AppId,
-                game.ProviderGameKey);
-            DynamicFriendPairFetchTask = FetchDynamicFriendPairRowsAsync(version, key, gameScope);
-        }
-
-        private async Task FetchDynamicFriendPairRowsAsync(int version, string key, FriendCacheChange gameScope)
-        {
-            List<FriendAchievementDisplayItem> rows = null;
-            try
-            {
-                rows = await Task
-                    .Run(() => FriendOverviewProjection.ApplyMergeIdentity(
-                        _friendCache.LoadFriendGameAchievementData(gameScope),
-                        _settings?.Persisted))
-                    .ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load dynamic friend pair achievement rows.");
-            }
-
-            void Apply()
-            {
-                if (version != Volatile.Read(ref _dynamicFriendPairFetchVersion))
-                {
-                    return;
-                }
-
-                _dynamicFriendPairKeyInFlight = null;
-                _dynamicFriendPairKey = key;
-                _dynamicFriendPairRows = rows ?? new List<FriendAchievementDisplayItem>();
-                ApplyDynamicFriendBindings();
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
-            }
-
-            var uiDispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-            if (uiDispatcher == null)
-            {
-                Apply();
-            }
-            else
-            {
-                uiDispatcher.InvokeIfNeeded(Apply, DispatcherPriority.Background);
-            }
-        }
-
-        // Drops the on-demand pair rows and discards any in-flight fetch result; the next
-        // pair-scoped binding build re-fetches against the fresh cache state.
-        private void ResetDynamicFriendPairRows()
-        {
-            Interlocked.Increment(ref _dynamicFriendPairFetchVersion);
-            _dynamicFriendPairRows = null;
-            _dynamicFriendPairKey = null;
-            _dynamicFriendPairKeyInFlight = null;
         }
 
         /// <summary>
