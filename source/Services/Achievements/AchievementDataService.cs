@@ -305,6 +305,9 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
+        /// <summary>The resolved reads and the change feed; null without the SQL cache.</summary>
+        internal ICacheReadOptimizations CacheReads => _cacheReadOptimizations;
+
         internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
             return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
