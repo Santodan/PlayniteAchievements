@@ -455,6 +455,8 @@ namespace PlayniteAchievements.Services.Cache
             return true;
         }
 
+        // Takes ownership of data: every caller passes a copy no one else holds, and every read
+        // from memory is cloned.
         private void SetMemoryGameData_Locked(string key, GameAchievementData data)
         {
             if (string.IsNullOrWhiteSpace(key) || data == null)
@@ -463,10 +465,9 @@ namespace PlayniteAchievements.Services.Cache
             }
 
             var normalized = UserKey(key);
-            var copy = CloneGameData(data);
             if (_userAchievements.TryGetValue(normalized, out var existing) && existing != null)
             {
-                existing.Data = copy;
+                existing.Data = data;
                 if (existing.Node != null)
                 {
                     _lruOrder.Remove(existing.Node);
@@ -479,7 +480,7 @@ namespace PlayniteAchievements.Services.Cache
             _lruOrder.AddFirst(node);
             _userAchievements[normalized] = new CacheEntry
             {
-                Data = copy,
+                Data = data,
                 Node = node
             };
 
