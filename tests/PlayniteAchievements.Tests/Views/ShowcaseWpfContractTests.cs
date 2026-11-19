@@ -267,8 +267,8 @@ namespace PlayniteAchievements.Tests.Views
                 "Overview",
                 "OverviewDataBuilder.cs");
 
-            StringAssert.Contains(reader, "includeAllUnlockedAchievements: requestedRecentLimit == 0");
-            StringAssert.Contains(reader, "result.Achievements = mappedAchievements");
+            StringAssert.Contains(reader, "limit > 0 ? unlocked.WhereUnlockTimeKnown().Page(limit + 1) : unlocked");
+            StringAssert.Contains(reader, "result.Achievements = rows;");
             StringAssert.Contains(builder, "snapshot.Achievements = MaterializeAchievements(");
             StringAssert.Contains(builder, "item?.Unlocked == true && item.UnlockTimeUtc.HasValue");
         }
