@@ -26,14 +26,7 @@
         <Setter Property="Margin" Value="0,6,0,12"/>
     </Style>
 
-    <Style x:Key="SectionAccentRuleStyle" TargetType="Border">
-        <Setter Property="Height" Value="2"/>
-        <Setter Property="Width" Value="44"/>
-        <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Setter Property="CornerRadius" Value="1"/>
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-        <Setter Property="Margin" Value="0,0,0,14"/>
-    </Style>
+    <Style x:Key="SectionAccentRuleStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionAccentRuleStyle}"/>
 
     <Style x:Key="SettingGroupCardStyle" TargetType="Border">
         <Setter Property="Background" Value="Transparent"/>
