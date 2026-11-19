@@ -4008,6 +4008,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 : gameKey ?? string.Empty;
         }
 
+        // The library state's games in game-option order, kept until the state is rebuilt.
+        private Tuple<List<GameAchievementSummary>, List<DynamicThemeOption>> _sortedGameOptions;
+
         private void ApplyDynamicOptionBindings()
         {
             var library = _runtimeState.Library ?? new LibraryRuntimeState();
@@ -4026,8 +4029,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             _settings.ModernTheme.DynamicAchievementsGameKey = selectedGameKey ?? string.Empty;
             _settings.ModernTheme.DynamicAchievementsGameLabel = selectedGameLabel ?? string.Empty;
+            var sortedGames = _sortedGameOptions;
+            if (sortedGames == null || sortedGames.Item1 != library.AllGamesWithAchievements)
+            {
+                sortedGames = _sortedGameOptions = Tuple.Create(
+                    library.AllGamesWithAchievements,
+                    DynamicThemeOptionFactory.SortGames(library.AllGamesWithAchievements));
+            }
+
             _settings.ModernTheme.DynamicAchievementGameOptions = DynamicThemeOptionFactory.CreateGameOptions(
-                library.AllGamesWithAchievements,
+                sortedGames.Item2,
                 selectedGameKey,
                 _settings.SetDynamicAchievementsGameCommand);
 
