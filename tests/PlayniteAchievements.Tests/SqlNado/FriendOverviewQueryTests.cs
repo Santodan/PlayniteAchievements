@@ -30,13 +30,13 @@ namespace PlayniteAchievements.SqlNado.Tests
             {
                 var query = AchievementQuery.AllFriends.WhereUnlocked(true).ForFriendAccounts(new[] { B });
                 CollectionAssert.AreEquivalent(new[] { "b/a2", "b/a6" }, AchievementReadService.Rows(db, query).Select(Key).ToList());
-                Assert.AreEqual(2, AchievementReadService.Count(db, query));
+                Assert.AreEqual(2, AchievementReadService.SortedKeys(db, query).Count);
 
                 var both = AchievementQuery.AllFriends.WhereUnlocked(true).ForFriendAccounts(new[] { A, B, FriendAccountRef.From("Steam", "a") });
-                Assert.AreEqual(5, AchievementReadService.Count(db, both), "duplicates are dropped");
+                Assert.AreEqual(5, AchievementReadService.SortedKeys(db, both).Count, "duplicates are dropped");
 
                 var none = AchievementQuery.AllFriends.ForFriendAccounts(new FriendAccountRef[0]);
-                Assert.AreEqual(0, AchievementReadService.Count(db, none));
+                Assert.AreEqual(0, AchievementReadService.SortedKeys(db, none).Count);
                 Assert.AreEqual(0, AchievementReadService.Rows(db, none).Count);
             });
         }
@@ -109,13 +109,13 @@ namespace PlayniteAchievements.SqlNado.Tests
                     AchievementReadService.Rows(db, friends.WhereCapstone()).Select(Key).ToList());
 
                 Assert.AreEqual(
-                    AchievementReadService.Count(db, friends),
-                    AchievementReadService.Count(db, friends.WhereCategory(new[] { AchievementCategoryHelper.DefaultCategoryLabel })),
+                    AchievementReadService.SortedKeys(db, friends).Count,
+                    AchievementReadService.SortedKeys(db, friends.WhereCategory(new[] { AchievementCategoryHelper.DefaultCategoryLabel })).Count,
                     "rows without a category are in the default one");
-                Assert.AreEqual(0, AchievementReadService.Count(db, friends.WhereCategory(new[] { "Nope" })));
+                Assert.AreEqual(0, AchievementReadService.SortedKeys(db, friends.WhereCategory(new[] { "Nope" })).Count);
 
                 Assert.IsTrue(AchievementReadService.Rows(db, friends.WhereUnlockTimeKnown()).All(row => row.Unlocked == 1 && row.UnlockTimeUtc != null));
-                Assert.AreEqual(0, AchievementReadService.Count(db, friends.MatchNothing()));
+                Assert.AreEqual(0, AchievementReadService.SortedKeys(db, friends.MatchNothing()).Count);
             });
         }
 
@@ -180,10 +180,10 @@ namespace PlayniteAchievements.SqlNado.Tests
                 CollectionAssert.AreEqual(
                     AchievementReadService.Rows(db, named).Select(Key).ToList(),
                     AchievementReadService.Rows(db, named, AchievementReadService.SortedKeys(db, named)).Select(Key).ToList());
-                Assert.AreEqual(AchievementReadService.Count(db, stored), AchievementReadService.Count(db, named));
+                Assert.AreEqual(AchievementReadService.SortedKeys(db, stored).Count, AchievementReadService.SortedKeys(db, named).Count);
 
                 Assert.IsTrue(AchievementReadService.Rows(db, named.WhereSearch("0 shown")).All(row => row.ExternalUserId == "a"));
-                Assert.AreEqual(0, AchievementReadService.Count(db, stored.WhereSearch("0 shown")));
+                Assert.AreEqual(0, AchievementReadService.SortedKeys(db, stored.WhereSearch("0 shown")).Count);
             });
         }
 
@@ -225,7 +225,7 @@ namespace PlayniteAchievements.SqlNado.Tests
         {
             AchievementReadServiceTests.WithFixture(db =>
             {
-                var count = AchievementReadService.Count(db, AchievementQuery.AllFriends);
+                var count = AchievementReadService.SortedKeys(db, AchievementQuery.AllFriends).Count;
                 foreach (AchievementSort sort in Enum.GetValues(typeof(AchievementSort)))
                 {
                     foreach (var descending in new[] { false, true })
