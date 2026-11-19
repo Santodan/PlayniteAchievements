@@ -50,8 +50,12 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>
         /// The change one raise of the two cache events describes; either may be null. A full
         /// current-user invalidation is full for everyone, as today's consumers treat it.
+        /// <paramref name="sharedGames"/> are library games whose definitions a friend write changed.
         /// </summary>
-        public static AchievementDataChange Of(CacheInvalidatedEventArgs games, FriendCacheInvalidatedEventArgs friends)
+        public static AchievementDataChange Of(
+            CacheInvalidatedEventArgs games,
+            FriendCacheInvalidatedEventArgs friends,
+            IEnumerable<Guid> sharedGames = null)
         {
             if (games?.IsFull == true)
             {
@@ -60,7 +64,8 @@ namespace PlayniteAchievements.Services.Database
 
             return new AchievementDataChange(
                 false,
-                games?.ChangedGameIds.Where(id => id != Guid.Empty).Distinct().ToList() ?? (IReadOnlyCollection<Guid>)Array.Empty<Guid>(),
+                (games?.ChangedGameIds ?? Enumerable.Empty<Guid>()).Concat(sharedGames ?? Enumerable.Empty<Guid>())
+                    .Where(id => id != Guid.Empty).Distinct().ToList(),
                 friends?.IsFull == true,
                 friends == null || friends.IsFull ? Array.Empty<FriendCacheChange>() : friends.Changes);
         }
