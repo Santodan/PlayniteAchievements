@@ -481,7 +481,7 @@ namespace PlayniteAchievements.Views.Showcase
                     }
                     else
                     {
-                        SetBodyContent(_projection.MosaicAchievements?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<IconMosaicWidgetViewModel>()
                             : CreateEmptyText());
                     }
@@ -504,7 +504,7 @@ namespace PlayniteAchievements.Views.Showcase
 
                     // Both branches, so a refresh reaches a reused control too: these rows are what
                     // the info panel resolves captures against.
-                    slideshow.SetAchievementRows(_projection.Snapshot?.Achievements, _projection.Snapshot);
+                    slideshow.SetSnapshot(_projection.Snapshot);
                     slideshow.SetEditHold(!IsHitTestVisible);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
@@ -512,13 +512,13 @@ namespace PlayniteAchievements.Views.Showcase
                     // pinned view model for reorder support and placeholder rows.
                     if (_projection.ResolvedPinCollectionId != null)
                     {
-                        SetBodyContent(_projection.AchievementRows?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<PinnedAchievementsWidgetViewModel>()
                             : CreateEmptyText(Localize("LOCPlayAch_Showcase_NoPinnedAchievements")));
                     }
                     else
                     {
-                        SetBodyContent(_projection.AchievementRows?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<RecentAchievementsWidgetViewModel>()
                             : CreateEmptyText());
                     }
