@@ -1,0 +1,292 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Database;
+using PlayniteAchievements.Tests.TestSupport;
+
+namespace PlayniteAchievements.Services.Tests
+{
+    [TestClass]
+    public class PagedRowsTests
+    {
+        private sealed class Row
+        {
+            public int Index { get; set; }
+            public int Version { get; set; }
+            public bool IsPlaceholder { get; set; }
+            public AchievementSort Sort { get; set; }
+        }
+
+        private readonly ManualReadScheduler _scheduler = new ManualReadScheduler();
+        private readonly AchievementDataFeed _feed = new AchievementDataFeed(null, null);
+        private readonly List<AchievementQuery> _pageReads = new List<AchievementQuery>();
+        private readonly List<NotifyCollectionChangedEventArgs> _events = new List<NotifyCollectionChangedEventArgs>();
+        private int _total;
+        private int _version;
+
+        private PagedRows<Row> Create(int total, int maxRows = 0, AchievementQuery query = null)
+        {
+            _total = total;
+            var rows = new PagedRows<Row>(
+                _feed,
+                query ?? AchievementQuery.CurrentUser,
+                q => _total,
+                ReadPage,
+                () => new Row { IsPlaceholder = true },
+                _scheduler,
+                maxRows);
+            rows.CollectionChanged += (_, e) => _events.Add(e);
+            return rows;
+        }
+
+        private IReadOnlyList<Row> ReadPage(AchievementQuery query)
+        {
+            _pageReads.Add(query);
+            return Enumerable.Range(query.Offset, Math.Max(0, Math.Min(query.Limit, _total - query.Offset)))
+                .Select(index => new Row { Index = index, Version = _version, Sort = query.Sort })
+                .ToList();
+        }
+
+        private static Row At(PagedRows<Row> rows, int index) => (Row)rows[index];
+
+        private IEnumerable<int> ReadOffsets => _pageReads.Select(query => query.Offset);
+
+        private int Count(NotifyCollectionChangedAction action) => _events.Count(e => e.Action == action);
+
+        [TestMethod]
+        public void Open_SetsTheFullCountAndTheFirstPagesInOneApply()
+        {
+            var rows = Create(1000);
+            Assert.AreEqual(0, rows.Count, "nothing shows before the first read");
+
+            _scheduler.Drain();
+
+            Assert.AreEqual(1000, rows.Count);
+            Assert.AreEqual(1, _events.Count);
+            Assert.AreEqual(NotifyCollectionChangedAction.Reset, _events[0].Action);
+            CollectionAssert.AreEqual(new[] { 0, 100 }, ReadOffsets.ToList());
+            Assert.IsTrue(_pageReads.All(query => query.Limit == PagedRows<Row>.PageSize));
+            Assert.AreEqual(150, At(rows, 150).Index);
+        }
+
+        [TestMethod]
+        public void Open_WithFewRows_AddsThem()
+        {
+            var rows = Create(30);
+            _scheduler.Drain();
+
+            Assert.AreEqual(30, rows.Count);
+            Assert.AreEqual(30, Count(NotifyCollectionChangedAction.Add));
+            Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Reset));
+            Assert.AreEqual(29, At(rows, 29).Index);
+            Assert.AreEqual(30, _pageReads.Single().Limit);
+        }
+
+        [TestMethod]
+        public void UnloadedRow_IsAPlaceholder_ReplacedInPlaceWithItsNeighbours()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            _events.Clear();
+            _pageReads.Clear();
+
+            var placeholder = At(rows, 550);
+            Assert.IsTrue(placeholder.IsPlaceholder);
+            Assert.AreSame(placeholder, At(rows, 550), "the same placeholder until the row arrives");
+            Assert.AreEqual(550, rows.IndexOf(placeholder));
+
+            _scheduler.Drain();
+
+            CollectionAssert.AreEquivalent(new[] { 400, 500, 600 }, ReadOffsets.ToList());
+            var replace = _events.Single();
+            Assert.AreEqual(NotifyCollectionChangedAction.Replace, replace.Action);
+            Assert.AreEqual(550, replace.NewStartingIndex);
+            Assert.AreSame(placeholder, replace.OldItems[0]);
+            Assert.AreEqual(550, ((Row)replace.NewItems[0]).Index);
+            Assert.AreEqual(550, At(rows, 550).Index);
+            Assert.AreEqual(1000, rows.Count);
+        }
+
+        [TestMethod]
+        public void FastDrag_LoadsOnlyWhereItStops()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            _pageReads.Clear();
+
+            At(rows, 300);
+            At(rows, 600);
+            At(rows, 950);
+            _scheduler.Drain();
+
+            CollectionAssert.AreEqual(new[] { 300, 900, 800 }, ReadOffsets.ToList(),
+                "the page read when the drag started finishes; then the pages where it stopped, nearest first");
+            Assert.AreEqual(950, At(rows, 950).Index);
+        }
+
+        [TestMethod]
+        public void RowCap_CapsTheCountAndTheReads()
+        {
+            var rows = Create(1000, maxRows: 250);
+            _scheduler.Drain();
+            Assert.AreEqual(250, rows.Count);
+
+            At(rows, 249);
+            _scheduler.Drain();
+
+            Assert.AreEqual(249, At(rows, 249).Index);
+            Assert.IsTrue(_pageReads.All(query => query.Offset + query.Limit <= 250));
+            Assert.AreEqual(50, _pageReads.Single(query => query.Offset == 200).Limit);
+        }
+
+        [TestMethod]
+        public void FeedChange_SameCount_ReplacesTheRowsAroundTheLastReadInPlace()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            At(rows, 550);
+            _scheduler.Drain();
+            var top = At(rows, 0);
+            At(rows, 550);
+            _events.Clear();
+            _pageReads.Clear();
+
+            _version = 1;
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+
+            Assert.AreEqual(1000, rows.Count);
+            CollectionAssert.AreEquivalent(new[] { 400, 500, 600 }, ReadOffsets.ToList());
+            Assert.AreEqual(300, _events.Count);
+            Assert.IsTrue(_events.All(e => e.Action == NotifyCollectionChangedAction.Replace));
+            Assert.AreEqual(1, ((Row)rows[551]).Version);
+
+            Assert.AreSame(top, At(rows, 0), "a page away from the scroll keeps its rows until read again");
+            _scheduler.Drain();
+            Assert.AreEqual(1, At(rows, 0).Version, "reading it reloads it");
+        }
+
+        [TestMethod]
+        public void FeedChange_SmallCountChange_AddsOrRemovesAtTheEnd()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            _events.Clear();
+
+            _total = 1005;
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+
+            Assert.AreEqual(1005, rows.Count);
+            Assert.AreEqual(5, Count(NotifyCollectionChangedAction.Add));
+            Assert.AreEqual(1000, _events.First(e => e.Action == NotifyCollectionChangedAction.Add).NewStartingIndex);
+            Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Reset));
+
+            _events.Clear();
+            _total = 990;
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+
+            Assert.AreEqual(990, rows.Count);
+            Assert.AreEqual(15, Count(NotifyCollectionChangedAction.Remove));
+            Assert.AreEqual(1004, _events.First().OldStartingIndex, "removed from the end, last first");
+            Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Reset));
+        }
+
+        [TestMethod]
+        public void FeedChange_LargeCountChange_ResetsTheList()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            _events.Clear();
+
+            _total = 5000;
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+
+            Assert.AreEqual(5000, rows.Count);
+            Assert.AreEqual(NotifyCollectionChangedAction.Reset, _events.Single().Action);
+        }
+
+        [TestMethod]
+        public void SortBy_ReadsInTheColumnsOrder_AndDropsPagesOfTheOldOrder()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            At(rows, 550);
+            _pageReads.Clear();
+
+            rows.SortBy(AchievementSort.UnlockTime, descending: true);
+            _scheduler.Drain();
+
+            Assert.AreEqual(AchievementSort.UnlockTime, _pageReads.Last().Sort);
+            Assert.IsTrue(_pageReads.Last().Descending);
+            Assert.AreEqual(AchievementSort.UnlockTime, At(rows, 550).Sort,
+                "the page read in the old order is dropped for the one read in the new order");
+            Assert.AreEqual(AchievementSort.Display, rows.Query.Sort, "the query as given keeps its own order");
+
+            _pageReads.Clear();
+            rows.SortBy(null, false);
+            _scheduler.Drain();
+            Assert.IsTrue(_pageReads.All(query => query.Sort == AchievementSort.Display && !query.Descending));
+        }
+
+        [TestMethod]
+        public void SetQuery_KeepsTheColumnSort()
+        {
+            var rows = Create(1000);
+            _scheduler.Drain();
+            rows.SortBy(AchievementSort.GlobalPercent, descending: false);
+            _scheduler.Drain();
+            _pageReads.Clear();
+
+            rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(true));
+            _scheduler.Drain();
+
+            Assert.IsTrue(_pageReads.All(query => query.Unlocked == true && query.Sort == AchievementSort.GlobalPercent));
+        }
+
+        [TestMethod]
+        public void LoadedPages_AreBounded()
+        {
+            var rows = Create(5000);
+            _scheduler.Drain();
+            for (var index = 0; index < 2000; index += 100)
+            {
+                At(rows, index);
+                _scheduler.Drain();
+            }
+
+            Assert.IsTrue(_events.Any(e => e.Action == NotifyCollectionChangedAction.Replace &&
+                                           ((Row)e.NewItems[0]).IsPlaceholder &&
+                                           e.NewStartingIndex < 1000),
+                "a page far from the scroll goes back to placeholders");
+            Assert.IsTrue(At(rows, 0).IsPlaceholder);
+        }
+
+        [TestMethod]
+        public void Dispose_DropsReadsInFlightAndStopsReloading()
+        {
+            var rows = Create(1000);
+            rows.Dispose();
+            _scheduler.Drain();
+            Assert.AreEqual(0, rows.Count);
+            Assert.AreEqual(0, _events.Count);
+
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            Assert.AreEqual(0, _scheduler.PendingTimers);
+        }
+    }
+}
