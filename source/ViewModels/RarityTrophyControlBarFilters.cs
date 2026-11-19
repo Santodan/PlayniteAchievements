@@ -135,14 +135,6 @@ namespace PlayniteAchievements.ViewModels
                 .Any(game => game?.HasTrophyPieChartData == true));
 
         /// <summary>
-        /// Offers the trophy types only while some row has a trophy type. True when that
-        /// changed, so the bar's item visibility needs a refresh.
-        /// </summary>
-        public bool UpdateRows(IEnumerable<AchievementDisplayItem> rows) =>
-            OfferTrophies((rows ?? Enumerable.Empty<AchievementDisplayItem>())
-                .Any(row => !string.IsNullOrWhiteSpace(row?.TrophyType)));
-
-        /// <summary>
         /// Offers the trophy types only while <paramref name="hasTrophies"/>. True when that
         /// changed, so the bar's item visibility needs a refresh.
         /// </summary>
@@ -176,16 +168,11 @@ namespace PlayniteAchievements.ViewModels
         public bool KeepsCompletions => !CapstoneJoinsTiers || _capstone || _rarities.Count == 0;
 
         /// <summary>
-        /// <paramref name="query"/> narrowed to the rows both filters keep. Capstone narrows the
-        /// picked tiers; the joined mode of <see cref="CapstoneJoinsTiers"/> has no query form.
+        /// <paramref name="query"/> narrowed to the rows both filters keep: Capstone narrows the
+        /// picked tiers, or with <see cref="CapstoneJoinsTiers"/> adds the capstones to them.
         /// </summary>
         internal AchievementQuery ApplyTo(AchievementQuery query)
         {
-            if (CapstoneJoinsTiers && _capstone && _rarities.Count > 0)
-            {
-                throw new NotSupportedException("A query cannot join Capstone with the picked tiers.");
-            }
-
             if (_rarities.Count > 0)
             {
                 query = query.WhereRarity(_rarities);
@@ -193,7 +180,7 @@ namespace PlayniteAchievements.ViewModels
 
             if (_capstone)
             {
-                query = query.WhereCapstone();
+                query = query.WhereCapstone(orRarity: CapstoneJoinsTiers);
             }
 
             return _trophies.Count > 0 ? query.WhereTrophy(_trophies) : query;
