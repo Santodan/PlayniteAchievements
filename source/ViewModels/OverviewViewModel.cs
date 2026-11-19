@@ -1405,7 +1405,7 @@ namespace PlayniteAchievements.ViewModels
                 // The snapshot read goes first on the read connection: the games grid, score
                 // cards and widgets wait for it. The Achievements grid's read queues behind it.
                 // A snapshot kept from an earlier open is used while no change has made it stale.
-                _ = RefreshViewAsync(reuseShared: true);
+                _ = RefreshViewAsync(opening: true);
                 ApplyRightFilters();
             }
         }
@@ -1469,9 +1469,13 @@ namespace PlayniteAchievements.ViewModels
             target.Publish(snapshot);
         }
 
-        public Task RefreshViewAsync() => RefreshViewAsync(reuseShared: false);
+        public Task RefreshViewAsync() => RefreshViewAsync(opening: false);
 
-        private async Task RefreshViewAsync(bool reuseShared)
+        /// <param name="opening">
+        /// The window just opened: a kept snapshot no change has made stale is used, and the
+        /// grids' reads started at open are current, so the snapshot landing does not repeat them.
+        /// </param>
+        private async Task RefreshViewAsync(bool opening)
         {
             if (!_isActive)
             {
@@ -1504,7 +1508,7 @@ namespace PlayniteAchievements.ViewModels
                     // Spoiler reveals only affect the per-game grids (a separate per-game
                     // path); the overview snapshot carries no per-achievement display items,
                     // so it builds without reveal state.
-                    var shared = reuseShared ? _sharedSnapshotTarget : null;
+                    var shared = opening ? _sharedSnapshotTarget : null;
                     var snapshot = await Task.Run(() => shared?.CurrentSnapshot() ?? _dataBuilder.Build(_settings, cancel), cancel).ConfigureAwait(false);
 
                     // Still off the UI thread: precompute the search-text map so ApplySnapshot
@@ -1525,7 +1529,7 @@ namespace PlayniteAchievements.ViewModels
 
                         using (PerfScope.Start(_logger, "Overview.ApplySnapshot", thresholdMs: 15))
                         {
-                            ApplySnapshot(snapshot, gameEntries);
+                            ApplySnapshot(snapshot, gameEntries, readsCurrent: opening);
                         }
                     });
                 }
@@ -1801,7 +1805,8 @@ namespace PlayniteAchievements.ViewModels
 
         private void ApplySnapshot(
             OverviewDataSnapshot snapshot,
-            Dictionary<GameSummaryItem, string> gameSummarySearchEntries = null)
+            Dictionary<GameSummaryItem, string> gameSummarySearchEntries = null,
+            bool readsCurrent = false)
         {
             if (_disposed)
             {
@@ -1848,9 +1853,12 @@ namespace PlayniteAchievements.ViewModels
             ApplyOverviewSummaryCore(snapshot);
 
             // The data changed, so the games the achievement filters keep and the grid's rows
-            // are read again.
-            _matchingGames?.SetQuery(_matchingGames.Query);
-            _recentDataChanged = true;
+            // are read again; at open they were read alongside this snapshot.
+            if (!readsCurrent)
+            {
+                _matchingGames?.SetQuery(_matchingGames.Query);
+                _recentDataChanged = true;
+            }
             ApplyLeftFilters();
 
             // A full snapshot replaces every game's rows, so the selected game's own rows are
