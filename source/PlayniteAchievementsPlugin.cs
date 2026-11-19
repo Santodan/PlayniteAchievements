@@ -2019,8 +2019,7 @@ namespace PlayniteAchievements
                                 .Select(definition => definition.Clone()));
                             customData.AchievementTags = own.Count > 0 ? own : null;
                         },
-                        affectsSummaryData: false,
-                        affectsOverrideMirror: false);
+                        affectsSummaryData: false);
                 }
 
                 _logger?.Info($"[Tags] Moved {removed.Count} deleted global tag(s) into {gamesByKey.Values.SelectMany(ids => ids).Distinct().Count()} game(s).");
