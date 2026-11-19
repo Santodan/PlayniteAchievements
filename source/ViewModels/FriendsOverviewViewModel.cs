@@ -1512,31 +1512,10 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         internal AchievementQuery BuildScopeQuery()
         {
-            var query = AchievementQuery.AllFriends;
-            if (SelectedFriend != null)
-            {
-                query = query.ForFriendAccounts(FriendsOverviewLists.AccountsOf(SelectedFriend));
-            }
-            else if (FavoritesOnly)
-            {
-                query = query.ForFriendAccounts(_current.FavoriteAccounts());
-            }
-
-            var game = SelectedGame;
-            if (game != null)
-            {
-                if (game.AppId > 0 || !string.IsNullOrWhiteSpace(game.ProviderGameKey))
-                {
-                    query = query.ForProviderGame(game.ProviderKey, game.AppId, game.ProviderGameKey);
-                }
-
-                // Narrows the user's own changes that rerun the query to this game.
-                query = game.PlayniteGameId.HasValue
-                    ? query.ForGames(new[] { game.PlayniteGameId.Value })
-                    : game.AppId > 0 || !string.IsNullOrWhiteSpace(game.ProviderGameKey)
-                        ? query
-                        : query.MatchNothing();
-            }
+            var query = SelectedFriend == null && FavoritesOnly
+                ? AchievementQuery.AllFriends.ForFriendAccounts(_current.FavoriteAccounts())
+                : AchievementQuery.AllFriends;
+            query = FriendsOverviewLists.Scope(query, SelectedFriend, SelectedGame);
 
             // Locked rows show only for one friend and one game; the recent feed lists the
             // unlocks that have a time.
@@ -1888,12 +1867,7 @@ namespace PlayniteAchievements.ViewModels
             };
         }
 
-        // A query's identity: its rows SQL and arguments, which hold every part of it.
-        private static string KeyOf(AchievementQuery query)
-        {
-            var command = AchievementQuerySql.Rows(query);
-            return command.Sql + "\u001e" + string.Join("\u001f", command.Args.Select(arg => Convert.ToString(arg, System.Globalization.CultureInfo.InvariantCulture)));
-        }
+        private static string KeyOf(AchievementQuery query) => AchievementQuerySql.KeyOf(query);
 
         // What loaded rows are given beyond their columns: the friend identity and the compare
         // side's names. Replaced, never changed, so a read off the UI thread sees one whole.
