@@ -76,12 +76,17 @@ namespace PlayniteAchievements.Services.Database
                     INNER JOIN Users su ON su.Id = sp.UserId AND su.IsCurrentUser = 1
                     WHERE sg.PlayniteGameId = r.PlayniteGameId) THEN 1 ELSE 0 END AS SelfHasGameData";
 
-        /// <summary>One row's identity, as <see cref="SortedKeys"/> reads them.</summary>
+        /// <summary>
+        /// One row's identity, as <see cref="SortedKeys"/> reads them: user, provider game and
+        /// definition, or for an authored row, which has none of them, its Playnite game and API name.
+        /// </summary>
         internal sealed class RowKey
         {
-            public long UserId { get; set; }
-            public long GameId { get; set; }
-            public long DefinitionId { get; set; }
+            public long? UserId { get; set; }
+            public long? GameId { get; set; }
+            public long? DefinitionId { get; set; }
+            public string PlayniteGameId { get; set; }
+            public string ApiName { get; set; }
         }
 
         /// <summary>
@@ -135,7 +140,9 @@ namespace PlayniteAchievements.Services.Database
         public static Command SortedKeys(AchievementQuery query)
         {
             var args = new List<object>();
-            var sql = "SELECT r.UserId AS UserId, r.GameId AS GameId, r.Id AS DefinitionId" +
+            var sql = "SELECT r.UserId AS UserId, r.GameId AS GameId, r.Id AS DefinitionId, " +
+                      "CASE WHEN r.IsAuthored = 1 THEN r.PlayniteGameId END AS PlayniteGameId, " +
+                      "CASE WHEN r.IsAuthored = 1 THEN r.ApiName END AS ApiName" +
                       From(query, args) + Where(query, args) + " ORDER BY " + OrderBy(query) + " LIMIT ? OFFSET ?;";
             args.Add(query.Limit > 0 ? query.Limit : -1);
             args.Add(query.Offset);
@@ -158,7 +165,7 @@ namespace PlayniteAchievements.Services.Database
             var args = new List<object>();
             var sql = new StringBuilder();
             var compare = query.Friends && query.CompareAccounts != null;
-            var gameIds = keys?.Select(key => key.GameId).Distinct().ToList();
+            var gameIds = keys?.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().ToList();
             if (query.Friends)
             {
                 sql.Append(SelfCtes(gameIds, args));
@@ -197,9 +204,24 @@ namespace PlayniteAchievements.Services.Database
             if (keys != null)
             {
                 // Each term narrows the view's arms on their own columns.
-                sql.Append(" AND ").Append(InList("r.UserId", keys.Select(key => key.UserId).Distinct().Cast<object>().ToList(), args));
-                sql.Append(" AND ").Append(InList("r.GameId", gameIds.Cast<object>().ToList(), args));
-                sql.Append(" AND ").Append(InList("r.Id", keys.Select(key => key.DefinitionId).Distinct().Cast<object>().ToList(), args));
+                var terms = new List<string>();
+                var platform = keys.Where(key => key.PlayniteGameId == null).ToList();
+                if (platform.Count > 0)
+                {
+                    terms.Add(InList("r.UserId", platform.Select(key => key.UserId).Distinct().Cast<object>().ToList(), args) +
+                              " AND " + InList("r.GameId", gameIds.Cast<object>().ToList(), args) +
+                              " AND " + InList("r.Id", platform.Select(key => key.DefinitionId).Distinct().Cast<object>().ToList(), args));
+                }
+
+                var authored = keys.Where(key => key.PlayniteGameId != null).ToList();
+                if (authored.Count > 0)
+                {
+                    terms.Add("r.IsAuthored = 1 AND " +
+                              InList("r.PlayniteGameId", authored.Select(key => key.PlayniteGameId).Distinct().Cast<object>().ToList(), args) +
+                              " AND " + InList("r.ApiName", authored.Select(key => key.ApiName).Distinct().Cast<object>().ToList(), args));
+                }
+
+                sql.Append(" AND ").Append(terms.Count == 1 ? terms[0] : "((" + string.Join(") OR (", terms) + "))");
             }
 
             if (!ordered)
@@ -385,11 +407,11 @@ namespace PlayniteAchievements.Services.Database
 
             if (query.GameIds != null)
             {
-                // Games and the override mirror store the id as Guid.ToString() writes it.
+                // Games and the override mirror store the id as Guid.ToString() writes it; inlined
+                // as ExceptGameIds is.
                 conditions.Add(query.GameIds.Count == 0
                     ? "0"
-                    : "r.PlayniteGameId IN (" + string.Join(", ", query.GameIds.Select(_ => "?")) + ")");
-                args.AddRange(query.GameIds.Select(id => (object)id.ToString("D")));
+                    : "r.PlayniteGameId IN (" + string.Join(", ", query.GameIds.Select(id => "'" + id.ToString("D") + "'")) + ")");
             }
 
             if (query.ExceptGameIds != null)
@@ -425,9 +447,11 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add(query.Unlocked.Value ? "r.Unlocked = 1" : "r.Unlocked = 0");
             }
 
+            var capstoneOrRarity = query.CapstonesOnly && query.CapstoneOrRarity && query.Rarities != null;
             if (query.Rarities != null)
             {
-                conditions.Add(InList(RarityTierSql, query.Rarities.Select(tier => tier.ToString()).ToList(), args));
+                var rarity = InList(RarityTierSql, query.Rarities.Select(tier => tier.ToString()).ToList(), args);
+                conditions.Add(capstoneOrRarity ? "(" + rarity + " OR r.IsCapstone = 1)" : rarity);
             }
 
             if (query.TrophyTypes != null)
@@ -487,7 +511,7 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add("NOT (r.Hidden = 1 AND r.Unlocked = 0)");
             }
 
-            if (query.CapstonesOnly)
+            if (query.CapstonesOnly && !capstoneOrRarity)
             {
                 conditions.Add("r.IsCapstone = 1");
             }
