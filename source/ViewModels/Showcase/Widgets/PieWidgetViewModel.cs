@@ -29,13 +29,11 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private PieChartViewModel _chart = new PieChartViewModel();
         private GridControlBarViewModel _controlBar;
 
-        private readonly AchievementDataService _dataService;
-
         // Held so the weak subscription lives as long as this widget.
         private readonly Action _onChoicesChanged;
 
-        // Bumped when tallies or tag definitions change, which a Tag pie cannot see in its
-        // snapshot: totals are replaced on the rows in place, and names and colors live elsewhere.
+        // Bumped when tag definitions change, which a Tag pie cannot see in its snapshot: names
+        // and colors live elsewhere.
         private int _tagVersion;
 
         public PieWidgetViewModel()
@@ -45,11 +43,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             // A Completions pie sorts its finishes by the Achievement styles.
             _onChoicesChanged = OnProgressChoicesChanged;
             ProgressFilterChoices.Subscribe(_onChoicesChanged);
-            _dataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
-            if (_dataService != null)
-            {
-                _dataService.TalliesChanged += OnTalliesChanged;
-            }
         }
 
         public PieChartViewModel Chart { get => _chart; private set => SetValue(ref _chart, value); }
@@ -299,7 +292,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 _filteredKey = key;
                 _filtered = OverviewLinkedSnapshots.FilterAchievements(
                     narrowed,
-                    adapter.MatchesAchievement,
                     adapter.MatchesTally);
             }
 
@@ -415,10 +407,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             _chart?.Dispose();
             AchievementTagRegistry.Changed -= OnTagDefinitionsChanged;
-            if (_dataService != null)
-            {
-                _dataService.TalliesChanged -= OnTalliesChanged;
-            }
         }
 
         // Distinct colors for tags the user left uncolored, by their place in the pie.
@@ -478,16 +466,13 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             IEnumerable<AchievementTally> tallies;
             if (snapshot.IsAchievementClip)
             {
-                var unlockedRows = new AchievementTallyBuilder();
-                foreach (var row in snapshot.Achievements ?? new List<AchievementDisplayItem>())
+                var unlocks = new AchievementTallyBuilder();
+                foreach (var fact in snapshot.Unlocks)
                 {
-                    if (row?.Unlocked == true)
-                    {
-                        unlockedRows.Add(row.Tags, unlocked: true);
-                    }
+                    unlocks.Add(fact.Tally.Key, fact.Count, fact.Count);
                 }
 
-                tallies = unlockedRows.Build() ?? Array.Empty<AchievementTally>();
+                tallies = unlocks.Build() ?? Array.Empty<AchievementTally>();
             }
             else
             {
@@ -524,8 +509,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         }
 
         private void OnTagDefinitionsChanged(object sender, AchievementTagsChangedEventArgs e) => RefreshTagPie();
-
-        private void OnTalliesChanged(object sender, TalliesChangedEventArgs e) => RefreshTagPie();
 
         private void OnProgressChoicesChanged()
         {
