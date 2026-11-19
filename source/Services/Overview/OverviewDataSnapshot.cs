@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
@@ -10,15 +11,23 @@ namespace PlayniteAchievements.Services.Overview
 {
     public sealed class OverviewDataSnapshot
     {
-        public List<AchievementDisplayItem> Achievements { get; set; } = new List<AchievementDisplayItem>();
         public List<GameSummaryItem> GameSummaries { get; set; } = new List<GameSummaryItem>();
-        public List<AchievementDisplayItem> RecentAchievements { get; set; } = new List<AchievementDisplayItem>();
+
+        /// <summary>The unlocks of <see cref="GameSummaries"/>' games per game, day and tally facets.</summary>
+        public IReadOnlyList<UnlockFact> Unlocks { get; set; } = Array.Empty<UnlockFact>();
+
+        /// <summary>The unlocks of <see cref="GameSummaries"/>' games under the summary rules, for reading their rows.</summary>
+        internal Database.AchievementQuery UnlockQuery() =>
+            Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true).ForGames(
+                (GameSummaries ?? new List<GameSummaryItem>()).Where(game => game?.PlayniteGameId != null).Select(game => game.PlayniteGameId.Value));
+
+        /// <summary>The rows of every achievement pin, locked ones included, hydrated at build.</summary>
+        public List<AchievementDisplayItem> PinnedAchievements { get; set; } = new List<AchievementDisplayItem>();
 
         /// <summary>
-        /// Bounded pool of LOCKED achievements the Unlock Next mosaic draws from, kept out of
-        /// <see cref="Achievements"/> so the grid, the search indexes, and the other mosaic
-        /// sources keep seeing unlocked rows only. Empty unless some live widget asks for it;
-        /// <see cref="UnlockNextPoolBuilt"/> distinguishes "not requested" from "nothing found".
+        /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty unless
+        /// some live widget asks for it; <see cref="UnlockNextPoolBuilt"/> distinguishes "not
+        /// requested" from "nothing found".
         /// </summary>
         public List<AchievementDisplayItem> UnlockNextCandidates { get; set; } =
             new List<AchievementDisplayItem>();
@@ -63,8 +72,8 @@ namespace PlayniteAchievements.Services.Overview
 
         /// <summary>
         /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
-        /// hydrated locked pinned rows into <see cref="Achievements"/>. A pin added afterwards is
-        /// absent here, so its locked row was never hydrated; consumers rebuild off
+        /// hydrated <see cref="PinnedAchievements"/>. A pin added afterwards is absent here, so
+        /// its row was never hydrated; consumers rebuild off
         /// <see cref="HasSeenAchievementPins"/>. A pin whose game data is unavailable stays in
         /// the set, so it does not trigger a rebuild on every configuration change.
         /// </summary>
@@ -259,7 +268,6 @@ namespace PlayniteAchievements.Services.Overview
             var list = games ?? Array.Empty<GameSummaryItem>();
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>(),
                 GameSummaries = new List<GameSummaryItem>(list),
                 UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
