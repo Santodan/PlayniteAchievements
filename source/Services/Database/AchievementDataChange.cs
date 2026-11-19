@@ -113,14 +113,25 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        // A query naming accounts reads its own rows and the compare accounts' state, so a change
+        // to either touches it.
         private static bool SameProvider(FriendCacheChange change, AchievementQuery query) =>
-            string.IsNullOrWhiteSpace(query.FriendProviderKey) ||
-            string.Equals(change.ProviderKey, query.FriendProviderKey.Trim(), StringComparison.OrdinalIgnoreCase);
+            (string.IsNullOrWhiteSpace(query.FriendProviderKey) ||
+             string.Equals(change.ProviderKey, query.FriendProviderKey.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (query.FriendAccounts == null ||
+             NamedAccounts(query).Any(account => string.Equals(change.ProviderKey, account.ProviderKey, StringComparison.OrdinalIgnoreCase)));
 
         private static bool SameFriend(FriendCacheChange change, AchievementQuery query) =>
             SameProvider(change, query) &&
             (string.IsNullOrWhiteSpace(query.FriendExternalUserId) ||
-             string.Equals(change.ExternalUserId, query.FriendExternalUserId.Trim(), StringComparison.OrdinalIgnoreCase));
+             string.Equals(change.ExternalUserId, query.FriendExternalUserId.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (query.FriendAccounts == null ||
+             NamedAccounts(query).Any(account =>
+                 string.Equals(change.ProviderKey, account.ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(change.ExternalUserId, account.ExternalUserId, StringComparison.OrdinalIgnoreCase)));
+
+        private static IEnumerable<Models.Settings.FriendAccountRef> NamedAccounts(AchievementQuery query) =>
+            query.FriendAccounts.Concat(query.CompareAccounts ?? Enumerable.Empty<Models.Settings.FriendAccountRef>());
 
         // A query narrowed to Playnite games cannot be matched against a provider identity here,
         // so it counts as touched.
