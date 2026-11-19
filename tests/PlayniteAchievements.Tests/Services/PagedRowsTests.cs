@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Services.Tests
         private int _total;
         private int _version;
 
-        private PagedRows<Row> Create(int total, int maxRows = 0, AchievementQuery query = null, bool update = false)
+        private PagedRows<Row> Create(int total, int maxRows = 0, AchievementQuery query = null, bool update = false, int pendingRows = 0)
         {
             _total = total;
             var rows = new PagedRows<Row>(
@@ -56,7 +56,8 @@ namespace PlayniteAchievements.Services.Tests
                         kept.Sort = fresh.Sort;
                         kept.Updates++;
                     }
-                    : (Action<Row, Row>)null);
+                    : (Action<Row, Row>)null,
+                pendingRows: pendingRows);
             rows.CollectionChanged += (_, e) => _events.Add(e);
             rows.PropertyChanged += (_, e) => _properties.Add(e.PropertyName);
             return rows;
@@ -111,6 +112,35 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(150, At(rows, 150).Index);
             Assert.IsFalse(At(rows, 199).IsPlaceholder);
             Assert.AreEqual(1, _keyReads.Count, "the keys are read once");
+        }
+
+        [TestMethod]
+        public void PendingRows_ArePlaceholdersFilledInPlaceByTheFirstRead()
+        {
+            var rows = Create(5, update: true, pendingRows: 12);
+            Assert.AreEqual(12, rows.Count);
+            Assert.IsTrue(rows.IsPending);
+            var first = At(rows, 0);
+            Assert.IsTrue(first.IsPlaceholder);
+            Assert.AreEqual(0, _pageReads.Count, "a pending row reads nothing");
+
+            _scheduler.Drain();
+
+            Assert.IsFalse(rows.IsPending);
+            Assert.AreEqual(5, rows.Count);
+            Assert.AreSame(first, At(rows, 0), "the placeholder shown becomes the row");
+            Assert.IsFalse(first.IsPlaceholder);
+            Assert.AreEqual(7, Count(NotifyCollectionChangedAction.Remove), "the extra placeholders go");
+        }
+
+        [TestMethod]
+        public void PendingRows_GoWhenTheFirstReadFinds_None()
+        {
+            var rows = Create(0, pendingRows: 12);
+            _scheduler.Drain();
+
+            Assert.AreEqual(0, rows.Count);
+            Assert.IsFalse(rows.IsPending);
         }
 
         [TestMethod]
