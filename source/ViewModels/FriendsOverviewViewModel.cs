@@ -102,7 +102,6 @@ namespace PlayniteAchievements.ViewModels
         private bool _barOptionsOffered = true;
         private bool _isRefreshing;
         private bool _disposed;
-        private bool _isLoading;
         private string _statusText;
         private string _friendSearchText;
         private string _gameSearchText;
@@ -141,8 +140,12 @@ namespace PlayniteAchievements.ViewModels
             _playniteApi = playniteApi;
             _showCustomRefreshDialog = showCustomRefreshDialog;
 
+            // Skeleton rows in every grid until the lists land (the display syncs keep them).
             FilteredFriends = new BulkObservableCollection<FriendSummaryItem>();
+            FilteredFriends.ReplaceAll(PlaceholderRows.Create(() => new FriendSummaryItem { IsPlaceholder = true }));
             FilteredGames = new BulkObservableCollection<FriendGameSummaryItem>();
+            FilteredGames.ReplaceAll(PlaceholderRows.Create(() => new FriendGameSummaryItem { IsPlaceholder = true }));
+            _achievementPlaceholders = PlaceholderRows.Create(() => new FriendAchievementDisplayItem { IsPlaceholder = true });
             SelectedFriendGameAllAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
             OwnershipFilterOptions = new ObservableCollection<string>();
             FriendProviderFilterOptions = new ObservableCollection<string>();
@@ -221,6 +224,11 @@ namespace PlayniteAchievements.ViewModels
         /// Null until <see cref="LoadAsync"/>.
         /// </summary>
         public PagedRows<FriendAchievementDisplayItem> DisplayedAchievements => _achievements;
+
+        /// <summary>What the achievements grid shows: its rows, or skeleton rows until the lists land.</summary>
+        public System.Collections.IList AchievementRows => (System.Collections.IList)_achievements ?? _achievementPlaceholders;
+
+        private List<FriendAchievementDisplayItem> _achievementPlaceholders;
 
         // The selected friend and game's every row in definition order, feeding the grid's
         // CategorySummarySource so category rollups follow neither the filters nor the sort.
@@ -305,6 +313,13 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedFriend;
             set
             {
+                if (value?.IsPlaceholder == true)
+                {
+                    // A skeleton row is not a friend.
+                    OnPropertyChanged(nameof(SelectedFriend));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _selectedFriend, value))
                 {
                     NotifySelectionStateChanged();
@@ -321,6 +336,13 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedGame;
             set
             {
+                if (value?.IsPlaceholder == true)
+                {
+                    // A skeleton row is not a game.
+                    OnPropertyChanged(nameof(SelectedGame));
+                    return;
+                }
+
                 if (SetValueAndReturn(ref _selectedGame, value))
                 {
                     NotifySelectionStateChanged();
@@ -526,15 +548,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
 
-        // True until the first lists read lands, so the view shows its loading overlay over the
-        // empty window rather than blank grids.
-        public bool IsLoading
-        {
-            get => _isLoading;
-            private set => SetValue(ref _isLoading, value);
-        }
-
-        public bool HasData => _current.HasData || (_achievements?.Count ?? 0) > 0;
+        public bool HasData => _current.HasData || (_achievements != null && !_achievements.IsPending && _achievements.Count > 0);
         public bool IsProviderDisabled => false;
 
         // Single selection shows the localized provider name (options carry raw provider keys so
@@ -711,11 +725,14 @@ namespace PlayniteAchievements.ViewModels
         {
             if (_reads == null)
             {
+                FilteredFriends.Clear();
+                FilteredGames.Clear();
+                _achievementPlaceholders = new List<FriendAchievementDisplayItem>();
+                OnPropertyChanged(nameof(AchievementRows));
                 StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
                 return;
             }
 
-            IsLoading = true;
             UpdateRowDecoration();
             _lists = new LiveQuery<FriendsOverviewLists>(
                 _reads.Feed,
@@ -765,7 +782,6 @@ namespace PlayniteAchievements.ViewModels
                 ApplyFilters(preserveSelections: true);
             }
 
-            IsLoading = false;
             StatusText = HasData ? null : ResourceProvider.GetString("LOCPlayAch_FriendsOverview_NoData");
             OnPropertyChanged(nameof(HasData));
             OnPropertyChanged(nameof(IsProviderDisabled));
@@ -781,7 +797,6 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                IsLoading = false;
                 if (!HasData)
                 {
                     StatusText = ResourceProvider.GetString("LOCPlayAch_FriendsOverview_LoadFailed");
@@ -1603,8 +1618,10 @@ namespace PlayniteAchievements.ViewModels
                     cap ?? 0,
                     ReadWindow,
                     ex => OnReadFailed(ex, "Failed to load friend achievement rows."),
-                    (kept, fresh) => kept.RefreshFrom(fresh));
+                    (kept, fresh) => kept.RefreshFrom(fresh),
+                    PlaceholderRows.Count);
                 OnPropertyChanged(nameof(DisplayedAchievements));
+                OnPropertyChanged(nameof(AchievementRows));
                 return;
             }
 
@@ -1995,8 +2012,14 @@ namespace PlayniteAchievements.ViewModels
             UpdateAchievementQueries();
         }
 
+        // The skeleton rows stay until the lists land.
         private void SyncFriendsDisplay()
         {
+            if (_lists?.Result == null)
+            {
+                return;
+            }
+
             CollectionHelper.Replace(FilteredFriends, DisplayGridRowLimitHelper.Limit(
                 _filteredFriendsList,
                 _settings?.Persisted?.FriendsOverviewFriendSummariesGridMaxRows));
@@ -2004,6 +2027,11 @@ namespace PlayniteAchievements.ViewModels
 
         private void SyncGamesDisplay()
         {
+            if (_lists?.Result == null)
+            {
+                return;
+            }
+
             CollectionHelper.Replace(FilteredGames, DisplayGridRowLimitHelper.Limit(
                 _filteredGamesList,
                 _settings?.Persisted?.FriendsOverviewGameSummariesGridMaxRows));
