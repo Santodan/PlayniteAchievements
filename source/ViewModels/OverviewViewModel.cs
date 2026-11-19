@@ -175,7 +175,9 @@ namespace PlayniteAchievements.ViewModels
                 _refreshService.Providers,
                 _playniteApi,
                 _logger,
-                () => friendCache?.LoadCurrentUserIdentities());
+                // A method group, not a lambda: the builder lives on in the kept snapshot's pool
+                // reader, and a lambda here could share a closure that holds this view model.
+                friendCache == null ? null : new Func<List<Models.Friends.FriendIdentity>>(friendCache.LoadCurrentUserIdentities));
             _selectedGamePipeline = new AchievementSelectionPipeline(_achievementDataService, _settings);
             _cacheReads = _achievementDataService.CacheReads;
             _scheduler = new DispatcherReadScheduler(
@@ -1405,7 +1407,8 @@ namespace PlayniteAchievements.ViewModels
                 _compareFriendsStale = true;
                 // The snapshot read goes first on the read connection: the games grid, score
                 // cards and widgets wait for it. The Achievements grid's read queues behind it.
-                _ = RefreshViewAsync();
+                // A snapshot kept from an earlier open is used while no change has made it stale.
+                _ = RefreshViewAsync(reuseShared: true);
                 ApplyRightFilters();
             }
         }
@@ -1469,7 +1472,9 @@ namespace PlayniteAchievements.ViewModels
             target.Publish(snapshot);
         }
 
-        public async Task RefreshViewAsync()
+        public Task RefreshViewAsync() => RefreshViewAsync(reuseShared: false);
+
+        private async Task RefreshViewAsync(bool reuseShared)
         {
             if (!_isActive)
             {
@@ -1502,7 +1507,8 @@ namespace PlayniteAchievements.ViewModels
                     // Spoiler reveals only affect the per-game grids (a separate per-game
                     // path); the overview snapshot carries no per-achievement display items,
                     // so it builds without reveal state.
-                    var snapshot = await Task.Run(() => _dataBuilder.Build(_settings, cancel), cancel).ConfigureAwait(false);
+                    var shared = reuseShared ? _sharedSnapshotTarget : null;
+                    var snapshot = await Task.Run(() => shared?.CurrentSnapshot() ?? _dataBuilder.Build(_settings, cancel), cancel).ConfigureAwait(false);
 
                     // Still off the UI thread: precompute the search-text map so ApplySnapshot
                     // only performs a cheap swap instead of tokenizing every game on the UI thread.
