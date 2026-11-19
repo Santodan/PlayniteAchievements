@@ -271,7 +271,8 @@ namespace PlayniteAchievements.Services.Database
                 MIN(CASE WHEN Unlocked = 1 AND Trophy = 'platinum' THEN UnlockTimeUtc END) AS FirstPlatinumUnlockUtc,
                 TOTAL(Percent) AS PercentSum,
                 COUNT(Percent) AS PercentCount,
-                MIN(Percent) AS MinPercent,
+                MIN(CASE WHEN Unlocked = 1 AND Percent > 0 THEN Percent END) AS MinPercent,
+                MIN(CASE WHEN Unlocked = 1 AND BaseCapstone = 1 AND Percent > 0 THEN Percent END) AS MinBasePercent,
                 SUM(Hidden * (1 - Unlocked)) AS HiddenLockedCount,
                 SUM(Authored) AS AuthoredCount,
                 MIN(CategoryOrder) AS MinCategoryOrder,
@@ -292,6 +293,7 @@ namespace PlayniteAchievements.Services.Database
                 " + RarityTierSql + @" AS Tier,
                 " + TrophySql + @" AS Trophy,
                 CASE WHEN r.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
+                CASE WHEN r.IsCapstone = 1 THEN pa_classified(r.CategoryKind, NULL, 'Base') ELSE 0 END AS BaseCapstone,
                 CASE WHEN r.Hidden = 1 THEN 1 ELSE 0 END AS Hidden,
                 r.IsAuthored AS Authored,
                 pa_prestige(r.GlobalPercentUnlocked, r.Rarity) AS Prestige,
@@ -310,7 +312,7 @@ namespace PlayniteAchievements.Services.Database
 
             // Definition values are the same on every user's row; the unlock is the best of them.
             return @"SELECT Key, MAX(Unlocked) AS Unlocked, MAX(Tier) AS Tier, MAX(Trophy) AS Trophy,
-                MAX(IsCapstone) AS IsCapstone, MAX(Hidden) AS Hidden, MAX(Authored) AS Authored, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
+                MAX(IsCapstone) AS IsCapstone, MAX(BaseCapstone) AS BaseCapstone, MAX(Hidden) AS Hidden, MAX(Authored) AS Authored, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
                 MIN(Softcore) AS Softcore, MAX(CASE WHEN Unlocked = 1 THEN UnlockTimeUtc END) AS UnlockTimeUtc,
                 MAX(Percent) AS Percent, MIN(CategoryOrder) AS CategoryOrder, MIN(DisplayOrder) AS DisplayOrder
             FROM (" + rows + @")
@@ -595,15 +597,17 @@ namespace PlayniteAchievements.Services.Database
                     return KeySql(query, AchievementGroup.Friend) + " || char(30) || " + ProviderGameKeySql;
                 case AchievementGroup.Category:
                     return "r.Category";
-                case AchievementGroup.GameDay:
-                    return "COALESCE(r.PlayniteGameId, '') || char(31) || COALESCE(" + KeySql(query, AchievementGroup.Day) + ", '')";
+                case AchievementGroup.DayTally:
+                    return "COALESCE(r.PlayniteGameId, '') || char(31) || COALESCE(" + KeySql(query, AchievementGroup.Day) + ", '') || char(31) || " + TallyFacetsSql;
                 case AchievementGroup.Tally:
-                    return "COALESCE(r.PlayniteGameId, '') || char(31) || COALESCE(r.Tags, '') || char(31) || " + RarityTierSql +
-                           " || char(31) || COALESCE(" + TrophySql + ", '') || char(31) || (r.IsCapstone IS 1)";
+                    return "COALESCE(r.PlayniteGameId, '') || char(31) || " + TallyFacetsSql;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group), group, null);
             }
         }
+
+        private const string TallyFacetsSql = "COALESCE(r.Tags, '') || char(31) || " + RarityTierSql +
+            " || char(31) || COALESCE(" + TrophySql + ", '') || char(31) || (r.IsCapstone IS 1)";
 
         // AchievementGroupKeys.ProviderGame reads it back.
         private const string ProviderGameKeySql =
