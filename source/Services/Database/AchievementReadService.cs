@@ -171,7 +171,10 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>The sum and count of the rows' global percents, for the average.</summary>
         public double PercentSum { get; set; }
         public long PercentCount { get; set; }
+
+        /// <summary>The lowest positive global percent among the unlocked rows, and among the unlocked base-game capstones.</summary>
         public double? MinPercent { get; set; }
+        public double? MinBasePercent { get; set; }
 
         /// <summary>Hidden achievements still locked.</summary>
         public long HiddenLockedCount { get; set; }
@@ -372,10 +375,10 @@ namespace PlayniteAchievements.Services.Database
                 total.MinCategoryOrder = row.MinCategoryOrder;
             }
 
-            if (row.MinPercent.HasValue && (!total.MinPercent.HasValue || row.MinPercent < total.MinPercent))
-            {
-                total.MinPercent = row.MinPercent;
-            }
+            total.MinPercent = MinOf(total.MinPercent, row.MinPercent);
+            total.MinBasePercent = MinOf(total.MinBasePercent, row.MinBasePercent);
         }
+
+        internal static double? MinOf(double? a, double? b) => !a.HasValue || (b.HasValue && b < a) ? b : a;
     }
 }
