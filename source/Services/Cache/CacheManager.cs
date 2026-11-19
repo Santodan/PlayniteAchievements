@@ -72,9 +72,6 @@ namespace PlayniteAchievements.Services.Cache
         private Exception _initializationFailure;
         private bool _startupFailureDialogShown;
         private readonly AchievementDataFeed _feed;
-        private readonly object _friendDataGameIdIndexSync = new object();
-        private IReadOnlyCollection<Guid> _friendDataPlayniteGameIds;
-        private int _friendDataGameIdIndexVersion;
 
         // Bumped under _sync on every in-memory mutation. LoadAllGameDataFast reads the
         // whole-library snapshot off _sync, so it uses this to detect writes that landed during
@@ -85,13 +82,6 @@ namespace PlayniteAchievements.Services.Cache
         public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
         public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
         public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
-        public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
-
-        event EventHandler<FriendCacheInvalidatedEventArgs> IFriendCacheManager.FriendCacheInvalidated
-        {
-            add => FriendCacheInvalidated += value;
-            remove => FriendCacheInvalidated -= value;
-        }
 
         // Raised at the end of ClearCache, after every platform and metadata row has been deleted.
         private event EventHandler MetadataStateCleared;
@@ -114,8 +104,8 @@ namespace PlayniteAchievements.Services.Cache
 
         private AchievementReadService _reads;
 
-        /// <summary>The Friends Overview window's reads: its lists, and friend rows as display items.</summary>
-        internal IFriendsOverviewReads FriendsOverviewReads => new FriendsOverviewReads(
+        /// <summary>Every friend read: the lists, and friend rows as display items.</summary>
+        IFriendsOverviewReads IFriendCacheManager.FriendReads => _friendReads ?? (_friendReads = new FriendsOverviewReads(
             _feed,
             gameId =>
             {
@@ -123,7 +113,9 @@ namespace PlayniteAchievements.Services.Cache
                 return _store.LoadFriendLists(gameId);
             },
             Reads,
-            (rows, compare) => _store.MapFriendRowRecords(rows, compare));
+            (rows, compare) => _store.MapFriendRowRecords(rows, compare)));
+
+        private IFriendsOverviewReads _friendReads;
 
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
@@ -132,7 +124,7 @@ namespace PlayniteAchievements.Services.Cache
             _plugin = plugin;
             _feed = new AchievementDataFeed(
                 InvokeCacheInvalidated,
-                InvokeFriendCacheInvalidated,
+                args => _logger?.Debug($"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}"),
                 ex => _logger?.Error(ex, "Failed to notify cache subscribers."));
             _storage = new CacheStorage(plugin, logger);
             _store = new SqlNadoCacheStore(plugin, logger, _storage.BaseDir);
@@ -562,23 +554,6 @@ namespace PlayniteAchievements.Services.Cache
         private void InvokeCacheInvalidated(CacheInvalidatedEventArgs args)
         {
             try { CacheInvalidated?.Invoke(this, args); }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to notify cache subscribers.");
-            }
-        }
-
-        private void InvokeFriendCacheInvalidated(FriendCacheInvalidatedEventArgs args)
-        {
-            lock (_sync)
-            {
-                _friendDataPlayniteGameIds = null;
-                _friendDataGameIdIndexVersion++;
-            }
-
-            _logger?.Debug(
-                $"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}");
-            try { FriendCacheInvalidated?.Invoke(this, args); }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to notify cache subscribers.");
@@ -1686,79 +1661,6 @@ namespace PlayniteAchievements.Services.Cache
                 "LoadFriendOwnershipRecency",
                 () => _store.LoadFriendOwnershipRecency(providerKey, externalUserId) ??
                       new Dictionary<string, FriendOwnershipRecency>(StringComparer.OrdinalIgnoreCase));
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendsOverviewData(int recentLimit)
-        {
-            EnsureReadyForRead("LoadFriendsOverviewData");
-            return _store.LoadFriendsOverviewData(recentLimit) ??
-                   new FriendsOverviewData();
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes)
-        {
-            EnsureReadyForRead("LoadFriendsOverviewPatchData");
-            return _store.LoadFriendsOverviewPatchData(reloadScopes) ??
-                   new FriendsOverviewData();
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(Guid playniteGameId)
-        {
-            EnsureReadyForRead("LoadFriendGameAchievementData");
-            return _store.LoadFriendGameAchievementData(playniteGameId) ??
-                   new FriendsOverviewData();
-        }
-
-        IReadOnlyCollection<Guid> IFriendCacheManager.LoadFriendDataPlayniteGameIds()
-        {
-            EnsureReadyForRead("LoadFriendDataPlayniteGameIds");
-            lock (_sync)
-            {
-                if (_friendDataPlayniteGameIds != null)
-                {
-                    return _friendDataPlayniteGameIds;
-                }
-            }
-
-            // Multiple compare surfaces can select a game during the same layout pass. Coalesce
-            // their cold-start reads while keeping the database call off the general cache lock.
-            lock (_friendDataGameIdIndexSync)
-            {
-                while (true)
-                {
-                    int version;
-                    lock (_sync)
-                    {
-                        if (_friendDataPlayniteGameIds != null)
-                        {
-                            return _friendDataPlayniteGameIds;
-                        }
-
-                        version = _friendDataGameIdIndexVersion;
-                    }
-
-                    var loaded = _store.LoadFriendDataPlayniteGameIds() ?? Array.Empty<Guid>();
-                    lock (_sync)
-                    {
-                        // A write landed during the query, so retry rather than publishing or
-                        // returning a stale availability answer to the active compare surface.
-                        if (version != _friendDataGameIdIndexVersion)
-                        {
-                            continue;
-                        }
-
-                        _friendDataPlayniteGameIds = loaded;
-                        return _friendDataPlayniteGameIds;
-                    }
-                }
-            }
-        }
-
-        FriendsOverviewData IFriendCacheManager.LoadFriendGameAchievementData(FriendCacheChange gameScope)
-        {
-            EnsureReadyForRead("LoadFriendGameAchievementData");
-            return _store.LoadFriendGameAchievementData(gameScope) ??
-                   new FriendsOverviewData();
-        }
 
         IReadOnlyList<CurrentUserGameLabel> IFriendCacheManager.LoadCurrentUserGameLabels()
         {
