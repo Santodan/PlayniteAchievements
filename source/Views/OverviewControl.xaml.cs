@@ -206,6 +206,13 @@ namespace PlayniteAchievements.Views
             }
 
             DataContext = _viewModel;
+            // The sidebar overview outlives Unloaded (Playnite unloads it whenever another view
+            // is shown) and Dispose releases every grid in it.
+            if (launchContext == OverviewLaunchContext.Sidebar)
+            {
+                GridLifetime.SetOwnerDisposes(this, true);
+            }
+
             // The overview content leaves the tree while another subview is shown, and keeps its
             // bindings meanwhile rather than inheriting nothing.
             OverviewContent.DataContext = _viewModel;
