@@ -369,6 +369,8 @@ namespace PlayniteAchievements.Views
             }
 
             FriendsOverviewContentHost.Content = _friendsOverview;
+            // What opening the friends view costs, once its first reads have landed.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("friends.opened", delaySeconds: 8);
         }
 
         private void FriendsViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -566,6 +568,8 @@ namespace PlayniteAchievements.Views
             ApplyOverviewColumnRatio();
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+            // What opening the overview costs, once its first reads have landed.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("overview.opened", delaySeconds: 8);
         }
 
         private void Plugin_SettingsSaved(object sender, EventArgs e)
