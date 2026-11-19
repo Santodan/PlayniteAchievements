@@ -1228,20 +1228,27 @@ namespace PlayniteAchievements.ViewModels
             // friends snapshot when a friend refresh completes.
             IsRefreshing = _refreshRuntime?.IsRebuilding == true;
 
+            // The run's writes already invalidated the snapshot with their change scope, so the
+            // final report only reloads at once (skipping the active-refresh throttle). The
+            // coordinator then patches the pending scope, or returns a current snapshot.
             if (_refreshRuntime?.IsFinalProgressReport(report) == true)
             {
-                InvalidateFriendsOverviewSnapshot(forceImmediate: true);
+                ScheduleCacheInvalidationReloadOnDispatcher(forceImmediate: true);
             }
         }
 
-        private void OnCacheInvalidated(object sender, EventArgs e)
+        private void OnCacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
             if (!ShouldReloadFromCacheInvalidation())
             {
                 return;
             }
 
-            InvalidateFriendsOverviewSnapshot(forceImmediate: false);
+            // Friend rows carry the user's own unlock state, so the user's changed games patch
+            // instead of reloading every friend row.
+            InvalidateFriendsOverviewSnapshot(
+                forceImmediate: false,
+                FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(e));
         }
 
         private void OnFriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
