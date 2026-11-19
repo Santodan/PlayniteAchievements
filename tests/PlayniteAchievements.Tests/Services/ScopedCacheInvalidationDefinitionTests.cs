@@ -59,12 +59,12 @@ namespace PlayniteAchievements.Tests.Services
                 "Scope is what decides between the coalescer and the immediate path.");
             StringAssert.Contains(
                 body,
-                "ScheduleStartPageInvalidate()",
+                "ScheduleStartPageInvalidate(\"",
                 "A burst of per-game edits must collapse; each start-page invalidation makes " +
                 "every live widget rebuild a full library snapshot.");
             StringAssert.Contains(
                 body,
-                "InvalidateStartPageData()",
+                "InvalidateStartPageData(\"",
                 "A full invalidation is a bulk event, not a burst, and still lands immediately.");
         }
 
