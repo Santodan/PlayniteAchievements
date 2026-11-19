@@ -11,6 +11,7 @@ using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
 using System.Windows;
 
@@ -103,6 +104,22 @@ namespace PlayniteAchievements.Services.Cache
 
         /// <summary>One change event per write batch, for read models.</summary>
         internal AchievementDataFeed Feed => _feed;
+
+        /// <summary>Reads resolved achievement rows, totals and keys on the store's read connection.</summary>
+        internal AchievementReadService Reads => _reads ?? (_reads = new AchievementReadService(read =>
+        {
+            EnsureReadyForRead("AchievementReadService");
+            return _store.WithReadDb(read);
+        }));
+
+        private AchievementReadService _reads;
+
+        /// <summary>The Friends Overview window's reads: its lists, and friend rows as display items.</summary>
+        internal IFriendsOverviewReads FriendsOverviewReads => new FriendsOverviewReads(
+            _feed,
+            () => ((IFriendCacheManager)this).LoadFriendsOverviewPatchData(null),
+            Reads,
+            (rows, compare) => _store.MapFriendRowRecords(rows, compare));
 
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
