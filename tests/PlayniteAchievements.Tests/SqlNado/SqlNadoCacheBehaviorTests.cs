@@ -880,7 +880,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),");
             // Category art is keyed by the category before the user's rename.
             StringAssert.Contains(store, "ad.ProviderCategory AS ProviderCategory,");
-            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(row.ProviderCategory),");
+            StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategory),");
             Assert.IsFalse(store.Contains("ApplyCustomDataToFriendAchievement"));
         }
 
