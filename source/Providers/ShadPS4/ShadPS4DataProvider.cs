@@ -607,9 +607,14 @@ namespace PlayniteAchievements.Providers.ShadPS4
                             ? npXml
                             : null;
                     case ShadPS4MatchIdKind.TitleId:
-                        return GetOrBuildTitleCache().TryGetValue(matchId, out var titleDirectory)
-                            ? Path.Combine(titleDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML")
-                            : null;
+                        // Title ids only key the legacy layout; on a miss the game resolves as
+                        // if no override were set.
+                        if (GetOrBuildTitleCache().TryGetValue(matchId, out var titleDirectory))
+                        {
+                            return Path.Combine(titleDirectory, "trophyfiles", "trophy00", "Xml", "TROP.XML");
+                        }
+
+                        break;
                 }
             }
 
