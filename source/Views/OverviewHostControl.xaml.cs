@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -32,6 +33,26 @@ namespace PlayniteAchievements.Views
         private OverviewControl _overview;
         private FirstTimeLandingPage _landingPage;
 
+        // When the tree change that starts a switch to or from this view began. A tree change
+        // re-reads every resource reference it walks, starting with this host's own, and the
+        // reference's coercion records the time.
+        private long _treeChangeTimestamp;
+
+        private static readonly DependencyProperty TreeChangeProbeProperty = DependencyProperty.Register(
+            "TreeChangeProbe",
+            typeof(object),
+            typeof(OverviewHostControl),
+            new PropertyMetadata(null, null, (d, value) =>
+            {
+                var host = (OverviewHostControl)d;
+                if (host._treeChangeTimestamp == 0)
+                {
+                    host._treeChangeTimestamp = Stopwatch.GetTimestamp();
+                }
+
+                return value;
+            }));
+
         public OverviewHostControl(
             Func<UserControl> createView,
             ILogger logger,
@@ -52,11 +73,27 @@ namespace PlayniteAchievements.Views
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;
+            SetResourceReference(TreeChangeProbeProperty, TreeChangeProbeProperty);
         }
+
+        // Logs a switch of Playnite's main view to or from this one: from the tree change to this
+        // event (toEvent) and to the end of the first frame drawn after it (ms).
+        private void LogViewSwitch(string direction)
+        {
+            var start = _treeChangeTimestamp != 0 ? _treeChangeTimestamp : Stopwatch.GetTimestamp();
+            _treeChangeTimestamp = 0;
+            var toEventMs = ElapsedMs(start);
+            Dispatcher.BeginInvoke(
+                new Action(() => _logger.Info($"[SidebarView] {direction} ms={ElapsedMs(start)} toEvent={toEventMs}")),
+                DispatcherPriority.Render);
+        }
+
+        private static long ElapsedMs(long start) =>
+            (Stopwatch.GetTimestamp() - start) * 1000 / Stopwatch.Frequency;
 
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
-            _logger.Info("OverviewHostControl_Loaded called");
+            LogViewSwitch("shown");
             // The kept overview is shown again and reads what changed while it was hidden, unless
             // the landing page applies now (the cache was cleared meanwhile).
             if (_overview != null && !ShowLandingPage(_plugin.Settings))
@@ -72,7 +109,7 @@ namespace PlayniteAchievements.Views
         // the next visit reads again only after a change. The landing page is rebuilt each visit.
         private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            _logger.Debug("OverviewHostControl_Unloaded called");
+            LogViewSwitch("hidden");
             _overview?.Deactivate();
             if (_landingPage != null)
             {
