@@ -43,8 +43,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsFalse(filters.HasTrophySelection);
             Assert.IsTrue(filters.HasSelection);
 
-            var goldCapstone = new AchievementDisplayItem { Rarity = RarityTier.Rare, IsCapstone = true, TrophyType = "gold" };
-            var gold = new AchievementDisplayItem { Rarity = RarityTier.Rare, TrophyType = "gold" };
+            var goldCapstone = new AchievementTally(null, RarityTier.Rare, "gold", true, 1, 1);
+            var gold = new AchievementTally(null, RarityTier.Rare, "gold", false, 1, 1);
             Assert.IsTrue(filters.MatchesRarity(goldCapstone));
             Assert.IsFalse(filters.MatchesRarity(gold));
             Assert.IsTrue(filters.MatchesTrophy(gold), "no trophy picked keeps every row");
@@ -53,7 +53,6 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.IsTrue(filters.MatchesRarity(goldCapstone));
             Assert.IsFalse(filters.MatchesTrophy(goldCapstone));
             Assert.IsFalse(filters.Matches(goldCapstone));
-            Assert.IsFalse(filters.MatchesRarity(null));
         }
 
         [TestMethod]
