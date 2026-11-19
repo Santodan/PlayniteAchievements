@@ -80,18 +80,12 @@
                                        Style="{StaticResource MutedTextStyle}"
                                        TextWrapping="Wrap"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementDataGridControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 ColumnSettingsKeyOverride="SpoilersPreview"
                                 PreviewMaxHeightOverride="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                             <!-- Reveal matrix. A hidden achievement is also locked, so its row uses
                                  the Hidden column and a merely locked one uses the Locked column;
