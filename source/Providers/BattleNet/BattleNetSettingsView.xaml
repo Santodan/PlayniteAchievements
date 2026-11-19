@@ -64,21 +64,16 @@
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <!-- The account's region: sign-in and every WoW lookup use it. -->
-                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Common_Region}"
-                                   Style="{StaticResource BattleNetFieldLabelStyle}"/>
-                        <ComboBox Grid.Column="1"
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_Region}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                        <ComboBox
                                   x:Name="WowRegionCombo"
                                   SelectionChanged="WowRegion_SelectionChanged"
                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                    </Grid>
+                    </StackPanel>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BattleNet_OAuthHelp}"
@@ -178,22 +173,7 @@
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.Panel}"
-                            CornerRadius="8"
-                            Padding="16"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            Margin="{StaticResource PlayAch.Thickness.Top.Md}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding WowConfigured, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                 Value="True">
-                                        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                    <Border>
 
                         <StackPanel>
                             <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
@@ -355,7 +335,7 @@
                         </controls:SettingRow>
                     </StackPanel>
 
-                    <controls:AuthStatusCard Margin="24,12,0,0"
+                    <controls:AuthStatusCard Margin="0,12,0,0"
                                              IsEnabled="{Binding Settings.UseDataForAzerothForWowRarity}"
                                              AuthStatus="{Binding DataForAzerothStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                              IsAuthStatusPending="{Binding DataForAzerothPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
