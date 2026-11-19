@@ -959,22 +959,6 @@ namespace PlayniteAchievements.Services.Achievements
             };
         }
 
-        public static List<AchievementDisplayItem> CreateDefaultSortedList(
-            IEnumerable<AchievementDisplayItem> items,
-            AchievementSortScope scope)
-        {
-            var list = items?.ToList() ?? new List<AchievementDisplayItem>();
-            if (list.Count == 0)
-            {
-                return list;
-            }
-
-            list.Sort(scope == AchievementSortScope.RecentAchievements
-                ? GetComparison(nameof(AchievementDisplayItem.UnlockTime), ListSortDirection.Descending, scope)
-                : CompareByDefaultGameOrder);
-            return list;
-        }
-
         public static List<AchievementDetail> CreateDefaultSortedDetailList(
             IEnumerable<AchievementDetail> items)
         {
