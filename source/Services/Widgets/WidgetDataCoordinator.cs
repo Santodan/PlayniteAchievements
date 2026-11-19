@@ -88,12 +88,23 @@ namespace PlayniteAchievements.Services.Widgets
         /// coalesced to later, so nothing adopts it in between. Builds already running still land
         /// for their waiting callers, but leave the snapshot stale.
         /// </summary>
-        public void MarkStale()
+        public void MarkStale(string reason = null)
         {
             lock (_syncRoot)
             {
+                LogStale(reason);
                 _invalidated = true;
                 _changes++;
+            }
+        }
+
+        // Only the change that turns a kept snapshot stale is logged, so a run shows why the next
+        // Overview open read the library again; later changes before the rebuild add nothing.
+        private void LogStale(string reason)
+        {
+            if (!_invalidated && _snapshot != null)
+            {
+                _logger?.Debug("[Snapshot] stale reason=" + (reason ?? "unspecified"));
             }
         }
 
@@ -124,10 +135,11 @@ namespace PlayniteAchievements.Services.Widgets
             SnapshotInvalidated?.Invoke(this, EventArgs.Empty);
         }
 
-        public void Invalidate()
+        public void Invalidate(string reason = null)
         {
             lock (_syncRoot)
             {
+                LogStale(reason);
                 _invalidated = true;
                 _changes++;
                 _generation++;
