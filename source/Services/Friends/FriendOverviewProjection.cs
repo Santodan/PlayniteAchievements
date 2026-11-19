@@ -25,7 +25,6 @@ namespace PlayniteAchievements.Services.Friends
         private readonly Dictionary<string, List<FriendGameSummaryItem>> _selectedFriendGamesByFriendKey;
         private readonly HashSet<string> _friendGameUnlockKeys;
         private readonly HashSet<string> _friendGameOwnershipKeys;
-        private readonly HashSet<string> _friendGameConfirmedOwnershipKeys;
 
         public FriendOverviewProjection(FriendsOverviewData data, PersistedSettings settings = null)
         {
@@ -40,9 +39,6 @@ namespace PlayniteAchievements.Services.Friends
             _selectedFriendGamesByFriendKey = BuildSelectedFriendGameSummaries(linksByFriendGameKey);
             _friendGameUnlockKeys = BuildFriendGameUnlockKeys();
             _friendGameOwnershipKeys = new HashSet<string>(linksByFriendGameKey.Keys, StringComparer.OrdinalIgnoreCase);
-            _friendGameConfirmedOwnershipKeys = new HashSet<string>(
-                linksByFriendGameKey.Where(pair => pair.Value?.OwnershipConfirmed == true).Select(pair => pair.Key),
-                StringComparer.OrdinalIgnoreCase);
         }
 
         public IReadOnlyList<FriendSummaryItem> Friends => _friends;
@@ -74,110 +70,6 @@ namespace PlayniteAchievements.Services.Friends
             }
 
             return Array.Empty<FriendGameSummaryItem>();
-        }
-
-        /// <summary>
-        /// The all-friends games grid restricted to favorite friends: one row per game at least
-        /// one favorite has data for, with the friend columns (count, unlocks, playtime, last
-        /// unlock, last played) computed over the favorites alone. Built on first use; the
-        /// projection is immutable, so the result is kept for its lifetime.
-        /// </summary>
-        public IReadOnlyList<FriendGameSummaryItem> FavoriteAggregateGames =>
-            _favoriteAggregateGames ?? (_favoriteAggregateGames = BuildFavoriteAggregateGames());
-
-        private List<FriendGameSummaryItem> _favoriteAggregateGames;
-
-        private List<FriendGameSummaryItem> BuildFavoriteAggregateGames()
-        {
-            var favoriteKeys = new HashSet<string>(
-                _friends.Where(friend => friend?.IsFavorite == true).Select(GetFriendScopeKey)
-                    .Where(key => !string.IsNullOrWhiteSpace(key)),
-                StringComparer.OrdinalIgnoreCase);
-            var result = new List<FriendGameSummaryItem>();
-            if (favoriteKeys.Count == 0)
-            {
-                return result;
-            }
-
-            var achievementsByGame = new Dictionary<string, List<FriendAchievementDisplayItem>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var achievement in _allAchievements)
-            {
-                if (achievement == null || !favoriteKeys.Contains(GetFriendScopeKey(achievement)))
-                {
-                    continue;
-                }
-
-                var gameKey = BuildGameUnlockKey(achievement.ProviderKey, achievement.ProviderGameKey, achievement.AppId, achievement.PlayniteGameId);
-                if (string.IsNullOrWhiteSpace(gameKey))
-                {
-                    continue;
-                }
-
-                if (!achievementsByGame.TryGetValue(gameKey, out var rows))
-                {
-                    rows = new List<FriendAchievementDisplayItem>();
-                    achievementsByGame[gameKey] = rows;
-                }
-
-                rows.Add(achievement);
-            }
-
-            // One link per friend and game, as the per-friend rows take it.
-            var linksByGame = new Dictionary<string, List<FriendGameLinkItem>>(StringComparer.OrdinalIgnoreCase);
-            var seenFriendGameKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var link in _friendGameLinks)
-            {
-                if (link == null || !favoriteKeys.Contains(GetFriendScopeKey(link)))
-                {
-                    continue;
-                }
-
-                var friendGameKey = BuildFriendGameUnlockKey(
-                    GetFriendProviderKey(link),
-                    GetFriendExternalUserId(link),
-                    link.ProviderGameKey,
-                    link.AppId,
-                    link.PlayniteGameId);
-                var gameKey = BuildGameUnlockKey(link.ProviderKey, link.ProviderGameKey, link.AppId, link.PlayniteGameId);
-                if (string.IsNullOrWhiteSpace(friendGameKey) ||
-                    string.IsNullOrWhiteSpace(gameKey) ||
-                    !seenFriendGameKeys.Add(friendGameKey))
-                {
-                    continue;
-                }
-
-                if (!linksByGame.TryGetValue(gameKey, out var links))
-                {
-                    links = new List<FriendGameLinkItem>();
-                    linksByGame[gameKey] = links;
-                }
-
-                links.Add(link);
-            }
-
-            // Aggregate order, so the favorites view sorts and scrolls like the full one.
-            foreach (var game in _aggregateGames)
-            {
-                var gameKey = BuildGameUnlockKey(game?.ProviderKey, game?.ProviderGameKey, game?.AppId ?? 0, game?.PlayniteGameId);
-                if (string.IsNullOrWhiteSpace(gameKey))
-                {
-                    continue;
-                }
-
-                achievementsByGame.TryGetValue(gameKey, out var achievements);
-                linksByGame.TryGetValue(gameKey, out var links);
-                if (achievements == null && links == null)
-                {
-                    continue;
-                }
-
-                result.Add(BuildFriendGameSummary(
-                    game,
-                    achievements ?? Enumerable.Empty<FriendAchievementDisplayItem>(),
-                    links ?? (IReadOnlyList<FriendGameLinkItem>)Array.Empty<FriendGameLinkItem>()));
-            }
-
-            return result;
         }
 
         public FriendSummaryItem FindFriend(string friendScopeKey)
@@ -221,28 +113,6 @@ namespace PlayniteAchievements.Services.Friends
                 game.PlayniteGameId);
             return !string.IsNullOrWhiteSpace(key) &&
                    (_friendGameUnlockKeys.Contains(key) || _friendGameOwnershipKeys.Contains(key));
-        }
-
-        /// <summary>
-        /// Whether <paramref name="friend"/> is known to have the game <paramref name="row"/>
-        /// belongs to: an unlock in it, or an ownership link from their game list or with
-        /// playtime. A link made only by scraping their achievements does not count.
-        /// </summary>
-        public bool HasFriendGameData(FriendSummaryItem friend, FriendAchievementDisplayItem row)
-        {
-            if (friend == null || row == null)
-            {
-                return false;
-            }
-
-            var key = BuildFriendGameUnlockKey(
-                friend.IsMergedFriend ? MergedProviderKey : friend.ProviderKey,
-                friend.IsMergedFriend ? friend.MergedFriendId : friend.ExternalUserId,
-                row.ProviderGameKey,
-                row.AppId,
-                row.PlayniteGameId);
-            return !string.IsNullOrWhiteSpace(key) &&
-                   (_friendGameUnlockKeys.Contains(key) || _friendGameConfirmedOwnershipKeys.Contains(key));
         }
 
         public static bool IsAllScope(string scopeKey)
