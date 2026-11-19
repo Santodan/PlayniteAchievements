@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Tests.Services
         {
             var body = Between(
                 ReadPlugin(),
-                "_cacheManager.CacheInvalidated +=",
+                "Feed.AchievementDataChanged += (_, change) =>",
                 "_cacheManager.CacheDeltaUpdated +=");
 
             Assert.IsFalse(
@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Tests.Services
 
             StringAssert.Contains(
                 body,
-                "args?.IsFull == false",
+                "!change.IsFull",
                 "Scope is what decides between the coalescer and the immediate path.");
             StringAssert.Contains(
                 body,
