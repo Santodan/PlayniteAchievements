@@ -622,7 +622,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         /// </summary>
         public void EnsureLibraryListLoaded(string name)
         {
-            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements) is AchievementQuery query))
+            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name) is AchievementQuery query))
             {
                 return;
             }
@@ -631,7 +631,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             list = new LiveQuery<List<AchievementDetail>>(
                 _achievementDataService.CacheReads?.Feed,
                 query,
-                read => LibraryRuntimeStateBuilder.Details(_achievementDataService.ReadRows(read), _api),
+                // Each read builds the query again, so the games Playnite hides and the days the
+                // window covers are those of the read.
+                read => LibraryRuntimeStateBuilder.Details(_achievementDataService.ReadRows(LibraryListQuery(name) ?? read), _api),
                 ReadScheduler,
                 // A whole-library list reads every row, so a refresh's changes are read every half minute.
                 () => _refreshService.IsRebuilding ? TimeSpan.FromSeconds(30) : LiveQuery<object>.DefaultWindow,
@@ -649,6 +651,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ApplyLibraryList(name, list.Result);
             }
         }
+
+        private AchievementQuery LibraryListQuery(string name) =>
+            LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements);
 
         // The rows each library list reads of the library under the summary rules (all): goals
         // first in the whole-library lists, in the list's order.
@@ -719,7 +724,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private void UpdateLibraryListQuery(string name)
         {
             if (_libraryLists.TryGetValue(name, out var list) &&
-                LibraryListQuery(name, _achievementDataService.SummaryQuery(), _runtimeState.LibraryAchievements) is AchievementQuery query &&
+                LibraryListQuery(name) is AchievementQuery query &&
                 AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(list.Query))
             {
                 list.SetQuery(query);
@@ -798,8 +803,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         /// <summary>
-        /// Playnite games were added, removed or edited. The library state and the bound library
-        /// lists carry their names and art, so each is read again once a burst of changes ends.
+        /// Playnite games were added, removed, edited or hidden, or summaries started or stopped
+        /// leaving hidden games out. The library state and the bound library lists carry their
+        /// names and art, so each is read again once a burst of changes ends.
         /// </summary>
         public void NotifyLibraryGamesChanged()
         {
