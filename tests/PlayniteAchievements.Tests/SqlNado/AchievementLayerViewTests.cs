@@ -501,6 +501,74 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void Start_KeepsCurrentViews_AndRecreatesChangedOrRetiredOnes()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-views-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            var schema = new SqlNadoSchemaManager(null, path, dir);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db), "a start after this one leaves the views alone");
+
+                    db.ExecuteNonQuery("DROP VIEW " + AchievementLayerSql.UserViewName + ";");
+                    db.ExecuteNonQuery("CREATE VIEW " + AchievementLayerSql.UserViewName + " AS SELECT 1 AS Id;");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a changed view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+
+                    db.ExecuteNonQuery("DROP VIEW " + AchievementLayerSql.AllUsersViewName + ";");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a missing view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+
+                    db.ExecuteNonQuery("CREATE VIEW ResolvedDefinitions AS SELECT 1 AS Id;");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a retired view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+                    Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name = 'ResolvedDefinitions';"));
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
+        [TestMethod]
+        public void BlankCategories_AreBackfilledOnUpgrade_Only()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-backfill-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            var schema = new SqlNadoSchemaManager(null, path, dir);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    schema.EnsureSchema(db);
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
+                    Definition(db, "a", "A", null, null, " ", null, null, null, "Common");
+                    string Category() => db.ExecuteScalar<string>("SELECT Category FROM PlatformDefinitions WHERE ApiName = 'a';");
+
+                    schema.EnsureSchema(db);
+                    Assert.AreEqual(" ", Category(), "a current database is not scanned");
+
+                    db.ExecuteNonQuery("UPDATE CacheMetadata SET Value = '23' WHERE Key = 'schema_version';");
+                    schema.EnsureSchema(db);
+                    Assert.AreEqual("Default", Category());
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
+        [TestMethod]
         public void EveryTable_IsClearedWithThePlatformLayer_OrKept()
         {
             var dir = Path.Combine(Path.GetTempPath(), "playach-tables-" + Guid.NewGuid().ToString("N"));
