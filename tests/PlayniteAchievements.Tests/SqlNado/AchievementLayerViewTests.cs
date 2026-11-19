@@ -220,6 +220,99 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        private sealed class AllUsersRow
+        {
+            public string ApiName { get; set; }
+            public long? UserId { get; set; }
+            public long IsCurrentUser { get; set; }
+            public long Unlocked { get; set; }
+            public string UnlockTimeUtc { get; set; }
+            public long IsAuthored { get; set; }
+            public long DisplayOrder { get; set; }
+        }
+
+        [TestMethod]
+        public void AllUsersView_GivesFriendsTheirOwnUnlockTimes_AndTheCurrentUserTheirOverrides()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+
+                var rows = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " ORDER BY IsCurrentUser, DisplayOrder;").ToList();
+
+                var friend = rows.Where(row => row.IsCurrentUser == 0).ToList();
+                CollectionAssert.AreEqual(new[] { "won", "open" }, friend.Select(row => row.ApiName).ToList(), "the friend's rows in display order");
+                Assert.IsTrue(friend.All(row => row.UserId == 2 && row.IsAuthored == 0), "authored achievements are the current user's only");
+                CollectionAssert.AreEqual(new long[] { 0, 1 }, friend.Select(row => row.DisplayOrder).ToList(), "numbered per user");
+                Assert.AreEqual("2024-05-05T00:00:00Z", friend[0].UnlockTimeUtc, "the friend's own time, not the user's override");
+                Assert.AreEqual("2024-06-06T00:00:00Z", friend[1].UnlockTimeUtc, "the user's clear does not apply to friends");
+
+                var mine = rows.Where(row => row.IsCurrentUser == 1).ToList();
+                CollectionAssert.AreEqual(new[] { "won", "open", "custom:mine" }, mine.Select(row => row.ApiName).ToList());
+                Assert.IsTrue(mine.All(row => row.UserId == null));
+                CollectionAssert.AreEqual(new long[] { 0, 1, 2 }, mine.Select(row => row.DisplayOrder).ToList());
+                Assert.AreEqual("2026-02-02T00:00:00Z", mine[0].UnlockTimeUtc, "the user's override");
+                Assert.IsNull(mine[1].UnlockTimeUtc, "the user's clear");
+                Assert.AreEqual(1, mine[2].IsAuthored);
+            });
+        }
+
+        [TestMethod]
+        public void UserView_MatchesThePreviousDefinition()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+
+                // A second current-user account on another provider for the same library game, and a
+                // friend's game outside the library.
+                db.ExecuteNonQuery("INSERT INTO Users (Id, IsCurrentUser) VALUES (3, 1);");
+                db.ExecuteNonQuery("INSERT INTO Games (Id, PlayniteGameId, GameName, ProviderKey) VALUES (2, '" + GameId + "', 'Game', 'Exophase'), (3, NULL, 'Other', 'Steam');");
+                db.ExecuteNonQuery("INSERT INTO UserGameProgress (Id, UserId, GameId) VALUES (3, 3, 2), (4, 2, 3);");
+                db.ExecuteNonQuery(
+                    @"INSERT INTO PlatformDefinitions (GameId, ApiName, DisplayName, MetadataOrder, CreatedUtc, UpdatedUtc)
+                      VALUES (2, 'exo', 'Exo', 1, '', ''), (3, 'other', 'Other', NULL, '', '');");
+                db.ExecuteNonQuery(
+                    "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) SELECT 3, Id, 1, '2023-01-01T00:00:00Z' FROM PlatformDefinitions WHERE ApiName = 'exo';");
+                db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
+                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, ExcludedFromSummaries) VALUES (?, 1);", GameId);
+                db.ExecuteNonQuery(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "SqlNado", "resolved-achievements-before-all-users.sql")));
+
+                string Columns(string view) => string.Join(",", db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", view).Select(row => row.Sql));
+                Assert.AreEqual(Columns("ResolvedAchievementsBefore"), Columns(AchievementLayerSql.UserViewName));
+
+                long Count(string sql) => db.ExecuteScalar<long>("SELECT COUNT(*) FROM (" + sql + ");");
+                Assert.AreEqual(4, Count("SELECT * FROM " + AchievementLayerSql.UserViewName), "won, open and exo from two accounts, and the authored one");
+                Assert.AreEqual(Count("SELECT * FROM ResolvedAchievementsBefore"), Count("SELECT * FROM " + AchievementLayerSql.UserViewName));
+                Assert.AreEqual(0, Count("SELECT * FROM ResolvedAchievementsBefore EXCEPT SELECT * FROM " + AchievementLayerSql.UserViewName));
+                Assert.AreEqual(0, Count("SELECT * FROM " + AchievementLayerSql.UserViewName + " EXCEPT SELECT * FROM ResolvedAchievementsBefore"));
+            });
+        }
+
+        /// <summary>
+        /// The current user (UserGameProgress 1) and a friend (2) both unlocked "won" and "open";
+        /// the user overrode the time of "won", cleared the time of "open", and authored one more.
+        /// </summary>
+        private static void SeedUnlocksAndOverrides(SQLiteDatabase db)
+        {
+            Definition(db, "won", "Won", null, null, "Default", null, null, null, "Common");
+            Definition(db, "open", "Open", null, null, "Default", null, null, null, "Common");
+            db.ExecuteNonQuery(
+                @"INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc)
+                  SELECT 1, Id, 1, '2025-01-01T00:00:00Z' FROM PlatformDefinitions
+                  UNION ALL SELECT 2, Id, 1, CASE ApiName WHEN 'won' THEN '2024-05-05T00:00:00Z' ELSE '2024-06-06T00:00:00Z' END FROM PlatformDefinitions;");
+            db.ExecuteNonQuery(
+                @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, UnlockTimeUtc, Cleared, UpdatedUtc)
+                  VALUES (?, 'won', '2026-02-02T00:00:00Z', 0, ''), (?, 'open', NULL, ?, '');",
+                GameId,
+                GameId,
+                (long)AchievementField.UnlockTime);
+            db.ExecuteNonQuery(
+                @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, UpdatedUtc)
+                  VALUES (?, 'custom:mine', 'Mine', 1, 1, '2025-05-05T00:00:00Z', '');",
+                GameId);
+        }
+
         private sealed class SqlRow
         {
             public string Sql { get; set; }
