@@ -3004,6 +3004,27 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
+        /// Friend summaries, game summaries and ownership links, without achievement rows; with a
+        /// Playnite game, the friends and links of that game and their counts in it.
+        /// </summary>
+        public FriendsOverviewData LoadFriendLists(Guid? playniteGameId = null)
+        {
+            PrimeFileCache();
+            return WithReadDb(db =>
+            {
+                using (PerfScope.Start(_logger, "Friends.LoadLists", thresholdMs: 15))
+                {
+                    return new FriendsOverviewData
+                    {
+                        Friends = MapFriendSummaryRows(LoadFriendSummaryRows(db, playniteGameId)),
+                        Games = MapFriendGameSummaryRows(LoadFriendGameSummaryRows(db, playniteGameId), new Dictionary<Guid, GamePresentation>()),
+                        FriendGameLinks = MapFriendGameLinkRows(LoadFriendGameLinkRows(db, playniteGameId))
+                    };
+                }
+            });
+        }
+
+        /// <summary>
         /// Distinct PlayniteGameIds any active friend has cached progress for. Cheap availability
         /// index for the compare-friend dropdown: membership means the per-game friend row load
         /// will yield at least one friend, so the dropdown can show without waiting on that load.
