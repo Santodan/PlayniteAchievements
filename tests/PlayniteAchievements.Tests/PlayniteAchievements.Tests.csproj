@@ -243,6 +243,11 @@
     <Compile Include="..\..\source\Services\Database\AchievementQuery.cs" Link="Source\Services\Database\AchievementQuery.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementQuerySql.cs" Link="Source\Services\Database\AchievementQuerySql.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementReadService.cs" Link="Source\Services\Database\AchievementReadService.cs" />
+    <Compile Include="..\..\source\Services\Database\AchievementDataChange.cs" Link="Source\Services\Database\AchievementDataChange.cs" />
+    <Compile Include="..\..\source\Services\Database\LiveQuery.cs" Link="Source\Services\Database\LiveQuery.cs" />
+    <Compile Include="..\..\source\Services\Database\PagedRows.cs" Link="Source\Services\Database\PagedRows.cs" />
+    <Compile Include="..\..\source\Services\Database\ReadScheduler.cs" Link="Source\Services\Database\ReadScheduler.cs" />
+    <Compile Include="..\..\source\Services\Cache\AchievementDataFeed.cs" Link="Source\Services\Cache\AchievementDataFeed.cs" />
     <Compile Include="..\..\source\Services\Database\SqlNadoSchemaManager.cs" Link="Source\Services\Database\SqlNadoSchemaManager.cs" />
     <Compile Include="..\..\source\Services\Database\Rows\CacheMetadataRow.cs" Link="Source\Services\Database\Rows\CacheMetadataRow.cs" />
     <Compile Include="..\..\source\Services\Achievements\AchievementTagRegistry.cs" Link="Source\Services\Achievements\AchievementTagRegistry.cs" />
