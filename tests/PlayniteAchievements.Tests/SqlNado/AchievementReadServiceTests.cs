@@ -335,6 +335,62 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        [TestMethod]
+        public void SlicedKeys_KeepTheRowsAndOrder_OfEachGamesOrderHeadAndMostCommon()
+        {
+            WithFixture(db =>
+            {
+                // Locked rows with tied percents whose API names order differently ignoring case
+                // ordinally than under NOCASE ('_' and 'é' against letters), rows with no percent,
+                // and the Multi game on two accounts.
+                db.ExecuteNonQuery(@"INSERT INTO PlatformDefinitions (Id, GameId, ApiName, DisplayName, GlobalPercentUnlocked, Rarity, MetadataOrder, CreatedUtc, UpdatedUtc) VALUES
+                    (101, 1, '_tie', 'T1', 25.0, 'Common', 7, '', ''), (102, 1, 'Btie', 'T2', 25.0, 'Common', NULL, '', ''),
+                    (103, 1, 'étie', 'T3', 25.0, 'Common', 8, '', ''), (104, 1, 'atie', 'T4', 25.0, 'Common', NULL, '', ''),
+                    (105, 1, 'Ztie', 'T5', 25.0, 'Common', 9, '', ''), (106, 1, 'n1', 'N1', NULL, 'Common', 10, '', ''),
+                    (107, 1, 'n2', 'N2', NULL, 'Common', NULL, '', ''), (108, 1, 'top', 'Top', 90.0, 'Common', NULL, '', ''),
+                    (151, 5, 'mt', 'M1', 25.0, 'Common', NULL, '', ''), (161, 6, 'MT2', 'M2', 25.0, 'Common', NULL, '', ''),
+                    (162, 6, 'm_low', 'M3', 2.0, 'Common', NULL, '', '');");
+                db.ExecuteNonQuery(@"INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, LastUpdatedUtc, CreatedUtc) VALUES
+                    (1, 101, 0, '', ''), (1, 102, 0, '', ''), (1, 103, 0, '', ''), (1, 104, 0, '', ''), (1, 105, 0, '', ''),
+                    (1, 106, 0, '', ''), (1, 107, 0, '', ''), (1, 108, 0, '', ''), (4, 151, 0, '', ''), (5, 161, 0, '', ''), (5, 162, 0, '', '');");
+                var query = AchievementQuery.CurrentUser.WithSummaryRules()
+                    .ForGames(new[] { Guid.Parse(Alpha), Guid.Parse(Multi), Guid.Parse(Retro) })
+                    .WhereUnlocked(false)
+                    .OrderBy(AchievementSort.Display);
+
+                // The selection the pool made in C# before it moved into the query.
+                List<string> Expected(int slice) => AchievementReadService.Rows(db, query)
+                    .GroupBy(row => row.PlayniteGameId)
+                    .SelectMany(game =>
+                    {
+                        var inOrder = game.ToList();
+                        var byCommonness = inOrder
+                            .Where(row => row.GlobalPercentUnlocked.HasValue)
+                            .OrderByDescending(row => row.GlobalPercentUnlocked.Value)
+                            .ThenBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
+                            .Take(slice);
+                        return inOrder.Take(slice).Concat(byCommonness).Distinct();
+                    })
+                    .Select(row => RowId(AchievementReadService.KeyOf(row)))
+                    .ToList();
+
+                for (var slice = 1; slice <= 12; slice++)
+                {
+                    CollectionAssert.AreEqual(
+                        Expected(slice),
+                        AchievementReadService.SlicedKeys(db, query, slice).Select(RowId).ToList(),
+                        "slice " + slice);
+                }
+
+                var two = AchievementReadService.SlicedKeys(db, query, 2).Select(RowId).ToList();
+                CollectionAssert.Contains(two, "1/1/108//", "the most common locked row");
+                Assert.IsFalse(two.Any(id => id.StartsWith("1/1/106/") || id.StartsWith("1/1/107/")), "a row with no percent ranks nowhere");
+            });
+        }
+
+        private static string RowId(AchievementQuerySql.RowKey key) =>
+            key.UserId + "/" + key.GameId + "/" + key.DefinitionId + "/" + key.PlayniteGameId + "/" + key.ApiName;
+
         private static string Key(AchievementRowRecord row) => row.UserId + "/" + row.PlayniteGameId + "/" + row.ApiName;
 
         /// <summary>
