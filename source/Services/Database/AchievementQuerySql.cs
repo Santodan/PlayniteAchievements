@@ -217,8 +217,8 @@ namespace PlayniteAchievements.Services.Database
                 if (authored.Count > 0)
                 {
                     terms.Add("r.IsAuthored = 1 AND " +
-                              InList("r.PlayniteGameId", authored.Select(key => key.PlayniteGameId).Distinct().Cast<object>().ToList(), args) +
-                              " AND " + InList("r.ApiName", authored.Select(key => key.ApiName).Distinct().Cast<object>().ToList(), args));
+                              GameIdTextList("r.PlayniteGameId", authored.Select(key => key.PlayniteGameId)) +
+                              " AND " + TextList("r.ApiName", authored.Select(key => key.ApiName)));
                 }
 
                 sql.Append(" AND ").Append(terms.Count == 1 ? terms[0] : "((" + string.Join(") OR (", terms) + "))");
@@ -519,8 +519,8 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add(query.Achievements.Count == 0
                     ? "0"
                     : "r.PlayniteGameId IN (" + string.Join(", ", query.Achievements.Select(pair => pair.Key).Distinct().Select(id => "'" + id.ToString("D") + "'")) +
-                      ") AND " + InList("(r.PlayniteGameId || char(31) || r.ApiName) COLLATE NOCASE",
-                          query.Achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value).ToList(), args));
+                      ") AND " + TextList("(r.PlayniteGameId || char(31) || r.ApiName) COLLATE NOCASE",
+                          query.Achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value)));
             }
 
             if (query.RequireUnlockTime)
@@ -646,6 +646,22 @@ namespace PlayniteAchievements.Services.Database
         {
             var values = ids.Where(id => id.HasValue).Select(id => id.Value.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
             return values.Count == 0 ? "0" : expression + " IN (" + string.Join(", ", values) + ")";
+        }
+
+        // Playnite game ids the database gave, inline as text; a value that is not a Guid matches no row.
+        private static string GameIdTextList(string expression, IEnumerable<string> ids) =>
+            TextList(expression, ids.Where(id => Guid.TryParse(id, out _)));
+
+        // Strings inline as SQL literals with single quotes doubled, so a page of keys binds no
+        // variables. A null matches no row; so does a NUL character, which would end the SQL text.
+        private static string TextList(string expression, IEnumerable<string> values)
+        {
+            var literals = values
+                .Where(value => value != null && value.IndexOf('\0') < 0)
+                .Distinct(StringComparer.Ordinal)
+                .Select(value => "'" + value.Replace("'", "''") + "'")
+                .ToList();
+            return literals.Count == 0 ? "0" : expression + " IN (" + string.Join(", ", literals) + ")";
         }
 
         private static string KeySql(AchievementQuery query, AchievementGroup group)
