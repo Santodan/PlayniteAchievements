@@ -330,6 +330,28 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        [TestMethod]
+        public void Count_IsTheNumberOfRows_IgnoringThePage()
+        {
+            WithFixture(db =>
+            {
+                foreach (var query in new[]
+                         {
+                             AchievementQuery.CurrentUser,
+                             AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true),
+                             AchievementQuery.CurrentUser.WhereSearch("a"),
+                             AchievementQuery.AllFriends,
+                             AchievementQuery.AllFriends.ForFriend("Steam", "a").ForProviderGame("Steam", 100, null)
+                         })
+                {
+                    var rows = AchievementReadService.Rows(db, query).Count;
+                    Assert.IsTrue(rows > 0);
+                    Assert.AreEqual(rows, AchievementReadService.Count(db, query));
+                    Assert.AreEqual(rows, AchievementReadService.Count(db, query.Page(1, 1)));
+                }
+            });
+        }
+
         private static string Key(AchievementRowRecord row) => row.UserId + "/" + row.PlayniteGameId + "/" + row.ApiName;
 
         private static void AssertTotals(Dictionary<string, long> expected, AchievementTotalsRecord actual, string game)
