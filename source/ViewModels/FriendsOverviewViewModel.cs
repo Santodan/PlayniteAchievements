@@ -40,6 +40,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly IFriendCacheManager _friendCache;
         private readonly IFriendsOverviewReads _reads;
         private readonly IReadScheduler _scheduler;
+        private readonly Services.Cache.FeedGate _gate = new Services.Cache.FeedGate();
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly RefreshRuntime _refreshRuntime;
         private readonly PlayniteAchievementsSettings _settings;
@@ -744,9 +745,16 @@ namespace PlayniteAchievements.ViewModels
                 LoadLists,
                 _scheduler,
                 ReadWindow,
-                ex => OnReadFailed(ex, "Failed to load friends overview lists."));
+                ex => OnReadFailed(ex, "Failed to load friends overview lists."),
+                gate: _gate);
             _lists.PropertyChanged += OnListsChanged;
         }
+
+        /// <summary>
+        /// Whether the view is shown. While it is not, a data change only marks its reads stale,
+        /// and showing it again reads each stale one once. UI thread.
+        /// </summary>
+        public void SetActive(bool active) => _gate.IsOpen = active;
 
         // Every read again, with the same queries.
         private void Reload()
@@ -1624,7 +1632,8 @@ namespace PlayniteAchievements.ViewModels
                     ReadWindow,
                     ex => OnReadFailed(ex, "Failed to load friend achievement rows."),
                     (kept, fresh) => kept.RefreshFrom(fresh),
-                    PlaceholderRows.Count);
+                    PlaceholderRows.Count,
+                    gate: _gate);
                 OnPropertyChanged(nameof(DisplayedAchievements));
                 OnPropertyChanged(nameof(AchievementRows));
                 return;
@@ -1693,7 +1702,8 @@ namespace PlayniteAchievements.ViewModels
                 read => _reads.Totals(read, AchievementGroup.ProviderGame),
                 _scheduler,
                 ReadWindow,
-                ex => OnReadFailed(ex, "Failed to load favorite friends' games."));
+                ex => OnReadFailed(ex, "Failed to load favorite friends' games."),
+                gate: _gate);
             _favoriteGames.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
@@ -1742,7 +1752,8 @@ namespace PlayniteAchievements.ViewModels
                 LoadBarOptions,
                 _scheduler,
                 ReadWindow,
-                ex => OnReadFailed(ex, "Failed to load friend achievement filter options."));
+                ex => OnReadFailed(ex, "Failed to load friend achievement filter options."),
+                gate: _gate);
             _barOptions.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
@@ -1840,7 +1851,8 @@ namespace PlayniteAchievements.ViewModels
                 },
                 _scheduler,
                 ReadWindow,
-                ex => OnReadFailed(ex, "Failed to load friend pair rows."));
+                ex => OnReadFailed(ex, "Failed to load friend pair rows."),
+                gate: _gate);
             _pairRows.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
