@@ -615,18 +615,10 @@
 
         <!-- ROW 2: Tab Content -->
         <Grid Grid.Row="2">
-            <!-- Overview Tab Content -->
+            <!-- Each subview host holds its content only while that subview is shown (see
+                 ApplyActiveSubView), so a hidden subview is not part of the tree. -->
+            <Decorator x:Name="OverviewContentHost">
             <Grid x:Name="OverviewContent">
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Overview}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="OverviewLeftColumn" Width="*" MinWidth="560"/>
                     <ColumnDefinition Width="4"/>
@@ -857,7 +849,7 @@
                                                                  DelayInitialRenderUntilNormalized="True"
                                                                  ControlBar="{Binding SelectedGameAchievementsControlBar}"
                                                                  ShowControlBar="{Binding ShowOverviewSelectedGameGridControlBar}"
-                                                                 RevealCommand="{Binding DataContext.RevealAchievementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 RevealCommand="{Binding RevealAchievementCommand}"
                                                                  UseExternalSorting="True"
                                                                  Sorting="GameAchievementsGrid_Sorting"
                                                                  RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
@@ -889,32 +881,11 @@
                             Focusable="False"
                             IsTabStop="False"/>
             </Grid>
+            </Decorator>
 
-            <ContentControl x:Name="FriendsOverviewContentHost">
-                <ContentControl.Style>
-                    <Style TargetType="ContentControl">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Friends}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ContentControl.Style>
-            </ContentControl>
+            <ContentControl x:Name="FriendsOverviewContentHost"/>
 
-            <ContentControl x:Name="ShowcaseContentHost">
-                <ContentControl.Style>
-                    <Style TargetType="ContentControl">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ContentControl.Style>
-            </ContentControl>
+            <ContentControl x:Name="ShowcaseContentHost"/>
         </Grid>
     </Grid>
     </Border>
