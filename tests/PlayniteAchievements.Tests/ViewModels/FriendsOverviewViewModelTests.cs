@@ -386,6 +386,23 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void WhileInactive_FeedChangesReadNothing_UntilShownAgain()
+        {
+            using var h = new Harness(CreateData()).Load();
+            var change = FriendCacheChange.ForFriendGameAchievements("Steam", "alice", 20, null);
+
+            h.Vm.SetActive(false);
+            h.Reads.Feed.RaiseFriendChange(change);
+            h.Settle();
+            Assert.AreEqual(0, h.Scheduler.PendingTimers);
+            Assert.AreEqual(0, h.Scheduler.PendingReads);
+
+            h.Vm.SetActive(true);
+            Assert.IsTrue(h.Scheduler.PendingReads > 0, "showing it again reads what changed");
+            h.Settle();
+        }
+
+        [TestMethod]
         public void ColumnSorts_SortThroughTheQuery()
         {
             using var h = new Harness(CreateData()).Load();
