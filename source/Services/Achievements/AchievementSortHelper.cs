@@ -604,7 +604,7 @@ namespace PlayniteAchievements.Services.Achievements
             return new AchievementSortSpec(mode, direction);
         }
 
-        private static string GetDynamicAchievementSortMemberPath(string sortKey)
+        internal static string GetDynamicAchievementSortMemberPath(string sortKey)
         {
             switch (sortKey)
             {
