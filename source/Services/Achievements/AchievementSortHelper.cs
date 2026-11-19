@@ -5,6 +5,7 @@ using System.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -573,6 +574,47 @@ namespace PlayniteAchievements.Services.Achievements
 
             return new AchievementSortSpec(mode, direction);
         }
+
+        /// <summary>
+        /// A header click on a grid of a theme list its query sorts: the list's next sort key and
+        /// direction, cycling as the other achievement grids do back to the list's default,
+        /// newest unlock first. Null when the column has no theme sort key.
+        /// </summary>
+        internal static (string Key, string Direction)? ResolveDynamicAchievementHeaderSort(
+            string clickedSortMemberPath,
+            string sortKey,
+            string sortDirectionKey,
+            ListSortDirection? visibleSortDirection = null,
+            System.Windows.Controls.DataGridSortingEventArgs sortEvent = null)
+        {
+            var current = string.Equals(GetDynamicAchievementSortKey(clickedSortMemberPath), sortKey, StringComparison.Ordinal)
+                ? clickedSortMemberPath
+                : GetDynamicAchievementSortMemberPath(sortKey);
+            var action = ResolveGridSortAction(
+                clickedSortMemberPath,
+                current,
+                string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal) ? ListSortDirection.Ascending : ListSortDirection.Descending,
+                null,
+                AchievementSortSurface.FriendsOverviewRecentAchievements,
+                visibleSortDirection,
+                sortEvent);
+            if (action.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                return (DynamicThemeViewKeys.UnlockTime, DynamicThemeViewKeys.Descending);
+            }
+
+            var key = GetDynamicAchievementSortKey(action.SortMemberPath);
+            return key == null || !action.Direction.HasValue
+                ? ((string, string)?)null
+                : (key, action.Direction == ListSortDirection.Ascending ? DynamicThemeViewKeys.Ascending : DynamicThemeViewKeys.Descending);
+        }
+
+        /// <summary>The theme sort key that orders a list as the column does; null when none does.</summary>
+        internal static string GetDynamicAchievementSortKey(string sortMemberPath) =>
+            AchievementQuery.SortOfColumn(sortMemberPath) is AchievementSort sort
+                ? DynamicThemeOptionGroups.LibraryAchievementSortKeys.FirstOrDefault(key =>
+                    AchievementQuery.SortOfColumn(GetDynamicAchievementSortMemberPath(key)) == sort)
+                : null;
 
         internal static string GetDynamicAchievementSortMemberPath(string sortKey)
         {
