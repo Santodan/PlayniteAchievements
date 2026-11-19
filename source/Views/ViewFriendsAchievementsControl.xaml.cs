@@ -34,7 +34,7 @@ namespace PlayniteAchievements.Views
 
         internal ViewFriendsAchievementsControl(
             Guid gameId,
-            FriendGameAchievementsDataCoordinator dataCoordinator,
+            IFriendCacheManager friendCache,
             RefreshRuntime refreshRuntime,
             RefreshEntryPoint refreshEntryPoint,
             IPlayniteAPI playniteApi,
@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Views
             _cacheManager = cacheManager;
             DataContext = new ViewFriendsAchievementsViewModel(
                 gameId,
-                dataCoordinator,
+                friendCache,
                 refreshRuntime,
                 refreshEntryPoint,
                 playniteApi,
