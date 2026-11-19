@@ -147,7 +147,8 @@ namespace PlayniteAchievements.Services.Database
         // Game, tags, tier, trophy grade, capstone flag.
         private static string Part(AchievementTotalsRecord tally, int index) => tally.Key.Split('\u001f')[index];
 
-        // Authored rows have no provider game, so they take their game's identity when known.
+        // Authored rows have no provider game, so they take their game's identity when known; the
+        // row read names the same one otherwise.
         internal static CachedRecentUnlockData MapRow(
             AchievementRowRecord row,
             IReadOnlyDictionary<Guid, CachedGameSummaryData> games,
@@ -155,7 +156,7 @@ namespace PlayniteAchievements.Services.Database
         {
             var gameId = Guid.TryParse(row.PlayniteGameId, out var id) ? id : (Guid?)null;
             var game = gameId.HasValue && games != null && games.TryGetValue(gameId.Value, out var known) ? known : null;
-            var authored = row.IsAuthored != 0;
+            var authored = row.IsAuthored != 0 && game != null;
             return new CachedRecentUnlockData
             {
                 CacheKey = game?.CacheKey,
