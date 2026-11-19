@@ -84,17 +84,14 @@ namespace PlayniteAchievements.Tests.Views
         [TestMethod]
         public void FriendCache_FullAchievementLoadsUseDefinitionOrder()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
 
-            // Recent-unlock queries stay unlock-time ordered for LIMIT correctness; full comparison
-            // loads order by DefinitionOrderSql so friend surfaces see the same canonical
-            // definition order as the non-friend surfaces.
+            // Friend reads in their own order follow the definition order the non-friend
+            // surfaces use, after the friend and the game.
             AssertContainsAll(
-                store,
-                "private const string DefinitionOrderSql = \"ad.MetadataOrder IS NULL, ad.MetadataOrder, ad.Id\";",
-                "sql.Append(requireUnlockTime",
-                "? \" ORDER BY ua.UnlockTimeUtc DESC, u.DisplayName, g.GameName, \" + DefinitionOrderSql",
-                ": \" ORDER BY u.DisplayName, g.GameName, \" + DefinitionOrderSql);");
+                sql,
+                "var display = string.Join(\", \", AchievementLayerSql.DisplayOrderSql",
+                "return friend + \"r.GameName, r.PlayniteGameId, \" + display + \", r.UserId\";");
         }
 
         [TestMethod]
