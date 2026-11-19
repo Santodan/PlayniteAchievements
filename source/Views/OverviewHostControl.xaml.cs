@@ -17,9 +17,8 @@ using Playnite.SDK;
 namespace PlayniteAchievements.Views
 {
     /// <summary>
-    /// Lightweight host that returns immediately from the overview Opened callback and defers
-    /// creation of the heavy OverviewControl until after Playnite has a chance to paint.
-    /// Also handles showing the first-time landing page when appropriate.
+    /// Hosts the overview in Playnite's sidebar view, creating the OverviewControl on each
+    /// Loaded, or the first-time landing page when appropriate.
     /// </summary>
     public partial class OverviewHostControl : UserControl
     {
@@ -31,17 +30,7 @@ namespace PlayniteAchievements.Views
 
         private OverviewControl _overview;
         private FirstTimeLandingPage _landingPage;
-        private bool _createScheduled;
-        private DispatcherTimer _createTimer;
         private bool _settingsSavedHooked;
-
-        // Each open builds the heavy OverviewControl on a short settle timer rather than
-        // synchronously. Flicking through the sidebar without landing on the view leaves before
-        // the timer fires, so the build is cancelled (OverviewHostControl_Unloaded / RecreateContent
-        // stop the timer) and nothing is allocated. A genuine open lets the timer fire and builds
-        // once. Retained memory across successive opens is bounded by OverviewViewModel.Dispose
-        // releasing its collections eagerly, so no wall-clock cooldown between builds is needed.
-        private static readonly TimeSpan CreateSettleDelay = TimeSpan.FromMilliseconds(150);
 
         public OverviewHostControl(
             Func<UserControl> createView,
@@ -121,11 +110,8 @@ namespace PlayniteAchievements.Views
             }
             finally
             {
-                _createTimer?.Stop();
-                _createTimer = null;
                 _overview = null;
                 _landingPage = null;
-                _createScheduled = false;
                 // Clear content to allow recreation on next load
                 PART_Content.Content = null;
 
@@ -169,40 +155,14 @@ namespace PlayniteAchievements.Views
             _overview = null;
             _landingPage = null;
             PART_Content.Content = null;
-            PART_Loading.Visibility = Visibility.Visible;
-
-            // Reset the flag to allow recreation
-            _createScheduled = false;
-
-            // Now recreate content
-            EnsureContentCreated();
+            CreateContent();
         }
 
-        private void EnsureContentCreated()
+        private void CreateContent()
         {
-            if (_createScheduled)
-            {
-                _logger.Info("EnsureContentCreate: already scheduled, skipping");
-                return;
-            }
-
-            _createScheduled = true;
-
-            _createTimer?.Stop();
-            _createTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = CreateSettleDelay };
-            _createTimer.Tick += CreateTimer_Tick;
-            _createTimer.Start();
-        }
-
-        private void CreateTimer_Tick(object sender, EventArgs e)
-        {
-            _createTimer?.Stop();
-            _createTimer = null;
-
             if (!IsLoaded)
             {
-                _createScheduled = false;
-                _logger.Info("EnsureContentCreate: not loaded, canceling");
+                _logger.Info("CreateContent: not loaded, skipping");
                 return;
             }
 
@@ -239,17 +199,10 @@ namespace PlayniteAchievements.Views
                     _logger.Info("Creating overview directly");
                     CreateOverview();
                 }
-
-                PART_Loading.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to create overview content.");
-                PART_Loading.Visibility = Visibility.Visible;
-            }
-            finally
-            {
-                _createScheduled = false;
             }
         }
 
@@ -323,11 +276,3 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
-
-
-
-
-
-
-
