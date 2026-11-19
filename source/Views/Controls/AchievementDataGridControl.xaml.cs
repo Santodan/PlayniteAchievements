@@ -3550,6 +3550,12 @@ namespace PlayniteAchievements.Views.Controls
             (_rowPrepareCounter ?? (_rowPrepareCounter = new RowPrepareCounter(
                 Services.Logging.PluginLogger.GetLogger(nameof(AchievementDataGridControl)),
                 ColumnSettingsKey))).RowPrepared(Dispatcher, e.Row);
+            // A paged source loads where the grid realizes rows, not where its reads land.
+            if (ReferenceEquals(EffectiveAchievements, ItemsSource) && ItemsSource is IRealizedRows rows)
+            {
+                rows.Realized(e.Row.GetIndex());
+            }
+
             ApplyFixedRowHeight(e.Row);
             ApplyRowHighlight(e.Row);
         }
