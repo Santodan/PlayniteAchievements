@@ -5,6 +5,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
@@ -141,7 +142,11 @@ namespace PlayniteAchievements.ViewModels
             OfferTrophies((rows ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Any(row => !string.IsNullOrWhiteSpace(row?.TrophyType)));
 
-        private bool OfferTrophies(bool hasTrophies)
+        /// <summary>
+        /// Offers the trophy types only while <paramref name="hasTrophies"/>. True when that
+        /// changed, so the bar's item visibility needs a refresh.
+        /// </summary>
+        internal bool OfferTrophies(bool hasTrophies)
         {
             if (hasTrophies == (TrophyOptions.Count > 0))
             {
@@ -169,6 +174,30 @@ namespace PlayniteAchievements.ViewModels
         /// are picked without Capstone.
         /// </summary>
         public bool KeepsCompletions => !CapstoneJoinsTiers || _capstone || _rarities.Count == 0;
+
+        /// <summary>
+        /// <paramref name="query"/> narrowed to the rows both filters keep. Capstone narrows the
+        /// picked tiers; the joined mode of <see cref="CapstoneJoinsTiers"/> has no query form.
+        /// </summary>
+        internal AchievementQuery ApplyTo(AchievementQuery query)
+        {
+            if (CapstoneJoinsTiers && _capstone && _rarities.Count > 0)
+            {
+                throw new NotSupportedException("A query cannot join Capstone with the picked tiers.");
+            }
+
+            if (_rarities.Count > 0)
+            {
+                query = query.WhereRarity(_rarities);
+            }
+
+            if (_capstone)
+            {
+                query = query.WhereCapstone();
+            }
+
+            return _trophies.Count > 0 ? query.WhereTrophy(_trophies) : query;
+        }
 
         /// <summary>True for a row both filters keep; every row while nothing is selected.</summary>
         public bool Matches(AchievementDisplayItem row) =>
