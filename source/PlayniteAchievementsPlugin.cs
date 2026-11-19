@@ -3280,19 +3280,6 @@ namespace PlayniteAchievements
                 return;
             }
 
-            // Hidden decides whether the game is in summaries at all, which the memoized
-            // summary under the projection has to re-evaluate before the projection rebuilds.
-            var hiddenChangedIds = e?.UpdatedItems?
-                .Where(update => update?.OldData != null &&
-                                 update.NewData != null &&
-                                 update.OldData.Hidden != update.NewData.Hidden)
-                .Select(update => update.NewData.Id)
-                .ToList();
-            if (hiddenChangedIds?.Count > 0)
-            {
-                _achievementDataService?.InvalidateSummariesForPlayniteGames(hiddenChangedIds);
-            }
-
             _libraryProjectionService?.InvalidateForGame();
             ScheduleStartPageInvalidate();
         }
