@@ -14,6 +14,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
         // widget's settings editor writes to the live one.
         private readonly Func<ShowcaseWidgetInstanceSettings> _resolveInstance;
         private OverviewDataSnapshot _latestSnapshot;
+        private IDisposable _unlockNextRequest;
         private ShowcaseWidgetProjection _projection;
 
         public StartPageShowcaseWidgetViewModel(
@@ -44,8 +45,10 @@ namespace PlayniteAchievements.ViewModels.StartPage
             var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(instance);
             if (current.NeedsUnlockNextRead(maxPerGame))
             {
-                current.RequestUnlockNextPool(maxPerGame, () =>
+                _unlockNextRequest?.Dispose();
+                _unlockNextRequest = current.RequestUnlockNextPool(maxPerGame, () =>
                 {
+                    _unlockNextRequest = null;
                     if (ReferenceEquals(current, _latestSnapshot))
                     {
                         ApplySnapshot(current);
@@ -64,6 +67,8 @@ namespace PlayniteAchievements.ViewModels.StartPage
         public override void Dispose()
         {
             ShowcaseConfigurationEvents.Changed -= ShowcaseConfigurationEvents_Changed;
+            _unlockNextRequest?.Dispose();
+            _unlockNextRequest = null;
             base.Dispose();
         }
 
