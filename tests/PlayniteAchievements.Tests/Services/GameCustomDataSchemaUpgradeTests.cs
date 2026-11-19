@@ -242,7 +242,7 @@ namespace PlayniteAchievements.Services.Tests
             using (var db = new SQLiteDatabase(databasePath))
             {
                 db.ExecuteNonQuery(
-                    "UPDATE GameCustomData SET PayloadJson = ? WHERE PlayniteGameId = ?;",
+                    "UPDATE CustomLayerGames SET SettingsJson = ? WHERE PlayniteGameId = ?;",
                     payload.ToString(Newtonsoft.Json.Formatting.None),
                     gameId.ToString("D"));
             }
@@ -260,7 +260,7 @@ namespace PlayniteAchievements.Services.Tests
 
         private sealed class PayloadRow
         {
-            public string PayloadJson { get; set; }
+            public string SettingsJson { get; set; }
         }
 
         private static string ReadPayloadOnDisk(string databasePath, Guid gameId)
@@ -268,9 +268,9 @@ namespace PlayniteAchievements.Services.Tests
             using (var db = new SQLiteDatabase(databasePath))
             {
                 return db.Load<PayloadRow>(
-                        "SELECT PayloadJson FROM GameCustomData WHERE PlayniteGameId = ? LIMIT 1;",
+                        "SELECT SettingsJson FROM CustomLayerGames WHERE PlayniteGameId = ? LIMIT 1;",
                         gameId.ToString("D"))
-                    .Select(row => row.PayloadJson)
+                    .Select(row => row.SettingsJson)
                     .FirstOrDefault();
             }
         }
