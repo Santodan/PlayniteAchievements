@@ -59,9 +59,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private void LoadData()
         {
-            DisplayItems = (EffectiveTheme?.DynamicFriendAchievements ?? new System.Collections.ObjectModel.ObservableCollection<FriendAchievementDisplayItem>())
-                .Cast<AchievementDisplayItem>()
-                .ToList();
+            // The list itself, which loads the rows the grid shows.
+            DisplayItems = EffectiveTheme?.DynamicFriendAchievements ?? System.Array.Empty<FriendAchievementDisplayItem>();
         }
     }
 }
