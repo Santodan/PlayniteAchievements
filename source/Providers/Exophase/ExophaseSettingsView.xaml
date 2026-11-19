@@ -82,10 +82,7 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                    <Border Background="Transparent"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
-                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
-                            Margin="{StaticResource PlayAch.Thickness.Top.Xs}">
+                    <Border Margin="{StaticResource PlayAch.Thickness.Top.Xs}">
                         <StackPanel Margin="0,2,0,0">
                             <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
