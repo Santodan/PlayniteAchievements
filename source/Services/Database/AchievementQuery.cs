@@ -91,7 +91,16 @@ namespace PlayniteAchievements.Services.Database
         FriendGame,
 
         /// <summary>The stored category text; the reader normalizes it.</summary>
-        Category
+        Category,
+
+        /// <summary>The Playnite game id and the <see cref="Day"/>, separated by a unit separator.</summary>
+        GameDay,
+
+        /// <summary>
+        /// One achievement tally: the Playnite game id, stored tags, rarity tier, trophy grade
+        /// (empty for none) and capstone flag (1 or 0), separated by unit separators.
+        /// </summary>
+        Tally
     }
 
     /// <summary>
@@ -161,6 +170,9 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>Only these Playnite games; null for every game.</summary>
         public IReadOnlyList<Guid> GameIds { get; private set; }
+
+        /// <summary>Leaves out these Playnite games; null for none.</summary>
+        public IReadOnlyList<Guid> ExceptGameIds { get; private set; }
 
         /// <summary>Only the one provider game with this provider key and <see cref="AppId"/> or <see cref="ProviderGameKey"/>.</summary>
         public string GameProviderKey { get; private set; }
@@ -273,6 +285,13 @@ namespace PlayniteAchievements.Services.Database
 
         public AchievementQuery ForGames(IEnumerable<Guid> gameIds) =>
             With(query => query.GameIds = gameIds?.Distinct().ToList());
+
+        public AchievementQuery ExceptGames(IEnumerable<Guid> gameIds) =>
+            With(query =>
+            {
+                var list = gameIds?.Distinct().ToList();
+                query.ExceptGameIds = list?.Count > 0 ? list : null;
+            });
 
         public AchievementQuery ForProviderGame(string providerKey, int appId, string providerGameKey) =>
             With(query =>
