@@ -478,12 +478,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // Themes without friend bindings never pay the full friends-overview snapshot cost.
             _settings.ModernTheme.FriendDataRequested = EnsureFriendThemeDataLoaded;
             _settings.ModernTheme.LibraryListRequested = EnsureLibraryListLoaded;
+            _settings.ModernTheme.CategorySummariesRequested = EnsureCategorySummariesLoaded;
         }
 
         public void Dispose()
         {
             try { _settings.ModernTheme.FriendDataRequested = null; } catch { }
             try { _settings.ModernTheme.LibraryListRequested = null; } catch { }
+            try { _settings.ModernTheme.CategorySummariesRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
             try
@@ -3533,27 +3535,46 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
+        /// <summary>
+        /// Builds the category summaries the first time a theme reads them, and on each selection
+        /// after that, so themes that never bind them never build the selected game's display items.
+        /// </summary>
+        private void EnsureCategorySummariesLoaded()
+        {
+            if (!_hasCategorySummaryConsumers)
+            {
+                _hasCategorySummaryConsumers = true;
+                ApplyDynamicCategorySummaryBindings();
+            }
+        }
+
+        private bool _hasCategorySummaryConsumers;
+
         private void ApplyDynamicCategorySummaryBindings()
         {
-            var viewState = _runtimeState.CategorySummaries;
-            var displayItems = _settings.ModernTheme.AllAchievementDisplayItems;
-            // Mirrors the in-plugin grid's HasMultipleCategories gate: a lone (localized)
-            // "Default" card on every game is noise, so single-category games publish an
-            // empty list and themes hide the section via HasCategorySummaries.
-            var hasCategories = CountDistinctCategoryLabels(displayItems) >= 2;
-            if (!hasCategories)
+            if (_hasCategorySummaryConsumers)
             {
-                _settings.ModernTheme.DynamicCategorySummaries = new ObservableCollection<GameAchievementSummary>();
-            }
-            else
-            {
-                var summaries = CategorySummaryBuilder.Build(displayItems);
-                summaries = FilterCategorySummaries(summaries, viewState.FilterKey);
-                summaries = SortCategorySummaries(summaries, viewState.SortKey, viewState.SortDirectionKey);
-                _settings.ModernTheme.DynamicCategorySummaries = ProjectCategorySummaries(summaries, displayItems);
+                var viewState = _runtimeState.CategorySummaries;
+                var displayItems = _settings.ModernTheme.AllAchievementDisplayItems;
+                // Mirrors the in-plugin grid's HasMultipleCategories gate: a lone (localized)
+                // "Default" card on every game is noise, so single-category games publish an
+                // empty list and themes hide the section via HasCategorySummaries.
+                var hasCategories = CountDistinctCategoryLabels(displayItems) >= 2;
+                if (!hasCategories)
+                {
+                    _settings.ModernTheme.DynamicCategorySummaries = new ObservableCollection<GameAchievementSummary>();
+                }
+                else
+                {
+                    var summaries = CategorySummaryBuilder.Build(displayItems);
+                    summaries = FilterCategorySummaries(summaries, viewState.FilterKey);
+                    summaries = SortCategorySummaries(summaries, viewState.SortKey, viewState.SortDirectionKey);
+                    _settings.ModernTheme.DynamicCategorySummaries = ProjectCategorySummaries(summaries, displayItems);
+                }
+
+                _settings.ModernTheme.HasCategorySummaries = hasCategories;
             }
 
-            _settings.ModernTheme.HasCategorySummaries = hasCategories;
             ApplyDynamicListKeyBindings(CategorySummariesListBinding);
             ApplyDynamicListOptionBindings(CategorySummariesListBinding);
         }
