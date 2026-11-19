@@ -207,7 +207,9 @@ namespace PlayniteAchievements.Views
 
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
-            _viewModel.SetActive(false);
+            // Active from construction, so the summary read starts before the sub-view and the
+            // mini-showcase are built and runs alongside them; the host's Activate is then a no-op.
+            Activate();
             ActiveRefreshHeader = _viewModel;
             // Never restore the Friends subview when the feature is disabled; the subview
             // switch is hidden in that state, which would trap the user in the friends view.
