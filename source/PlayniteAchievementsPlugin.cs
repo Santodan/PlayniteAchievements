@@ -3120,8 +3120,9 @@ namespace PlayniteAchievements
         {
             _logger.Info("Games_ItemCollectionChanged triggered.");
 
-            // Games added/removed change what the start page projects.
+            // Games added/removed change what the start page and the theme state show.
             ScheduleStartPageInvalidate();
+            _themeIntegrationService?.NotifyLibraryGamesChanged();
 
             if (e == null)
             {
@@ -3220,6 +3221,7 @@ namespace PlayniteAchievements
             }
 
             ScheduleStartPageInvalidate();
+            _themeIntegrationService?.NotifyLibraryGamesChanged();
         }
 
         /// <summary>
