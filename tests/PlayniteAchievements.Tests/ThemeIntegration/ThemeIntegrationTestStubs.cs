@@ -17,7 +17,10 @@ namespace PlayniteAchievements
 
         public static event EventHandler SettingsSaved;
 
-        public static void NotifySettingsSaved() => SettingsSaved?.Invoke(null, EventArgs.Empty);
+        public static void NotifySettingsSaved(bool settingsWindow = false) =>
+            SettingsSaved?.Invoke(null, settingsWindow ? SettingsWindowSave : EventArgs.Empty);
+
+        public static readonly EventArgs SettingsWindowSave = new EventArgs();
 
         public PlayniteAchievementsSettings Settings { get; set; }
 
