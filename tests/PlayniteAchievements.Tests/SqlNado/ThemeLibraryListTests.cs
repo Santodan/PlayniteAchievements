@@ -133,9 +133,8 @@ namespace PlayniteAchievements.SqlNado.Tests
             {
                 // A goal on a locked achievement: a3, and the authored custom:two first.
                 db.ExecuteNonQuery(
-                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2), (?1, 'custom:two', 0, ?2);",
                     AchievementReadServiceTests.Alpha, "2025-01-01T00:00:00.0000000Z");
-                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
                 test(db);
             });
     }
