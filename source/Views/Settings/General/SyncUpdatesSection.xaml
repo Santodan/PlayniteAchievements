@@ -149,17 +149,16 @@
                         </Button>
                     </controls:SettingRow>
 
-                    <!-- Advanced -->
+                    <!-- Advanced: a collapsed section, headed like the sections above it. -->
                     <Expander IsExpanded="False"
                               Background="Transparent"
-                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                              BorderThickness="0"
                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
-                              Padding="12,10,12,12">
+                              Padding="0,12,0,0">
                         <Expander.Header>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Advanced}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontWeight="SemiBold"/>
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="0"/>
                         </Expander.Header>
 
                         <StackPanel Grid.IsSharedSizeScope="True">
