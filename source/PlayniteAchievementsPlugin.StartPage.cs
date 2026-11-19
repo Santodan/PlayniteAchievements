@@ -285,10 +285,13 @@ namespace PlayniteAchievements
             var delayMs = Math.Max(1, delaySeconds) * 1000;
             lock (_retentionDiagnosticsSync)
             {
-                // Last writer wins. When a deliberate one-shot point ("manage.closed",
-                // "overview.closed") collides with a refresh.settled burst, that point is the
-                // later and more interesting event, so naming the report after it is correct.
-                _pendingRetentionPoint = point;
+                // One report names every distinct point it covers, so "overview.closed" is not
+                // lost to an "overview.opened" scheduled before the report ran.
+                _pendingRetentionPoint = _pendingRetentionPoint == null
+                    ? point
+                    : _pendingRetentionPoint.Split('+').Contains(point, StringComparer.Ordinal)
+                        ? _pendingRetentionPoint
+                        : _pendingRetentionPoint + "+" + point;
 
                 if (_retentionDiagnosticsTimer == null)
                 {
@@ -331,6 +334,12 @@ namespace PlayniteAchievements
 
         private void LogRetentionDiagnostics(string point)
         {
+            Common.MemoryDiagnostics.LogRetained(_logger, point, DescribeRetained);
+        }
+
+        // Runs after the forced collection, so the census counts only what is still rooted.
+        private string DescribeRetained()
+        {
             var detail = new System.Text.StringBuilder();
 
             try
@@ -361,12 +370,9 @@ namespace PlayniteAchievements
 
             try
             {
-                var modern = _settingsViewModel?.Settings?.ModernTheme;
-                if (modern != null)
+                if (_themeIntegrationService != null)
                 {
-                    detail.Append(
-                        $"themeLists={modern.AllAchievementsUnlockDesc?.Count ?? 0}ach/" +
-                        $"{modern.GameSummariesDesc?.Count ?? 0}games ");
+                    detail.Append($"themeLists={_themeIntegrationService.DescribeLoadedLibraryLists()} ");
                 }
             }
             catch (Exception ex)
@@ -413,8 +419,7 @@ namespace PlayniteAchievements
             // Live instance counts come last: they are the discriminator when every cache
             // above reads flat but the heap still grows.
             detail.Append($"live={Common.LeakWatch.DescribeLive()}");
-
-            Common.MemoryDiagnostics.LogRetained(_logger, point, detail.ToString().TrimEnd());
+            return detail.ToString().TrimEnd();
         }
 
         // Trailing coalescer for high-frequency invalidation sources: per-game refresh saves,
