@@ -75,6 +75,54 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>Whether the current user holds progress for the Playnite game.</summary>
         public long SelfHasGameData { get; set; }
+
+        /// <summary>With <see cref="AchievementQuery.CompareAccounts"/>: whether they unlocked the same achievement of the same provider game.</summary>
+        public long CompareUnlocked { get; set; }
+
+        /// <summary>Their latest unlock time of it.</summary>
+        public string CompareUnlockTimeUtc { get; set; }
+
+        /// <summary>Whether they have the provider game: an unlock in it, or ownership from their game list or with playtime.</summary>
+        public long CompareHasGame { get; set; }
+    }
+
+    /// <summary>Reads the keys of the <see cref="AchievementGroup.ProviderGame"/> and <see cref="AchievementGroup.FriendGame"/> groups.</summary>
+    internal static class AchievementGroupKeys
+    {
+        /// <summary>One provider game: its provider, provider game key, provider game id and Playnite game id.</summary>
+        internal sealed class ProviderGameIdentity
+        {
+            public string ProviderKey { get; set; }
+            public string ProviderGameKey { get; set; }
+            public int AppId { get; set; }
+            public Guid? PlayniteGameId { get; set; }
+        }
+
+        public static ProviderGameIdentity ProviderGame(string key)
+        {
+            var parts = (key ?? string.Empty).Split('\u001f');
+            if (parts.Length != 4)
+            {
+                return null;
+            }
+
+            return new ProviderGameIdentity
+            {
+                ProviderKey = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0],
+                ProviderGameKey = string.IsNullOrWhiteSpace(parts[1]) ? null : parts[1].Trim(),
+                AppId = int.TryParse(parts[2], out var appId) && appId > 0 ? appId : 0,
+                PlayniteGameId = Guid.TryParse(parts[3], out var gameId) && gameId != Guid.Empty ? gameId : (Guid?)null
+            };
+        }
+
+        /// <summary>The friend key, as <see cref="AchievementGroup.Friend"/> spells it, and the provider game.</summary>
+        public static KeyValuePair<string, ProviderGameIdentity> FriendGame(string key)
+        {
+            var split = (key ?? string.Empty).IndexOf('\u001e');
+            return split < 0
+                ? new KeyValuePair<string, ProviderGameIdentity>(null, null)
+                : new KeyValuePair<string, ProviderGameIdentity>(key.Substring(0, split), ProviderGame(key.Substring(split + 1)));
+        }
     }
 
     /// <summary>
@@ -123,6 +171,12 @@ namespace PlayniteAchievements.Services.Database
         public double PercentSum { get; set; }
         public long PercentCount { get; set; }
         public double? MinPercent { get; set; }
+
+        /// <summary>Hidden achievements still locked.</summary>
+        public long HiddenLockedCount { get; set; }
+
+        /// <summary>The lowest custom category order index of the group's rows; null when none has one.</summary>
+        public long? MinCategoryOrder { get; set; }
     }
 
     /// <summary>
@@ -211,14 +265,15 @@ namespace PlayniteAchievements.Services.Database
                         byTag[tag] = total;
                     }
 
-                    Add(total, row);
+                    AddTotals(total, row);
                 }
             }
 
             return byTag.Values.Concat(untagged == null ? Enumerable.Empty<AchievementTotalsRecord>() : new[] { untagged }).ToList();
         }
 
-        private static void Add(AchievementTotalsRecord total, AchievementTotalsRecord row)
+        /// <summary>Adds <paramref name="row"/> into <paramref name="total"/>, as totals of one group add up.</summary>
+        internal static void AddTotals(AchievementTotalsRecord total, AchievementTotalsRecord row)
         {
             long Clamp(long a, long b) => Math.Min(a + b, int.MaxValue);
             string Min(string a, string b) => a == null || (b != null && string.CompareOrdinal(b, a) < 0) ? b : a;
@@ -257,6 +312,12 @@ namespace PlayniteAchievements.Services.Database
             total.FirstPlatinumUnlockUtc = Min(total.FirstPlatinumUnlockUtc, row.FirstPlatinumUnlockUtc);
             total.PercentSum += row.PercentSum;
             total.PercentCount += row.PercentCount;
+            total.HiddenLockedCount += row.HiddenLockedCount;
+            if (row.MinCategoryOrder.HasValue && (!total.MinCategoryOrder.HasValue || row.MinCategoryOrder < total.MinCategoryOrder))
+            {
+                total.MinCategoryOrder = row.MinCategoryOrder;
+            }
+
             if (row.MinPercent.HasValue && (!total.MinPercent.HasValue || row.MinPercent < total.MinPercent))
             {
                 total.MinPercent = row.MinPercent;
