@@ -880,7 +880,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             var services = new LinkedFileMappingServices
             {
                 LoadRecord = () => store.LoadOrDefault(gameId),
-                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false, affectsOverrideMirror: false),
+                UpdateRecord = change => store.Update(gameId, change, affectsSummaryData: false),
                 LoadAchievements = () => _achievementDataService?.GetGameAchievementData(gameId)?.Achievements,
                 Spoilers = SpoilerSettings.From(_settings?.Persisted),
                 SchemaStore = plugin.LinkedFileSchemaStore,
