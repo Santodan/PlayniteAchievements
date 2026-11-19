@@ -117,6 +117,19 @@ namespace PlayniteAchievements.Services.Cache
 
         private IFriendsOverviewReads _friendReads;
 
+        private IEnumerable<Guid> LibraryGamesOf(IReadOnlyList<FriendCacheChange> changes)
+        {
+            try
+            {
+                return Reads.LibraryGamesOf(changes);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to map friend definition changes to library games.");
+                return Array.Empty<Guid>();
+            }
+        }
+
         public CacheManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsPlugin plugin, DiskImageService diskImageService)
         {
             _api = api;
@@ -125,7 +138,8 @@ namespace PlayniteAchievements.Services.Cache
             _feed = new AchievementDataFeed(
                 InvokeCacheInvalidated,
                 args => _logger?.Debug($"[RefreshPerf] kind=friends phase=invalidation.raise full={args.IsFull} changes={args.Changes.Count}"),
-                ex => _logger?.Error(ex, "Failed to notify cache subscribers."));
+                ex => _logger?.Error(ex, "Failed to notify cache subscribers."),
+                LibraryGamesOf);
             _storage = new CacheStorage(plugin, logger);
             _store = new SqlNadoCacheStore(plugin, logger, _storage.BaseDir);
             _importer = new LegacyJsonCacheImporter(_storage, _store, logger);
@@ -191,6 +205,14 @@ namespace PlayniteAchievements.Services.Cache
         }
 
         AchievementReadService ICacheReadOptimizations.Reads => Reads;
+
+        AchievementDataFeed ICacheReadOptimizations.Feed => _feed;
+
+        List<CachedRecentUnlockData> ICacheReadOptimizations.LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            EnsureReadyForRead("LoadRows");
+            return _store.LoadRows(query, keys);
+        }
 
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
             int limit,
