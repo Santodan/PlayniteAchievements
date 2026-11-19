@@ -41,13 +41,8 @@ namespace PlayniteAchievements.Services.GameCustomData
         public Guid PlayniteGameId { get; }
 
         /// <summary>
-        /// False when the change cannot have moved the per-achievement override mirror -- the
-        /// filtered ApiNames and the user-editable points and trophy type. A capstone edit is the
-        /// case that matters: it is summary-visible but touches nothing the mirror carries, and
-        /// resyncing it costs a record clone and a write-connection query on the click.
-        ///
-        /// Defaults to true so every existing caller keeps resyncing, and only a writer that
-        /// knows better opts out.
+        /// The writer's claim that the change moved a per-achievement override. Reported only: every
+        /// save writes the custom layer tables, which raise the change feed when a row moved.
         /// </summary>
         public bool AffectsOverrideMirror { get; }
 
@@ -147,19 +142,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             NullValueHandling = NullValueHandling.Ignore,
             DefaultValueHandling = DefaultValueHandling.Ignore
         };
-
-        // Compact, for the stored blob. The payload is a SQLite TEXT column that is only ever
-        // round-tripped through JsonConvert -- never diffed as text, hashed, or shown to anyone --
-        // so its indentation was whitespace written on every per-game save and carried into the
-        // WAL. The serialize scales with the game's override count, which is exactly the profile
-        // that made editing a heavily customized game slow. Anything that ever wants to compare
-        // payload text must normalize first.
-        private readonly JsonSerializerSettings _storeWriteSettings = new JsonSerializerSettings
-        {
-            Formatting = Formatting.None,
-            NullValueHandling = NullValueHandling.Ignore,
-            DefaultValueHandling = DefaultValueHandling.Ignore
-        };
         private readonly object _cacheSync = new object();
 
         private readonly GameCustomDataLegacyMigration _legacyMigration = new GameCustomDataLegacyMigration();
@@ -170,6 +152,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private Func<string, CustomProviderDefinition> _tryGetCustomProvider;
         private Func<CustomProviderDefinition, bool> _importCustomProviderIfMissing;
         private Func<Guid, IReadOnlyList<PortableGameKey>> _resolveGameKeys;
+        private Cache.AchievementDataFeed _feed;
         private Dictionary<Guid, GameCustomDataFile> _cacheByGameId;
         private HashSet<Guid> _missingGameIds;
 
@@ -186,7 +169,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             _logger = logger;
             var databasePath = Path.Combine(pluginUserDataPath ?? string.Empty, Database.SqlNadoSchemaManager.DatabaseFileName);
-            _repository = new GameCustomDataRepository(databasePath, _storeWriteSettings, logger);
+            _repository = new GameCustomDataRepository(databasePath, logger);
         }
 
         public string DatabasePath => _repository.DatabasePath;
@@ -194,6 +177,16 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void AttachManagedCustomIconService(ManagedCustomIconService managedCustomIconService)
         {
             _managedCustomIconService = managedCustomIconService;
+            _repository.Icons = managedCustomIconService;
+        }
+
+        /// <summary>
+        /// Connects the change feed, raised for a game after its custom layer rows moved and its
+        /// change events ran.
+        /// </summary>
+        internal void AttachChangeFeed(Cache.AchievementDataFeed feed)
+        {
+            _feed = feed;
         }
 
         public void AttachNotificationImageStore(NotificationImageStore notificationImageStore)
@@ -553,11 +546,10 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 GameCustomDataFile persisted;
+                bool layerChanged;
                 using (PerfScope.Start(_logger, "GameCustomData.Save.Repository", thresholdMs: 10))
                 {
-                    // Normalized immediately above and untouched since, so the repository does
-                    // not repeat it.
-                    persisted = _repository.Save(playniteGameId, normalized, alreadyNormalized: true);
+                    persisted = _repository.Save(playniteGameId, normalized, out layerChanged);
                 }
 
                 SetCachedEntry(playniteGameId, persisted);
@@ -592,12 +584,23 @@ namespace PlayniteAchievements.Services.GameCustomData
                 {
                     RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
                 }
+
+                PublishLayerChanged(playniteGameId, layerChanged);
+            }
+        }
+
+        // Unchanged rows leave every resolved read as it was.
+        private void PublishLayerChanged(Guid playniteGameId, bool changed)
+        {
+            if (changed && playniteGameId != Guid.Empty)
+            {
+                _feed?.Publish(Database.AchievementDataChange.ForGames(new[] { playniteGameId }));
             }
         }
 
         public void Delete(Guid playniteGameId)
         {
-            _repository.Delete(playniteGameId);
+            var layerChanged = _repository.Delete(playniteGameId);
             _repository.DeleteCapstoneArtRecords(playniteGameId);
             lock (_cacheSync)
             {
@@ -609,6 +612,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             _managedCustomIconService?.ClearGameCustomCache(playniteGameId.ToString("D"));
             _notificationImageStore?.DeleteGameImages(playniteGameId);
             RaiseCustomDataChanged(playniteGameId);
+            PublishLayerChanged(playniteGameId, layerChanged);
         }
 
         /// <summary>
@@ -935,8 +939,13 @@ namespace PlayniteAchievements.Services.GameCustomData
                     }
                 }
 
-                _repository.SaveMany(rowsToSave);
+                var changed = _repository.SaveMany(rowsToSave);
                 InvalidateCache();
+                foreach (var gameId in changed)
+                {
+                    PublishLayerChanged(gameId, true);
+                }
+
                 return migration.CleanedJson;
             }
             catch (Exception ex)
