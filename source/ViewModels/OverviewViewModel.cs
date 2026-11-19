@@ -104,6 +104,10 @@ namespace PlayniteAchievements.ViewModels
         private PagedRows<AchievementDisplayItem> _recent;
         private string _recentKey;
         private bool _recentDataChanged;
+
+        // The summary rows of every listed game, for the Achievements grid while no game filter
+        // narrows the Games grid; read again with each snapshot (the hidden games may change).
+        private AchievementQuery _everyGameQuery;
         private int? _recentCap;
         private bool _recentDecorationPending;
 
@@ -1795,6 +1799,7 @@ namespace PlayniteAchievements.ViewModels
             Common.LeakWatch.Track("Row.replacedGameSummarySet", _allGameSummaries);
 
             _latestSnapshot = snapshot;
+            _everyGameQuery = null;
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
             _gamesById = _allGameSummaries
                 .Where(game => game?.PlayniteGameId != null)
@@ -2697,11 +2702,12 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// The Achievements grid's filters as a read: the unlocks they keep, under the summary rules.
+        /// The Achievements grid's filters as a read: the unlocks they keep, under the summary
+        /// rules, of <paramref name="source"/>'s rows.
         /// </summary>
-        private AchievementQuery AchievementFilterQuery()
+        private AchievementQuery AchievementFilterQuery(AchievementQuery source = null)
         {
-            var query = _tierFilters.ApplyTo(AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true));
+            var query = _tierFilters.ApplyTo((source ?? AchievementQuery.CurrentUser.WithSummaryRules()).WhereUnlocked(true));
             if (UnlockSpanFilter.HasValue)
             {
                 query = query.WhereUnlockedBetween(_unlockRangeFrom, _unlockRangeTo);
@@ -2713,18 +2719,32 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Points the Achievements grid at the unlocks its filters keep, of the games the Games
         /// grid lists, matching its search, in the column or configured order, up to the row cap.
-        /// A query that is unchanged is left alone.
+        /// A query that is unchanged is left alone. With no game filter on, the games listed are
+        /// every summary game, so the grid reads at open without waiting for the snapshot.
         /// </summary>
         private void UpdateRecentQuery()
         {
-            if (_cacheReads == null || _disposed || _latestSnapshot == null)
+            if (_cacheReads == null || _disposed)
             {
                 return;
             }
 
-            var query = AchievementFilterQuery().ForGames(_filteredGameSummaries
-                .Where(game => game?.PlayniteGameId != null)
-                .Select(game => game.PlayniteGameId.Value));
+            AchievementQuery query;
+            if (ListsEveryGame())
+            {
+                query = AchievementFilterQuery(_everyGameQuery ??= _achievementDataService.SummaryQuery());
+            }
+            else if (_latestSnapshot == null)
+            {
+                return;
+            }
+            else
+            {
+                query = AchievementFilterQuery().ForGames(_filteredGameSummaries
+                    .Where(game => game?.PlayniteGameId != null)
+                    .Select(game => game.PlayniteGameId.Value));
+            }
+
             if (SearchQuery.From(RightSearchText).HasValue)
             {
                 query = query.WhereSearch(RightSearchText);
@@ -2951,31 +2971,7 @@ namespace PlayniteAchievements.ViewModels
             // Preserve selection across filter updates
             Guid? selectedGameId = SelectedGame?.PlayniteGameId;
 
-            var filtered = _allGameSummaries.AsEnumerable();
-            var searchQuery = SearchQuery.From(LeftSearchText);
-
-            // Search filter
-            if (searchQuery.HasValue)
-            {
-                filtered = filtered.Where(g => _gameSummarySearchIndex.Matches(g, searchQuery));
-            }
-
-            // Provider + platform filter
-            filtered = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(filtered, ProviderFilterGroups);
-
-            filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
-                filtered,
-                _selectedPlayStatusFilters,
-                null,
-                L("LOCPlayAch_Filter_Played"),
-                L("LOCPlayAch_Filter_Unplayed"));
-            var matchesProgress = CompletenessMatcher();
-            if (matchesProgress != null)
-            {
-                filtered = filtered.Where(matchesProgress);
-            }
-
-            filtered = ApplyAchievementFiltersToGames(filtered);
+            var filtered = ApplyAchievementFiltersToGames(ApplyGameFilters(_allGameSummaries));
 
             _filteredGameSummaries = filtered.ToList();
             if (!string.IsNullOrEmpty(_overviewSortPath))
@@ -3009,6 +3005,36 @@ namespace PlayniteAchievements.ViewModels
             }
 
             InvalidateLinkedSnapshots();
+        }
+
+        // The Games grid's own filters: search, platform, play status and completeness. Each one
+        // passes its input through untouched while it is off.
+        private IEnumerable<GameSummaryItem> ApplyGameFilters(IEnumerable<GameSummaryItem> games)
+        {
+            var filtered = games;
+            var searchQuery = SearchQuery.From(LeftSearchText);
+            if (searchQuery.HasValue)
+            {
+                filtered = filtered.Where(g => _gameSummarySearchIndex.Matches(g, searchQuery));
+            }
+
+            filtered = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(filtered, ProviderFilterGroups);
+            filtered = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
+                filtered,
+                _selectedPlayStatusFilters,
+                null,
+                L("LOCPlayAch_Filter_Played"),
+                L("LOCPlayAch_Filter_Unplayed"));
+            var matchesProgress = CompletenessMatcher();
+            return matchesProgress != null ? filtered.Where(matchesProgress) : filtered;
+        }
+
+        // True while no game filter is on, so the Games grid lists every game. The achievement
+        // filters narrow the Achievements grid's rows themselves.
+        private bool ListsEveryGame()
+        {
+            var probe = Array.Empty<GameSummaryItem>();
+            return ReferenceEquals(ApplyGameFilters(probe), probe);
         }
 
         private GameSummaryItem ResolveSelectedGameForChartContext(OverviewDataSnapshot snapshot)
