@@ -221,8 +221,6 @@ namespace PlayniteAchievements.Services.Database
                 // Create ProviderKey-dependent indexes (only after verifying schema is correct)
                 CreateProviderKeyIndexes(db);
 
-                BackfillRequiredAchievementCategoryValues(db);
-
                 // Schema is correct - ensure version is set if needed
                 if (storedVersion < SchemaVersion)
                 {
@@ -270,8 +268,6 @@ namespace PlayniteAchievements.Services.Database
                 "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                 "schema_version",
                 SchemaVersion.ToString(CultureInfo.InvariantCulture));
-
-            BackfillRequiredAchievementCategoryValues(db);
         }
 
         // One-time data cleanups tied to schema version upgrades. Runs before the stored version is
@@ -283,6 +279,7 @@ namespace PlayniteAchievements.Services.Database
                 return;
             }
 
+            BackfillRequiredAchievementCategoryValues(db);
             if (storedVersion < 16)
             {
                 CleanupZeroUnlockProviderOnlyFriendOwnership(db);
@@ -426,17 +423,20 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
-        /// Creates the metadata layer table and its delete trigger, and recreates the view that
-        /// resolves it over the definitions. Runs once the definitions table is verified.
+        /// Creates the metadata layer table and its delete trigger, and recreates the views that
+        /// resolve it over the definitions when they differ from this code's. Runs once the definitions table is verified.
         /// </summary>
         private void EnsureAchievementLayers(SQLiteDatabase db)
         {
             ExecuteSafe(db, AchievementLayerSql.CreateTableSql);
             ExecuteSafe(db, AchievementLayerSql.CreateTriggerSql);
             ExecuteSafe(db, AchievementLayerSql.CreateCapturesTableSql);
-            foreach (var sql in AchievementLayerSql.RecreateViewSql())
+            if (!AchievementLayerSql.ViewsAreCurrent(db))
             {
-                ExecuteSafe(db, sql);
+                foreach (var sql in AchievementLayerSql.RecreateViewSql())
+                {
+                    ExecuteSafe(db, sql);
+                }
             }
 
             // Derived from GameCustomData, which the custom layer tables replace. An earlier
@@ -566,6 +566,8 @@ namespace PlayniteAchievements.Services.Database
                 ON MetadataSourcePages (SourceKey);");
         }
 
+        // Writers store CategoryPathHelper.NormalizePath, which is never blank, so only rows an
+        // older version wrote can match; it runs with the upgrade cleanups.
         private void BackfillRequiredAchievementCategoryValues(SQLiteDatabase db)
         {
             ExecuteSafe(
