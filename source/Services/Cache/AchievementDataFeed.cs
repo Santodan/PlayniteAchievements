@@ -2,6 +2,8 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace PlayniteAchievements.Services.Cache
 {
@@ -38,17 +40,24 @@ namespace PlayniteAchievements.Services.Cache
         private readonly Action<CacheInvalidatedEventArgs> _raiseCacheInvalidated;
         private readonly Action<FriendCacheInvalidatedEventArgs> _raiseFriendCacheInvalidated;
         private readonly Action<Exception> _onHandlerError;
+        private readonly Func<IReadOnlyList<FriendCacheChange>, IEnumerable<Guid>> _libraryGamesOf;
         private int _friendBatchDepth;
 
         /// <param name="onHandlerError">Receives an exception an <see cref="AchievementDataChanged"/> handler threw.</param>
+        /// <param name="libraryGamesOf">
+        /// The library games of the provider games some friend definition changes name: their
+        /// definitions are the current user's too.
+        /// </param>
         public AchievementDataFeed(
             Action<CacheInvalidatedEventArgs> raiseCacheInvalidated,
             Action<FriendCacheInvalidatedEventArgs> raiseFriendCacheInvalidated,
-            Action<Exception> onHandlerError = null)
+            Action<Exception> onHandlerError = null,
+            Func<IReadOnlyList<FriendCacheChange>, IEnumerable<Guid>> libraryGamesOf = null)
         {
             _raiseCacheInvalidated = raiseCacheInvalidated;
             _raiseFriendCacheInvalidated = raiseFriendCacheInvalidated;
             _onHandlerError = onHandlerError;
+            _libraryGamesOf = libraryGamesOf;
         }
 
         /// <summary>Raised once per write batch, after the write.</summary>
@@ -67,7 +76,13 @@ namespace PlayniteAchievements.Services.Cache
                 _raiseFriendCacheInvalidated?.Invoke(friends);
             }
 
-            Publish(AchievementDataChange.Of(games, friends));
+            var definitions = friends == null || friends.IsFull
+                ? null
+                : friends.Changes.Where(change => change.Kind == FriendCacheChangeKind.GameDefinition).ToList();
+            Publish(AchievementDataChange.Of(
+                games,
+                friends,
+                definitions?.Count > 0 ? _libraryGamesOf?.Invoke(definitions) : null));
         }
 
         /// <summary>Raises <see cref="AchievementDataChanged"/> alone, for writes the cache events do not cover.</summary>
