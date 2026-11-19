@@ -957,10 +957,10 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>The current user's rows of <paramref name="keys"/> in their order, or of every row the query reads, as the summary maps them.</summary>
-        public List<CachedRecentUnlockData> LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
-            WithReadDb(db => (keys == null ? AchievementReadService.Rows(db, query) : AchievementReadService.Rows(db, query, keys))
+        public List<CachedRecentUnlockData> LoadRows(SQLiteDatabase db, AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            (keys == null ? AchievementReadService.Rows(db, query) : AchievementReadService.Rows(db, query, keys))
                 .Select(row => SummaryCacheReader.MapRow(row, null, MakeAbsolutePath))
-                .ToList());
+                .ToList();
 
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
@@ -6406,10 +6406,6 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
-        // Runs a read-only query on the dedicated read connection, off the _sync lock. Falls
-        // back to default(T) if the connection cannot be opened or the query fails (e.g. the
-        // database file is being cleared concurrently) so read callers degrade to empty results
-        // rather than throwing.
         // Called ahead of a whole-library read, outside _readSync, so the read finds the
         // database pages in the Windows file cache. See DatabaseFileCachePrimer.
         internal void PrimeFileCache()
@@ -6417,7 +6413,16 @@ namespace PlayniteAchievements.Services.Database
             _fileCachePrimer.PrimeIfDue();
         }
 
-        internal T WithReadDb<T>(Func<SQLiteDatabase, T> action)
+        // Runs a read-only query on the dedicated read connection, off the _sync lock. Falls
+        // back to default(T) if the connection cannot be opened or the query fails (e.g. the
+        // database file is being cleared concurrently) so read callers degrade to empty results
+        // rather than throwing.
+        internal T WithReadDb<T>(Func<SQLiteDatabase, T> action) => Read(action, swallow: true);
+
+        // As WithReadDb, but a failure is thrown, for AchievementReadService.
+        internal T ReadOrThrow<T>(Func<SQLiteDatabase, T> action) => Read(action, swallow: false);
+
+        private T Read<T>(Func<SQLiteDatabase, T> action, bool swallow)
         {
             if (action == null)
             {
@@ -6436,7 +6441,7 @@ namespace PlayniteAchievements.Services.Database
                     EnsureReadConnectionLocked();
                     return action(_readDb);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (swallow)
                 {
                     _logger?.Debug(ex, "Read-only cache query failed; returning empty result.");
                     return default;
