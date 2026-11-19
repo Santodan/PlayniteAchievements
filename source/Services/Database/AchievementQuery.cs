@@ -61,7 +61,13 @@ namespace PlayniteAchievements.Services.Database
         Progress,
 
         /// <summary>Unlocked rows above locked ones, then the unlock time.</summary>
-        Status
+        Status,
+
+        /// <summary>Hidden rows above visible ones when descending, then the name.</summary>
+        Hidden,
+
+        /// <summary>Capstones above the rest when descending, then the name.</summary>
+        Capstone
     }
 
     /// <summary>What a totals read groups by, or what a keys read lists.</summary>
@@ -432,6 +438,10 @@ namespace PlayniteAchievements.Services.Database
                     return AchievementSort.Progress;
                 case "Unlocked":
                     return AchievementSort.Status;
+                case "Hidden":
+                    return AchievementSort.Hidden;
+                case "IsCapstone":
+                    return AchievementSort.Capstone;
                 default:
                     return null;
             }
