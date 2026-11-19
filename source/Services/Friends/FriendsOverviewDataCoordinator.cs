@@ -546,7 +546,8 @@ namespace PlayniteAchievements.Services.Friends
                        change != null && change.Kind != FriendCacheChangeKind.Roster);
         }
 
-        // Only these kinds change achievement rows; ownership and removal changes are covered by
+        // Only these kinds change achievement rows (SelfGame through the user's own unlock
+        // columns on friend rows); ownership and removal changes are covered by
         // the wholesale reloads and the removal splice respectively.
         internal static List<FriendCacheChange> SelectAchievementReloadScopes(
             IReadOnlyCollection<FriendCacheChange> changes)
@@ -554,7 +555,8 @@ namespace PlayniteAchievements.Services.Friends
             return (changes ?? Array.Empty<FriendCacheChange>())
                 .Where(change => change != null &&
                                  (change.Kind == FriendCacheChangeKind.FriendGameAchievements ||
-                                  change.Kind == FriendCacheChangeKind.GameDefinition))
+                                  change.Kind == FriendCacheChangeKind.GameDefinition ||
+                                  change.Kind == FriendCacheChangeKind.SelfGame))
                 .ToList();
         }
 
@@ -606,6 +608,11 @@ namespace PlayniteAchievements.Services.Friends
                     return MatchesProvider(item, change) && MatchesGame(item, change);
                 case FriendCacheChangeKind.FriendRemoved:
                     return MatchesProvider(item, change) && MatchesFriend(item, change);
+                case FriendCacheChangeKind.SelfGame:
+                    // Every friend's rows for the game carry the user's own state, across
+                    // providers, so the whole Playnite game is reloaded.
+                    return change.PlayniteGameId != Guid.Empty &&
+                           item.PlayniteGameId == change.PlayniteGameId;
                 default:
                     // FriendOwnership changes no achievement rows; Roster never reaches the
                     // patch path.
