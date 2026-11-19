@@ -930,7 +930,7 @@ namespace PlayniteAchievements.Views.Showcase
             var query = snapshot.UnlockQuery().ForGames(games.Select(game => game.PlayniteGameId.Value));
             _indexBuildInFlight = true;
             Task.Run(() => CaptureAchievementIndex.Build(
-                    ShowcaseRows.Load(query, ShowcaseRows.ById(games)),
+                    ShowcaseRows.Load(query),
                     row => row.GameName,
                     row => row.DisplayName))
                 .ContinueWith(
