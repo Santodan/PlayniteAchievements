@@ -17,7 +17,8 @@ namespace PlayniteAchievements.Services.Database
     /// <c>pa_collection(rarity)</c>, <c>pa_localday(unlockTimeUtc)</c>,
     /// <c>pa_search(query, text, ...)</c>, <c>pa_classified(categoryKind, tags, key, ...)</c>, and
     /// the sort and label keys <c>pa_raritysort(percent, rarity)</c>, <c>pa_category(category)</c>,
-    /// <c>pa_kindsort(categoryKind)</c> and <c>pa_tagcount(tags)</c>.
+    /// <c>pa_kindsort(categoryKind)</c> and <c>pa_tagcount(tags)</c>, and the collation
+    /// <c>pa_ignorecase</c>.
     /// </summary>
     /// <remarks>
     /// They exist only on the plugin's own connections. No view may call them: other add-ons read
@@ -72,6 +73,9 @@ namespace PlayniteAchievements.Services.Database
                 CategoryKindHelper.ToSortKey(Text(context.Values[0]))));
             db.SetScalarFunction("pa_tagcount", 1, true, context => context.SetResult(
                 AchievementTagHelper.GetComponents(Text(context.Values[0])).Count));
+
+            // The order of StringComparer.OrdinalIgnoreCase, which NOCASE folds only for ASCII letters.
+            db.SetCollationFunction("pa_ignorecase", StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>A stored rarity name as a tier; Common when missing or unknown.</summary>
