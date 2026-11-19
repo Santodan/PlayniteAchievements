@@ -687,6 +687,19 @@
         </Border>
     </DataTemplate>
 
+    <!-- The Hardcore achievement's solid rarity border, built only for a row that shows it.
+         Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
+         so it never covers or shrinks the icon, matching how the glow extended outward. -->
+    <DataTemplate x:Key="AchievementHardcoreBorderTemplate">
+        <Border Margin="-1"
+                BorderThickness="3"
+                CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
+                Background="Transparent"
+                IsHitTestVisible="False"
+                SnapsToDevicePixels="True"
+                BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}"/>
+    </DataTemplate>
+
     <!-- Achievement Icon Template - glow is isolated behind an unaffected front icon -->
     <DataTemplate x:Key="AchievementIconTemplate">
         <Grid HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -896,34 +909,26 @@
                 </Image.Style>
             </Image>
 
-            <!-- Solid rarity border for Hardcore achievements (replaces the glow).
-                 Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
-                 so it never covers or shrinks the icon, matching how the glow extended outward. -->
-            <Border Margin="-1"
-                    BorderThickness="3"
-                    CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
-                    Background="Transparent"
-                    IsHitTestVisible="False"
-                    SnapsToDevicePixels="True"
-                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
+            <!-- Solid rarity border for Hardcore achievements (replaces the glow). The template's
+                 trigger shows it: a presenter's own bindings read no row until it has built its
+                 content, which it does not while collapsed. -->
+            <ContentPresenter x:Name="HardcoreBorder"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementHardcoreBorderTemplate}"
+                              IsHitTestVisible="False"
+                              Visibility="Collapsed"/>
         </Grid>
+        <DataTemplate.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="HardcoreBorder" Property="Visibility" Value="Visible"/>
+            </MultiDataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 
     <!-- The achievement name text of the Achievement and Title columns. Its color follows the
@@ -1131,8 +1136,8 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Unlock Date / Progress Template -->
-    <DataTemplate x:Key="AchievementUnlockDateTemplate">
+    <!-- The Unlock Date cell in compare mode. -->
+    <DataTemplate x:Key="AchievementUnlockDateCompareTemplate">
         <!-- The tooltip names both sides of the comparison, so it covers the whole cell rather
              than only the friend's row. It resolves to null outside compare mode.
 
