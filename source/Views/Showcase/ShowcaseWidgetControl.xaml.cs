@@ -132,6 +132,7 @@ namespace PlayniteAchievements.Views.Showcase
         public ShowcaseWidgetControl()
         {
             InitializeComponent();
+            ShowLoadingPlaceholder();
             var chartClick = new ChartClickEventHandler(OnChartClicked);
             AddHandler(PieChartWithRadialIcons.SliceClickedEvent, chartClick);
             AddHandler(UnlockTimelineChart.ColumnClickedEvent, chartClick);
@@ -440,7 +441,13 @@ namespace PlayniteAchievements.Views.Showcase
             BodyHost.Margin = fullBleed
                 ? new Thickness(0)
                 : new Thickness(inset, inset + titleRoom, inset, inset);
-            if (_projection?.Instance == null)
+            if (_projection == null)
+            {
+                ShowLoadingPlaceholder();
+                return;
+            }
+
+            if (_projection.Instance == null)
             {
                 SetBodyContent(CreateEmptyText());
                 return;
@@ -615,17 +622,27 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         /// <summary>
-        /// Shown by the host while the overview has no snapshot yet, so a fresh dashboard reads
-        /// as loading rather than as empty. Only a never-projected host takes it; the first
-        /// projection apply replaces it through RebuildBody.
+        /// A skeleton block in place of the body until the first projection lands, so a widget
+        /// with no data yet reads as loading rather than as empty. Only a never-projected host
+        /// takes it; the first projection apply replaces it through RebuildBody.
         /// </summary>
         public void ShowLoadingPlaceholder()
         {
-            if (BodyHost.Content == null && _projection == null)
+            if (_projection != null)
             {
-                SetBodyContent(CreateEmptyText(Localize("LOCPlayAch_Status_LoadingAchievements")));
+                return;
             }
+
+            if (_skeleton == null)
+            {
+                _skeleton = new Border();
+                _skeleton.SetResourceReference(StyleProperty, "PlayAch.Skeleton.Block");
+            }
+
+            SetBodyContent(_skeleton);
         }
+
+        private Border _skeleton;
 
         // Reuses (or lazily creates) the body view model for this control and feeds it the
         // current projection and viewport. Implicit templates in ShowcaseWidgetTemplates.xaml render
