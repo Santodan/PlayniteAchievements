@@ -294,6 +294,32 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void AuthoredRows_ReadTheirGamesProvider_AsTheSummaryNamesIt()
+        {
+            WithFixture(db =>
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UpdatedUtc) VALUES (?, 'custom:multi', 'Multi Own', 1, 0, ?);",
+                    Multi, "2025-01-01T00:00:00.0000000Z");
+                var rows = AchievementReadService.Rows(db, AchievementQuery.CurrentUser)
+                    .Where(row => row.IsAuthored != 0)
+                    .ToDictionary(row => row.ApiName, row => SummaryCacheReader.MapRow(row, null, path => path));
+
+                // No games list is passed: the read itself names each authored row's game.
+                Assert.AreEqual("Steam", rows["custom:one"].ProviderKey);
+                Assert.AreEqual(100, rows["custom:one"].AppId);
+                Assert.AreEqual("Exophase", rows["custom:multi"].ProviderKey, "the most recently updated of the game's provider games");
+                Assert.AreEqual("multi-exo", rows["custom:multi"].ProviderGameKey);
+                Assert.AreEqual(PlayniteAchievements.Services.CustomAchievementProjectionService.ProviderKey, rows["custom:solo"].ProviderKey, "a game with only authored achievements");
+                Assert.AreEqual(0, rows["custom:solo"].AppId);
+                Assert.AreEqual(
+                    "Steam",
+                    AchievementReadService.Rows(db, AchievementQuery.CurrentUser).Single(row => row.ApiName == "a1").ProviderKey,
+                    "a provider row keeps its own");
+            });
+        }
+
+        [TestMethod]
         public void ProgressKeys_SplitTheLockedRows_EvenANumeratorWithoutADenominator()
         {
             WithFixture(db =>
