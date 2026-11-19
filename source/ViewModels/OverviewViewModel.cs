@@ -89,6 +89,10 @@ namespace PlayniteAchievements.ViewModels
         public event EventHandler SnapshotChanged;
         private bool _hasAppliedSnapshot;
 
+        // Set on activation: the Compare dropdown's friend list is read once the first snapshot
+        // has landed, so it does not hold the read connection while the window opens.
+        private bool _compareFriendsStale;
+
         private readonly RefreshHeaderProgressTracker _progressTracker;
         private System.Windows.Threading.DispatcherTimer _reloadTimer;
         private bool _selectedGameLoadInProgress;
@@ -1377,7 +1381,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 AttachSharedSnapshotPublisher();
                 _progressTracker.SyncToCurrentState();
-                RecentFriendCompare.Refresh();
+                _compareFriendsStale = true;
                 ApplyRightFilters();
                 // Refresh data when overview becomes active to ensure cached changes are visible
                 _ = RefreshViewAsync();
@@ -1834,6 +1838,24 @@ namespace PlayniteAchievements.ViewModels
             _ = ReloadSelectedGameIfRequestedAsync();
 
             RefreshSelectedGameHeaderCounts();
+            RefreshCompareFriendsWhenIdle();
+        }
+
+        private void RefreshCompareFriendsWhenIdle()
+        {
+            if (!_compareFriendsStale)
+            {
+                return;
+            }
+
+            _compareFriendsStale = false;
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_disposed && _isActive)
+                {
+                    RecentFriendCompare.Refresh();
+                }
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
         private bool IsTransientRebuildSnapshot(OverviewDataSnapshot snapshot)
