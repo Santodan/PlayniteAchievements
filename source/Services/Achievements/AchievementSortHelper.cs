@@ -316,36 +316,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        internal static List<AchievementDetail> ResolveLibraryAchievements(
-            LibraryRuntimeState state,
-            string sortKey,
-            string sortDirectionKey)
-        {
-            if (state == null || !state.HasData)
-            {
-                return new List<AchievementDetail>();
-            }
-
-            var direction = string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal)
-                ? ListSortDirection.Ascending
-                : ListSortDirection.Descending;
-            var source = GetDefaultLibraryAchievements(state);
-            if (source.Count == 0)
-            {
-                return source;
-            }
-
-            var effectiveSortKey = string.IsNullOrWhiteSpace(sortKey)
-                ? DynamicThemeViewKeys.UnlockTime
-                : sortKey;
-            return CreateGoalsFirstDetailList(
-                CreateSortedDetailList(
-                    source,
-                    GetDynamicAchievementSortMemberPath(effectiveSortKey),
-                    direction,
-                    includeGameNameTieBreak: true));
-        }
-
         public static bool IsSelectedGameAchievementsPropertyName(string propertyName)
         {
             return propertyName == nameof(ModernThemeBindings.AchievementDefaultOrder) ||
@@ -712,11 +682,6 @@ namespace PlayniteAchievements.Services.Achievements
         private static List<AchievementDetail> GetDefaultSelectedGameAchievements(SelectedGameRuntimeState state)
         {
             return GetAvailableAchievements(state?.AchievementDefaultOrder, state?.AllAchievements);
-        }
-
-        private static List<AchievementDetail> GetDefaultLibraryAchievements(LibraryRuntimeState state)
-        {
-            return state?.AllAchievements ?? new List<AchievementDetail>();
         }
 
         private static List<AchievementDetail> GetAvailableAchievements(
