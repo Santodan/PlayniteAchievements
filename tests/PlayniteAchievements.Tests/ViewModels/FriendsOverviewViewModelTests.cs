@@ -44,25 +44,28 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
-        public void LoadAsync_ShowsTheLoadingOverlayUntilTheListsLand()
+        public void LoadAsync_ShowsSkeletonRowsUntilTheListsLand()
         {
             using var h = new Harness(CreateData());
-            Assert.IsFalse(h.Vm.IsLoading);
-
             h.Vm.LoadAsync();
-            Assert.IsTrue(h.Vm.IsLoading);
+
+            Assert.AreEqual(PlaceholderRows.Count, h.Vm.FilteredFriends.Count);
+            Assert.IsTrue(h.Vm.FilteredFriends.All(item => item.IsPlaceholder));
+            Assert.IsTrue(h.Vm.FilteredGames.All(item => item.IsPlaceholder));
+            Assert.AreEqual(PlaceholderRows.Count, h.Vm.AchievementRows.Count);
+            Assert.IsFalse(h.Vm.HasData);
+
+            // A placeholder is never selected, and a search before the lists land keeps them.
+            h.Vm.SelectedFriend = h.Vm.FilteredFriends[0];
+            Assert.IsNull(h.Vm.SelectedFriend);
+            h.Vm.FriendSearchText = "alice";
+            Assert.IsTrue(h.Vm.FilteredFriends.All(item => item.IsPlaceholder));
 
             h.Settle();
-            Assert.IsFalse(h.Vm.IsLoading);
+            Assert.IsFalse(h.Vm.FilteredFriends.Any(item => item.IsPlaceholder));
+            Assert.IsFalse(h.Vm.FilteredGames.Any(item => item.IsPlaceholder));
+            Assert.AreSame(h.Vm.DisplayedAchievements, h.Vm.AchievementRows);
             Assert.IsTrue(h.Vm.HasData);
-
-            // A later load rereads without the overlay.
-            var raised = false;
-            h.Vm.PropertyChanged += (_, e) => raised |= e.PropertyName == nameof(FriendsOverviewViewModel.IsLoading) && h.Vm.IsLoading;
-            h.Vm.LoadAsync();
-            h.Settle();
-            Assert.IsFalse(raised);
-            Assert.AreEqual(2, h.Reads.ListLoads);
         }
 
         [TestMethod]
