@@ -3,7 +3,6 @@ using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -12,11 +11,16 @@ using System.Linq;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
-    /// <summary>One <c>CustomLayerAchievements</c> row, in the column types the database holds.</summary>
+    /// <summary>
+    /// One <c>CustomLayerAchievements</c> row, in the column types the database holds: the user's
+    /// override of an achievement (<see cref="IsAuthored"/> 0), or an achievement the user authored
+    /// as they defined it (<see cref="IsAuthored"/> 1). Each kind leaves the other's columns empty.
+    /// </summary>
     internal sealed class CustomAchievementRow
     {
         public string PlayniteGameId { get; set; }
         public string ApiName { get; set; }
+        public long IsAuthored { get; set; }
         public string DisplayName { get; set; }
         public string Description { get; set; }
         public long? Points { get; set; }
@@ -24,17 +28,21 @@ namespace PlayniteAchievements.Services.GameCustomData
         public string Category { get; set; }
         public string Tags { get; set; }
         public long? Hidden { get; set; }
-        public long Cleared { get; set; }
-        public long IsFiltered { get; set; }
-        public long IsSummaryFiltered { get; set; }
-        public string Note { get; set; }
-        public long? GoalOrder { get; set; }
-        public long? CustomOrder { get; set; }
         public string UnlockedIconPath { get; set; }
         public string LockedIconPath { get; set; }
         public string UnlockTimeUtc { get; set; }
-        public long CapstoneAssigned { get; set; }
-        public long IsAuthored { get; set; }
+
+        // Override rows only.
+        public long Cleared { get; set; }
+        public string Note { get; set; }
+        public long? GoalOrder { get; set; }
+        public long? CustomOrder { get; set; }
+        public long? FilterOrder { get; set; }
+        public long? SummaryFilterOrder { get; set; }
+        public long? CapstoneOrder { get; set; }
+
+        // Authored rows only.
+        public long? Position { get; set; }
         public long Unlocked { get; set; }
         public long? ProgressNum { get; set; }
         public long? ProgressDenom { get; set; }
@@ -43,17 +51,24 @@ namespace PlayniteAchievements.Services.GameCustomData
         public double? GlobalPercentUnlocked { get; set; }
         public string Rarity { get; set; }
         public long IsCapstone { get; set; }
+        public long IsAutoCapstone { get; set; }
+        public long IsWholeGameAutoCapstone { get; set; }
 
         /// <summary>The written columns, in <see cref="Values"/> order.</summary>
         public const string Columns =
-            "ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered, Note, GoalOrder, CustomOrder, UnlockedIconPath, LockedIconPath, UnlockTimeUtc, CapstoneAssigned, IsAuthored, Unlocked, ProgressNum, ProgressDenom, ScaledPoints, CategoryKind, GlobalPercentUnlocked, Rarity, IsCapstone";
+            "ApiName, IsAuthored, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, UnlockedIconPath, LockedIconPath, UnlockTimeUtc, " +
+            "Cleared, Note, GoalOrder, CustomOrder, FilterOrder, SummaryFilterOrder, CapstoneOrder, " +
+            "Position, Unlocked, ProgressNum, ProgressDenom, ScaledPoints, CategoryKind, GlobalPercentUnlocked, Rarity, IsCapstone, IsAutoCapstone, IsWholeGameAutoCapstone";
 
         public object[] Values() => new object[]
         {
-            ApiName, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, Cleared, IsFiltered, IsSummaryFiltered,
-            Note, GoalOrder, CustomOrder, UnlockedIconPath, LockedIconPath, UnlockTimeUtc, CapstoneAssigned, IsAuthored, Unlocked,
-            ProgressNum, ProgressDenom, ScaledPoints, CategoryKind, GlobalPercentUnlocked, Rarity, IsCapstone
+            ApiName, IsAuthored, DisplayName, Description, Points, TrophyType, Category, Tags, Hidden, UnlockedIconPath, LockedIconPath, UnlockTimeUtc,
+            Cleared, Note, GoalOrder, CustomOrder, FilterOrder, SummaryFilterOrder, CapstoneOrder,
+            Position, Unlocked, ProgressNum, ProgressDenom, ScaledPoints, CategoryKind, GlobalPercentUnlocked, Rarity, IsCapstone, IsAutoCapstone, IsWholeGameAutoCapstone
         };
+
+        /// <summary>The row's identity within its game.</summary>
+        public string Key => IsAuthored + ":" + ApiName;
 
         public string Signature() =>
             string.Join("\n", Values().Select(value => Convert.ToString(value, CultureInfo.InvariantCulture)));
@@ -61,27 +76,27 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// <summary>A row read as PlayniteGameId then <see cref="Columns"/>.</summary>
         public static CustomAchievementRow From(object[] v) => new CustomAchievementRow
         {
-            PlayniteGameId = Column.Text(v[0]), ApiName = Column.Text(v[1]), DisplayName = Column.Text(v[2]), Description = Column.Text(v[3]),
-            Points = Column.Long(v[4]), TrophyType = Column.Text(v[5]), Category = Column.Text(v[6]), Tags = Column.Text(v[7]),
-            Hidden = Column.Long(v[8]), Cleared = Column.Long(v[9]) ?? 0, IsFiltered = Column.Long(v[10]) ?? 0,
-            IsSummaryFiltered = Column.Long(v[11]) ?? 0, Note = Column.Text(v[12]), GoalOrder = Column.Long(v[13]),
-            CustomOrder = Column.Long(v[14]), UnlockedIconPath = Column.Text(v[15]), LockedIconPath = Column.Text(v[16]),
-            UnlockTimeUtc = Column.Text(v[17]), CapstoneAssigned = Column.Long(v[18]) ?? 0, IsAuthored = Column.Long(v[19]) ?? 0,
-            Unlocked = Column.Long(v[20]) ?? 0, ProgressNum = Column.Long(v[21]), ProgressDenom = Column.Long(v[22]),
-            ScaledPoints = Column.Long(v[23]), CategoryKind = Column.Text(v[24]),
-            GlobalPercentUnlocked = v[25] == null ? (double?)null : Convert.ToDouble(v[25], CultureInfo.InvariantCulture),
-            Rarity = Column.Text(v[26]), IsCapstone = Column.Long(v[27]) ?? 0
+            PlayniteGameId = Column.Text(v[0]), ApiName = Column.Text(v[1]), IsAuthored = Column.Long(v[2]) ?? 0, DisplayName = Column.Text(v[3]),
+            Description = Column.Text(v[4]), Points = Column.Long(v[5]), TrophyType = Column.Text(v[6]), Category = Column.Text(v[7]),
+            Tags = Column.Text(v[8]), Hidden = Column.Long(v[9]), UnlockedIconPath = Column.Text(v[10]), LockedIconPath = Column.Text(v[11]),
+            UnlockTimeUtc = Column.Text(v[12]), Cleared = Column.Long(v[13]) ?? 0, Note = Column.Text(v[14]), GoalOrder = Column.Long(v[15]),
+            CustomOrder = Column.Long(v[16]), FilterOrder = Column.Long(v[17]), SummaryFilterOrder = Column.Long(v[18]), CapstoneOrder = Column.Long(v[19]),
+            Position = Column.Long(v[20]), Unlocked = Column.Long(v[21]) ?? 0, ProgressNum = Column.Long(v[22]), ProgressDenom = Column.Long(v[23]),
+            ScaledPoints = Column.Long(v[24]), CategoryKind = Column.Text(v[25]),
+            GlobalPercentUnlocked = v[26] == null ? (double?)null : Convert.ToDouble(v[26], CultureInfo.InvariantCulture),
+            Rarity = Column.Text(v[27]), IsCapstone = Column.Long(v[28]) ?? 0, IsAutoCapstone = Column.Long(v[29]) ?? 0,
+            IsWholeGameAutoCapstone = Column.Long(v[30]) ?? 0
         };
 
-        /// <summary>True when the row carries one of the fields stored only here for a user override.</summary>
+        /// <summary>True for an override row that carries one of the override fields.</summary>
         public bool HasOverrideFields =>
             IsAuthored == 0 &&
-            (DisplayName != null || Description != null || Points.HasValue || TrophyType != null || Category != null ||
-             Tags != null || Hidden.HasValue || Cleared != 0 || Note != null || UnlockTimeUtc != null);
+            (DisplayName != null || Description != null || Points.HasValue || TrophyType != null || Category != null || Tags != null ||
+             Hidden.HasValue || Cleared != 0 || Note != null || UnlockTimeUtc != null || UnlockedIconPath != null || LockedIconPath != null);
 
         public bool IsEmpty =>
-            IsAuthored == 0 && !HasOverrideFields && UnlockedIconPath == null && LockedIconPath == null &&
-            IsFiltered == 0 && IsSummaryFiltered == 0 && !GoalOrder.HasValue && !CustomOrder.HasValue && CapstoneAssigned == 0;
+            IsAuthored == 0 && !HasOverrideFields && !GoalOrder.HasValue && !CustomOrder.HasValue &&
+            !FilterOrder.HasValue && !SummaryFilterOrder.HasValue && !CapstoneOrder.HasValue;
     }
 
     /// <summary>One <c>CustomLayerGames</c> row.</summary>
@@ -148,9 +163,6 @@ namespace PlayniteAchievements.Services.GameCustomData
         public List<CustomAchievementRow> Achievements { get; set; } = new List<CustomAchievementRow>();
 
         public List<CustomCategoryRow> Categories { get; set; } = new List<CustomCategoryRow>();
-
-        /// <summary>True when <see cref="CustomGameStateRow.SettingsJson"/> holds the whole record.</summary>
-        public bool StoredWhole { get; set; }
     }
 
     /// <summary>
@@ -158,18 +170,17 @@ namespace PlayniteAchievements.Services.GameCustomData
     /// the only store of custom data.
     /// </summary>
     /// <remarks>
-    /// Each field has one home. The columns a query reads hold the game flags, each category's
-    /// kind and position, the custom and goal order, and every user override field but the icons;
-    /// <c>CustomLayerGames.SettingsJson</c> holds the rest. Some columns hold what the views show
-    /// rather than what the user stored (authored achievements with their overrides applied,
-    /// resolved icons and art, filter and capstone flags), and are written from the record on
-    /// every save but never read back. A record whose split does not read back exactly is stored
-    /// whole in <c>SettingsJson</c> instead, so a save can never lose a value.
+    /// Each value has one home, and is read back from it. The columns hold the game flags; each
+    /// category's kind, position and art; each achievement's override fields, icons and positions
+    /// in the custom order, goals, filters and capstones; and each authored achievement as the
+    /// user defined it, which the views resolve the user's override over as they do a platform
+    /// achievement. <c>CustomLayerGames.SettingsJson</c> holds the rest. File paths are stored in
+    /// the database's form and read back as absolute paths, so a saved record carries them in that
+    /// form. Achievement rows are keyed by ApiName ignoring case, so an ApiName spelled two ways
+    /// in one record reads back in its first spelling.
     /// </remarks>
     internal static class GameCustomLayer
     {
-        private const string StoredWholeKey = "StoredWhole";
-
         internal static readonly JsonSerializerSettings JsonSettings = new JsonSerializerSettings
         {
             Formatting = Formatting.None,
@@ -180,15 +191,24 @@ namespace PlayniteAchievements.Services.GameCustomData
         private static readonly JsonSerializer Serializer = JsonSerializer.Create(JsonSettings);
 
         /// <param name="data">A normalized record.</param>
-        /// <param name="toStored">Maps an icon path to the form the database stores.</param>
-        public static GameCustomLayerRows ToRows(GameCustomDataFile data, ManagedCustomIconService icons, Func<string, string> toStored)
+        /// <param name="toStored">Maps a file path to the form the database stores.</param>
+        public static GameCustomLayerRows ToRows(GameCustomDataFile data, Func<string, string> toStored)
         {
-            var gameId = data.PlayniteGameId;
-            var gameIdText = gameId.ToString("D");
+            var gameIdText = data.PlayniteGameId.ToString("D");
             var rows = new GameCustomLayerRows
             {
-                Achievements = BuildAchievementRows(data, icons, toStored),
-                Categories = BuildCategoryRows(data, icons, toStored)
+                Achievements = BuildAchievementRows(data, toStored),
+                Categories = BuildCategoryRows(data, toStored),
+                State = new CustomGameStateRow
+                {
+                    PlayniteGameId = gameIdText,
+                    CapstonesMaterialized = data.CapstonesMaterialized ? 1 : 0,
+                    HasManualLink = data.ManualLink != null ? 1 : 0,
+                    ExcludedFromSummaries = data.ExcludedFromSummaries == true ? 1 : 0,
+                    ExcludedFromRefreshes = data.ExcludedFromRefreshes == true ? 1 : 0,
+                    UseSeparateLockedIcons = data.UseSeparateLockedIconsOverride == true ? 1 : 0,
+                    SettingsJson = Residual(data).ToString(Formatting.None)
+                }
             };
             foreach (var row in rows.Achievements)
             {
@@ -200,88 +220,87 @@ namespace PlayniteAchievements.Services.GameCustomData
                 row.PlayniteGameId = gameIdText;
             }
 
-            rows.State = new CustomGameStateRow
-            {
-                PlayniteGameId = gameIdText,
-                CapstonesMaterialized = data.CapstonesMaterialized ? 1 : 0,
-                HasManualLink = data.ManualLink != null ? 1 : 0,
-                ExcludedFromSummaries = data.ExcludedFromSummaries == true ? 1 : 0,
-                ExcludedFromRefreshes = data.ExcludedFromRefreshes == true ? 1 : 0,
-                UseSeparateLockedIcons = data.UseSeparateLockedIconsOverride == true ? 1 : 0,
-                SettingsJson = Residual(data, rows.Achievements).ToString(Formatting.None)
-            };
-
-            if (!string.Equals(Canonical(FromRows(gameId, rows.State, rows.Achievements, rows.Categories)), Canonical(data), StringComparison.Ordinal))
-            {
-                var whole = JObject.FromObject(data, Serializer);
-                whole[StoredWholeKey] = true;
-                rows.State.SettingsJson = whole.ToString(Formatting.None);
-                rows.StoredWhole = true;
-            }
-
             return rows;
         }
 
         /// <summary>The record the rows hold, as it was saved (not normalized again).</summary>
+        /// <param name="fromStored">Maps a stored file path to an absolute one.</param>
         public static GameCustomDataFile FromRows(
             Guid gameId,
             CustomGameStateRow state,
             IEnumerable<CustomAchievementRow> achievements,
-            IEnumerable<CustomCategoryRow> categories)
+            IEnumerable<CustomCategoryRow> categories,
+            Func<string, string> fromStored)
         {
-            var settings = Parse(state?.SettingsJson);
-            var whole = settings.Value<bool?>(StoredWholeKey) == true;
-            settings.Remove(StoredWholeKey);
-            var data = settings.ToObject<GameCustomDataFile>(Serializer);
+            var data = Parse(state?.SettingsJson).ToObject<GameCustomDataFile>(Serializer);
             data.PlayniteGameId = gameId;
-            if (whole)
-            {
-                return data;
-            }
-
             data.CapstonesMaterialized = state.CapstonesMaterialized != 0;
             data.ExcludedFromSummaries = state.ExcludedFromSummaries != 0 ? true : (bool?)null;
             data.ExcludedFromRefreshes = state.ExcludedFromRefreshes != 0 ? true : (bool?)null;
             data.UseSeparateLockedIconsOverride = state.UseSeparateLockedIcons != 0 ? true : (bool?)null;
 
-            var categoryRows = (categories ?? Enumerable.Empty<CustomCategoryRow>()).ToList();
+            // In name order, so a record reads back alike however its rows were listed.
+            var categoryRows = (categories ?? Enumerable.Empty<CustomCategoryRow>()).OrderBy(row => row.Category, StringComparer.Ordinal).ToList();
             var kinds = new Dictionary<string, string>(CategoryPathHelper.LabelComparer);
-            foreach (var row in categoryRows.Where(row => row.Kind != null))
+            var art = new Dictionary<string, CategoryImageOverrideData>(CategoryPathHelper.LabelComparer);
+            foreach (var row in categoryRows)
             {
-                kinds[row.Category] = row.Kind;
+                if (row.Kind != null)
+                {
+                    kinds[row.Category] = row.Kind;
+                }
+
+                if (row.ImagePath != null)
+                {
+                    art[row.Category] = new CategoryImageOverrideData { Art = fromStored(row.ImagePath) };
+                }
             }
 
             data.AchievementCategoryKinds = kinds.Count > 0 ? kinds : null;
+            data.AchievementCategoryImageOverrides = art.Count > 0 ? art : null;
             data.AchievementCategoryOrder = Ordered(categoryRows, row => row.SortIndex, row => row.Category);
 
-            var achievementRows = (achievements ?? Enumerable.Empty<CustomAchievementRow>()).ToList();
-            data.AchievementOrder = Ordered(achievementRows, row => row.CustomOrder, row => row.ApiName);
-            data.GoalAchievementApiNames = Ordered(achievementRows, row => row.GoalOrder, row => row.ApiName);
+            var achievementRows = (achievements ?? Enumerable.Empty<CustomAchievementRow>()).OrderBy(row => row.ApiName, StringComparer.Ordinal).ToList();
+            var overrideRows = achievementRows.Where(row => row.IsAuthored == 0).ToList();
+            data.AchievementOrder = Ordered(overrideRows, row => row.CustomOrder, row => row.ApiName);
+            data.GoalAchievementApiNames = Ordered(overrideRows, row => row.GoalOrder, row => row.ApiName);
+            data.FilteredAchievementApiNames = Ordered(overrideRows, row => row.FilterOrder, row => row.ApiName);
+            data.SummaryFilteredAchievementApiNames = Ordered(overrideRows, row => row.SummaryFilterOrder, row => row.ApiName);
+            data.Capstones = Ordered(overrideRows, row => row.CapstoneOrder, row => row.ApiName)?
+                .Select(apiName => new CapstoneAssignment { ApiName = apiName })
+                .ToList();
 
-            var overrides = data.AchievementOverrides ?? new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in achievementRows.Where(row => row.HasOverrideFields))
+            var overrides = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in overrideRows.Where(row => row.HasOverrideFields))
             {
-                if (!overrides.TryGetValue(row.ApiName, out var entry) || entry == null)
+                overrides[row.ApiName] = new AchievementOverride
                 {
-                    overrides[row.ApiName] = entry = new AchievementOverride();
-                }
-
-                entry.DisplayName = row.DisplayName;
-                entry.Description = row.Description;
-                entry.ClearDescription = IsCleared(row, AchievementField.Description);
-                entry.Points = row.Points.HasValue ? (int)row.Points.Value : (int?)null;
-                entry.TrophyType = row.TrophyType;
-                entry.ClearTrophyType = IsCleared(row, AchievementField.TrophyType);
-                entry.UnlockTimeUtc = Database.AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc);
-                entry.ClearUnlockTime = IsCleared(row, AchievementField.UnlockTime);
-                entry.Category = row.Category;
-                entry.Tags = row.Tags;
-                entry.ClearTags = IsCleared(row, AchievementField.Tags);
-                entry.Note = row.Note;
-                entry.Hidden = row.Hidden.HasValue ? row.Hidden.Value != 0 : (bool?)null;
+                    DisplayName = row.DisplayName, Description = row.Description, ClearDescription = IsCleared(row, AchievementField.Description),
+                    Points = (int?)row.Points, TrophyType = row.TrophyType, ClearTrophyType = IsCleared(row, AchievementField.TrophyType),
+                    UnlockTimeUtc = Database.AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc), ClearUnlockTime = IsCleared(row, AchievementField.UnlockTime),
+                    Category = row.Category, Tags = row.Tags, ClearTags = IsCleared(row, AchievementField.Tags), Note = row.Note,
+                    UnlockedIconPath = fromStored(row.UnlockedIconPath), LockedIconPath = fromStored(row.LockedIconPath),
+                    Hidden = row.Hidden.HasValue ? row.Hidden.Value != 0 : (bool?)null
+                };
             }
 
             data.AchievementOverrides = overrides.Count > 0 ? overrides : null;
+
+            var authored = achievementRows
+                .Where(row => row.IsAuthored != 0)
+                .OrderBy(row => row.Position)
+                .Select(row => new CustomAchievementDefinition
+                {
+                    Id = row.ApiName.Substring(CustomAchievementProjectionService.ApiNamePrefix.Length), DisplayName = row.DisplayName,
+                    Description = row.Description, Unlocked = row.Unlocked != 0, UnlockTimeUtc = Database.AchievementSqlFunctions.ParseUtc(row.UnlockTimeUtc),
+                    UnlockedIconPath = fromStored(row.UnlockedIconPath), LockedIconPath = fromStored(row.LockedIconPath), Points = (int?)row.Points,
+                    ScaledPoints = (int?)row.ScaledPoints, Category = row.Category, Tags = row.Tags, CategoryKind = row.CategoryKind,
+                    TrophyType = row.TrophyType, Hidden = row.Hidden == 1, IsCapstone = row.IsCapstone != 0, Rarity = row.Rarity,
+                    GlobalPercentUnlocked = row.GlobalPercentUnlocked, ProgressNum = (int?)row.ProgressNum, ProgressDenom = (int?)row.ProgressDenom,
+                    IsAutoCapstone = row.IsAutoCapstone != 0, IsWholeGameAutoCapstone = row.IsWholeGameAutoCapstone != 0
+                })
+                .ToList();
+            data.CustomAchievements = authored.Count > 0 ? authored : null;
             return data;
         }
 
@@ -307,27 +326,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
-        /// <summary>The record as JSON with every object's properties in name order, for comparing records.</summary>
-        public static string Canonical(GameCustomDataFile data)
-        {
-            return data == null ? string.Empty : Sorted(JToken.FromObject(data, Serializer)).ToString(Formatting.None);
-        }
-
-        private static JToken Sorted(JToken token)
-        {
-            switch (token)
-            {
-                case JObject obj:
-                    return new JObject(obj.Properties()
-                        .OrderBy(property => property.Name, StringComparer.Ordinal)
-                        .Select(property => new JProperty(property.Name, Sorted(property.Value))));
-                case JArray array:
-                    return new JArray(array.Select(Sorted));
-                default:
-                    return token;
-            }
-        }
-
         private static bool IsCleared(CustomAchievementRow row, AchievementField field) => (row.Cleared & (long)field) != 0;
 
         private static List<string> Ordered<T>(IEnumerable<T> rows, Func<T, long?> position, Func<T, string> name)
@@ -337,7 +335,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>The record without the values its columns hold.</summary>
-        private static JObject Residual(GameCustomDataFile data, IReadOnlyList<CustomAchievementRow> achievements)
+        private static JObject Residual(GameCustomDataFile data)
         {
             var residual = data.Clone();
             residual.PlayniteGameId = Guid.Empty;
@@ -347,52 +345,31 @@ namespace PlayniteAchievements.Services.GameCustomData
             residual.UseSeparateLockedIconsOverride = null;
             residual.AchievementCategoryKinds = null;
             residual.AchievementCategoryOrder = null;
+            residual.AchievementCategoryImageOverrides = null;
             residual.AchievementOrder = null;
             residual.GoalAchievementApiNames = null;
-            if (residual.AchievementOverrides != null)
-            {
-                foreach (var row in achievements.Where(row => row.HasOverrideFields))
-                {
-                    if (residual.AchievementOverrides.TryGetValue(row.ApiName, out var entry) && entry != null)
-                    {
-                        residual.AchievementOverrides[row.ApiName] = new AchievementOverride
-                        {
-                            UnlockedIconPath = entry.UnlockedIconPath,
-                            LockedIconPath = entry.LockedIconPath
-                        };
-                    }
-                }
-
-                residual.AchievementOverrides = GameCustomDataFile.CloneAchievementOverrideMap(residual.AchievementOverrides);
-            }
-
+            residual.FilteredAchievementApiNames = null;
+            residual.SummaryFilteredAchievementApiNames = null;
+            residual.Capstones = null;
+            residual.AchievementOverrides = null;
+            residual.CustomAchievements = null;
             return JObject.FromObject(residual, Serializer);
         }
 
         /// <summary>
-        /// A row per achievement the user customized: the override fields as stored, its flags and
-        /// positions, and a row per authored achievement with the user's overrides applied, so the
-        /// resolved views need nothing else.
+        /// A row per achievement the user customized, with the override fields as stored and its
+        /// positions, and a row per authored achievement as the user defined it.
         /// </summary>
-        private static List<CustomAchievementRow> BuildAchievementRows(
-            GameCustomDataFile data,
-            ManagedCustomIconService icons,
-            Func<string, string> toStored)
+        private static List<CustomAchievementRow> BuildAchievementRows(GameCustomDataFile data, Func<string, string> toStored)
         {
             var rows = new Dictionary<string, CustomAchievementRow>(StringComparer.OrdinalIgnoreCase);
-            var gameId = data.PlayniteGameId;
-            var hasManualLink = data.ManualLink != null;
-            var overrides = data.AchievementOverrides ?? new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
-            MarkPositions(rows, data.FilteredAchievementApiNames, (row, _) => row.IsFiltered = 1);
-            MarkPositions(rows, data.SummaryFilteredAchievementApiNames, (row, _) => row.IsSummaryFiltered = 1);
+            MarkPositions(rows, data.FilteredAchievementApiNames, (row, index) => row.FilterOrder = index);
+            MarkPositions(rows, data.SummaryFilteredAchievementApiNames, (row, index) => row.SummaryFilterOrder = index);
             MarkPositions(rows, data.GoalAchievementApiNames, (row, index) => row.GoalOrder = index);
             MarkPositions(rows, data.AchievementOrder, (row, index) => row.CustomOrder = index);
-            if (data.CapstonesMaterialized)
-            {
-                MarkPositions(rows, data.Capstones?.Select(capstone => capstone?.ApiName), (row, _) => row.CapstoneAssigned = 1);
-            }
+            MarkPositions(rows, data.Capstones?.Select(capstone => capstone?.ApiName), (row, index) => row.CapstoneOrder = index);
 
-            foreach (var pair in overrides)
+            foreach (var pair in data.AchievementOverrides ?? new Dictionary<string, AchievementOverride>())
             {
                 var apiName = NormalizeText(pair.Key);
                 var entry = pair.Value;
@@ -402,8 +379,8 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 var layer = entry.ToLayer();
-                var unlockedIcon = ResolveIcon(entry.UnlockedIconPath, gameId, icons);
-                var lockedIcon = ResolveIcon(entry.LockedIconPath, gameId, icons);
+                var unlockedIcon = toStored(NormalizeText(entry.UnlockedIconPath));
+                var lockedIcon = toStored(NormalizeText(entry.LockedIconPath));
                 var note = NormalizeText(entry.Note);
                 // Stored as the user set them; the views skip them for a manually tracked game.
                 var clearUnlockTime = !entry.UnlockTimeUtc.HasValue && entry.ClearUnlockTime;
@@ -422,55 +399,29 @@ namespace PlayniteAchievements.Services.GameCustomData
                 row.Tags = AchievementTagHelper.StripDerived(layer.Tags);
                 row.Hidden = layer.Hidden.HasValue ? (layer.Hidden.Value ? 1 : 0) : (long?)null;
                 row.Cleared |= (long)layer.Cleared | (clearUnlockTime ? (long)AchievementField.UnlockTime : 0);
-                row.UnlockedIconPath = toStored(unlockedIcon);
-                row.LockedIconPath = toStored(lockedIcon);
+                row.UnlockedIconPath = unlockedIcon;
+                row.LockedIconPath = lockedIcon;
                 row.Note = note;
                 row.UnlockTimeUtc = Iso(entry.UnlockTimeUtc);
             }
 
-            // Authored achievements exist only in custom data; each row carries what the plugin
-            // shows for it, with the user's overrides and capstone set already applied.
-            foreach (var detail in CustomAchievementProjectionService.ProjectAchievements(gameId, data.CustomAchievements, icons))
+            var authored = (data.CustomAchievements ?? new List<CustomAchievementDefinition>()).Select((definition, index) => new CustomAchievementRow
             {
-                overrides.TryGetValue(detail.ApiName, out var entry);
-                detail.CustomLayer = entry?.ToLayer();
-                AchievementLayers.Resolve(detail);
-                entry?.ApplyUnlockTimeTo(detail, hasManualLink);
-                detail.UnlockedIconPath = ResolveIcon(entry?.UnlockedIconPath, gameId, icons) ?? detail.UnlockedIconPath;
-                detail.LockedIconPath = ResolveIcon(entry?.LockedIconPath, gameId, icons) ?? detail.LockedIconPath;
-                detail.Category = CategoryPathHelper.NormalizePath(detail.Category);
-                detail.CategoryKind = CategoryKindHelper.ResolveEffective(
-                    CategoryEditor.ResolveStoredCategoryKind(data.AchievementCategoryKinds, detail.Category),
-                    detail.CategoryKind);
-                var row = Row(rows, detail.ApiName);
-                row.IsAuthored = 1;
-                row.DisplayName = detail.DisplayName;
-                row.Description = detail.Description;
-                row.UnlockedIconPath = toStored(detail.UnlockedIconPath);
-                row.LockedIconPath = toStored(detail.LockedIconPath);
-                row.Points = detail.Points;
-                row.ScaledPoints = detail.ScaledPoints;
-                row.TrophyType = detail.TrophyType;
-                row.Category = detail.Category;
-                row.CategoryKind = detail.CategoryKind;
-                row.Tags = detail.Tags;
-                row.Hidden = detail.Hidden ? 1 : 0;
-                row.Unlocked = detail.Unlocked ? 1 : 0;
-                row.UnlockTimeUtc = Iso(detail.UnlockTimeUtc);
-                row.ProgressNum = detail.ProgressNum;
-                row.ProgressDenom = detail.ProgressDenom;
-                row.GlobalPercentUnlocked = detail.GlobalPercentUnlocked;
-                row.Rarity = detail.Rarity.ToString();
-                row.IsCapstone = (data.CapstonesMaterialized ? row.CapstoneAssigned != 0 : detail.IsCapstone) ? 1 : 0;
-                row.Cleared = 0;
-                row.Note = NormalizeText(entry?.Note);
-            }
+                ApiName = CustomAchievementProjectionService.BuildApiName(definition.Id), IsAuthored = 1, Position = index,
+                DisplayName = definition.DisplayName, Description = definition.Description, Unlocked = definition.Unlocked ? 1 : 0,
+                UnlockTimeUtc = Iso(definition.UnlockTimeUtc), UnlockedIconPath = toStored(NormalizeText(definition.UnlockedIconPath)),
+                LockedIconPath = toStored(NormalizeText(definition.LockedIconPath)), Points = definition.Points, ScaledPoints = definition.ScaledPoints,
+                Category = definition.Category, Tags = definition.Tags, CategoryKind = definition.CategoryKind, TrophyType = definition.TrophyType,
+                Hidden = definition.Hidden ? 1 : 0, IsCapstone = definition.IsCapstone ? 1 : 0, Rarity = definition.Rarity,
+                GlobalPercentUnlocked = definition.GlobalPercentUnlocked, ProgressNum = definition.ProgressNum, ProgressDenom = definition.ProgressDenom,
+                IsAutoCapstone = definition.IsAutoCapstone ? 1 : 0, IsWholeGameAutoCapstone = definition.IsWholeGameAutoCapstone ? 1 : 0
+            });
 
-            return rows.Values.Where(row => !row.IsEmpty).Select(Blank).ToList();
+            return rows.Values.Where(row => !row.IsEmpty).Concat(authored).Select(Blank).ToList();
         }
 
         /// <summary>The user's settings per category: its kind, its position in the custom order and its art.</summary>
-        private static List<CustomCategoryRow> BuildCategoryRows(GameCustomDataFile data, ManagedCustomIconService icons, Func<string, string> toStored)
+        private static List<CustomCategoryRow> BuildCategoryRows(GameCustomDataFile data, Func<string, string> toStored)
         {
             var rows = new Dictionary<string, CustomCategoryRow>(StringComparer.OrdinalIgnoreCase);
             CustomCategoryRow Category(string name)
@@ -506,7 +457,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             foreach (var pair in data.AchievementCategoryImageOverrides ?? new Dictionary<string, CategoryImageOverrideData>())
             {
                 var category = CategoryPathHelper.NormalizePath(pair.Key);
-                var art = ResolveIcon(pair.Value?.Art, data.PlayniteGameId, icons);
+                var art = NormalizeText(pair.Value?.Art);
                 if (category != null && art != null)
                 {
                     Category(category).ImagePath = toStored(art);
@@ -564,15 +515,6 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             return row;
-        }
-
-        /// <summary>A stored icon override as the plugin displays it.</summary>
-        private static string ResolveIcon(string value, Guid gameId, ManagedCustomIconService icons)
-        {
-            var normalized = NormalizeText(value);
-            return normalized == null
-                ? null
-                : icons?.ResolveManagedDisplayPath(normalized, gameId.ToString("D")) ?? normalized;
         }
 
         private static string Iso(DateTime? value) =>
