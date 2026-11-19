@@ -1065,6 +1065,50 @@
         </DockPanel>
     </DataTemplate>
 
+    <!-- AchievementInfoTemplate while the grid shows no detail before the name or the
+         description: the same text without the detail elements, which as empty inline
+         containers still made each line format again on every arrange. -->
+    <DataTemplate x:Key="AchievementInfoPlainTemplate">
+        <DockPanel LastChildFill="True"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   Background="Transparent">
+            <TextBlock DockPanel.Dock="Top"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       Style="{StaticResource AchievementNameTextStyle}"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"><Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                     FontStyle="Italic"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
+                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+            </TextBlock>
+            <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,0,0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+                <!-- The ellipsis takes the TextBlock's brush, so the dimming stays on the run. -->
+                <Run Text="{Binding DescriptionResolved, Mode=OneWay}"
+                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}, Converter={StaticResource BrushOpacity}, ConverterParameter={StaticResource PlayAch.Opacity.Subtle}}"/>
+            </TextBlock>
+        </DockPanel>
+    </DataTemplate>
+
     <!-- The stand-in drawn in a Compare avatar circle whose side has no avatar image (a
          provider with no stored account, or a friend with no cached avatar). The element's Tag
          carries the avatar path. -->
