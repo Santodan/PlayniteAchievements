@@ -166,5 +166,91 @@ namespace PlayniteAchievements.Tests.Services
                 new[] { FriendCacheChangeKind.FriendGameAchievements, FriendCacheChangeKind.GameDefinition },
                 scopes.Select(scope => scope.Kind).ToArray());
         }
+
+        [TestMethod]
+        public void SelectAchievementReloadScopes_KeepsSelfGame()
+        {
+            var gameId = Guid.NewGuid();
+            var scopes = FriendsOverviewDataCoordinator.SelectAchievementReloadScopes(new[]
+            {
+                FriendCacheChange.ForSelfGame(gameId)
+            });
+
+            Assert.AreEqual(1, scopes.Count);
+            Assert.AreEqual(gameId, scopes[0].PlayniteGameId);
+        }
+
+        [TestMethod]
+        public void BuildPatchedData_SelfGame_ReplacesEveryFriendsRowsOfThatPlayniteGame()
+        {
+            var gameTen = Guid.NewGuid();
+            var gameTwenty = Guid.NewGuid();
+            var baseAchievements = BaseWorld();
+            baseAchievements[0].PlayniteGameId = gameTen;
+            baseAchievements[1].PlayniteGameId = gameTen;
+            baseAchievements[2].PlayniteGameId = gameTen;
+            baseAchievements[3].PlayniteGameId = gameTwenty;
+            var fresh = Item("Steam", "bob", 10, "app10", "Game Ten", "B1", unlocked: true, new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc));
+            fresh.PlayniteGameId = gameTen;
+            fresh.UnlockedBySelf = true;
+
+            var data = FriendsOverviewDataCoordinator.BuildPatchedData(
+                baseAchievements, Patch(fresh), new[] { FriendCacheChange.ForSelfGame(gameTen) });
+
+            Assert.AreEqual(2, data.AllAchievements.Count);
+            Assert.IsTrue(data.AllAchievements.Contains(fresh));
+            Assert.IsTrue(data.AllAchievements.Contains(baseAchievements[3]), "Other games' rows are reused by reference.");
+        }
+
+        [TestMethod]
+        public void MatchesRemovalScope_SelfGame_IgnoresProviderAndFriend()
+        {
+            var gameId = Guid.NewGuid();
+            var item = Item("Exophase", "carol", 0, "some-game", "Game", "X", unlocked: true);
+            item.PlayniteGameId = gameId;
+
+            Assert.IsTrue(FriendsOverviewDataCoordinator.MatchesRemovalScope(item, FriendCacheChange.ForSelfGame(gameId)));
+            Assert.IsFalse(FriendsOverviewDataCoordinator.MatchesRemovalScope(item, FriendCacheChange.ForSelfGame(Guid.NewGuid())));
+        }
+
+        [TestMethod]
+        public void MatchesRemovalScope_SelfGame_SkipsRowsWithoutPlayniteGame()
+        {
+            var item = Item("Steam", "alice", 10, "app10", "Game Ten", "A1", unlocked: true);
+
+            Assert.IsFalse(FriendsOverviewDataCoordinator.MatchesRemovalScope(item, FriendCacheChange.ForSelfGame(Guid.NewGuid())));
+        }
+
+        [TestMethod]
+        public void FromSelfCacheInvalidation_MapsScopedGamesAndKeepsFullFull()
+        {
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+
+            var scoped = FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(
+                PlayniteAchievements.Models.CacheInvalidatedEventArgs.Scoped(new[] { first, second, first }));
+            Assert.IsFalse(scoped.IsFull);
+            CollectionAssert.AreEquivalent(
+                new[] { first, second },
+                scoped.Changes.Select(change => change.PlayniteGameId).ToArray());
+            Assert.IsTrue(scoped.Changes.All(change => change.Kind == FriendCacheChangeKind.SelfGame));
+            Assert.IsTrue(FriendsOverviewDataCoordinator.CanPatch(scoped));
+
+            Assert.IsTrue(FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(
+                PlayniteAchievements.Models.CacheInvalidatedEventArgs.FullInvalidation).IsFull);
+            Assert.IsTrue(FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(null).IsFull);
+        }
+
+        [TestMethod]
+        public void SelfGameChanges_AreEqualOnlyForTheSameGame()
+        {
+            var gameId = Guid.NewGuid();
+            var accumulator = new FriendCacheInvalidationScopeAccumulator();
+            accumulator.Add(FriendCacheChange.ForSelfGame(gameId));
+            accumulator.Add(FriendCacheChange.ForSelfGame(gameId));
+            accumulator.Add(FriendCacheChange.ForSelfGame(Guid.NewGuid()));
+
+            Assert.AreEqual(2, accumulator.Drain().Changes.Count);
+        }
     }
 }
