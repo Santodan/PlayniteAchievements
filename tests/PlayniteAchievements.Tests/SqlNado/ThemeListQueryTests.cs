@@ -117,7 +117,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                 CollectionAssert.AreEqual(status.OrderByDescending(row => row.Unlocked).Select(row => row.Unlocked).ToList(), status.Select(row => row.Unlocked).ToList());
 
                 var provider = AchievementReadService.Rows(db, DynamicThemeFilterEvaluator.ApplyAchievementSort(AchievementQuery.CurrentUser, "Provider", "Ascending"));
-                Assert.AreEqual("Exophase", provider.First(row => row.ProviderKey != null).ProviderKey);
+                // The authored-only game's row reads as Custom but sorts with no provider key.
+                Assert.AreEqual("Exophase", provider.First(row => row.ProviderKey != null && row.IsAuthored == 0).ProviderKey);
 
                 var byDefault = DynamicThemeFilterEvaluator.ApplyAchievementSort(AchievementQuery.CurrentUser, "Default", null);
                 Assert.AreEqual(AchievementSort.UnlockTime, byDefault.Sort);
