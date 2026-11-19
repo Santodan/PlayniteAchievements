@@ -58,12 +58,11 @@ namespace PlayniteAchievements.Services.Friends
 
         public FriendsOverviewData LoadLists(Guid? playniteGameId = null) => _loadLists(playniteGameId) ?? new FriendsOverviewData();
 
-        public IReadOnlyList<AchievementTotalsRecord> Totals(AchievementQuery query, AchievementGroup group) =>
-            _reads.Totals(query, group) ?? Array.Empty<AchievementTotalsRecord>();
+        public IReadOnlyList<AchievementTotalsRecord> Totals(AchievementQuery query, AchievementGroup group) => _reads.Totals(query, group);
 
         public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query) => _reads.SortedKeys(query);
 
         public IReadOnlyList<FriendAchievementDisplayItem> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys = null) =>
-            _mapRows((keys == null ? _reads.Rows(query) : _reads.Rows(query, keys)) ?? Array.Empty<AchievementRowRecord>(), query.CompareAccounts != null);
+            _mapRows(keys == null ? _reads.Rows(query) : _reads.Rows(query, keys), query.CompareAccounts != null);
     }
 }
