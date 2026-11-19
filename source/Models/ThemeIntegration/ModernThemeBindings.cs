@@ -198,7 +198,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private readonly BulkObservableCollection<FriendGameAchievementSummary> _dynamicFriendGameSummaries = new BulkObservableCollection<FriendGameAchievementSummary>();
         [DontSerialize]
-        private readonly BulkObservableCollection<FriendAchievementDisplayItem> _dynamicFriendAchievements = new BulkObservableCollection<FriendAchievementDisplayItem>();
+        private IReadOnlyList<FriendAchievementDisplayItem> _dynamicFriendAchievements = Array.Empty<FriendAchievementDisplayItem>();
         [DontSerialize]
         private FriendSummaryItem _dynamicFriendScopeSummary;
         [DontSerialize]
@@ -1256,14 +1256,14 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
-        public ObservableCollection<FriendAchievementDisplayItem> DynamicFriendAchievements
+        public IReadOnlyList<FriendAchievementDisplayItem> DynamicFriendAchievements
         {
             get
             {
                 NotifyFriendDataRequested();
                 return _dynamicFriendAchievements;
             }
-            set => ReplaceCollection(_dynamicFriendAchievements, value, nameof(DynamicFriendAchievements));
+            set => SetValue(ref _dynamicFriendAchievements, value ?? Array.Empty<FriendAchievementDisplayItem>());
         }
 
         /// <summary>
