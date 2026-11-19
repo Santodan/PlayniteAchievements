@@ -3433,6 +3433,15 @@ namespace PlayniteAchievements.Views.Controls
 
             SetValue(InlineNameDetailStylesPropertyKey, beforeName ? styles : NoInlineDetails);
             SetValue(InlineDescriptionDetailStylesPropertyKey, beforeDescription ? styles : NoInlineDetails);
+
+            // Without a spot the cells take the template that has no detail elements.
+            var template = (DataTemplate)FindResource(beforeName || beforeDescription
+                ? "AchievementInfoTemplate"
+                : "AchievementInfoPlainTemplate");
+            if (!ReferenceEquals(AchievementInfoColumn.CellTemplate, template))
+            {
+                AchievementInfoColumn.CellTemplate = template;
+            }
         }
 
         // Reads without creating: GetAchievement would add a record for every unknown key.
