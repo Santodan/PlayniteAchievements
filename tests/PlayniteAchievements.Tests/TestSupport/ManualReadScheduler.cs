@@ -24,7 +24,10 @@ namespace PlayniteAchievements.Tests.TestSupport
         // Code under test may post from another thread; the queued work still runs on the test's.
         public void Post(Action action) { lock (_sync) { _ui.Enqueue(action); } }
 
-        public void PostAfter(TimeSpan delay, Action action) { lock (_sync) { _timers.Add(action); } }
+        /// <summary>The delay of every <see cref="PostAfter"/>, in call order.</summary>
+        public List<TimeSpan> Delays { get; } = new List<TimeSpan>();
+
+        public void PostAfter(TimeSpan delay, Action action) { lock (_sync) { Delays.Add(delay); _timers.Add(action); } }
 
         /// <summary>Runs the queued reads, then the queued UI work, until both are empty.</summary>
         public void Drain()
