@@ -106,8 +106,6 @@ namespace PlayniteAchievements.Services.Database
                     return SameProvider(change, query) && SameGame(change, query);
                 case FriendCacheChangeKind.FriendGameAchievements:
                     return SameFriend(change, query) && SameGame(change, query);
-                case FriendCacheChangeKind.SelfGame:
-                    return query.GameIds == null || query.GameIds.Contains(change.PlayniteGameId);
                 default:
                     return true;
             }
