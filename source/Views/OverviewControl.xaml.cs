@@ -339,7 +339,12 @@ namespace PlayniteAchievements.Views
             ShowcaseContentHost.Visibility = VisibleWhenActive(OverviewSubView.Showcase);
 
             UpdateFriendsClearSelectionState();
+            UpdateFriendsActive();
         }
+
+        // The friends reads follow data changes only while it is the shown subview of an active overview.
+        private void UpdateFriendsActive() =>
+            _friendsOverview?.ViewModel?.SetActive(_isActive && ActiveSubView == OverviewSubView.Friends);
 
         /// <summary>
         /// Switches to the Showcase on the given page. Before the Showcase exists the page is
@@ -461,6 +466,7 @@ namespace PlayniteAchievements.Views
             if (_isActive) return;
             _isActive = true;
             _viewModel?.SetActive(true);
+            UpdateFriendsActive();
             FocusInitialFullscreenControllerTarget();
         }
 
@@ -558,6 +564,7 @@ namespace PlayniteAchievements.Views
             if (!_isActive) return;
             _isActive = false;
             _viewModel?.SetActive(false);
+            UpdateFriendsActive();
             // Once the frame showing the other view is drawn, so it does not wait for this; a
             // return before then keeps them for that visit.
             Dispatcher.BeginInvoke(new Action(() =>
