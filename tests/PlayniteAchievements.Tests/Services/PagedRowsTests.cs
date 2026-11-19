@@ -22,7 +22,9 @@ namespace PlayniteAchievements.Services.Tests
 
         private readonly ManualReadScheduler _scheduler = new ManualReadScheduler();
         private readonly AchievementDataFeed _feed = new AchievementDataFeed(null, null);
+        // Each page read as the query paged to the keys it was given.
         private readonly List<AchievementQuery> _pageReads = new List<AchievementQuery>();
+        private readonly List<AchievementQuery> _keyReads = new List<AchievementQuery>();
         private readonly List<NotifyCollectionChangedEventArgs> _events = new List<NotifyCollectionChangedEventArgs>();
         private int _total;
         private int _version;
@@ -33,7 +35,7 @@ namespace PlayniteAchievements.Services.Tests
             var rows = new PagedRows<Row>(
                 _feed,
                 query ?? AchievementQuery.CurrentUser,
-                q => _total,
+                ReadKeys,
                 ReadPage,
                 () => new Row { IsPlaceholder = true },
                 _scheduler,
@@ -42,11 +44,19 @@ namespace PlayniteAchievements.Services.Tests
             return rows;
         }
 
-        private IReadOnlyList<Row> ReadPage(AchievementQuery query)
+        private IReadOnlyList<AchievementQuerySql.RowKey> ReadKeys(AchievementQuery query)
         {
-            _pageReads.Add(query);
-            return Enumerable.Range(query.Offset, Math.Max(0, Math.Min(query.Limit, _total - query.Offset)))
-                .Select(index => new Row { Index = index, Version = _version, Sort = query.Sort })
+            _keyReads.Add(query);
+            return Enumerable.Range(0, query.Limit > 0 ? Math.Min(query.Limit, _total) : _total)
+                .Select(index => new AchievementQuerySql.RowKey { DefinitionId = index })
+                .ToList();
+        }
+
+        private IReadOnlyList<Row> ReadPage(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            _pageReads.Add(query.Page(keys.Count, keys.Count == 0 ? 0 : (int)keys[0].DefinitionId));
+            return keys.Where(key => key.DefinitionId < _total)
+                .Select(key => new Row { Index = (int)key.DefinitionId, Version = _version, Sort = query.Sort })
                 .ToList();
         }
 
@@ -71,6 +81,27 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(2 * PagedRows<Row>.PageSize, _pageReads.Single().Limit);
             Assert.AreEqual(150, At(rows, 150).Index);
             Assert.IsFalse(At(rows, 199).IsPlaceholder);
+            Assert.AreEqual(1, _keyReads.Count, "the keys are read once");
+        }
+
+        [TestMethod]
+        public void PageReads_SliceTheKeptKeys_WithoutReadingKeysAgain()
+        {
+            var rows = Create(2000);
+            _scheduler.Drain();
+            _keyReads.Clear();
+
+            At(rows, 1550);
+            _scheduler.Drain();
+
+            Assert.AreEqual(1550, At(rows, 1550).Index);
+            Assert.AreEqual(0, _keyReads.Count, "a page reads the columns of its keys only");
+
+            _feed.Publish(AchievementDataChange.Full);
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+            Assert.AreEqual(1, _keyReads.Count, "a touching change reads the keys again");
         }
 
         [TestMethod]
@@ -140,6 +171,7 @@ namespace PlayniteAchievements.Services.Tests
             _scheduler.Drain();
 
             Assert.AreEqual(1249, At(rows, 1249).Index);
+            Assert.AreEqual(1250, _keyReads.Last().Limit, "the keys read stops at the cap");
             Assert.IsTrue(_pageReads.All(query => query.Offset + query.Limit <= 1250));
             Assert.AreEqual(50, _pageReads.Single(query => query.Offset == 1200).Limit);
 
