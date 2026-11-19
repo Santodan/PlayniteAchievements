@@ -508,7 +508,7 @@ namespace PlayniteAchievements.Views
 
         public void RefreshView()
         {
-            _ = _viewModel?.RefreshViewAsync();
+            _ = _viewModel?.RefreshAfterSettingsSavedAsync();
         }
 
         public void Dispose()
