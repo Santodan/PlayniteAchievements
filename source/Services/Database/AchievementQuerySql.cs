@@ -171,6 +171,14 @@ namespace PlayniteAchievements.Services.Database
             return new Command(sql, args.ToArray());
         }
 
+        /// <summary>The number of matching rows; the query's page is ignored.</summary>
+        public static Command Count(AchievementQuery query)
+        {
+            var args = new List<object>();
+            var sql = "SELECT COUNT(*)" + From(query) + Where(query, args) + ";";
+            return new Command(sql, args.ToArray());
+        }
+
         /// <summary>The distinct group keys of the matching rows. Tag lists stored tag texts; the reader splits them.</summary>
         public static Command Keys(AchievementQuery query, AchievementGroup group)
         {
