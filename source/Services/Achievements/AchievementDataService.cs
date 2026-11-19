@@ -115,6 +115,15 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// The game's cached data without resolving its achievements, for callers that read only
+        /// game-level fields such as the provider and name. A game with only custom achievements
+        /// yields the synthetic custom data.
+        /// </summary>
+        public GameAchievementData GetGameHeader(Guid playniteGameId) =>
+            GetRawGameAchievementData(playniteGameId)
+            ?? CreateSyntheticCustomGameData(playniteGameId, LoadCustomData(playniteGameId));
+
+        /// <summary>
         /// Raw cached data plus the game's custom achievement projections, with no overlays
         /// applied. A game with only custom achievements yields the synthetic custom data.
         /// </summary>
