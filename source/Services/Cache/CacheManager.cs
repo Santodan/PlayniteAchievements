@@ -837,6 +837,7 @@ namespace PlayniteAchievements.Services.Cache
                 var writeTime = DateTime.UtcNow;
                 var providerKey = data?.ProviderKey;
                 var scopeChanged = false;
+                var changed = false;
                 Dictionary<string, string> renamedApiNames = null;
                 Guid? renamedPlayniteGameId = null;
 
@@ -867,7 +868,7 @@ namespace PlayniteAchievements.Services.Cache
                             toWrite.PlayniteGameId = parsedId;
                         }
 
-                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite);
+                        renamedApiNames = _store.SaveCurrentUserGameData(normalizedKey, toWrite, out changed);
                         renamedPlayniteGameId = toWrite.PlayniteGameId;
 
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
@@ -902,9 +903,13 @@ namespace PlayniteAchievements.Services.Cache
 
                 RaiseGameCacheUpdatedEvent(normalizedKey);
                 RaiseCacheDeltaUpdatedEvent(normalizedKey, CacheDeltaOperationType.Upsert);
-                _feed.Publish(scopeChanged || !renamedPlayniteGameId.HasValue
-                    ? AchievementDataChange.Full
-                    : AchievementDataChange.ForGames(new[] { renamedPlayniteGameId.Value }));
+                // A save that only moved the stamps (an in-game poll of a game with no schema) wakes no reader.
+                if (scopeChanged || changed)
+                {
+                    _feed.Publish(scopeChanged || !renamedPlayniteGameId.HasValue
+                        ? AchievementDataChange.Full
+                        : AchievementDataChange.ForGames(new[] { renamedPlayniteGameId.Value }));
+                }
 
                 return CacheWriteResult.CreateSuccess(normalizedKey, writeTime);
             }
