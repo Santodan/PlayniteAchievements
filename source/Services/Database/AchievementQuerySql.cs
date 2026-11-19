@@ -409,7 +409,7 @@ namespace PlayniteAchievements.Services.Database
 
             if (query.GameIds != null)
             {
-                // Games and the override mirror store the id as Guid.ToString() writes it; inlined
+                // Games and the custom layer store the id as Guid.ToString() writes it; inlined
                 // as ExceptGameIds is.
                 conditions.Add(query.GameIds.Count == 0
                     ? "0"
