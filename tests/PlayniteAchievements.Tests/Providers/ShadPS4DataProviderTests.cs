@@ -54,6 +54,71 @@ namespace PlayniteAchievements.Providers.Tests
             }
         }
 
+        [TestMethod]
+        public void ResolveNpCommIdForGame_ReadsNpbindBesideRomEboot()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var gameDir = Path.Combine(tempDir, "Dump", "CUSA03749");
+                Directory.CreateDirectory(Path.Combine(gameDir, "sce_sys"));
+                File.WriteAllBytes(Path.Combine(gameDir, "sce_sys", "npbind.dat"),
+                    System.Text.Encoding.ASCII.GetBytes("..UP0001-NPWR10146_00.."));
+                File.WriteAllBytes(Path.Combine(gameDir, "eboot.bin"), new byte[4]);
+
+                var provider = CreateProvider(configuredPath: null);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Rom Game",
+                    Roms = new System.Collections.ObjectModel.ObservableCollection<GameRom>
+                    {
+                        new GameRom("Rom Game", Path.Combine(gameDir, "eboot.bin"))
+                    }
+                };
+
+                Assert.AreEqual("NPWR10146_00", provider.ResolveNpCommIdForGame(game));
+                Assert.AreEqual("CUSA03749", provider.ExtractTitleIdFromGame(game));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveNpCommIdForGame_ReadsNpbindInsideZarRom()
+        {
+            var tempDir = CreateTempDirectory();
+            try
+            {
+                var archivePath = Path.Combine(tempDir, "CUSA01623.zar");
+                File.WriteAllBytes(archivePath, ZArchiveTestWriter.Build(new System.Collections.Generic.Dictionary<string, byte[]>
+                {
+                    ["eboot.bin"] = new byte[64],
+                    ["sce_sys/npbind.dat"] = System.Text.Encoding.ASCII.GetBytes("..EP9000-NPWR08268_00..")
+                }));
+
+                var provider = CreateProvider(configuredPath: null);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Zar Game",
+                    InstallDirectory = tempDir,
+                    Roms = new System.Collections.ObjectModel.ObservableCollection<GameRom>
+                    {
+                        new GameRom("Zar Game", archivePath)
+                    }
+                };
+
+                Assert.AreEqual("NPWR08268_00", provider.ResolveNpCommIdForGame(game));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static ShadPS4DataProvider CreateProvider(string configuredPath)
         {
             var settings = new PlayniteAchievementsSettings();
