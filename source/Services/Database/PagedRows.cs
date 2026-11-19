@@ -27,12 +27,13 @@ namespace PlayniteAchievements.Services.Database
 
     /// <summary>
     /// The rows of one query as a list whose <see cref="Count"/> is the full row count from the
-    /// first load, for a virtualizing grid. Reading an index that is not loaded returns a
-    /// placeholder and loads its page and the pages on either side; when the page arrives, each
-    /// placeholder handed out is replaced in place. A query change, a sort or a touching feed
-    /// change reloads the count and the pages around the last read index in one read and applies
-    /// them in place, keeping the other loaded pages until they are read again. All state is
-    /// changed on the UI thread.
+    /// first load, for a virtualizing grid. A load reads the sorted keys of every matching row
+    /// and keeps them; a page is then the columns of a slice of those keys. Reading an index that
+    /// is not loaded returns a placeholder and loads its page and the pages on either side; when
+    /// the page arrives, each placeholder handed out is replaced in place. A query change, a sort
+    /// or a touching feed change reads the keys again with the pages around the last read index
+    /// and applies them in place, keeping the other loaded pages until they are read again. All
+    /// state is changed on the UI thread.
     /// </summary>
     internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, ISortableRows, IPartiallyLoadedRows, IDisposable
         where T : class
@@ -48,8 +49,8 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         internal const int WholeLoadRows = MaxLoadedPages * PageSize;
 
-        private readonly Func<AchievementQuery, int> _countRows;
-        private readonly Func<AchievementQuery, IReadOnlyList<T>> _loadRows;
+        private readonly Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>> _loadKeys;
+        private readonly Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>, IReadOnlyList<T>> _loadRows;
         private readonly Func<T> _newPlaceholder;
         private readonly IReadScheduler _scheduler;
         private readonly Action<Exception> _onError;
@@ -61,6 +62,7 @@ namespace PlayniteAchievements.Services.Database
         private readonly Dictionary<int, T> _placeholders = new Dictionary<int, T>();
         private AchievementQuery _query;
         private AchievementQuery _effectiveQuery;
+        private IReadOnlyList<AchievementQuerySql.RowKey> _keys = Array.Empty<AchievementQuerySql.RowKey>();
         private AchievementSort? _sort;
         private bool _descending;
         private int _count;
@@ -71,29 +73,29 @@ namespace PlayniteAchievements.Services.Database
         private bool _resetAgain;
         private bool _disposed;
 
-        /// <param name="countRows">Runs off the UI thread; the query's row count, ignoring its page.</param>
-        /// <param name="loadRows">Runs off the UI thread; the rows of the query's page.</param>
+        /// <param name="loadKeys">Runs off the UI thread; the keys of the query's rows in its order.</param>
+        /// <param name="loadRows">Runs off the UI thread; the rows of the keys, in their order.</param>
         /// <param name="newPlaceholder">A row standing in for one not loaded yet.</param>
         /// <param name="maxRows">The most rows the list holds; 0 for no cap.</param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
-            Func<AchievementQuery, int> countRows,
-            Func<AchievementQuery, IReadOnlyList<T>> loadRows,
+            Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>> loadKeys,
+            Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>, IReadOnlyList<T>> loadRows,
             Func<T> newPlaceholder,
             IReadScheduler scheduler,
             int maxRows = 0,
-            TimeSpan? window = null,
+            Func<TimeSpan> window = null,
             Action<Exception> onError = null)
         {
             _query = _effectiveQuery = query ?? throw new ArgumentNullException(nameof(query));
-            _countRows = countRows ?? throw new ArgumentNullException(nameof(countRows));
+            _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
             _loadRows = loadRows ?? throw new ArgumentNullException(nameof(loadRows));
             _newPlaceholder = newPlaceholder ?? throw new ArgumentNullException(nameof(newPlaceholder));
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _maxRows = Math.Max(0, maxRows);
             _onError = onError;
-            _subscription = feed?.Subscribe(() => _effectiveQuery, scheduler, window ?? LiveQuery<T>.DefaultWindow, Reset);
+            _subscription = feed?.Subscribe(() => _effectiveQuery, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
             Reset();
         }
 
@@ -182,33 +184,23 @@ namespace PlayniteAchievements.Services.Database
             var anchor = _lastIndex / PageSize;
             _scheduler.Run(() =>
             {
-                var count = 0;
+                IReadOnlyList<AchievementQuerySql.RowKey> keys = null;
                 Dictionary<int, IReadOnlyList<T>> pages = null;
                 try
                 {
-                    count = Cap(_countRows(query));
+                    keys = _loadKeys(_maxRows > 0 ? query.Page(_maxRows) : query) ?? Array.Empty<AchievementQuerySql.RowKey>();
                     pages = new Dictionary<int, IReadOnlyList<T>>();
-                    var last = Math.Max(0, (count - 1) / PageSize);
-                    if (count <= WholeLoadRows)
+                    var last = Math.Max(0, (keys.Count - 1) / PageSize);
+
+                    // Small enough to keep: every row is loaded from the start. Otherwise the
+                    // pages around the anchor.
+                    anchor = Math.Min(anchor, last);
+                    var first = keys.Count <= WholeLoadRows ? 0 : Math.Max(0, anchor - 1);
+                    var end = keys.Count <= WholeLoadRows ? keys.Count : Math.Min(keys.Count, (Math.Min(last, anchor + 1) + 1) * PageSize);
+                    var rows = end == 0 ? Array.Empty<T>() : _loadRows(query, Slice(keys, first * PageSize, end));
+                    for (var page = first; page * PageSize < end; page++)
                     {
-                        // Small enough to keep: one read, and every row is loaded from the start.
-                        var rows = count == 0 ? Array.Empty<T>() : _loadRows(query.Page(count, 0));
-                        for (var page = 0; page * PageSize < count; page++)
-                        {
-                            pages[page] = rows.Skip(page * PageSize).Take(PageSize).ToList();
-                        }
-                    }
-                    else
-                    {
-                        // The pages around the anchor in one read: each read sorts the whole result.
-                        anchor = Math.Min(anchor, last);
-                        var first = Math.Max(0, anchor - 1);
-                        var end = Math.Min(count, (Math.Min(last, anchor + 1) + 1) * PageSize);
-                        var rows = _loadRows(query.Page(end - first * PageSize, first * PageSize));
-                        for (var page = first; page * PageSize < end; page++)
-                        {
-                            pages[page] = rows.Skip((page - first) * PageSize).Take(PageSize).ToList();
-                        }
+                        pages[page] = rows.Skip((page - first) * PageSize).Take(PageSize).ToList();
                     }
                 }
                 catch (Exception ex)
@@ -217,11 +209,11 @@ namespace PlayniteAchievements.Services.Database
                     _onError?.Invoke(ex);
                 }
 
-                _scheduler.Post(() => ResetLoaded(version, count, pages));
+                _scheduler.Post(() => ResetLoaded(version, keys, pages));
             });
         }
 
-        private void ResetLoaded(int version, int count, Dictionary<int, IReadOnlyList<T>> pages)
+        private void ResetLoaded(int version, IReadOnlyList<AchievementQuerySql.RowKey> keys, Dictionary<int, IReadOnlyList<T>> pages)
         {
             if (_disposed)
             {
@@ -231,7 +223,8 @@ namespace PlayniteAchievements.Services.Database
             // Rows read by the grid while the result is applied wait for the flag to clear.
             if (pages != null && version == _version)
             {
-                Apply(count, pages);
+                _keys = keys;
+                Apply(keys.Count, pages);
             }
 
             _resetting = false;
@@ -333,13 +326,13 @@ namespace PlayniteAchievements.Services.Database
             _pageLoading = true;
             var query = _effectiveQuery;
             var version = _version;
-            var count = _count;
+            var keys = Slice(_keys, next * PageSize, Math.Min(_count, (next + 1) * PageSize));
             _scheduler.Run(() =>
             {
                 IReadOnlyList<T> rows = null;
                 try
                 {
-                    rows = _loadRows(PageOf(query, next, count));
+                    rows = _loadRows(query, keys);
                 }
                 catch (Exception ex)
                 {
@@ -438,10 +431,8 @@ namespace PlayniteAchievements.Services.Database
             return items;
         }
 
-        private int Cap(int count) => _maxRows > 0 ? Math.Min(Math.Max(0, count), _maxRows) : Math.Max(0, count);
-
-        private static AchievementQuery PageOf(AchievementQuery query, int page, int count) =>
-            query.Page(Math.Min(PageSize, count - page * PageSize), page * PageSize);
+        private static IReadOnlyList<AchievementQuerySql.RowKey> Slice(IReadOnlyList<AchievementQuerySql.RowKey> keys, int from, int to) =>
+            keys.Skip(from).Take(Math.Max(0, to - from)).ToList();
 
         private T Peek(int index)
         {
