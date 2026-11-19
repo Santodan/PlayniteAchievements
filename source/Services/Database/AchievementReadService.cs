@@ -260,17 +260,22 @@ namespace PlayniteAchievements.Services.Database
             var byKey = new Dictionary<(long, long, long, string, string), AchievementRowRecord>();
             foreach (var row in db.Load<AchievementRowRecord>(command.Sql, command.Args))
             {
-                byKey[row.IsAuthored != 0
-                    ? (0, 0, 0, row.PlayniteGameId, row.ApiName)
-                    : (row.UserId ?? 0, row.GameId ?? 0, row.DefinitionId ?? 0, null, null)] = row;
+                byKey[Identity(KeyOf(row))] = row;
             }
 
-            return keys.Select(key => byKey.TryGetValue(
-                    (key.UserId ?? 0, key.GameId ?? 0, key.DefinitionId ?? 0, key.PlayniteGameId, key.ApiName),
-                    out var row) ? row : null)
+            return keys.Select(key => byKey.TryGetValue(Identity(key), out var row) ? row : null)
                 .Where(row => row != null)
                 .ToList();
         }
+
+        /// <summary>The key of <paramref name="row"/>, as <see cref="SortedKeys"/> reads it.</summary>
+        internal static AchievementQuerySql.RowKey KeyOf(AchievementRowRecord row) =>
+            row.IsAuthored != 0
+                ? new AchievementQuerySql.RowKey { PlayniteGameId = row.PlayniteGameId, ApiName = row.ApiName }
+                : new AchievementQuerySql.RowKey { UserId = row.UserId, GameId = row.GameId, DefinitionId = row.DefinitionId };
+
+        private static (long, long, long, string, string) Identity(AchievementQuerySql.RowKey key) =>
+            (key.UserId ?? 0, key.GameId ?? 0, key.DefinitionId ?? 0, key.PlayniteGameId, key.ApiName);
 
         internal static IReadOnlyList<AchievementTotalsRecord> Totals(SQLiteDatabase db, AchievementQuery query, AchievementGroup group)
         {
