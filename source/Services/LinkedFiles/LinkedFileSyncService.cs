@@ -364,8 +364,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
                             record.LinkedFile.LastReadUtc = report.ReadUtc;
                             record.LinkedFile.LastReadStatus = status;
                         },
-                        affectsSummaryData: false,
-                        affectsOverrideMirror: false);
+                        affectsSummaryData: false);
                 }
                 catch (Exception ex)
                 {
