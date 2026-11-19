@@ -26,7 +26,7 @@ namespace PlayniteAchievements
     {
         private readonly Dictionary<string, IDisposable> _startPageViewModels =
             new Dictionary<string, IDisposable>(StringComparer.Ordinal);
-        private StartPageDataCoordinator _startPageDataCoordinator;
+        private Services.Widgets.WidgetDataCoordinator _startPageDataCoordinator;
         private readonly object _startPageInvalidateSync = new object();
         private System.Threading.Timer _startPageInvalidateTimer;
         private const int StartPageInvalidateDelayMs = 2000;
@@ -234,14 +234,12 @@ namespace PlayniteAchievements
             return null;
         }
 
-        private StartPageDataCoordinator GetStartPageDataCoordinator()
+        private Services.Widgets.WidgetDataCoordinator GetStartPageDataCoordinator()
         {
             if (_startPageDataCoordinator == null)
             {
-                _startPageDataCoordinator = new StartPageDataCoordinator(
+                _startPageDataCoordinator = new Services.Widgets.WidgetDataCoordinator(
                     _achievementDataService,
-                    _libraryProjectionService,
-                    Providers,
                     PlayniteApi,
                     _logger,
                     Settings,
@@ -368,23 +366,6 @@ namespace PlayniteAchievements
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "Failed to read projection cache stats.");
-            }
-
-            try
-            {
-                if (_startPageDataCoordinator != null)
-                {
-                    _startPageDataCoordinator.GetRetentionStats(out var hasSnapshot, out var achRows, out var gameRows);
-                    detail.Append($"sharedSnapshot={(hasSnapshot ? "yes" : "no")}/{achRows}ach/{gameRows}games ");
-                }
-                else
-                {
-                    detail.Append("sharedSnapshot=none ");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to read shared snapshot stats.");
             }
 
             try
