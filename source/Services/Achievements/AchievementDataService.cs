@@ -284,7 +284,7 @@ namespace PlayniteAchievements.Services.Achievements
                     hidden,
                     AuthoredGame);
                 var separateLockedIcons = new Dictionary<Guid, bool>();
-                foreach (var row in summary?.Achievements.Concat(summary.RecentUnlocks) ?? Enumerable.Empty<CachedRecentUnlockData>())
+                foreach (var row in summary?.RecentUnlocks ?? Enumerable.Empty<CachedRecentUnlockData>())
                 {
                     var gameId = row.PlayniteGameId ?? Guid.Empty;
                     if (!separateLockedIcons.TryGetValue(gameId, out var separate))
@@ -325,32 +325,6 @@ namespace PlayniteAchievements.Services.Achievements
                 RaritySource = CustomAchievementProjectionService.ResolveRaritySource(customData?.CustomAchievements) ?? RaritySource.None,
                 LastUpdatedUtc = DateTime.UtcNow
             };
-        }
-
-        /// <summary>
-        /// Raised on the writer's thread after a tag edit recounted one game's tallies, which the
-        /// cached summary now carries. Nothing else about the game changed.
-        /// </summary>
-        public event EventHandler<TalliesChangedEventArgs> TalliesChanged;
-
-        /// <summary>Recounts one game's tallies after a tag edit and raises <see cref="TalliesChanged"/>.</summary>
-        private void RefreshTallies(Guid gameId)
-        {
-            var reads = _cacheReadOptimizations?.Reads;
-            if (gameId == Guid.Empty || reads == null)
-            {
-                return;
-            }
-
-            AchievementTally[] totals;
-            using (Common.PerfScope.Start(_logger, "Overview.RefreshTallies", thresholdMs: 10))
-            {
-                totals = SummaryCacheReader.Tallies(reads.Totals(
-                    AchievementQuery.CurrentUser.WithSummaryRules().ForGames(new[] { gameId }),
-                    AchievementGroup.Tally));
-            }
-
-            TalliesChanged?.Invoke(this, new TalliesChangedEventArgs(gameId, totals));
         }
 
         private Dictionary<Guid, GameCustomDataFile> LoadCustomDataByGameId()
@@ -630,12 +604,6 @@ namespace PlayniteAchievements.Services.Achievements
             // and order included, so every write resyncs it; the resync diffs and stays silent
             // when nothing moved.
             SyncAchievementFiltersForGame(e?.PlayniteGameId ?? Guid.Empty);
-
-            // A tag edit moves only the game's tallies, which are recounted on their own.
-            if (e != null && !e.AffectsSummaryData && e.AffectsTagTotals)
-            {
-                RefreshTallies(e.PlayniteGameId);
-            }
         }
 
         private void SyncAchievementFiltersForGame(Guid playniteGameId)
@@ -1007,20 +975,5 @@ namespace PlayniteAchievements.Services.Achievements
                 _hydrator.HydrateAllForOverview(games);
             }
         }
-    }
-
-    /// <summary>One game's tallies, recounted after a tag edit.</summary>
-    public sealed class TalliesChangedEventArgs : EventArgs
-    {
-        public TalliesChangedEventArgs(Guid playniteGameId, AchievementTally[] tagTotals)
-        {
-            PlayniteGameId = playniteGameId;
-            Tallies = tagTotals;
-        }
-
-        public Guid PlayniteGameId { get; }
-
-        /// <summary>The game's new totals; null when none of its achievements are tagged.</summary>
-        public AchievementTally[] Tallies { get; }
     }
 }
