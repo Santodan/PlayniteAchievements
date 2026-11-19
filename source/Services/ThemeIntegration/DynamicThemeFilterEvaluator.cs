@@ -1,5 +1,7 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,17 +15,34 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             string filterKey)
         {
             var items = source ?? Enumerable.Empty<AchievementDetail>();
-            foreach (var group in DynamicThemeFilterExpression.Enumerate(filterKey)
-                .Select(CanonicalizeCategoryTypeKey)
-                .GroupBy(key => GetGroupKey(key, DynamicThemeOptionGroups.AchievementFilterGroupMap))
-                .Where(group => !string.IsNullOrWhiteSpace(group.Key)))
+            foreach (var groupKeys in AchievementFilterGroups(filterKey))
             {
-                var groupKeys = group.ToArray();
                 items = items.Where(item => groupKeys.Any(key => MatchesAchievementFilter(item, key)));
             }
 
             return items;
         }
+
+        /// <summary><paramref name="query"/> narrowed by a filter expression, as <see cref="ApplyAchievementFilters(IEnumerable{AchievementDetail}, string)"/> narrows rows.</summary>
+        public static AchievementQuery ApplyAchievementFilters(AchievementQuery query, string filterKey) =>
+            AchievementFilterGroups(filterKey).Aggregate(query, (narrowed, group) => narrowed.WhereAnyKey(group));
+
+        /// <summary>
+        /// <paramref name="query"/> ordered by a dynamic list's sort key and direction, newest
+        /// unlocks first by default.
+        /// </summary>
+        public static AchievementQuery ApplyAchievementSort(AchievementQuery query, string sortKey, string directionKey) =>
+            query.OrderBy(
+                AchievementQuery.SortOfColumn(AchievementSortHelper.GetDynamicAchievementSortMemberPath(sortKey)) ?? AchievementSort.UnlockTime,
+                !string.Equals(directionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal));
+
+        // Keys of one group match any of them; groups all match.
+        private static IEnumerable<string[]> AchievementFilterGroups(string filterKey) =>
+            DynamicThemeFilterExpression.Enumerate(filterKey)
+                .Select(CanonicalizeCategoryTypeKey)
+                .GroupBy(key => GetGroupKey(key, DynamicThemeOptionGroups.AchievementFilterGroupMap))
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .Select(group => group.ToArray());
 
         public static IEnumerable<GameAchievementSummary> ApplyGameSummaryFilters(
             IEnumerable<GameAchievementSummary> source,
