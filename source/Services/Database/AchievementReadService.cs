@@ -175,6 +175,9 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>Hidden achievements still locked.</summary>
         public long HiddenLockedCount { get; set; }
 
+        /// <summary>Achievements the user authored.</summary>
+        public long AuthoredCount { get; set; }
+
         /// <summary>The lowest custom category order index of the group's rows; null when none has one.</summary>
         public long? MinCategoryOrder { get; set; }
 
@@ -343,6 +346,7 @@ namespace PlayniteAchievements.Services.Database
             total.PercentSum += row.PercentSum;
             total.PercentCount += row.PercentCount;
             total.HiddenLockedCount += row.HiddenLockedCount;
+            total.AuthoredCount += row.AuthoredCount;
             if (row.MinCategoryOrder.HasValue && (!total.MinCategoryOrder.HasValue || row.MinCategoryOrder < total.MinCategoryOrder))
             {
                 total.MinCategoryOrder = row.MinCategoryOrder;
