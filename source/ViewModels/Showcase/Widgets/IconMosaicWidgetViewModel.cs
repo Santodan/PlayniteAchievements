@@ -125,7 +125,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 ? query.OrderBy(sort, spec.Direction == ListSortDirection.Descending)
                 : query.OrderBy(AchievementSort.UnlockTime, descending: true);
             return (_rows ??= new ShowcaseRows(RefreshTiles))
-                .For(query.Page(ShowcaseWidgetOptions.GetMosaicCount(Projection.Instance)), Projection.Snapshot?.GameSummaries);
+                .For(query.Page(ShowcaseWidgetOptions.GetMosaicCount(Projection.Instance)));
         }
 
         private AchievementSortSpec BarSort() =>
