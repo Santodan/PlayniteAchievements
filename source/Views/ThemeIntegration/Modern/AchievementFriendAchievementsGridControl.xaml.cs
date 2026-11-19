@@ -69,10 +69,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 theme?.DynamicFriendAchievementsSortDirectionKey,
                 e.Column?.SortDirection,
                 e);
-            if (sort.HasValue)
+            if (sort.HasValue && DynamicThemeOptionGroups.LibraryAchievementSortKeyMap.ContainsKey(sort.Value.Key))
             {
                 ThemeBindings?.SortDynamicFriendAchievementsCommand?.Execute(sort.Value.Key);
                 ThemeBindings?.SetDynamicFriendAchievementsSortDirectionCommand?.Execute(sort.Value.Direction);
+            }
+            else if (sort.HasValue)
+            {
+                // A column no theme sort key names, such as Friend or Type.
+                PlayniteAchievementsPlugin.Instance?.ThemeIntegrationService?.SortFriendAchievements(sort.Value.Key, sort.Value.Direction);
             }
 
             ShowSort();
