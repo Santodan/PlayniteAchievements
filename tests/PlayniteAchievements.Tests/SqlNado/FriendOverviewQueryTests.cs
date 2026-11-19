@@ -62,13 +62,15 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void APage_ReadsInTwoSteps_WithTheColumnsOfTheWholeRead()
+        public void KeyedRows_KeepTheKeysOrder_WithTheColumnsOfTheWholeRead()
         {
             AchievementReadServiceTests.WithFixture(db =>
             {
                 var query = AchievementQuery.AllFriends.CompareWith(new[] { B }).OrderBy(AchievementSort.Name);
                 var whole = AchievementReadService.Rows(db, query);
-                var page = AchievementReadService.Rows(db, query.Page(3, 1));
+                var keys = AchievementReadService.SortedKeys(db, query);
+                Assert.AreEqual(whole.Count, keys.Count);
+                var page = AchievementReadService.Rows(db, query, keys.Skip(1).Take(3).ToList());
 
                 Assert.AreEqual(3, page.Count);
                 for (var index = 0; index < page.Count; index++)
@@ -85,7 +87,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                     Assert.AreEqual(expected.UserDisplayName, actual.UserDisplayName);
                 }
 
-                Assert.AreEqual(0, AchievementReadService.Rows(db, query.Page(3, 1000)).Count, "past the end");
+                Assert.AreEqual(0, AchievementReadService.SortedKeys(db, query.Page(3, 1000)).Count, "past the end");
+                Assert.AreEqual(2, AchievementReadService.SortedKeys(db, query.Page(2)).Count, "a page of keys");
             });
         }
 
@@ -163,6 +166,45 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void FriendNames_SortAndSearchByTheShownName_WithoutAddingRows()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                var stored = AchievementQuery.AllFriends.WhereUnlocked(true).OrderBy(AchievementSort.Friend);
+                var named = stored.WithFriendNames(new[] { new KeyValuePair<FriendAccountRef, string>(A, "0 shown") });
+
+                var storedOrder = AchievementReadService.Rows(db, stored).Select(row => row.ExternalUserId).Distinct().ToList();
+                var namedOrder = AchievementReadService.Rows(db, named).Select(row => row.ExternalUserId).Distinct().ToList();
+                CollectionAssert.AreEqual(new[] { "b", "a" }, storedOrder, "Bob before Ánna");
+                CollectionAssert.AreEqual(new[] { "a", "b" }, namedOrder, "a sorts by the shown name");
+                CollectionAssert.AreEqual(
+                    AchievementReadService.Rows(db, named).Select(Key).ToList(),
+                    AchievementReadService.Rows(db, named, AchievementReadService.SortedKeys(db, named)).Select(Key).ToList());
+                Assert.AreEqual(AchievementReadService.Count(db, stored), AchievementReadService.Count(db, named));
+
+                Assert.IsTrue(AchievementReadService.Rows(db, named.WhereSearch("0 shown")).All(row => row.ExternalUserId == "a"));
+                Assert.AreEqual(0, AchievementReadService.Count(db, stored.WhereSearch("0 shown")));
+            });
+        }
+
+        [TestMethod]
+        public void CategoryTotals_SortByTheirFirstRowInDefinitionOrder()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                db.ExecuteNonQuery("UPDATE PlatformDefinitions SET Category = 'Zed' WHERE Id = 1;");
+                db.ExecuteNonQuery("UPDATE PlatformDefinitions SET Category = 'Alpha' WHERE Id > 1;");
+                var pair = AchievementQuery.AllFriends.ForFriendAccounts(new[] { A }).ForProviderGame("Steam", 100, null);
+
+                var labels = AchievementReadService.Totals(db, pair, AchievementGroup.Category)
+                    .OrderBy(total => total.FirstDisplayOrder, StringComparer.Ordinal)
+                    .Select(total => total.Key)
+                    .ToList();
+                CollectionAssert.AreEqual(new[] { "Zed", "Alpha" }, labels);
+            });
+        }
+
+        [TestMethod]
         public void CategoryTotals_CarryHiddenLockedRowsAndTheCategoryOrder()
         {
             AchievementReadServiceTests.WithFixture(db =>
@@ -190,11 +232,13 @@ namespace PlayniteAchievements.SqlNado.Tests
                     {
                         var rows = AchievementReadService.Rows(db, AchievementQuery.AllFriends.OrderBy(sort, descending));
                         Assert.AreEqual(count, rows.Count, sort + (descending ? " desc" : " asc"));
+                        var query = AchievementQuery.AllFriends.OrderBy(sort, descending);
+                        var keys = AchievementReadService.SortedKeys(db, query);
                         CollectionAssert.AreEqual(
                             rows.Select(Key).ToList(),
                             Enumerable.Range(0, (count + 1) / 2).SelectMany(page =>
-                                AchievementReadService.Rows(db, AchievementQuery.AllFriends.OrderBy(sort, descending).Page(2, page * 2))).Select(Key).ToList(),
-                            "pages of two follow the whole order: " + sort);
+                                AchievementReadService.Rows(db, query, keys.Skip(page * 2).Take(2).ToList())).Select(Key).ToList(),
+                            "pages of two keys follow the whole order: " + sort);
                     }
                 }
 
