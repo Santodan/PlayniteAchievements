@@ -46,7 +46,8 @@
                             Visibility="{Binding Persisted.EnableAchievementBarChartControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementBarChartControl Width="280" Height="120"
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
