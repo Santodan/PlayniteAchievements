@@ -301,10 +301,10 @@ namespace PlayniteAchievements.Services.Overview
                 _logger?.Debug($"[Overview] Failed to read the pinned achievements: {ex.Message}");
             }
 
-            using (PerfScope.Start(_logger, "Overview.Build.UnlockNext", thresholdMs: 25))
-            {
-                BuildUnlockNextCandidates(settings, snapshot, listed);
-            }
+            var unlockNextGames = UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries)
+                .Select(game => game.PlayniteGameId.Value)
+                .ToList();
+            snapshot.UnlockNextReader = slice => LoadUnlockNextCandidates(settings, unlockNextGames, listed, slice);
 
             snapshot.GameSummaries = snapshot.GameSummaries
                 .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
@@ -366,47 +366,39 @@ namespace PlayniteAchievements.Services.Overview
             return snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
         }
 
-        // The bounded pool of locked rows Unlock Next draws from, read when a widget asks for it: a
-        // superset of every widget's criterion and window, since editing those options re-projects
-        // from the snapshot. The candidate games' locked rows are read once, and the rows each
-        // game keeps are then read as display rows.
-        private void BuildUnlockNextCandidates(
+        // The bounded pool of locked rows Unlock Next draws from, read when a shown widget asks
+        // for it: a superset of every widget's criterion and window, since editing those options
+        // re-projects from the snapshot. The candidate games' locked rows are read once, and the
+        // rows each game keeps are then read as display rows.
+        private List<AchievementDisplayItem> LoadUnlockNextCandidates(
             PlayniteAchievementsSettings settings,
-            OverviewDataSnapshot snapshot,
-            IReadOnlyDictionary<Guid, GameSummaryItem> listed)
+            IReadOnlyList<Guid> games,
+            IReadOnlyDictionary<Guid, GameSummaryItem> listed,
+            int slice)
         {
-            // Both layouts read this snapshot, so the pool covers whichever asks for more.
-            var maxPerGame = Math.Max(
-                ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.Showcase),
-                ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(settings?.Persisted?.OverviewMiniShowcase));
             var reads = _achievementDataService.CacheReads;
-            if (maxPerGame <= 0 || reads == null)
+            if (reads == null || games.Count == 0)
             {
-                return;
+                return new List<AchievementDisplayItem>();
             }
 
-            var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
-            snapshot.UnlockNextPoolBuilt = true;
-            snapshot.UnlockNextPoolSlice = slice;
-            var games = UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries).Select(game => game.PlayniteGameId.Value).ToList();
-            if (games.Count == 0)
+            using (PerfScope.Start(_logger, "Overview.UnlockNext", thresholdMs: 25))
             {
-                return;
-            }
-
-            try
-            {
-                var query = AchievementQuery.CurrentUser.WithSummaryRules().ForGames(games).WhereUnlocked(false).OrderBy(AchievementSort.Display);
-                var keys = reads.Reads.Rows(query)
-                    .GroupBy(row => row.PlayniteGameId)
-                    .SelectMany(game => UnlockNextCandidateSelector.SelectAchievements(game.ToList(), row => row.GlobalPercentUnlocked, row => row.ApiName, slice))
-                    .Select(AchievementReadService.KeyOf)
-                    .ToList();
-                snapshot.UnlockNextCandidates = LoadRows(settings, query, keys, listed);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug($"[Overview] Failed to load Unlock Next candidates: {ex.Message}");
+                try
+                {
+                    var query = AchievementQuery.CurrentUser.WithSummaryRules().ForGames(games).WhereUnlocked(false).OrderBy(AchievementSort.Display);
+                    var keys = reads.Reads.Rows(query)
+                        .GroupBy(row => row.PlayniteGameId)
+                        .SelectMany(game => UnlockNextCandidateSelector.SelectAchievements(game.ToList(), row => row.GlobalPercentUnlocked, row => row.ApiName, slice))
+                        .Select(AchievementReadService.KeyOf)
+                        .ToList();
+                    return LoadRows(settings, query, keys, listed);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug($"[Overview] Failed to load Unlock Next candidates: {ex.Message}");
+                    return new List<AchievementDisplayItem>();
+                }
             }
         }
 
