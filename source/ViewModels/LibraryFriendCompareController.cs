@@ -7,6 +7,7 @@ using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
 
         private List<FriendSummaryItem> _friends = new List<FriendSummaryItem>();
+        private FriendsOverviewLists _lists = FriendsOverviewLists.Empty;
         private FriendSummaryItem _selected;
         private Dictionary<string, FriendAchievementDisplayItem> _selectedRows =
             new Dictionary<string, FriendAchievementDisplayItem>(StringComparer.OrdinalIgnoreCase);
@@ -122,20 +124,21 @@ namespace PlayniteAchievements.ViewModels
         public void Refresh()
         {
             var version = Interlocked.Increment(ref _friendsLoadVersion);
-            if (_friendCache == null || _settings?.Persisted?.EnableFriendsFeatures != true)
+            if (_friendCache?.FriendReads == null || _settings?.Persisted?.EnableFriendsFeatures != true)
             {
-                ApplyFriends(version, new List<FriendSummaryItem>(), _currentUsersByProvider);
+                ApplyFriends(version, FriendsOverviewLists.Empty, new List<FriendSummaryItem>(), _currentUsersByProvider);
                 return;
             }
 
             LoadTask = Task.Run(() =>
             {
+                var lists = FriendsOverviewLists.Empty;
                 var friends = new List<FriendSummaryItem>();
                 try
                 {
-                    // No scopes: the friend list alone, without any achievement rows.
-                    var data = _friendCache.LoadFriendsOverviewPatchData(null);
-                    friends = new FriendOverviewProjection(data, _settings?.Persisted).Friends
+                    // The friend list alone, without any achievement rows.
+                    lists = FriendsOverviewLists.Build(_friendCache.FriendReads.LoadLists(), null, _settings?.Persisted);
+                    friends = lists.Friends
                         .Where(friend => friend != null &&
                                          !FriendOverviewProjection.IsAllScope(
                                              FriendOverviewProjection.GetFriendScopeKey(friend)))
@@ -151,7 +154,7 @@ namespace PlayniteAchievements.ViewModels
                 var currentUsers = LoadIdentitiesByProvider(
                     () => _friendCache.LoadCurrentUserIdentities(),
                     _logger);
-                RunOnUi(() => ApplyFriends(version, friends, currentUsers));
+                RunOnUi(() => ApplyFriends(version, lists, friends, currentUsers));
             });
         }
 
@@ -207,6 +210,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void ApplyFriends(
             int version,
+            FriendsOverviewLists lists,
             List<FriendSummaryItem> friends,
             Dictionary<string, FriendIdentity> currentUsers)
         {
@@ -215,6 +219,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            _lists = lists;
             _friends = friends;
             _currentUsersByProvider = currentUsers;
 
@@ -251,26 +256,15 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            // One scope per account: a merged friend's rows come from each of its accounts.
-            var accounts = next.MemberAccounts != null && next.MemberAccounts.Count > 0
-                ? next.MemberAccounts
-                    .Where(account => account != null)
-                    .Select(account => FriendCacheChange.ForFriendOwnership(account.ProviderKey, account.ExternalUserId))
-                    .ToList()
-                : new List<FriendCacheChange>
-                {
-                    FriendCacheChange.ForFriendOwnership(next.ProviderKey, next.ExternalUserId)
-                };
-
+            // A merged friend's rows come from each of its accounts.
+            var accounts = FriendsOverviewLists.AccountsOf(next);
+            var links = _lists.Projection.FriendGameLinks;
             LoadTask = Task.Run(() =>
             {
-                var rows = new List<FriendAchievementDisplayItem>();
-                var links = new List<FriendGameLinkItem>();
+                IReadOnlyList<FriendAchievementDisplayItem> rows = Array.Empty<FriendAchievementDisplayItem>();
                 try
                 {
-                    var data = _friendCache.LoadFriendsOverviewPatchData(accounts);
-                    rows = data?.AllAchievements ?? rows;
-                    links = data?.FriendGameLinks ?? links;
+                    rows = _friendCache.FriendReads.Rows(AchievementQuery.AllFriends.ForFriendAccounts(accounts).WhereUnlocked(true));
                 }
                 catch (Exception ex)
                 {
