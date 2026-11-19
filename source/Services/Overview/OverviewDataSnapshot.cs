@@ -21,8 +21,27 @@ namespace PlayniteAchievements.Services.Overview
             Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true).ForGames(
                 (GameSummaries ?? new List<GameSummaryItem>()).Where(game => game?.PlayniteGameId != null).Select(game => game.PlayniteGameId.Value));
 
-        /// <summary>Reads the display rows of a query on the calling thread, for the achievements a widget names (its pins); null for none.</summary>
-        internal Func<Database.AchievementQuery, IReadOnlyList<AchievementDisplayItem>> ReadRows { get; set; }
+        /// <summary>
+        /// The current user's rows of every achievement pin the build saw, locked ones included,
+        /// whatever the summary rules leave out; read with the snapshot, off the UI thread.
+        /// </summary>
+        internal IReadOnlyList<AchievementDisplayItem> PinnedRows { get; set; } = Array.Empty<AchievementDisplayItem>();
+
+        /// <summary>The pins the build read, as <see cref="PinKeys"/> names them; a pin added since is not among them.</summary>
+        internal HashSet<string> PinKeysAtBuild { get; set; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Whether the build read every pin of <paramref name="showcase"/>.</summary>
+        internal bool HasSeenAchievementPins(ShowcaseSettings showcase) => PinKeys(showcase).IsSubsetOf(PinKeysAtBuild);
+
+        internal static List<PinnedAchievementReference> Pins(ShowcaseSettings showcase) =>
+            (showcase?.AchievementPinCollections ?? new List<PinnedAchievementCollection>())
+                .Where(collection => collection?.Pins != null)
+                .SelectMany(collection => collection.Pins)
+                .Where(pin => pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
+                .ToList();
+
+        internal static HashSet<string> PinKeys(ShowcaseSettings showcase) =>
+            new HashSet<string>(Pins(showcase).Select(pin => pin.Key.ToUpperInvariant()), StringComparer.Ordinal);
 
         /// <summary>
         /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty unless
