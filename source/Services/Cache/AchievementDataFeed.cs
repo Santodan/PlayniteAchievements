@@ -8,6 +8,35 @@ using System.Linq;
 namespace PlayniteAchievements.Services.Cache
 {
     /// <summary>
+    /// Holds back the reruns of the feed subscriptions given it while closed; opening it reruns,
+    /// once, each that a change touched meanwhile. Open at first. UI thread.
+    /// </summary>
+    internal sealed class FeedGate
+    {
+        private bool _isOpen = true;
+
+        public event Action Opened;
+
+        public bool IsOpen
+        {
+            get => _isOpen;
+            set
+            {
+                if (_isOpen == value)
+                {
+                    return;
+                }
+
+                _isOpen = value;
+                if (value)
+                {
+                    Opened?.Invoke();
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Raises the cache's change events: <c>CacheInvalidated</c> and <c>FriendCacheInvalidated</c>
     /// through the callbacks it is given, and one <see cref="AchievementDataChanged"/> per raise
     /// of either or both. Friend changes inside a batch window are collected and raised once per
@@ -98,12 +127,26 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>
         /// Calls <paramref name="rerun"/> on the UI thread once per <paramref name="window"/> in
         /// which a change touching <paramref name="query"/> arrived, at the end of that window; the
-        /// window is read when its first change arrives. Disposing stops it, a pending call included.
+        /// window is read when its first change arrives. While <paramref name="gate"/> is closed such
+        /// a change only marks the subscription stale, and opening the gate then calls it once.
+        /// Disposing stops it, a pending call included.
         /// </summary>
-        public IDisposable Subscribe(Func<AchievementQuery> query, IReadScheduler scheduler, Func<TimeSpan> window, Action rerun)
+        public IDisposable Subscribe(Func<AchievementQuery> query, IReadScheduler scheduler, Func<TimeSpan> window, Action rerun, FeedGate gate = null)
         {
             var pending = false;
+            var stale = false;
             var disposed = false;
+            bool HeldBack()
+            {
+                if (gate?.IsOpen != false)
+                {
+                    return false;
+                }
+
+                stale = true;
+                return true;
+            }
+
             EventHandler<AchievementDataChange> handler = (_, change) =>
             {
                 if (disposed || !change.Touches(query()))
@@ -113,7 +156,7 @@ namespace PlayniteAchievements.Services.Cache
 
                 scheduler.Post(() =>
                 {
-                    if (disposed || pending)
+                    if (disposed || pending || HeldBack())
                     {
                         return;
                     }
@@ -122,19 +165,36 @@ namespace PlayniteAchievements.Services.Cache
                     scheduler.PostAfter(window(), () =>
                     {
                         pending = false;
-                        if (!disposed)
+                        if (!disposed && !HeldBack())
                         {
                             rerun();
                         }
                     });
                 });
             };
+            Action opened = () =>
+            {
+                if (stale && !disposed)
+                {
+                    stale = false;
+                    rerun();
+                }
+            };
 
             AchievementDataChanged += handler;
+            if (gate != null)
+            {
+                gate.Opened += opened;
+            }
+
             return new Unsubscriber(() =>
             {
                 disposed = true;
                 AchievementDataChanged -= handler;
+                if (gate != null)
+                {
+                    gate.Opened -= opened;
+                }
             });
         }
 
