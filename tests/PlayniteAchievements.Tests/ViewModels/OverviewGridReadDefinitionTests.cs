@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Tests.ViewModels
             StringAssert.Contains(update, "new AchievementDisplayItem { IsPlaceholder = true }");
             StringAssert.Contains(update, "cap ?? 0");
             Assert.IsFalse(update.Contains("Feed"), "the grid reads again with each summary reload, not on its own");
+            StringAssert.Contains(update, "else if (dataChanged)");
+            StringAssert.Contains(update, "_recent.Refresh();");
+            StringAssert.Contains(update, "update: (kept, fresh) => kept.RefreshFrom(fresh)");
 
             var sort = Between(source, "private AchievementQuery ApplyRecentSort(", "private IReadOnlyList<AchievementDisplayItem> LoadRecentRows(");
             StringAssert.Contains(sort, "AchievementQuery.SortOfColumn(_recentSortPath)");
@@ -77,7 +80,7 @@ namespace PlayniteAchievements.Tests.ViewModels
 
             var apply = Between(Read("OverviewViewModel.cs"), "private void ApplySnapshot(", "private bool IsTransientRebuildSnapshot");
             StringAssert.Contains(apply, "_matchingGames?.SetQuery(_matchingGames.Query);");
-            StringAssert.Contains(apply, "_recentKey = null;");
+            StringAssert.Contains(apply, "_recentDataChanged = true;");
             StringAssert.Contains(apply, "_tierFilters.UpdateGames(_allGameSummaries)");
         }
 
