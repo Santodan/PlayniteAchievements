@@ -282,7 +282,7 @@
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_ProviderColors}"
                                Style="{StaticResource SectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <Border Style="{StaticResource SettingGroupCardStyle}">
