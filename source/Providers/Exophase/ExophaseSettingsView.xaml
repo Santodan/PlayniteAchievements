@@ -19,7 +19,12 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}" Style="{StaticResource ProviderTitleOnlyTextStyle}"/>
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoExophase}" Fill="{StaticResource PlayAch.Brush.ProviderExophase}"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}" Style="{StaticResource ProviderTitleTextStyle}"/>
+            </StackPanel>
 
             <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
