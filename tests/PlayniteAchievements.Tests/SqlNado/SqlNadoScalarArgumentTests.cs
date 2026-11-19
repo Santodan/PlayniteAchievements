@@ -29,6 +29,14 @@ namespace PlayniteAchievements.SqlNado.Tests
 
                     Assert.AreNotEqual("value", db.ExecuteScalar<string>(Sql, "key"), "the text is the default value, not the argument");
                     Assert.AreEqual("value", db.ExecuteScalar<string>(Sql, new object[] { "key" }));
+
+                    db.ExecuteNonQuery("CREATE TABLE n (id INTEGER);");
+                    db.ExecuteNonQuery("INSERT INTO n (id) VALUES (7);");
+                    const string CountSql = "SELECT COUNT(1) FROM n WHERE id = ?;";
+                    const long Id = 7;
+
+                    Assert.AreEqual(0L, db.ExecuteScalar<long>(CountSql, Id), "a lone long is the default value, not the argument");
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>(CountSql, new object[] { Id }));
                 }
             }
             finally
