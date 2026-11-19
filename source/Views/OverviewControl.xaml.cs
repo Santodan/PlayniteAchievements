@@ -206,6 +206,9 @@ namespace PlayniteAchievements.Views
             }
 
             DataContext = _viewModel;
+            // The overview content leaves the tree while another subview is shown, and keeps its
+            // bindings meanwhile rather than inheriting nothing.
+            OverviewContent.DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             // Active from construction, so the summary read starts before the sub-view and the
             // mini-showcase are built and runs alongside them; the host's Activate is then a no-op.
@@ -307,6 +310,13 @@ namespace PlayniteAchievements.Views
                 ActiveRefreshHeader = _viewModel;
             }
 
+            // Only the shown subview is in the tree. A collapsed one would still be walked,
+            // restyled and re-read on every tree change, and Playnite makes one each time the
+            // sidebar view is left or shown again.
+            OverviewContentHost.Child = ActiveSubView == OverviewSubView.Overview ? OverviewContent : null;
+            FriendsOverviewContentHost.Content = ActiveSubView == OverviewSubView.Friends ? _friendsOverview : null;
+            ShowcaseContentHost.Content = ActiveSubView == OverviewSubView.Showcase ? _showcase : null;
+
             UpdateFriendsClearSelectionState();
         }
 
@@ -340,7 +350,6 @@ namespace PlayniteAchievements.Views
                 _persistSettingsForUi,
                 _playniteApi);
             ShowcaseHeaderHost.Content = _showcase.DetachHeaderBar();
-            ShowcaseContentHost.Content = _showcase;
         }
 
         private void EnsureFriendsOverviewCreated()
@@ -370,7 +379,6 @@ namespace PlayniteAchievements.Views
                 _friendsOverview.ViewModel.PropertyChanged += FriendsViewModel_PropertyChanged;
             }
 
-            FriendsOverviewContentHost.Content = _friendsOverview;
             // What opening the friends view costs, once its first reads have landed.
             PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("friends.opened", delaySeconds: 8);
         }
