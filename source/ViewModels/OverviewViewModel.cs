@@ -49,7 +49,6 @@ namespace PlayniteAchievements.ViewModels
         private readonly RefreshRuntime _refreshService;
         private readonly Action _persistSettingsForUi;
         private readonly AchievementDataService _achievementDataService;
-        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly AchievementSelectionPipeline _selectedGamePipeline;
         private readonly RefreshEntryPoint _refreshCoordinator;
@@ -140,7 +139,6 @@ namespace PlayniteAchievements.ViewModels
             RefreshRuntime refreshRuntime,
             Action persistSettingsForUi,
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
             GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
             IPlayniteAPI playniteApi,
@@ -157,7 +155,6 @@ namespace PlayniteAchievements.ViewModels
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-            _libraryProjectionService = libraryProjectionService;
             _gameCustomDataStore = gameCustomDataStore;
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _playniteApi = playniteApi;
@@ -1482,12 +1479,7 @@ namespace PlayniteAchievements.ViewModels
                     // Spoiler reveals only affect the per-game grids (a separate per-game
                     // path); the overview snapshot carries no per-achievement display items,
                     // so it builds without reveal state.
-                    OverviewDataSnapshot snapshot;
-                    snapshot = await Task.Run(
-                        () => _libraryProjectionService != null
-                            ? _libraryProjectionService.GetOverviewSnapshot(_settings, cancel)
-                            : _dataBuilder.Build(_settings, cancel),
-                        cancel).ConfigureAwait(false);
+                    var snapshot = await Task.Run(() => _dataBuilder.Build(_settings, cancel), cancel).ConfigureAwait(false);
 
                     // Still off the UI thread: precompute the search-text map so ApplySnapshot
                     // only performs a cheap swap instead of tokenizing every game on the UI thread.
@@ -2503,7 +2495,6 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            _libraryProjectionService?.InvalidateForGame();
             QueueReload();
         }
 
@@ -2773,25 +2764,12 @@ namespace PlayniteAchievements.ViewModels
                 : query.OrderBy(AchievementSort.UnlockTime, descending: true);
         }
 
-        // Off the UI thread. Authored rows have no provider game, so they show their game's
-        // provider, as its row in the Games grid does.
+        // Off the UI thread.
         private IReadOnlyList<AchievementDisplayItem> LoadRecentRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
         {
             using (PerfScope.Start(_logger, "Overview.LoadRows", thresholdMs: 25, context: "rows=" + keys.Count))
             {
-                var rows = _cacheReads.LoadRows(query, keys);
-                var games = _gamesById;
-                foreach (var row in rows.Where(row => row.ProviderKey == null && row.PlayniteGameId.HasValue))
-                {
-                    if (games.TryGetValue(row.PlayniteGameId.Value, out var game))
-                    {
-                        row.ProviderKey = game.ProviderKey;
-                        row.AppId = game.AppId;
-                        row.ProviderGameKey = game.ProviderGameKey;
-                    }
-                }
-
-                return _dataBuilder.BuildRows(_settings, rows);
+                return _dataBuilder.LoadRows(_settings, query, keys, _gamesById);
             }
         }
 
