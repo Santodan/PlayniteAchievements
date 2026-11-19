@@ -87,16 +87,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.ManualGames)
         };
 
-        public static readonly string[] ModernAllGamesHeavy =
-        {
-            nameof(PlayniteAchievementsSettings.AllAchievementsUnlockAsc),
-            nameof(PlayniteAchievementsSettings.AllAchievementsUnlockDesc),
-            nameof(PlayniteAchievementsSettings.AllAchievementsRarityAsc),
-            nameof(PlayniteAchievementsSettings.AllAchievementsRarityDesc),
-            nameof(PlayniteAchievementsSettings.MostRecentUnlocks),
-            nameof(PlayniteAchievementsSettings.RarestRecentUnlocks)
-        };
-
         public static readonly string[] DynamicAllGames =
         {
             nameof(PlayniteAchievementsSettings.DynamicLibraryAchievements),
