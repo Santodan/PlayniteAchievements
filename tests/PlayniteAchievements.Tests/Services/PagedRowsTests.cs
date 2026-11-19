@@ -59,12 +59,12 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void Open_SetsTheFullCountAndTheFirstPagesInOneApply()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             Assert.AreEqual(0, rows.Count, "nothing shows before the first read");
 
             _scheduler.Drain();
 
-            Assert.AreEqual(1000, rows.Count);
+            Assert.AreEqual(2000, rows.Count);
             Assert.AreEqual(1, _events.Count);
             Assert.AreEqual(NotifyCollectionChangedAction.Reset, _events[0].Action);
             CollectionAssert.AreEqual(new[] { 0, 100 }, ReadOffsets.ToList());
@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void UnloadedRow_IsAPlaceholder_ReplacedInPlaceWithItsNeighbours()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             _events.Clear();
             _pageReads.Clear();
@@ -107,13 +107,13 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreSame(placeholder, replace.OldItems[0]);
             Assert.AreEqual(550, ((Row)replace.NewItems[0]).Index);
             Assert.AreEqual(550, At(rows, 550).Index);
-            Assert.AreEqual(1000, rows.Count);
+            Assert.AreEqual(2000, rows.Count);
         }
 
         [TestMethod]
         public void FastDrag_LoadsOnlyWhereItStops()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             _pageReads.Clear();
 
@@ -122,30 +122,37 @@ namespace PlayniteAchievements.Services.Tests
             At(rows, 950);
             _scheduler.Drain();
 
-            CollectionAssert.AreEqual(new[] { 300, 900, 800 }, ReadOffsets.ToList(),
-                "the page read when the drag started finishes; then the pages where it stopped, nearest first");
+            CollectionAssert.AreEqual(new[] { 300, 900 }, ReadOffsets.Take(2).ToList(),
+                "the page read when the drag started finishes; then the page where it stopped");
+            CollectionAssert.AreEquivalent(new[] { 800, 1000 }, ReadOffsets.Skip(2).ToList(), "then its neighbours, and nothing between");
             Assert.AreEqual(950, At(rows, 950).Index);
         }
 
         [TestMethod]
         public void RowCap_CapsTheCountAndTheReads()
         {
-            var rows = Create(1000, maxRows: 250);
+            var rows = Create(2000, maxRows: 1250);
             _scheduler.Drain();
-            Assert.AreEqual(250, rows.Count);
+            Assert.AreEqual(1250, rows.Count);
 
-            At(rows, 249);
+            At(rows, 1249);
             _scheduler.Drain();
 
-            Assert.AreEqual(249, At(rows, 249).Index);
-            Assert.IsTrue(_pageReads.All(query => query.Offset + query.Limit <= 250));
-            Assert.AreEqual(50, _pageReads.Single(query => query.Offset == 200).Limit);
+            Assert.AreEqual(1249, At(rows, 1249).Index);
+            Assert.IsTrue(_pageReads.All(query => query.Offset + query.Limit <= 1250));
+            Assert.AreEqual(50, _pageReads.Single(query => query.Offset == 1200).Limit);
+
+            _pageReads.Clear();
+            var small = Create(2000, maxRows: 250);
+            _scheduler.Drain();
+            Assert.AreEqual(250, small.Count);
+            Assert.AreEqual(250, _pageReads.Single().Limit, "a cap within the whole-load size reads the capped rows once");
         }
 
         [TestMethod]
         public void FeedChange_SameCount_ReplacesTheRowsAroundTheLastReadInPlace()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             At(rows, 550);
             _scheduler.Drain();
@@ -160,7 +167,7 @@ namespace PlayniteAchievements.Services.Tests
             _scheduler.Elapse();
             _scheduler.Drain();
 
-            Assert.AreEqual(1000, rows.Count);
+            Assert.AreEqual(2000, rows.Count);
             CollectionAssert.AreEquivalent(new[] { 400, 500, 600 }, ReadOffsets.ToList());
             Assert.AreEqual(300, _events.Count);
             Assert.IsTrue(_events.All(e => e.Action == NotifyCollectionChangedAction.Replace));
@@ -174,38 +181,38 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void FeedChange_SmallCountChange_AddsOrRemovesAtTheEnd()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             _events.Clear();
 
-            _total = 1005;
+            _total = 2005;
             _feed.Publish(AchievementDataChange.Full);
             _scheduler.Drain();
             _scheduler.Elapse();
             _scheduler.Drain();
 
-            Assert.AreEqual(1005, rows.Count);
+            Assert.AreEqual(2005, rows.Count);
             Assert.AreEqual(5, Count(NotifyCollectionChangedAction.Add));
-            Assert.AreEqual(1000, _events.First(e => e.Action == NotifyCollectionChangedAction.Add).NewStartingIndex);
+            Assert.AreEqual(2000, _events.First(e => e.Action == NotifyCollectionChangedAction.Add).NewStartingIndex);
             Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Reset));
 
             _events.Clear();
-            _total = 990;
+            _total = 1990;
             _feed.Publish(AchievementDataChange.Full);
             _scheduler.Drain();
             _scheduler.Elapse();
             _scheduler.Drain();
 
-            Assert.AreEqual(990, rows.Count);
+            Assert.AreEqual(1990, rows.Count);
             Assert.AreEqual(15, Count(NotifyCollectionChangedAction.Remove));
-            Assert.AreEqual(1004, _events.First().OldStartingIndex, "removed from the end, last first");
+            Assert.AreEqual(2004, _events.First().OldStartingIndex, "removed from the end, last first");
             Assert.AreEqual(0, Count(NotifyCollectionChangedAction.Reset));
         }
 
         [TestMethod]
         public void FeedChange_LargeCountChange_ResetsTheList()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             _events.Clear();
 
@@ -222,7 +229,7 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void SortBy_ReadsInTheColumnsOrder_AndDropsPagesOfTheOldOrder()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             At(rows, 550);
             _pageReads.Clear();
@@ -245,7 +252,7 @@ namespace PlayniteAchievements.Services.Tests
         [TestMethod]
         public void SetQuery_KeepsTheColumnSort()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             _scheduler.Drain();
             rows.SortBy(AchievementSort.GlobalPercent, descending: false);
             _scheduler.Drain();
@@ -276,9 +283,67 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Open_WithUpToAThousandRows_LoadsThemWholeInOneRead()
+        {
+            var rows = Create(PagedRows<Row>.WholeLoadRows);
+            _scheduler.Drain();
+
+            var read = _pageReads.Single();
+            Assert.AreEqual(0, read.Offset);
+            Assert.AreEqual(PagedRows<Row>.WholeLoadRows, read.Limit);
+            Assert.AreEqual(PagedRows<Row>.WholeLoadRows, rows.LoadedItems.Cast<Row>().Count(), "every row is loaded");
+            Assert.IsFalse(At(rows, 999).IsPlaceholder);
+            Assert.AreEqual(0, _scheduler.PendingReads, "reading any row loads nothing more");
+        }
+
+        [TestMethod]
+        public void Enumeration_HandsOutLoadedRowsAndOneSharedPlaceholder_WithoutLoadingOrKeepingAny()
+        {
+            var rows = Create(5000);
+            _scheduler.Drain();
+            _pageReads.Clear();
+
+            var all = ((IEnumerable<Row>)rows).ToList();
+
+            Assert.AreEqual(5000, all.Count, "as many items as the count");
+            Assert.AreEqual(200, all.Count(row => !row.IsPlaceholder), "the loaded rows");
+            Assert.AreEqual(1, all.Where(row => row.IsPlaceholder).Distinct().Count(), "one placeholder for every unloaded index");
+            Assert.AreEqual(-1, rows.IndexOf(all[4000]), "the shared placeholder stands for no index");
+            Assert.AreEqual(0, _scheduler.PendingReads, "enumerating loads nothing");
+            Assert.AreEqual(0, _pageReads.Count);
+            CollectionAssert.AreEqual(
+                Enumerable.Range(0, 200).ToList(),
+                rows.LoadedItems.Cast<Row>().Select(row => row.Index).ToList(),
+                "LoadedItems lists the loaded rows in index order");
+
+            var placeholder = At(rows, 4000);
+            Assert.AreNotSame(all[4000], placeholder, "reading an index hands out its own placeholder");
+            Assert.AreEqual(4000, rows.IndexOf(placeholder));
+        }
+
+        [TestMethod]
+        public void SetQuery_FromStart_LoadsTheTopFirst()
+        {
+            var rows = Create(5000);
+            _scheduler.Drain();
+            At(rows, 3000);
+            _scheduler.Drain();
+            _pageReads.Clear();
+
+            rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(true));
+            _scheduler.Drain();
+            CollectionAssert.AreEquivalent(new[] { 2900, 3000, 3100 }, ReadOffsets.ToList(), "a filter keeps the place");
+
+            _pageReads.Clear();
+            rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(false), fromStart: true);
+            _scheduler.Drain();
+            CollectionAssert.AreEquivalent(new[] { 0, 100 }, ReadOffsets.ToList(), "a new selection starts at the top");
+        }
+
+        [TestMethod]
         public void Dispose_DropsReadsInFlightAndStopsReloading()
         {
-            var rows = Create(1000);
+            var rows = Create(2000);
             rows.Dispose();
             _scheduler.Drain();
             Assert.AreEqual(0, rows.Count);
