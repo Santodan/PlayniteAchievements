@@ -437,6 +437,8 @@ namespace PlayniteAchievements
                     return;
                 }
 
+                // Stale now, so an Overview opened before the coalesced invalidate does not adopt it.
+                _startPageDataCoordinator.MarkStale();
                 if (_startPageInvalidateTimer == null)
                 {
                     _startPageInvalidateTimer = new System.Threading.Timer(
