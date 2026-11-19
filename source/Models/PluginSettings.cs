@@ -1439,7 +1439,7 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
-        public ObservableCollection<FriendAchievementDisplayItem> DynamicFriendAchievements
+        public IReadOnlyList<FriendAchievementDisplayItem> DynamicFriendAchievements
         {
             get => ModernTheme.DynamicFriendAchievements;
             set => ModernTheme.DynamicFriendAchievements = value;
