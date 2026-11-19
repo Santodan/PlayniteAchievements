@@ -67,6 +67,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         // The latest library state read; an older one is dropped unread or unapplied.
         private int _libraryReadVersion;
+
+        // The latest Playnite game change; the bound lists reread after the last of a burst.
+        private int _libraryGamesChangeVersion;
         private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
 
         // A window that edits one game's custom data in bulk -- the Manage Achievements editor --
@@ -792,6 +795,30 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Debug(ex, "Failed to refresh library theme state after custom-data change.");
             }
+        }
+
+        /// <summary>
+        /// Playnite games were added, removed or edited. The library state and the bound library
+        /// lists carry their names and art, so each is read again once a burst of changes ends.
+        /// </summary>
+        public void NotifyLibraryGamesChanged()
+        {
+            if (_hasLoadedLibraryState)
+            {
+                RequestLibraryRefresh();
+            }
+
+            var version = Interlocked.Increment(ref _libraryGamesChangeVersion);
+            ReadScheduler.PostAfter(LibraryRefreshDelay, () =>
+            {
+                if (version == _libraryGamesChangeVersion)
+                {
+                    foreach (var list in _libraryLists.Values)
+                    {
+                        list.SetQuery(list.Query);
+                    }
+                }
+            });
         }
 
         /// <summary>
