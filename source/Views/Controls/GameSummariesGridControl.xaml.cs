@@ -692,8 +692,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            // Loaded runs in the dispatcher pass after the first layout, so this cost lands
-            // outside the host's Showcase.Widget.Layout scope; it is timed separately.
+            // Loaded runs in the dispatcher pass after the first layout; it is timed separately.
             using var perf = Common.PerfScope.Start(
                 Logger,
                 "GameGrid.Loaded",
