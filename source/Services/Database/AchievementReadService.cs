@@ -145,6 +145,9 @@ namespace PlayniteAchievements.Services.Database
         public IReadOnlyList<AchievementTotalsRecord> Totals(AchievementQuery query, AchievementGroup group) =>
             (IReadOnlyList<AchievementTotalsRecord>)_withReadDb(db => Totals(db, query, group));
 
+        /// <summary>The number of rows <paramref name="query"/> matches, ignoring its page.</summary>
+        public int Count(AchievementQuery query) => (int)_withReadDb(db => Count(db, query));
+
         public IReadOnlyList<string> Keys(AchievementQuery query, AchievementGroup group) =>
             (IReadOnlyList<string>)_withReadDb(db => Keys(db, query, group));
 
@@ -159,6 +162,12 @@ namespace PlayniteAchievements.Services.Database
             var command = AchievementQuerySql.Totals(query, group);
             var rows = db.Load<AchievementTotalsRecord>(command.Sql, command.Args).ToList();
             return group == AchievementGroup.Tag ? SplitTags(rows) : rows;
+        }
+
+        internal static int Count(SQLiteDatabase db, AchievementQuery query)
+        {
+            var command = AchievementQuerySql.Count(query);
+            return (int)db.ExecuteScalar<long>(command.Sql, command.Args);
         }
 
         internal static IReadOnlyList<string> Keys(SQLiteDatabase db, AchievementQuery query, AchievementGroup group)
