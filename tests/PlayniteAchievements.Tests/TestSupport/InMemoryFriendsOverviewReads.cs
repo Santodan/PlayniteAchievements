@@ -42,13 +42,9 @@ namespace PlayniteAchievements.Tests.TestSupport
         public List<KeyValuePair<AchievementQuery, AchievementGroup>> TotalsReads { get; } =
             new List<KeyValuePair<AchievementQuery, AchievementGroup>>();
 
-        /// <summary>The friend rows: <c>AllAchievements</c> plus any unlocked row not among them.</summary>
+        /// <summary>The friend rows: <c>AllAchievements</c>.</summary>
         private List<FriendAchievementDisplayItem> Source =>
-            (Data.AllAchievements ?? new List<FriendAchievementDisplayItem>())
-                .Concat((Data.AllUnlockedAchievements ?? new List<FriendAchievementDisplayItem>())
-                    .Where(row => Data.AllAchievements == null || !Data.AllAchievements.Contains(row)))
-                .Where(row => row != null)
-                .ToList();
+            (Data.AllAchievements ?? new List<FriendAchievementDisplayItem>()).Where(row => row != null).ToList();
 
         public FriendsOverviewData LoadLists(Guid? playniteGameId = null)
         {
