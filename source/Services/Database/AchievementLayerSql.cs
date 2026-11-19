@@ -26,8 +26,15 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         public const string UserViewName = "ResolvedAchievements";
 
-        /// <summary>Every view this class creates, including names retired since.</summary>
-        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, ViewName, "AchievementDefinitionLayers", "ResolvedDefinitions" };
+        /// <summary>
+        /// Every user's achievements: the columns of <see cref="UserViewName"/> plus <c>UserId</c> and
+        /// <c>IsCurrentUser</c>, for the current user and for friends. <see cref="UserViewName"/> is
+        /// its <c>IsCurrentUser = 1</c> rows. The current user's rows have a NULL <c>UserId</c>.
+        /// </summary>
+        public const string AllUsersViewName = "UserAchievementRows";
+
+        /// <summary>Every view this class creates, dependents first, including names retired since.</summary>
+        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, AllUsersViewName, ViewName, "AchievementDefinitionLayers", "ResolvedDefinitions" };
 
         /// <summary>The metadata layer columns, in insert order, after AchievementDefinitionId.</summary>
         public static readonly IReadOnlyList<string> MetadataColumns = new[]
@@ -110,7 +117,10 @@ namespace PlayniteAchievements.Services.Database
             }
 
             yield return "CREATE VIEW " + ViewName + " AS SELECT\n" + PublicColumns() + FromClause + ";";
-            yield return UserViewSql();
+            yield return AllUsersViewSql();
+            yield return "CREATE VIEW " + UserViewName + " AS SELECT " +
+                string.Join(", ", PublicColumnNames.Concat(UserColumnNames)) +
+                " FROM " + AllUsersViewName + " WHERE IsCurrentUser = 1;";
         }
 
         private static string PublicColumns() => @"                ad.Id AS Id,
@@ -180,6 +190,14 @@ namespace PlayniteAchievements.Services.Database
             "IsSummaryFiltered", "Note", "IsGoal", "GoalOrder", "CustomOrder", "CategoryOrder", "CategoryArtPath"
         };
 
+        /// <summary>The user view's columns after the public ones, in order.</summary>
+        private static readonly string[] UserColumnNames =
+        {
+            "PlayniteGameId", "GameName", "ProviderKey", "Unlocked", "UnlockTimeUtc", "ProgressNum", "ProgressDenom",
+            "ExcludedFromSummaries", "IsAuthored", "CleanCapturePath", "NotificationCapturePath", "FramedCapturePath",
+            "VideoCapturePath", "DisplayOrder"
+        };
+
         /// <summary>How an authored achievement's mirror row fills each public column.</summary>
         private static readonly Dictionary<string, string> AuthoredColumns = new Dictionary<string, string>
         {
@@ -198,18 +216,26 @@ namespace PlayniteAchievements.Services.Database
         };
 
         /// <summary>
-        /// The current user's achievements: each definition of a game the user has, with unlock
-        /// state and the user's unlock time, plus the achievements the user authored, numbered in
-        /// the order the plugin lists them (DisplayOrder).
+        /// Every user's achievements: each definition of a game the user has, with unlock state and
+        /// unlock time, plus the achievements the current user authored, numbered in the order the
+        /// plugin lists them (DisplayOrder). Unlock-time overrides and clears and authored
+        /// achievements apply to the current user only.
         /// </summary>
-        private static string UserViewSql()
+        /// <remarks>
+        /// The current user's rows, from every provider account and authored, carry a NULL UserId so
+        /// they number together per game. DisplayOrder partitions by UserId and PlayniteGameId (or
+        /// the platform game when the game is not in the library), so SQLite pushes a filter on
+        /// either column below the window.
+        /// </remarks>
+        private static string AllUsersViewSql()
         {
             var unlockTimeBit = (int)AchievementField.UnlockTime;
             var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
             var authored = string.Join(",\n                ", PublicColumnNames.Select(name =>
                 (AuthoredColumns.TryGetValue(name, out var expression) ? expression : "a." + name) + " AS " + name));
-            return "CREATE VIEW " + UserViewName + @" AS SELECT u.*,
-                ROW_NUMBER() OVER (PARTITION BY u.PlayniteGameId ORDER BY u.CustomOrder IS NULL, u.CustomOrder,
+            return "CREATE VIEW " + AllUsersViewName + @" AS SELECT u.*,
+                ROW_NUMBER() OVER (PARTITION BY u.IsCurrentUser, u.UserId, u.PlayniteGameId,
+                    CASE WHEN u.PlayniteGameId IS NULL THEN u.GameId END ORDER BY u.CustomOrder IS NULL, u.CustomOrder,
                     u.MetadataOrder IS NULL, u.MetadataOrder, u.IsAuthored, u.Id, u.ApiName) - 1 AS DisplayOrder
               FROM (SELECT
                 " + platform + @",
@@ -217,16 +243,18 @@ namespace PlayniteAchievements.Services.Database
                 g.GameName AS GameName,
                 g.ProviderKey AS ProviderKey,
                 COALESCE(ua.Unlocked, 0) AS Unlocked,
-                CASE WHEN COALESCE(ua.Unlocked, 0) = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
-                     WHEN COALESCE(ua.Unlocked, 0) = 1 AND (COALESCE(c.Cleared, 0) & " + unlockTimeBit + @") <> 0 THEN NULL
+                CASE WHEN usr.IsCurrentUser = 1 AND COALESCE(ua.Unlocked, 0) = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
+                     WHEN usr.IsCurrentUser = 1 AND COALESCE(ua.Unlocked, 0) = 1 AND (COALESCE(c.Cleared, 0) & " + unlockTimeBit + @") <> 0 THEN NULL
                      ELSE ua.UnlockTimeUtc END AS UnlockTimeUtc,
                 ua.ProgressNum AS ProgressNum,
                 ua.ProgressDenom AS ProgressDenom,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
                 0 AS IsAuthored,
-                " + CaptureColumns + @"
+                " + CaptureColumns + @",
+                CASE WHEN usr.IsCurrentUser = 1 THEN NULL ELSE usr.Id END AS UserId,
+                usr.IsCurrentUser AS IsCurrentUser
               FROM UserGameProgress ugp
-              INNER JOIN Users u ON u.Id = ugp.UserId AND u.IsCurrentUser = 1
+              INNER JOIN Users usr ON usr.Id = ugp.UserId
               INNER JOIN Games g ON g.Id = ugp.GameId
               INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
               LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id
@@ -244,7 +272,9 @@ namespace PlayniteAchievements.Services.Database
                 a.ProgressDenom AS ProgressDenom,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
                 1 AS IsAuthored,
-                " + CaptureColumns + @"
+                " + CaptureColumns + @",
+                NULL AS UserId,
+                1 AS IsCurrentUser
               FROM AchievementOverrides a
               LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
