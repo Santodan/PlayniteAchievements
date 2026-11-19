@@ -3105,11 +3105,10 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
-        /// Drops the cached library projection when the showcase starts needing the Unlock Next
-        /// candidate pool, or gains an achievement pin the cached projection never hydrated, so
-        /// the next build fills them in. Only a deeper Unlock Next pool matters - the source newly
-        /// used, or Max per game raised past the built depth; a widget dropping the source or
-        /// lowering the value leaves a harmless pool behind until the next rebuild.
+        /// Rebuilds the start page's snapshots when the showcase starts needing the Unlock Next
+        /// candidate pool, so the next build fills it in. Only a deeper pool matters - the source
+        /// newly used, or Max per game raised past the built depth; a widget dropping the source
+        /// or lowering the value leaves a harmless pool behind until the next rebuild.
         /// </summary>
         private void OnShowcaseConfigurationChanged(object sender, EventArgs e)
         {
@@ -3118,39 +3117,10 @@ namespace PlayniteAchievements
             var slice = maxPerGame > 0 ? Services.Overview.UnlockNextCandidateSelector.SliceFor(maxPerGame) : 0;
             var poolNewlyRequired = slice > _unlockNextPoolSlice;
             _unlockNextPoolSlice = slice;
-
-            // Only a change to the pin set can leave the projection missing a pin. Layout edits
-            // (merge, split, resize, widget options) leave the pins alone, and checking the
-            // projection on each of them counted any in-flight build as stale, restarting a
-            // whole-library rebuild on every click.
-            var pinKeys = CollectAchievementPinKeys(showcase);
-            var pinsChanged = !pinKeys.SetEquals(_lastAchievementPinKeys);
-            _lastAchievementPinKeys = pinKeys;
-            if (!poolNewlyRequired && !pinsChanged)
+            if (poolNewlyRequired)
             {
-                return;
+                ScheduleStartPageInvalidate();
             }
-
-            ScheduleStartPageInvalidate();
-        }
-
-        private HashSet<string> _lastAchievementPinKeys = new HashSet<string>(StringComparer.Ordinal);
-
-        private static HashSet<string> CollectAchievementPinKeys(ShowcaseSettings showcase)
-        {
-            var keys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var collection in showcase?.AchievementPinCollections ?? new List<PinnedAchievementCollection>())
-            {
-                foreach (var pin in collection?.Pins ?? new List<PinnedAchievementReference>())
-                {
-                    if (pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
-                    {
-                        keys.Add(Services.Overview.OverviewDataSnapshot.AchievementPinKey(pin.GameId, pin.ApiName));
-                    }
-                }
-            }
-
-            return keys;
         }
 
         // === Game selection wiring ===
