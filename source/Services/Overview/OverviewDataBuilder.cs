@@ -690,8 +690,8 @@ namespace PlayniteAchievements.Services.Overview
             }
         }
 
-        // The snapshot's achievement rows are unlocked-only (see SummaryCacheReader: one display
-        // row per locked definition costs hundreds of MB on the 32-bit host). Unlock Next needs
+        // The snapshot's achievement rows are unlocked-only (one display row per locked
+        // definition costs hundreds of MB on the 32-bit host). Unlock Next needs
         // locked rows, so hydrate a bounded candidate pool the same way the pinned-locked path
         // does - per game, as deep as the largest Max per game asks, and skipped entirely unless
         // a live widget asks for it.
