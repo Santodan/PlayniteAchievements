@@ -255,6 +255,23 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void AllUsersView_SkipsUnlockTimeOverrides_ForAManuallyLinkedGame()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, HasManualLink) VALUES (?, 1);", GameId);
+
+                var mine = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " WHERE IsCurrentUser = 1 AND IsAuthored = 0 ORDER BY " + AchievementLayerSql.DisplayOrderSql + ";").ToList();
+
+                CollectionAssert.AreEqual(
+                    new[] { "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z" },
+                    mine.Select(row => row.UnlockTimeUtc).ToList(),
+                    "the recorded times, neither the override nor the clear");
+            });
+        }
+
+        [TestMethod]
         public void UserView_MatchesThePreviousDefinition()
         {
             WithDatabase(db =>
