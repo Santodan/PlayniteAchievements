@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +16,43 @@ namespace PlayniteAchievements.Services.Database
         UnlockTime,
 
         /// <summary>The global unlock percent; rows without one come first when ascending.</summary>
-        GlobalPercent
+        GlobalPercent,
+
+        /// <summary>The rarity sort value <c>AchievementRarityResolver.GetSortValue</c> gives.</summary>
+        Rarity,
+
+        /// <summary>The achievement name, ignoring case.</summary>
+        Name,
+
+        /// <summary>The cached game name, ignoring case.</summary>
+        Game,
+
+        /// <summary>The friend's provider display name, ignoring case; the current user's rows have none.</summary>
+        Friend,
+
+        /// <summary>The achievement's points.</summary>
+        Points,
+
+        /// <summary>The trophy grade, bronze lowest and platinum highest; rows without one lowest.</summary>
+        Trophy,
+
+        /// <summary>The category label, then the unlock time.</summary>
+        Category,
+
+        /// <summary>The category kind, then the unlock time.</summary>
+        Kind,
+
+        /// <summary>The number of tags, then the unlock time.</summary>
+        Tags,
+
+        /// <summary>Rows with a note first when descending, then the name.</summary>
+        Note,
+
+        /// <summary>The collection value of the rarity tier.</summary>
+        CollectionScore,
+
+        /// <summary>The prestige value of the percent and tier.</summary>
+        PrestigeScore
     }
 
     /// <summary>What a totals read groups by, or what a keys read lists.</summary>
@@ -43,7 +80,19 @@ namespace PlayniteAchievements.Services.Database
         Trophy,
 
         /// <summary>Each tag of the row, split as <c>AchievementTagHelper.Parse</c> splits it; NULL for untagged rows.</summary>
-        Tag
+        Tag,
+
+        /// <summary>
+        /// The provider game, as <see cref="AchievementGroupKeys.ProviderGame"/> spells it:
+        /// provider key, provider game key, provider game id and Playnite game id.
+        /// </summary>
+        ProviderGame,
+
+        /// <summary>The friend and the provider game, as <see cref="AchievementGroupKeys.FriendGame"/> spells it. Friend queries only.</summary>
+        FriendGame,
+
+        /// <summary>The stored category text; the reader normalizes it.</summary>
+        Category
     }
 
     /// <summary>
@@ -69,6 +118,41 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>With <see cref="FriendProviderKey"/>: only this friend.</summary>
         public string FriendExternalUserId { get; private set; }
+
+        /// <summary>With <see cref="Friends"/>: only these friend accounts; null for every friend.</summary>
+        public IReadOnlyList<FriendAccountRef> FriendAccounts { get; private set; }
+
+        /// <summary>
+        /// Friend queries: adds the unlock state of the same achievement of the same provider game
+        /// for these accounts to each row (<see cref="AchievementRowRecord.CompareUnlocked"/>);
+        /// null for none.
+        /// </summary>
+        public IReadOnlyList<FriendAccountRef> CompareAccounts { get; private set; }
+
+        /// <summary>Only rows with a resolved unlock time.</summary>
+        public bool RequireUnlockTime { get; private set; }
+
+        /// <summary>Leaves out hidden achievements that are locked.</summary>
+        public bool HideHiddenLocked { get; private set; }
+
+        /// <summary>Only capstone achievements.</summary>
+        public bool CapstonesOnly { get; private set; }
+
+        /// <summary>
+        /// Only rows whose category label is one of these, as
+        /// <c>AchievementCategoryHelper.NormalizeCategoryOrDefault</c> and
+        /// <c>CategoryPathHelper.LabelComparer</c> compare them; null for every row.
+        /// </summary>
+        public IReadOnlyList<string> CategoryLabels { get; private set; }
+
+        /// <summary>Matches no row.</summary>
+        public bool MatchesNothing { get; private set; }
+
+        /// <summary>
+        /// Totals count each achievement of a provider game once across the matching users, unlocked
+        /// when any of them unlocked it, with the latest unlock time.
+        /// </summary>
+        public bool DistinctAchievements { get; private set; }
 
         /// <summary>Only these Playnite games; null for every game.</summary>
         public IReadOnlyList<Guid> GameIds { get; private set; }
@@ -130,6 +214,45 @@ namespace PlayniteAchievements.Services.Database
                 query.FriendProviderKey = providerKey;
                 query.FriendExternalUserId = externalUserId;
             });
+
+        /// <summary>Friend rows of these accounts only; an empty list matches no row.</summary>
+        public AchievementQuery ForFriendAccounts(IEnumerable<FriendAccountRef> accounts) =>
+            With(query =>
+            {
+                query.Friends = true;
+                query.FriendAccounts = Accounts(accounts);
+            });
+
+        /// <summary>Adds the unlock state of these accounts to each friend row; null or empty for none.</summary>
+        public AchievementQuery CompareWith(IEnumerable<FriendAccountRef> accounts) =>
+            With(query =>
+            {
+                var list = Accounts(accounts);
+                query.CompareAccounts = list?.Count > 0 ? list : null;
+            });
+
+        public AchievementQuery WhereUnlockTimeKnown(bool require = true) => With(query => query.RequireUnlockTime = require);
+
+        public AchievementQuery WithoutHiddenLocked(bool hide = true) => With(query => query.HideHiddenLocked = hide);
+
+        public AchievementQuery WhereCapstone(bool only = true) => With(query => query.CapstonesOnly = only);
+
+        public AchievementQuery WhereCategory(IEnumerable<string> labels) =>
+            With(query => query.CategoryLabels = labels?.ToList());
+
+        public AchievementQuery MatchNothing(bool nothing = true) => With(query => query.MatchesNothing = nothing);
+
+        public AchievementQuery CountDistinctAchievements(bool distinct = true) => With(query => query.DistinctAchievements = distinct);
+
+        private static IReadOnlyList<FriendAccountRef> Accounts(IEnumerable<FriendAccountRef> accounts) =>
+            accounts?
+                .Where(account => account != null &&
+                                  !string.IsNullOrWhiteSpace(account.ProviderKey) &&
+                                  !string.IsNullOrWhiteSpace(account.ExternalUserId))
+                .Select(account => FriendAccountRef.From(account.ProviderKey, account.ExternalUserId))
+                .GroupBy(account => account.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
 
         public AchievementQuery ForGames(IEnumerable<Guid> gameIds) =>
             With(query => query.GameIds = gameIds?.Distinct().ToList());
