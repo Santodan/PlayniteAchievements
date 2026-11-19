@@ -2731,6 +2731,7 @@ namespace PlayniteAchievements.ViewModels
                     onError: ex => _logger?.Error(ex, "Failed to load the overview's achievement rows."),
                     update: (kept, fresh) => kept.RefreshFrom(fresh));
                 _recent.CollectionChanged += OnRecentRowsChanged;
+                _recent.PropertyChanged += OnRecentRowsChanged;
                 OnPropertyChanged(nameof(RecentAchievements));
                 return;
             }
@@ -2774,9 +2775,9 @@ namespace PlayniteAchievements.ViewModels
         private List<AchievementDisplayItem> LoadedRecentRows() =>
             _recent?.LoadedItems.Cast<AchievementDisplayItem>().ToList() ?? new List<AchievementDisplayItem>();
 
-        // Rows arrive a page at a time; the loaded ones take the capture marks and the compare
-        // pick once per batch of changes.
-        private void OnRecentRowsChanged(object sender, NotifyCollectionChangedEventArgs e)
+        // Rows arrive a page at a time, filled in place (an Item[] change) or added; the loaded
+        // ones take the capture marks and the compare pick once per batch of changes.
+        private void OnRecentRowsChanged(object sender, EventArgs e)
         {
             if (_recentDecorationPending)
             {
@@ -2803,6 +2804,7 @@ namespace PlayniteAchievements.ViewModels
             if (_recent != null)
             {
                 _recent.CollectionChanged -= OnRecentRowsChanged;
+                _recent.PropertyChanged -= OnRecentRowsChanged;
                 _recent.Dispose();
                 _recent = null;
                 _recentKey = null;
