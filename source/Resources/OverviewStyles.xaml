@@ -110,7 +110,7 @@
                                 <RowDefinition Height="Auto"/>
                             </SelectiveScrollingGrid.RowDefinitions>
 
-                            <DataGridCellsPresenter Grid.Column="1"
+                            <controls:StylePinnedDataGridCellsPresenter Grid.Column="1"
                                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                                     SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
 
