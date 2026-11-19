@@ -1386,9 +1386,10 @@ namespace PlayniteAchievements.ViewModels
                 AttachSharedSnapshotPublisher();
                 _progressTracker.SyncToCurrentState();
                 _compareFriendsStale = true;
-                ApplyRightFilters();
-                // Refresh data when overview becomes active to ensure cached changes are visible
+                // The snapshot read goes first on the read connection: the games grid, score
+                // cards and widgets wait for it. The Achievements grid's read queues behind it.
                 _ = RefreshViewAsync();
+                ApplyRightFilters();
             }
         }
 
