@@ -11,8 +11,10 @@ using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.ThemeIntegration;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.Tests.TestSupport;
@@ -301,101 +303,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void LibraryBuilder_BuildsStatsObjectsAcrossGames()
-        {
-            PercentRarityHelper.Configure(5, 10, 50);
-
-            var gameOneId = Guid.NewGuid();
-            var gameTwoId = Guid.NewGuid();
-            var allData = new List<GameAchievementData>
-            {
-                new GameAchievementData
-                {
-                    PlayniteGameId = gameOneId,
-                    Game = new Game { Id = gameOneId, Name = "Game One" },
-                    HasAchievements = true,
-                    Achievements = new List<AchievementDetail>
-                    {
-                        Achievement("Game1 Common Unlocked", 75.0, unlocked: true),
-                        Achievement("Game1 Uncommon Locked", 25.0, unlocked: false),
-                        Achievement("Game1 Rare Unlocked", 8.0, unlocked: true),
-                        Achievement("Game1 Ultra Locked", 2.0, unlocked: false)
-                    }
-                },
-                new GameAchievementData
-                {
-                    PlayniteGameId = gameTwoId,
-                    Game = new Game { Id = gameTwoId, Name = "Game Two" },
-                    HasAchievements = true,
-                    Achievements = new List<AchievementDetail>
-                    {
-                        Achievement("Game2 Common Locked", 90.0, unlocked: false),
-                        Achievement("Game2 Uncommon Unlocked", 45.0, unlocked: true),
-                        Achievement("Game2 Rare Locked", 7.0, unlocked: false),
-                        Achievement("Game2 Ultra Unlocked", 1.0, unlocked: true)
-                    }
-                }
-            };
-
-            var state = LibraryRuntimeStateBuilder.Build(allData, api: null, token: default, includeHeavyAchievementLists: false);
-
-            AssertStat(state.TotalCommon, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.TotalUncommon, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.TotalRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.TotalUltraRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.TotalRareAndUltraRare, total: 4, unlocked: 2, locked: 2);
-            AssertStat(state.TotalOverall, total: 8, unlocked: 4, locked: 4);
-
-            var gameOneSummary = FindSummary(state.AllGamesWithAchievements, gameOneId);
-            AssertStat(gameOneSummary.Common, total: 1, unlocked: 1, locked: 0);
-            AssertStat(gameOneSummary.Uncommon, total: 1, unlocked: 0, locked: 1);
-            AssertStat(gameOneSummary.Rare, total: 1, unlocked: 1, locked: 0);
-            AssertStat(gameOneSummary.UltraRare, total: 1, unlocked: 0, locked: 1);
-            AssertStat(gameOneSummary.RareAndUltraRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(gameOneSummary.Overall, total: 4, unlocked: 2, locked: 2);
-
-            var gameTwoSummary = FindSummary(state.AllGamesWithAchievements, gameTwoId);
-            AssertStat(gameTwoSummary.Common, total: 1, unlocked: 0, locked: 1);
-            AssertStat(gameTwoSummary.Uncommon, total: 1, unlocked: 1, locked: 0);
-            AssertStat(gameTwoSummary.Rare, total: 1, unlocked: 0, locked: 1);
-            AssertStat(gameTwoSummary.UltraRare, total: 1, unlocked: 1, locked: 0);
-            AssertStat(gameTwoSummary.RareAndUltraRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(gameTwoSummary.Overall, total: 4, unlocked: 2, locked: 2);
-        }
-
-        [TestMethod]
-        public void LibraryBuilder_IncludesFallbackAndNormalizedPercentRarityInTotals()
-        {
-            PercentRarityHelper.Configure(5, 10, 50);
-
-            var gameId = Guid.NewGuid();
-            var allData = new List<GameAchievementData>
-            {
-                new GameAchievementData
-                {
-                    PlayniteGameId = gameId,
-                    Game = new Game { Id = gameId, Name = "Filtered Game" },
-                    HasAchievements = true,
-                    Achievements = new List<AchievementDetail>
-                    {
-                        Achievement("Counted Common", 80.0, unlocked: true),
-                        Achievement("Counted Rare", 8.0, unlocked: false),
-                        Achievement("Missing Percent", null, unlocked: true),
-                        Achievement("Zero Percent", 0.0, unlocked: true),
-                        Achievement("Negative Percent", -1.0, unlocked: false)
-                    }
-                }
-            };
-
-            var state = LibraryRuntimeStateBuilder.Build(allData, api: null, token: default, includeHeavyAchievementLists: false);
-
-            AssertStat(state.TotalCommon, total: 2, unlocked: 2, locked: 0);
-            AssertStat(state.TotalRare, total: 1, unlocked: 0, locked: 1);
-            AssertStat(state.TotalUltraRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.TotalOverall, total: 5, unlocked: 3, locked: 2);
-        }
-
-        [TestMethod]
         public void LibraryBuilder_BuildsLightStateFromCachedSummaryData()
         {
             var steamGameId = Guid.NewGuid();
@@ -417,7 +324,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         CommonCount = 1,
                         RareCount = 1,
                         TotalCommonPossible = 2,
-                        TotalRarePossible = 2
+                        TotalRarePossible = 2,
+                        LastUnlockUtc = Utc(2026, 4, 1, 9, 0, 0)
                     },
                     new CachedGameSummaryData
                     {
@@ -434,18 +342,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         UltraRareCount = 1,
                         TotalUncommonPossible = 1,
                         TotalUltraRarePossible = 1,
-                        IsCompleted = true
-                    }
-                },
-                UnlockCountsByDateByGame = new Dictionary<Guid, Dictionary<DateTime, int>>
-                {
-                    [steamGameId] = new Dictionary<DateTime, int>
-                    {
-                        [Utc(2026, 4, 1, 0, 0, 0)] = 2
-                    },
-                    [battleNetGameId] = new Dictionary<DateTime, int>
-                    {
-                        [Utc(2026, 4, 2, 0, 0, 0)] = 2
+                        IsCompleted = true,
+                        LastUnlockUtc = Utc(2026, 4, 2, 9, 0, 0)
                     }
                 },
                 RecentUnlocks = new List<CachedRecentUnlockData>
@@ -476,10 +374,13 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 }
             };
 
-            var state = LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, api: null, token: default);
+            // Newest first, as the summary reads them; here also rarest first.
+            summaryData.RecentUnlocks.Reverse();
+            var rarest = new List<CachedRecentUnlockData> { summaryData.RecentUnlocks[0], summaryData.RecentUnlocks[1] };
+            var state = LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, rarest, api: null, token: default);
 
-            Assert.IsFalse(state.HeavyListsBuilt);
-            Assert.AreEqual(0, state.AllAchievements.Count);
+            AssertAchievementNames(state.RarestRecentUnlocksTop10, "BattleNet Recent", "Steam Recent");
+            Assert.AreEqual(Utc(2026, 4, 2, 9, 0, 0).ToLocalTime(), FindSummary(state.AllGamesWithAchievements, battleNetGameId).LastUnlockDate, "the last unlock, from the game's totals");
             AssertSummaryNames(state.AllGamesWithAchievements, "BattleNet Cached", "Steam Cached");
             AssertSummaryNames(state.SteamGames, "Steam Cached");
             AssertSummaryNames(state.BattleNetGames, "BattleNet Cached");
@@ -527,11 +428,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var selected = SelectedGameRuntimeStateBuilder.Build(
                 gameId,
                 data);
-            var library = LibraryRuntimeStateBuilder.Build(
-                new List<GameAchievementData> { data },
+            var library = LibraryRuntimeStateBuilder.BuildFromCachedSummary(
+                new CachedSummaryData { Games = new List<CachedGameSummaryData> { SummaryOf(data) } },
+                rarestRecent: null,
                 api: null,
-                token: default,
-                includeHeavyAchievementLists: false);
+                token: default);
 
             var summary = FindSummary(library.AllGamesWithAchievements, gameId);
             Assert.AreEqual(25d, selected.ProgressPercentage, "Selected-game path should round 2/8 to 25%.");
@@ -563,11 +464,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var selected = SelectedGameRuntimeStateBuilder.Build(
                 gameId,
                 data);
-            var library = LibraryRuntimeStateBuilder.Build(
-                new List<GameAchievementData> { data },
+            var library = LibraryRuntimeStateBuilder.BuildFromCachedSummary(
+                new CachedSummaryData { Games = new List<CachedGameSummaryData> { SummaryOf(data) } },
+                rarestRecent: null,
                 api: null,
-                token: default,
-                includeHeavyAchievementLists: false);
+                token: default);
 
             var summary = FindSummary(library.AllGamesWithAchievements, gameId);
             Assert.AreEqual(1d, selected.ProgressPercentage, "Selected-game path should round 0.5% to 1%.");
@@ -814,7 +715,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var ignored = Achievement("Filtered Unlock", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 2, 9, 0, 0));
             ignored.IsFiltered = true;
 
-            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -824,8 +725,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     HasAchievements = true,
                     Achievements = new List<AchievementDetail> { visibleUnlocked, visibleLocked, ignored }
                 }
-            };
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            });
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -835,7 +736,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     HasAchievements = true,
                     Achievements = new List<AchievementDetail> { visibleUnlocked, visibleLocked }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -858,7 +759,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             unlocked.Points = 1000;
             var locked = Achievement("Xbox Locked", 50.0, unlocked: false);
             locked.Points = 500;
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -869,7 +770,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     HasAchievements = true,
                     Achievements = new List<AchievementDetail> { unlocked, locked }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -907,9 +808,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     Achievement("Ultra Locked", 2.0, unlocked: false)
                 }
             };
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { data };
+            UseLibraryData(context, new List<GameAchievementData> { data });
 
-            var expectedModernScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+            var expectedModernScores = AchievementScoreCalculator.CalculateModernScores(new[] { data });
             var expectedLegacyLevel = AchievementLevelCalculator.CalculateLegacy(225);
 
             context.Settings.OpenAchievementWindow.Execute(null);
@@ -963,73 +864,46 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                     }
                 }
             };
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
-            {
-                new GameAchievementData
-                {
-                    PlayniteGameId = Guid.NewGuid(),
-                    ProviderKey = "GOG",
-                    Game = new Game { Name = "Hydrated Should Not Load" },
-                    HasAchievements = true,
-                    Achievements = new List<AchievementDetail>
-                    {
-                        Achievement("Hydrated", 75.0, unlocked: true)
-                    }
-                }
-            };
-
-            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+            context.Service.EnsureAllGamesThemeDataLoaded();
 
             Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
-            Assert.AreEqual(0, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
             AssertSummaryNames(context.Settings.DynamicGameSummaries, "Light Cached");
             Assert.AreEqual(0, context.Settings.DynamicLibraryAchievements.Count);
             Assert.AreEqual(1, context.Settings.GameSummariesDesc.Count);
         }
 
         [TestMethod]
-        public void EnsureAllGamesThemeDataLoaded_HeavyRequestUsesHydratedAchievementData()
+        public void LibraryLists_AreReadWhenBound_EachInItsOrder()
         {
             using var context = CreateServiceContext();
             var gameId = Guid.NewGuid();
-            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
-            {
-                Games = new List<CachedGameSummaryData>
-                {
-                    new CachedGameSummaryData
-                    {
-                        PlayniteGameId = Guid.NewGuid(),
-                        ProviderKey = "Steam",
-                        GameName = "Cached Should Not Load",
-                        HasAchievements = true,
-                        TotalAchievements = 1,
-                        UnlockedAchievements = 1,
-                        CommonCount = 1,
-                        TotalCommonPossible = 1
-                    }
-                }
-            };
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
                     PlayniteGameId = gameId,
-                    ProviderKey = "GOG",
-                    Game = new Game { Id = gameId, Name = "Heavy Hydrated" },
+                    ProviderKey = "Steam",
+                    Game = new Game { Id = gameId, Name = "Bound Game" },
                     HasAchievements = true,
                     Achievements = new List<AchievementDetail>
                     {
-                        Achievement("Hydrated Achievement", 75.0, unlocked: true)
+                        Achievement("Older Common", 80.0, unlocked: true, unlockTimeUtc: DateTime.UtcNow.AddDays(-20)),
+                        Achievement("Newer Rare", 8.0, unlocked: true, unlockTimeUtc: DateTime.UtcNow.AddDays(-2)),
+                        Achievement("Locked Ultra", 2.0, unlocked: false)
                     }
                 }
-            };
+            });
 
-            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+            Assert.AreEqual(0, context.AchievementDataService.RowReads.Count, "nothing reads before a theme binds a list");
+            AssertAchievementNames(context.Settings.AllAchievementsUnlockAsc, "Older Common", "Newer Rare", "Locked Ultra");
+            AssertAchievementNames(context.Settings.AllAchievementsRarityAsc, "Locked Ultra", "Newer Rare", "Older Common");
+            AssertAchievementNames(context.Settings.MostRecentUnlocks, "Newer Rare", "Older Common");
+            AssertAchievementNames(context.Settings.RarestRecentUnlocks, "Newer Rare", "Older Common");
+            Assert.AreEqual(4, context.AchievementDataService.RowReads.Count);
+            Assert.IsTrue(context.AchievementDataService.RowReads.All(query => query.SummaryRules && query.Limit == 0));
 
-            Assert.AreEqual(0, context.AchievementDataService.CachedSummaryDataForThemeCalls);
-            Assert.AreEqual(1, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
-            AssertAchievementNames(context.Settings.DynamicLibraryAchievements, "Hydrated Achievement");
-            AssertSummaryNames(context.Settings.DynamicGameSummaries, "Heavy Hydrated");
+            _ = context.Settings.AllAchievementsUnlockAsc;
+            Assert.AreEqual(4, context.AchievementDataService.RowReads.Count, "a bound list reads once until its data changes");
         }
 
         [TestMethod]
@@ -1055,7 +929,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 }
             };
 
-            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+            context.Service.EnsureAllGamesThemeDataLoaded();
             Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
 
             context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
@@ -1083,7 +957,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             await Task.Delay(700);
 
             Assert.AreEqual(2, context.AchievementDataService.CachedSummaryDataForThemeCalls);
-            Assert.AreEqual(0, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
             AssertSummaryNames(context.Settings.DynamicGameSummaries, "After Coalesce");
         }
 
@@ -1112,7 +985,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
 
             context.AchievementDataService.VisibleGameDataById[gameId] = initialSelected;
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { initialSelected };
+            UseLibraryData(context, new List<GameAchievementData> { initialSelected });
 
             context.Settings.OpenAchievementWindow.Execute(null);
             context.Service.PopulateSingleGameDataSync(gameId);
@@ -1131,7 +1004,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
 
             context.AchievementDataService.VisibleGameDataById[gameId] = updatedSelected;
-            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { updatedSelected };
+            UseLibraryData(context, new List<GameAchievementData> { updatedSelected });
 
             context.Service.NotifyCustomDataChanged(gameId);
 
@@ -1139,9 +1012,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             await WaitForConditionAsync(() => context.Settings.Achievements.Count == 1);
             AssertAchievementNames(context.Settings.Achievements, "Visible One");
 
-            await WaitForConditionAsync(() => context.Settings.DynamicLibraryAchievements.Count == 1);
-            AssertAchievementNames(context.Settings.DynamicLibraryAchievements, "Visible One");
-
+            await WaitForConditionAsync(() => context.Settings.DynamicGameSummaries.Any(item => item.GameId == gameId && item.AchievementCount == 1));
             var summary = FindSummary(context.Settings.DynamicGameSummaries, gameId);
             Assert.AreEqual(1, summary.UnlockedCount);
             Assert.AreEqual(1, summary.AchievementCount);
@@ -1237,7 +1108,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var battleNetGameId = Guid.NewGuid();
             var steamGameId = Guid.NewGuid();
-            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -1273,7 +1144,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         Achievement("Steam Ultra", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 6, 10, 0, 0))
                     }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -1554,7 +1425,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             context.AchievementDataService.GameDataById[steamGameId] = steamData;
             context.AchievementDataService.GameDataById[gogGameId] = gogData;
-            context.AchievementDataService.AllGameData = new List<GameAchievementData> { steamData, gogData };
+            UseLibraryData(context, new List<GameAchievementData> { steamData, gogData });
             context.Settings.OpenAchievementWindow.Execute(null);
 
             var gogSummary = context.Settings.DynamicGameSummaries.Single(item => item.GameId == gogGameId);
@@ -1634,7 +1505,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             context.AchievementDataService.GameDataById[steamGameId] = steamData;
             context.AchievementDataService.GameDataById[gogGameId] = gogData;
-            context.AchievementDataService.AllGameData = new List<GameAchievementData> { steamData, gogData };
+            UseLibraryData(context, new List<GameAchievementData> { steamData, gogData });
             context.Service.PopulateSingleGameDataSync(steamGameId);
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -1703,7 +1574,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
 
             context.AchievementDataService.GameDataById[gameId] = gameData;
-            context.AchievementDataService.AllGameData = new List<GameAchievementData> { gameData };
+            UseLibraryData(context, new List<GameAchievementData> { gameData });
             context.Service.PopulateSingleGameDataSync(gameId);
             context.Settings.OpenAchievementWindow.Execute(null);
             context.Settings.SetDynamicFriendScopeGameCommand.Execute(FriendOverviewProjection.GetGameScopeKey(friendData.Games[0]));
@@ -1805,7 +1676,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             context.AchievementDataService.GameDataById[firstGameId] = firstData;
             context.AchievementDataService.GameDataById[secondGameId] = secondData;
-            context.AchievementDataService.AllGameData = new List<GameAchievementData> { firstData, secondData };
+            UseLibraryData(context, new List<GameAchievementData> { firstData, secondData });
             context.Service.PopulateSingleGameDataSync(firstGameId);
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -1927,7 +1798,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             context.AchievementDataService.GameDataById[firstGameId] = firstData;
             context.AchievementDataService.GameDataById[secondGameId] = secondData;
-            context.AchievementDataService.AllGameData = new List<GameAchievementData> { firstData, secondData };
+            UseLibraryData(context, new List<GameAchievementData> { firstData, secondData });
 
             context.Settings.OpenAchievementWindow.Execute(null);
             context.Settings.DynamicAchievementsGameKey = secondGameId.ToString("D");
@@ -1951,7 +1822,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             using var context = CreateServiceContext();
             var battleNetGameId = Guid.NewGuid();
             var steamGameId = Guid.NewGuid();
-            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -1988,7 +1859,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         Achievement("Steam Complete Two", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 3, 9, 0, 0))
                     }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -2048,7 +1919,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var battleNetGameId = Guid.NewGuid();
             var steamGameId = Guid.NewGuid();
             var gogGameId = Guid.NewGuid();
-            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -2105,7 +1976,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         Achievement("GOG Locked", 80.0, unlocked: false)
                     }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -2128,23 +1999,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var battleNetSummary = FindSummary(context.Settings.DynamicGameSummaries, battleNetGameId);
             Assert.AreEqual("BattleNet", battleNetSummary.ProviderKey);
             Assert.AreEqual("BattleNet", battleNetSummary.ProviderName);
-            Assert.AreEqual(Utc(2026, 4, 7, 8, 0, 0), battleNetSummary.LastPlayed);
             Assert.AreEqual(1, battleNetSummary.UnlockedCount);
             Assert.AreEqual(2, battleNetSummary.AchievementCount);
-
-            changedProperties.Clear();
-            context.Settings.SortDynamicGameSummariesCommand.Execute("lAsTpLaYeD");
-
-            AssertSummaryNames(context.Settings.DynamicGameSummaries, "Steam Summary", "BattleNet Summary", "GOG Summary");
-            Assert.AreEqual(DynamicThemeViewKeys.LastPlayed, context.Settings.DynamicGameSummariesSortKey);
-            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortKey)));
-
-            changedProperties.Clear();
-            context.Settings.SetDynamicGameSummariesSortDirectionCommand.Execute("ascending");
-
-            AssertSummaryNames(context.Settings.DynamicGameSummaries, "GOG Summary", "BattleNet Summary", "Steam Summary");
-            Assert.AreEqual(DynamicThemeViewKeys.Ascending, context.Settings.DynamicGameSummariesSortDirectionKey);
-            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortDirectionKey)));
 
             changedProperties.Clear();
             context.Settings.SortDynamicGameSummariesCommand.Execute("uNlOcKeDcOuNt");
@@ -2168,7 +2024,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var googlePlayGameId = Guid.NewGuid();
             var ubisoftGameId = Guid.NewGuid();
 
-            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            UseLibraryData(context, new List<GameAchievementData>
             {
                 new GameAchievementData
                 {
@@ -2220,7 +2076,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                         Achievement("Ubisoft Unlock", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 3, 9, 0, 0))
                     }
                 }
-            };
+            });
 
             context.Settings.OpenAchievementWindow.Execute(null);
 
@@ -2827,9 +2683,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 context.Service.HasDeferredLibraryRefreshForTests,
                 "Taking the hold is not itself a pending rebuild.");
 
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests();
+            context.Service.RequestLibraryRefreshForTests();
+            context.Service.RequestLibraryRefreshForTests();
 
             Assert.IsTrue(
                 context.Service.HasDeferredLibraryRefreshForTests,
@@ -2842,22 +2698,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void HeldLibraryRefresh_KeepsTheHeaviestRequestedScope()
-        {
-            using var context = CreateServiceContext();
-
-            context.Service.SuspendLibraryRefresh();
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: true);
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
-
-            Assert.IsTrue(
-                context.Service.DeferredLibraryRefreshIncludesHeavyListsForTests,
-                "One edit in the burst needed the achievement lists, so the single rebuild " +
-                "standing in for the burst has to carry them.");
-        }
-
-        [TestMethod]
         public void NestedLibraryRefreshHolds_ReleaseOnlyOnTheLast()
         {
             using var context = CreateServiceContext();
@@ -2865,7 +2705,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             // One Manage window per game can be open at once, so the hold is counted.
             context.Service.SuspendLibraryRefresh();
             context.Service.SuspendLibraryRefresh();
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests();
 
             context.Service.ResumeLibraryRefresh();
             Assert.IsTrue(
@@ -2899,7 +2739,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             // Had the count gone negative, a later hold would not take.
             context.Service.SuspendLibraryRefresh();
-            context.Service.RequestLibraryRefreshForTests(includeHeavyAchievementLists: false);
+            context.Service.RequestLibraryRefreshForTests();
 
             Assert.IsTrue(
                 context.Service.HasDeferredLibraryRefreshForTests,
@@ -2939,7 +2779,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 resolveRunningGameTarget: resolveRunningGameTarget,
                 toggleAchievementCapstone: toggleAchievementCapstone,
                 toggleAchievementGoal: toggleAchievementGoal,
-                friendScheduler: scheduler);
+                readScheduler: scheduler);
 
             return new ServiceTestContext(settings, achievementDataService, logger, service, scheduler);
         }
@@ -3244,6 +3084,117 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         private static DateTime Utc(int year, int month, int day, int hour, int minute, int second)
         {
             return DateTime.SpecifyKind(new DateTime(year, month, day, hour, minute, second), DateTimeKind.Utc);
+        }
+
+        // The library the light state and the bound lists read: each game's summary, and its rows
+        // filtered and ordered by each query as the SQL does, read as they are asked for.
+        private static void UseLibraryData(ServiceTestContext context, IReadOnlyList<GameAchievementData> games)
+        {
+            context.Scheduler.Immediate = true;
+            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
+            {
+                Games = games.Select(SummaryOf).ToList(),
+                RecentUnlocks = RowsOf(games, AchievementQuery.CurrentUser.WhereUnlocked(true).WhereUnlockTimeKnown().OrderBy(AchievementSort.UnlockTime, true).Page(10))
+            };
+            context.AchievementDataService.Rows = query => RowsOf(games, query);
+        }
+
+        private static CachedGameSummaryData SummaryOf(GameAchievementData data)
+        {
+            var achievements = (data.Achievements ?? new List<AchievementDetail>()).Where(item => item != null && !item.IsFiltered).ToList();
+            var stats = AchievementStatsAccumulator.FromAchievements(achievements);
+            int Count(RarityTier tier, bool unlocked) => achievements.Count(item => item.Rarity == tier && (!unlocked || item.Unlocked));
+            return new CachedGameSummaryData
+            {
+                PlayniteGameId = data.PlayniteGameId,
+                ProviderKey = data.ProviderKey,
+                ProviderPlatformKey = data.ProviderPlatformKey,
+                GameName = data.Game?.Name ?? data.GameName,
+                HasAchievements = data.HasAchievements,
+                TotalAchievements = achievements.Count,
+                UnlockedAchievements = achievements.Count(item => item.Unlocked),
+                CommonCount = Count(RarityTier.Common, true),
+                UncommonCount = Count(RarityTier.Uncommon, true),
+                RareCount = Count(RarityTier.Rare, true),
+                UltraRareCount = Count(RarityTier.UltraRare, true),
+                TotalCommonPossible = Count(RarityTier.Common, false),
+                TotalUncommonPossible = Count(RarityTier.Uncommon, false),
+                TotalRarePossible = Count(RarityTier.Rare, false),
+                TotalUltraRarePossible = Count(RarityTier.UltraRare, false),
+                CollectionScore = stats.CollectionScore,
+                PrestigeScore = stats.PrestigeScore,
+                PlatformScorePoints = stats.PlatformScorePoints,
+                PlatformScorePointsTotal = stats.PlatformScorePointsTotal,
+                IsCompleted = achievements.Count > 0 && achievements.All(item => item.Unlocked),
+                LastUnlockUtc = achievements.Where(item => item.Unlocked).Max(item => item.UnlockTimeUtc)
+            };
+        }
+
+        private static List<CachedRecentUnlockData> RowsOf(IReadOnlyList<GameAchievementData> games, AchievementQuery query)
+        {
+            var rows = new List<KeyValuePair<AchievementDetail, CachedRecentUnlockData>>();
+            foreach (var data in games)
+            {
+                foreach (var item in (data.Achievements ?? new List<AchievementDetail>()).Where(item => item != null && !item.IsFiltered))
+                {
+                    var provider = string.IsNullOrWhiteSpace(data.ProviderPlatformKey) ? data.ProviderKey : data.ProviderPlatformKey;
+                    rows.Add(new KeyValuePair<AchievementDetail, CachedRecentUnlockData>(
+                        new AchievementDetail
+                        {
+                            ApiName = item.ApiName,
+                            DisplayName = item.DisplayName,
+                            GlobalPercentUnlocked = item.GlobalPercentUnlocked,
+                            Rarity = item.Rarity,
+                            Unlocked = item.Unlocked,
+                            UnlockTimeUtc = item.UnlockTimeUtc,
+                            Hidden = item.Hidden,
+                            IsCapstone = item.IsCapstone,
+                            TrophyType = item.TrophyType,
+                            ProviderKey = provider,
+                            Game = data.Game
+                        },
+                        new CachedRecentUnlockData
+                        {
+                            PlayniteGameId = data.PlayniteGameId,
+                            ProviderKey = data.ProviderKey,
+                            ProviderPlatformKey = data.ProviderPlatformKey,
+                            GameName = data.Game?.Name ?? data.GameName,
+                            ApiName = item.ApiName,
+                            DisplayName = item.DisplayName,
+                            GlobalPercentUnlocked = item.GlobalPercentUnlocked,
+                            Rarity = item.Rarity,
+                            Unlocked = item.Unlocked,
+                            UnlockTimeUtc = item.UnlockTimeUtc,
+                            Hidden = item.Hidden,
+                            IsCapstone = item.IsCapstone,
+                            TrophyType = item.TrophyType
+                        }));
+                }
+            }
+
+            IEnumerable<KeyValuePair<AchievementDetail, CachedRecentUnlockData>> kept = rows.Where(row =>
+                (query.GameIds == null || query.GameIds.Contains(row.Value.PlayniteGameId ?? Guid.Empty)) &&
+                (query.ProviderKey == null || string.Equals(query.ProviderKey, row.Key.ProviderKey, StringComparison.OrdinalIgnoreCase)) &&
+                (!query.Unlocked.HasValue || row.Key.Unlocked == query.Unlocked.Value) &&
+                (!query.RequireUnlockTime || (row.Key.Unlocked && row.Key.UnlockTimeUtc.HasValue)) &&
+                (!query.UnlockedFromDay.HasValue || (row.Key.UnlockTimeUtc.HasValue && row.Key.UnlockTimeUtc.Value.ToLocalTime().Date >= query.UnlockedFromDay.Value)));
+            if (query.KeyGroups != null)
+            {
+                var filter = string.Join("+", query.KeyGroups.SelectMany(group => group));
+                var matched = new HashSet<AchievementDetail>(DynamicThemeFilterEvaluator.ApplyAchievementFilters(kept.Select(row => row.Key), filter));
+                kept = kept.Where(row => matched.Contains(row.Key));
+            }
+
+            var byDetail = kept.ToDictionary(row => row.Key, row => row.Value);
+            var path = query.Sort == AchievementSort.Rarity ? nameof(AchievementDisplayItem.RaritySortValue)
+                : query.Sort == AchievementSort.Name ? nameof(AchievementDisplayItem.DisplayName)
+                : nameof(AchievementDisplayItem.UnlockTime);
+            var sorted = AchievementSortHelper.CreateSortedDetailList(
+                byDetail.Keys,
+                path,
+                query.Descending ? ListSortDirection.Descending : ListSortDirection.Ascending,
+                includeGameNameTieBreak: true);
+            return sorted.Select(detail => byDetail[detail]).Take(query.Limit > 0 ? query.Limit : int.MaxValue).ToList();
         }
 
         private static AchievementDetail Achievement(
