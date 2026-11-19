@@ -81,7 +81,6 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <!-- No local RenderTransform here: the style installs a
@@ -94,12 +93,6 @@
                                            Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                            VerticalAlignment="Center"
                                            TextWrapping="Wrap"/>
-
-                                <Button Grid.Column="2"
-                                        x:Name="CheckButton"
-                                        Content="{DynamicResource LOCPlayAch_Common_Check}"
-                                        Style="{StaticResource AuthActionButtonStyle}"
-                                        Click="Check_Click"/>
                             </Grid>
 
                             <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
@@ -114,6 +107,12 @@
                                                Style="{StaticResource MutedTextStyle}"
                                                Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                TextWrapping="Wrap"/>
+                                    <Button x:Name="CheckButton"
+                                            Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                            Style="{StaticResource AuthActionButtonStyle}"
+                                            Click="Check_Click"
+                                            HorizontalAlignment="Left"
+                                            Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
