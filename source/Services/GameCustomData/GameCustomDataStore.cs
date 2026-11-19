@@ -30,21 +30,13 @@ namespace PlayniteAchievements.Services.GameCustomData
     {
         public GameCustomDataChangedEventArgs(
             Guid playniteGameId,
-            bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsSummaryData = true)
         {
             PlayniteGameId = playniteGameId;
             AffectsSummaryData = affectsSummaryData;
-            AffectsOverrideMirror = affectsOverrideMirror;
         }
 
         public Guid PlayniteGameId { get; }
-
-        /// <summary>
-        /// The writer's claim that the change moved a per-achievement override. Reported only: every
-        /// save writes the custom layer tables, which raise the change feed when a row moved.
-        /// </summary>
-        public bool AffectsOverrideMirror { get; }
 
         /// <summary>
         /// False when the change only reorders or re-presents achievements the user already had,
@@ -73,14 +65,12 @@ namespace PlayniteAchievements.Services.GameCustomData
             Guid playniteGameId,
             GameCustomDataFile previous,
             GameCustomDataFile persisted,
-            bool affectsSummaryData,
-            bool affectsOverrideMirror)
+            bool affectsSummaryData)
         {
             PlayniteGameId = playniteGameId;
             Previous = previous;
             Persisted = persisted;
             AffectsSummaryData = affectsSummaryData;
-            AffectsOverrideMirror = affectsOverrideMirror;
         }
 
         public Guid PlayniteGameId { get; }
@@ -92,12 +82,10 @@ namespace PlayniteAchievements.Services.GameCustomData
         public GameCustomDataFile Persisted { get; }
 
         /// <summary>
-        /// The flags this write reported. A reversal has to repeat them, or the mirrors that key
-        /// off them resync for the original change and not for the one that undid it.
+        /// The flag this write reported. A reversal has to repeat it, or the subscribers that key
+        /// off it rebuild for the original change and not for the one that undid it.
         /// </summary>
         public bool AffectsSummaryData { get; }
-
-        public bool AffectsOverrideMirror { get; }
     }
 
     /// <summary>
@@ -292,8 +280,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void Update(
             Guid playniteGameId,
             Action<GameCustomDataFile> mutate,
-            bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsSummaryData = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -322,7 +309,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
 
             mutate(data);
-            Save(playniteGameId, data, previous, affectsSummaryData, affectsOverrideMirror);
+            Save(playniteGameId, data, previous, affectsSummaryData);
         }
 
         // Rewrites every ApiName-keyed field after achievement definitions were renamed in place
@@ -529,8 +516,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             Guid playniteGameId,
             GameCustomDataFile data,
             GameCustomDataFile previousData,
-            bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+            bool affectsSummaryData = true)
         {
             // Names the caller. A bulk rename across 641 rows produced 215 store writes over 42
             // seconds with a 5.8s UI freeze inside it, and the log could not say which path
@@ -572,8 +558,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                             playniteGameId,
                             previousData,
                             persisted,
-                            affectsSummaryData,
-                            affectsOverrideMirror));
+                            affectsSummaryData));
                 }
                 catch (Exception ex)
                 {
@@ -582,7 +567,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
                 using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
                 {
-                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
                 }
 
                 PublishLayerChanged(playniteGameId, layerChanged);
@@ -2580,12 +2565,9 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// Raises <see cref="CustomDataChanged"/> without writing, for changes that alter how a
         /// game's stored custom data resolves (such as an edited custom provider definition).
         /// </summary>
-        public void NotifyChanged(
-            Guid playniteGameId,
-            bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+        public void NotifyChanged(Guid playniteGameId, bool affectsSummaryData = true)
         {
-            RaiseCustomDataChanged(playniteGameId, affectsSummaryData, affectsOverrideMirror);
+            RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
         }
 
         /// <summary>
@@ -2639,10 +2621,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
-        private void RaiseCustomDataChanged(
-            Guid playniteGameId,
-            bool affectsSummaryData = true,
-            bool affectsOverrideMirror = true)
+        private void RaiseCustomDataChanged(Guid playniteGameId, bool affectsSummaryData = true)
         {
             if (playniteGameId == Guid.Empty)
             {
@@ -2651,10 +2630,7 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             CustomDataChanged?.Invoke(
                 this,
-                new GameCustomDataChangedEventArgs(
-                    playniteGameId,
-                    affectsSummaryData,
-                    affectsOverrideMirror));
+                new GameCustomDataChangedEventArgs(playniteGameId, affectsSummaryData));
         }
     }
 }
