@@ -1346,5 +1346,72 @@
         </Grid>
     </DataTemplate>
 
+    <!-- The locked progress bar and its count, built only for a row that shows it. -->
+    <DataTemplate x:Key="AchievementUnlockProgressTemplate">
+        <Grid>
+            <ProgressBar Style="{StaticResource GameProgressBar}"
+                         Value="{Binding ProgressPercent, Mode=OneWay}"
+                         Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+
+            <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Unlock Date / Progress Template: the unlock date, or the locked progress. The progress
+         and the compare layout sit in presenters that stay collapsed until a row shows them, so
+         neither is built for a row that does not. In compare mode the compare layout takes the
+         cell. -->
+    <DataTemplate x:Key="AchievementUnlockDateTemplate">
+        <Grid>
+            <TextBlock x:Name="UnlockDate"
+                       HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                       TextWrapping="Wrap"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                       Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                        <Binding Path="UnlockTimeLocal"/>
+                        <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+
+            <ContentPresenter x:Name="Progress"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementUnlockProgressTemplate}"
+                              Margin="4,0"
+                              VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                              Visibility="Collapsed"/>
+
+            <ContentPresenter x:Name="Compare"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementUnlockDateCompareTemplate}"
+                              Visibility="Collapsed"/>
+        </Grid>
+        <!-- The presenters are shown by these triggers: a presenter's own bindings read no row
+             until it has built its content, which it does not while collapsed. Later triggers
+             win, so compare mode hides the progress too. -->
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding ShowLockedProgress}" Value="True">
+                <Setter TargetName="Progress" Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasComparison}" Value="True">
+                <Setter TargetName="UnlockDate" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Progress" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Compare" Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
 
 </ResourceDictionary>
