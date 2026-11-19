@@ -286,7 +286,21 @@ namespace PlayniteAchievements.Services.Overview
             gameRowScope?.Dispose();
 
             var listed = ShowcaseRows.ById(snapshot.GameSummaries);
-            snapshot.ReadRows = query => LoadRows(settings, query, games: listed);
+
+            // Every pin's row, read here so no widget reads the database on the UI thread.
+            var pins = OverviewDataSnapshot.Pins(settings.Persisted?.Showcase);
+            snapshot.PinKeysAtBuild = OverviewDataSnapshot.PinKeys(settings.Persisted?.Showcase);
+            try
+            {
+                snapshot.PinnedRows = pins.Count == 0 ? snapshot.PinnedRows : LoadRows(settings,
+                    AchievementQuery.CurrentUser.ForAchievements(pins.Select(pin => new KeyValuePair<Guid, string>(pin.GameId, pin.ApiName))),
+                    games: listed);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug($"[Overview] Failed to read the pinned achievements: {ex.Message}");
+            }
+
             using (PerfScope.Start(_logger, "Overview.Build.UnlockNext", thresholdMs: 25))
             {
                 BuildUnlockNextCandidates(settings, snapshot, listed);
