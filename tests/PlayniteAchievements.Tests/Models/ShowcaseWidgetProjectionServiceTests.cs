@@ -211,7 +211,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                PinnedAchievements = new List<AchievementDisplayItem>
+                ReadRows = _ => new List<AchievementDisplayItem>
                 {
                     firstAchievement,
                     rareAchievement,
@@ -1237,7 +1237,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                PinnedAchievements = new List<AchievementDisplayItem> { resolved }
+                ReadRows = _ => new List<AchievementDisplayItem> { resolved }
             };
             var pins = new List<PinnedAchievementReference>
             {
@@ -1280,7 +1280,7 @@ namespace PlayniteAchievements.Tests.Models
             var missingGameId = Guid.NewGuid();
             var snapshot = new OverviewDataSnapshot
             {
-                PinnedAchievements = new List<AchievementDisplayItem>
+                ReadRows = _ => new List<AchievementDisplayItem>
                 {
                     new AchievementDisplayItem
                     {
@@ -1351,7 +1351,7 @@ namespace PlayniteAchievements.Tests.Models
             };
             var snapshot = new OverviewDataSnapshot
             {
-                PinnedAchievements = new List<AchievementDisplayItem>
+                ReadRows = _ => new List<AchievementDisplayItem>
                 {
                     defaultAchievement,
                     selectedAchievement
