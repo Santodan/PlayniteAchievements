@@ -5027,10 +5027,12 @@ namespace PlayniteAchievements.Services.Database
         }
 
         // Returns the ApiName renames applied while upserting definitions (old -> new), so the
-        // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides).
-        public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data)
+        // caller can rewrite ApiName-keyed per-game custom data (notes, order, filters, overrides),
+        // and whether the save changed anything readers see (SqlNadoCacheBehavior.SavedGameState).
+        public Dictionary<string, string> SaveCurrentUserGameData(string key, GameAchievementData data, out bool changed)
         {
             var renamedApiNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            changed = false;
             if (string.IsNullOrWhiteSpace(key))
             {
                 return renamedApiNames;
@@ -5059,11 +5061,15 @@ namespace PlayniteAchievements.Services.Database
             NormalizeIncomingAchievements(achievements);
             var unlockedCount = achievements.Count(IsUnlocked);
             var totalCount = achievements.Count;
+            var playniteGameId = payload.PlayniteGameId?.ToString();
+            var stateChanged = false;
 
             WithDb(db =>
             {
                 db.RunTransaction(() =>
                 {
+                    var before = SqlNadoCacheBehavior.SavedGameState(db, cacheKey, playniteGameId);
+
                     // If creating an Unmapped stub, check for existing real provider data and use that instead
                     string effectiveProviderKey = providerKey;
                     ResolvedUser effectiveUser = resolvedUser;
@@ -5225,9 +5231,13 @@ namespace PlayniteAchievements.Services.Database
                     {
                         RemoveUnmappedStubsForGame(db, cacheKey, userProgressId);
                     }
+
+                    stateChanged = before != SqlNadoCacheBehavior.SavedGameState(db, cacheKey, playniteGameId) ||
+                                   SqlNadoCacheBehavior.HasSeveralCurrentUserProgressRows(db, playniteGameId);
                 });
             });
 
+            changed = stateChanged;
             return renamedApiNames;
         }
 
