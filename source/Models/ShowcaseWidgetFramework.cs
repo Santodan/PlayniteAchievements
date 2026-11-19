@@ -1605,9 +1605,8 @@ namespace PlayniteAchievements.Models
             settings?.SetOption(IncludeHiddenAchievements, value);
 
         /// <summary>
-        /// Whether this widget instance draws from the Unlock Next candidate pool. The overview
-        /// builder only pays for the pool when some live widget asks for it, so the builder, the
-        /// dashboard refresh, and the plugin's invalidation hook all test it through here.
+        /// Whether this widget instance draws from the Unlock Next candidate pool, which a
+        /// snapshot reads only when such a widget is shown.
         /// </summary>
         public static bool RequiresUnlockNextPool(ShowcaseWidgetInstanceSettings settings)
         {
@@ -1628,47 +1627,9 @@ namespace PlayniteAchievements.Models
             }
         }
 
-        /// <summary>
-        /// The largest Max per game among the live widgets - dashboard or start page - that draw
-        /// from the Unlock Next pool; 0 when none does.
-        /// </summary>
-        public static int GetUnlockNextMaxPerGame(ShowcaseSettings showcase)
-        {
-            if (showcase == null)
-            {
-                return 0;
-            }
-
-            return (showcase.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
-                .Concat((showcase.StartPageInstances ??
-                         new Dictionary<string, ShowcaseWidgetInstanceSettings>()).Values)
-                .Where(RequiresUnlockNextPool)
-                .Select(GetMaxPerGame)
-                .DefaultIfEmpty(0)
-                .Max();
-        }
-
-        /// <summary>
-        /// Whether any live widget - dashboard or start page - draws from the Unlock Next pool.
-        /// </summary>
-        public static bool RequiresUnlockNextPool(ShowcaseSettings showcase)
-        {
-            if (showcase == null)
-            {
-                return false;
-            }
-
-            if ((showcase.WidgetInstances ?? new List<ShowcaseWidgetInstanceSettings>())
-                .Any(RequiresUnlockNextPool))
-            {
-                return true;
-            }
-
-            return (showcase.StartPageInstances ??
-                    new Dictionary<string, ShowcaseWidgetInstanceSettings>())
-                .Values
-                .Any(RequiresUnlockNextPool);
-        }
+        /// <summary>The Max per game this widget asks of the Unlock Next pool; 0 when it does not draw from it.</summary>
+        public static int GetUnlockNextMaxPerGame(ShowcaseWidgetInstanceSettings settings) =>
+            RequiresUnlockNextPool(settings) ? GetMaxPerGame(settings) : 0;
 
         public static ShowcaseMosaicContent GetMosaicContent(ShowcaseWidgetInstanceSettings settings) =>
             GetEnum(settings, Content, ShowcaseMosaicContent.Achievements);
