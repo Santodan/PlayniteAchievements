@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Achievements
 
             try
             {
-                return GetMergedGameAchievementData(playniteGameId, includeAchievementOverlays: true);
+                return GetMergedGameAchievementData(playniteGameId);
             }
             catch (Exception ex)
             {
@@ -85,7 +85,7 @@ namespace PlayniteAchievements.Services.Achievements
             try
             {
                 return ProjectVisibleGameAchievementData(
-                    GetMergedGameAchievementData(playniteGameId, includeAchievementOverlays: true));
+                    GetMergedGameAchievementData(playniteGameId));
             }
             catch (Exception ex)
             {
@@ -180,47 +180,10 @@ namespace PlayniteAchievements.Services.Achievements
             return GetVisibleGameAchievementData(playniteGameId.ToString());
         }
 
-        public GameAchievementData GetGameAchievementDataForOverview(Guid playniteGameId)
-        {
-            if (playniteGameId == Guid.Empty)
-            {
-                return null;
-            }
-
-            try
-            {
-                return ProjectVisibleGameAchievementData(
-                    GetMergedGameAchievementData(playniteGameId.ToString(), includeAchievementOverlays: false),
-                    excludeSummaryFiltered: true);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, string.Format(
-                    "Failed to get overview achievement data for gameId={0}",
-                    playniteGameId));
-                return null;
-            }
-        }
-
-        public List<GameAchievementData> GetAllGameAchievementData()
-        {
-            try
-            {
-                var result = LoadAllCachedGameData();
-                HydrateAll(result, includeAchievementOverlays: true);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to get all achievement data");
-                return new List<GameAchievementData>();
-            }
-        }
-
         /// <summary>
         /// Every cached game without its achievements (custom-only games keep theirs): enough for
-        /// identity lookups (provider key, app id, Playnite id, name) at a fraction of
-        /// <see cref="GetAllGameAchievementData"/>.
+        /// identity lookups (provider key, app id, Playnite id, name) at a fraction of loading
+        /// every achievement.
         /// </summary>
         public List<GameAchievementData> GetAllCachedGameDataForLookup()
         {
@@ -241,39 +204,12 @@ namespace PlayniteAchievements.Services.Achievements
                 return new List<GameAchievementData>();
             }
         }
-        public List<GameAchievementData> GetAllGameAchievementDataForTheme()
-        {
-            try
-            {
-                var allData = GetAllGameAchievementData();
-                return ExcludeSummaryGames(allData);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to get all theme achievement data");
-                return new List<GameAchievementData>();
-            }
-        }
-
-        public List<GameAchievementData> GetAllVisibleGameAchievementDataForTheme()
-        {
-            try
-            {
-                var allData = GetAllGameAchievementData();
-                return ExcludeSummaryGames(ProjectVisibleGameAchievementData(allData, excludeSummaryFiltered: true));
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to get all visible theme achievement data");
-                return new List<GameAchievementData>();
-            }
-        }
-
         /// <summary>
         /// The library summary from the resolved rows, with games Playnite hides left out when
         /// summaries leave hidden games out.
         /// </summary>
-        internal CachedSummaryData GetCachedSummaryDataForOverview(int recentAchievementDetailLimit = 0)
+        /// <param name="days">Whether to read the unlock days the Overview's charts count.</param>
+        internal CachedSummaryData GetCachedSummaryDataForOverview(int recentAchievementDetailLimit = 0, bool days = true)
         {
             try
             {
@@ -282,7 +218,8 @@ namespace PlayniteAchievements.Services.Achievements
                 var summary = _cacheReadOptimizations?.LoadCachedSummaryDataFast(
                     Math.Max(0, recentAchievementDetailLimit),
                     hidden,
-                    AuthoredGame);
+                    AuthoredGame,
+                    days);
                 var separateLockedIcons = new Dictionary<Guid, bool>();
                 foreach (var row in summary?.RecentUnlocks ?? Enumerable.Empty<CachedRecentUnlockData>())
                 {
@@ -308,10 +245,21 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>The resolved reads and the change feed; null without the SQL cache.</summary>
         internal ICacheReadOptimizations CacheReads => _cacheReadOptimizations;
 
-        internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
+        /// <summary>The library summary without the unlock days, which no theme list counts.</summary>
+        internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0) =>
+            GetCachedSummaryDataForOverview(recentAchievementDetailLimit, days: false);
+
+        /// <summary>The current user's rows under the summary rules, without the games Playnite hides when summaries leave them out.</summary>
+        internal AchievementQuery SummaryQuery()
         {
-            return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
+            var hidden = new HashSet<Guid>();
+            AddPlayniteHiddenGameIds(hidden);
+            return AchievementQuery.CurrentUser.WithSummaryRules().ExceptGames(hidden);
         }
+
+        /// <summary>Every row <paramref name="query"/> reads, in its order, as the summary maps them; none without the SQL cache.</summary>
+        internal List<CachedRecentUnlockData> ReadRows(AchievementQuery query) =>
+            _cacheReadOptimizations?.LoadRows(query, null) ?? new List<CachedRecentUnlockData>();
 
         /// <summary>A game with only authored achievements: named by Playnite, shown as its custom provider.</summary>
         private CachedGameSummaryData AuthoredGame(Guid gameId)
@@ -327,65 +275,11 @@ namespace PlayniteAchievements.Services.Achievements
             };
         }
 
-        private Dictionary<Guid, GameCustomDataFile> LoadCustomDataByGameId()
-        {
-            var map = new Dictionary<Guid, GameCustomDataFile>();
-            if (_gameCustomDataStore == null)
-            {
-                return map;
-            }
-
-            try
-            {
-                var rows = _gameCustomDataStore.LoadAll();
-                if (rows == null || rows.Count == 0)
-                {
-                    return map;
-                }
-
-                for (var i = 0; i < rows.Count; i++)
-                {
-                    var row = rows[i];
-                    if (row == null || row.PlayniteGameId == Guid.Empty)
-                    {
-                        continue;
-                    }
-
-                    map[row.PlayniteGameId] = row;
-                }
-
-                return map;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load per-game custom data for overview summary hydration");
-                return map;
-            }
-        }
-
-        /// <param name="customDataByGameId">
-        /// Read only if the store lookup throws. Taken as a factory so a caller that has no
-        /// other use for the records does not materialize them: the map comes from LoadAll,
-        /// which deep-clones every stored record, and the store's own lookup reads the cache
-        /// without copying anything.
-        /// </param>
-        private HashSet<Guid> ResolveExcludedSummaryGameIds(
-            Func<IReadOnlyDictionary<Guid, GameCustomDataFile>> customDataByGameId)
-        {
-            HashSet<Guid> excluded;
-            try
-            {
-                excluded = GameCustomDataLookup.GetExcludedSummaryGameIds(Persisted, _gameCustomDataStore);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to resolve excluded summary game IDs from custom-data store. Falling back to persisted settings projection.");
-                excluded = BuildExcludedSummaryGameIdsFallback(customDataByGameId?.Invoke());
-            }
-
-            AddPlayniteHiddenGameIds(excluded);
-            return excluded;
-        }
+        private Dictionary<Guid, GameCustomDataFile> LoadCustomDataByGameId() =>
+            (_gameCustomDataStore?.LoadAll() ?? new List<GameCustomDataFile>())
+                .Where(row => row != null && row.PlayniteGameId != Guid.Empty)
+                .GroupBy(row => row.PlayniteGameId)
+                .ToDictionary(group => group.Key, group => group.Last());
 
         /// <summary>
         /// With IncludeHiddenGamesInSummaries off, games hidden in Playnite are left out of
@@ -422,30 +316,6 @@ namespace PlayniteAchievements.Services.Achievements
             }
         }
 
-        private HashSet<Guid> BuildExcludedSummaryGameIdsFallback(IReadOnlyDictionary<Guid, GameCustomDataFile> customDataByGameId)
-        {
-            var result = new HashSet<Guid>();
-
-            if (customDataByGameId == null || customDataByGameId.Count == 0)
-            {
-                return result;
-            }
-
-            foreach (var pair in customDataByGameId)
-            {
-                if (pair.Value?.ExcludedFromSummaries == true)
-                {
-                    result.Add(pair.Key);
-                }
-                else
-                {
-                    result.Remove(pair.Key);
-                }
-            }
-
-            return result;
-        }
-
         private static Dictionary<string, CategoryImageOverrideData> CloneCategoryImageOverrideMap(
             IReadOnlyDictionary<string, CategoryImageOverrideData> source)
         {
@@ -473,37 +343,8 @@ namespace PlayniteAchievements.Services.Achievements
             return map;
         }
 
-        private List<GameAchievementData> ExcludeSummaryGames(List<GameAchievementData> allData)
-        {
-            allData ??= new List<GameAchievementData>();
 
-            // The records are wanted only if the store lookup throws, so they are not loaded
-            // up front: LoadCustomDataByGameId deep-clones every stored record, and this needs
-            // a set of ids.
-            var excludedSummaryIds = ResolveExcludedSummaryGameIds(LoadCustomDataByGameId);
-            if (excludedSummaryIds == null || excludedSummaryIds.Count == 0)
-            {
-                return allData;
-            }
-
-            return allData
-                .Where(data => data?.PlayniteGameId == null || !excludedSummaryIds.Contains(data.PlayniteGameId.Value))
-                .ToList();
-        }
-
-        private List<GameAchievementData> ProjectVisibleGameAchievementData(
-            IEnumerable<GameAchievementData> source,
-            bool excludeSummaryFiltered = false)
-        {
-            return (source ?? Enumerable.Empty<GameAchievementData>())
-                .Select(gameData => ProjectVisibleGameAchievementData(gameData, excludeSummaryFiltered))
-                .Where(gameData => gameData != null)
-                .ToList();
-        }
-
-        private GameAchievementData ProjectVisibleGameAchievementData(
-            GameAchievementData source,
-            bool excludeSummaryFiltered = false)
+        private GameAchievementData ProjectVisibleGameAchievementData(GameAchievementData source)
         {
             if (source == null)
             {
@@ -511,7 +352,7 @@ namespace PlayniteAchievements.Services.Achievements
             }
 
             var sourceAchievements = source.Achievements ?? new List<AchievementDetail>();
-            var visibleAchievements = FilterVisibleAchievements(sourceAchievements, excludeSummaryFiltered);
+            var visibleAchievements = sourceAchievements.Where(achievement => achievement != null && !achievement.IsFiltered).ToList();
             if (visibleAchievements.Count == sourceAchievements.Count)
             {
                 return source;
@@ -546,34 +387,6 @@ namespace PlayniteAchievements.Services.Achievements
                 UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable,
                 Achievements = visibleAchievements
             };
-        }
-
-        private static List<AchievementDetail> FilterVisibleAchievements(
-            IEnumerable<AchievementDetail> achievements,
-            bool excludeSummaryFiltered = false)
-        {
-            var visibleAchievements = new List<AchievementDetail>();
-            foreach (var achievement in achievements ?? Enumerable.Empty<AchievementDetail>())
-            {
-                if (achievement == null)
-                {
-                    continue;
-                }
-
-                if (achievement.IsFiltered)
-                {
-                    continue;
-                }
-
-                if (excludeSummaryFiltered && achievement.IsFilteredFromSummaries)
-                {
-                    continue;
-                }
-
-                visibleAchievements.Add(achievement);
-            }
-
-            return visibleAchievements;
         }
 
         /// <summary>A stored icon override as the plugin displays it.</summary>
@@ -854,9 +667,7 @@ namespace PlayniteAchievements.Services.Achievements
             return result;
         }
 
-        private GameAchievementData GetMergedGameAchievementData(
-            string playniteGameId,
-            bool includeAchievementOverlays)
+        private GameAchievementData GetMergedGameAchievementData(string playniteGameId)
         {
             var data = _cacheService.LoadGameData(playniteGameId);
             if (data == null && Guid.TryParse(playniteGameId, out var parsedGameId))
@@ -864,14 +675,7 @@ namespace PlayniteAchievements.Services.Achievements
                 data = CreateSyntheticCustomGameData(parsedGameId, LoadCustomData(parsedGameId));
             }
 
-            if (includeAchievementOverlays)
-            {
-                _hydrator.Hydrate(data);
-            }
-            else
-            {
-                _hydrator.HydrateForOverview(data);
-            }
+            _hydrator.Hydrate(data);
 
             return data;
         }
@@ -961,18 +765,6 @@ namespace PlayniteAchievements.Services.Achievements
             catch
             {
                 return null;
-            }
-        }
-
-        private void HydrateAll(IEnumerable<GameAchievementData> games, bool includeAchievementOverlays)
-        {
-            if (includeAchievementOverlays)
-            {
-                _hydrator.HydrateAll(games);
-            }
-            else
-            {
-                _hydrator.HydrateAllForOverview(games);
             }
         }
     }
