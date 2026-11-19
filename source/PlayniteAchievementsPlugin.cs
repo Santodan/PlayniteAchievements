@@ -78,7 +78,6 @@ namespace PlayniteAchievements
         private readonly AchievementDataService _achievementDataService;
         private readonly Services.LinkedFiles.LinkedFileSchemaStore _linkedFileSchemaStore;
         private Services.LinkedFiles.LinkedFileSyncService _linkedFileSyncService;
-        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly ICacheManager _cacheManager;
         private readonly IFriendCacheManager _friendCacheManager;
         private readonly MemoryImageService _imageService;
@@ -1108,12 +1107,6 @@ namespace PlayniteAchievements
                         _settingsViewModel.Settings,
                         _logger,
                         _gameCustomDataStore);
-                    _libraryProjectionService = new LibraryProjectionService(
-                        _achievementDataService,
-                        PlayniteApi,
-                        _settingsViewModel.Settings,
-                        _cacheManager,
-                        _gameCustomDataStore);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
 
                     // Linked files are read after each refresh's provider work, for the games it covers.
@@ -1370,7 +1363,6 @@ namespace PlayniteAchievements
                         PlayniteApi,
                         _refreshService,
                         _achievementDataService,
-                        _libraryProjectionService,
                         _refreshCoordinator,
                         _settingsViewModel.Settings,
                         _fullscreenWindowService,
@@ -2448,7 +2440,6 @@ namespace PlayniteAchievements
 
             try { _achievementHotkeyService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose achievementHotkeyService"); }
             try { _windowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowService"); }
-            try { _libraryProjectionService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose libraryProjectionService"); }
             try { _rayTrackService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose rayTrackService"); }
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }
@@ -3129,9 +3120,7 @@ namespace PlayniteAchievements
         {
             _logger.Info("Games_ItemCollectionChanged triggered.");
 
-            // Games added/removed change what the overview and start page project; drop the cached
-            // library projection so the next open rebuilds against the current library.
-            _libraryProjectionService?.Invalidate();
+            // Games added/removed change what the start page projects.
             ScheduleStartPageInvalidate();
 
             if (e == null)
@@ -3230,7 +3219,6 @@ namespace PlayniteAchievements
                 return;
             }
 
-            _libraryProjectionService?.Invalidate();
             ScheduleStartPageInvalidate();
         }
 
