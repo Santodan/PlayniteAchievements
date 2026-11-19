@@ -261,14 +261,16 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>
         /// The definitions of each game a user has, the unlocked ones or the rest. Unlock-time
-        /// overrides and clears apply to the current user's unlocked rows.
+        /// overrides and clears apply to the current user's unlocked rows of games without a manual
+        /// link, as <see cref="Models.Settings.AchievementOverride.ApplyUnlockTimeTo"/> applies them.
         /// </summary>
         private static string PlatformRowsSql(bool unlocked)
         {
             var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
             var unlockTime = unlocked
-                ? @"CASE WHEN usr.IsCurrentUser = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
-                     WHEN usr.IsCurrentUser = 1 AND (COALESCE(c.Cleared, 0) & " + (int)AchievementField.UnlockTime + @") <> 0 THEN NULL
+                ? @"CASE WHEN usr.IsCurrentUser = 0 OR COALESCE(gs.HasManualLink, 0) = 1 THEN ua.UnlockTimeUtc
+                     WHEN c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
+                     WHEN (COALESCE(c.Cleared, 0) & " + (int)AchievementField.UnlockTime + @") <> 0 THEN NULL
                      ELSE ua.UnlockTimeUtc END"
                 : "ua.UnlockTimeUtc";
             var achievements = unlocked
