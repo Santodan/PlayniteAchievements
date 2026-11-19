@@ -15,7 +15,26 @@
 
     <Style x:Key="ProviderHeaderPanelStyle" TargetType="StackPanel">
         <Setter Property="Orientation" Value="Horizontal"/>
+    </Style>
+
+    <!-- The page's top row: the platform icon and title, with the enable toggle at the right. -->
+    <Style x:Key="ProviderHeaderRowStyle" TargetType="DockPanel">
+        <Setter Property="LastChildFill" Value="True"/>
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+    </Style>
+
+    <Style x:Key="ProviderEnableTogglePanelStyle" TargetType="StackPanel">
+        <Setter Property="DockPanel.Dock" Value="Right"/>
+        <Setter Property="Orientation" Value="Horizontal"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Left.Md}"/>
+    </Style>
+
+    <Style x:Key="ProviderEnableLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Sm}"/>
     </Style>
 
     <Style x:Key="ProviderTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -31,10 +50,6 @@
     <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
 
     <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
-
-    <Style x:Key="ProviderEnableToggleBorderStyle" TargetType="Border" BasedOn="{StaticResource SectionBorderStyle}">
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-    </Style>
 
     <Style x:Key="ProviderHelpTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
