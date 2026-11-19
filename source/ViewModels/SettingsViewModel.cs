@@ -285,7 +285,7 @@ namespace PlayniteAchievements.ViewModels
             _plugin.InvalidateStartPageDataForUi("settings window saved");
 
             // Notify listeners that settings have been saved (e.g., to refresh provider status in landing page)
-            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            PlayniteAchievementsPlugin.NotifySettingsSaved(settingsWindow: true);
         }
 
         public bool VerifySettings(out List<string> errors)
