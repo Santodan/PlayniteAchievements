@@ -46,9 +46,6 @@ namespace PlayniteAchievements.Services.GameCustomData
         {
             public int Migrated { get; set; }
 
-            /// <summary>Games whose split did not read back exactly, stored whole instead.</summary>
-            public int StoredWhole { get; set; }
-
             /// <summary>Payloads that would not parse, left in the legacy table only.</summary>
             public int Unreadable { get; set; }
 
@@ -70,9 +67,6 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         public string DatabasePath => _databasePath;
-
-        /// <summary>Resolves managed icon paths for the columns the views show; optional.</summary>
-        public ManagedCustomIconService Icons { get; set; }
 
         /// <summary>The last migration of legacy payloads this repository ran, or null.</summary>
         internal MigrationResult LastMigration { get; private set; }
@@ -110,9 +104,9 @@ namespace PlayniteAchievements.Services.GameCustomData
         }
 
         /// <summary>
-        /// Writes the game's rows and returns the record as stored, so the caller can seed its
-        /// cache without reading it back, or null when the record holds nothing and the game's rows
-        /// were deleted instead.
+        /// Writes the game's rows and returns the record they hold, file paths in the form a load
+        /// returns them, so the caller can seed its cache without reading it back, or null when the
+        /// record holds nothing and the game's rows were deleted instead.
         /// </summary>
         /// <param name="normalized">A record <see cref="GameCustomDataNormalizer.NormalizeInternal"/> returned.</param>
         /// <param name="changed">True when a row moved.</param>
@@ -128,7 +122,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             var wrote = false;
             WithDb(createIfMissing: keep, db => db.RunTransaction(() => wrote = Write(db, playniteGameId, rows)));
             changed = wrote;
-            return keep ? normalized : null;
+            return keep ? Read(playniteGameId, rows) : null;
         }
 
         /// <summary>Normalizes and writes every record in one transaction; returns the games whose rows moved.</summary>
@@ -263,13 +257,15 @@ namespace PlayniteAchievements.Services.GameCustomData
         private GameCustomLayerRows ToRows(GameCustomDataFile normalized)
         {
             var iconCacheRoot = IconCacheLocation.CurrentRootOrDefault(_pluginDataRoot);
-            var rows = GameCustomLayer.ToRows(normalized, Icons, path => StoredPathMapping.ToStored(path, _pluginDataRoot, iconCacheRoot));
-            if (rows.StoredWhole)
-            {
-                _logger?.Warn($"[GameCustomData] Game {normalized.PlayniteGameId} did not read back from its columns exactly; stored whole.");
-            }
+            return GameCustomLayer.ToRows(normalized, path => StoredPathMapping.ToStored(path, _pluginDataRoot, iconCacheRoot));
+        }
 
-            return rows;
+        private GameCustomDataFile Read(Guid gameId, GameCustomLayerRows rows)
+        {
+            var iconCacheRoot = IconCacheLocation.CurrentRootOrDefault(_pluginDataRoot);
+            return GameCustomDataNormalizer.NormalizeInternal(
+                GameCustomLayer.FromRows(gameId, rows.State, rows.Achievements, rows.Categories, path => StoredPathMapping.FromStored(path, _pluginDataRoot, iconCacheRoot)),
+                gameId);
         }
 
         /// <summary>The records the rows hold, normalized; a game whose settings will not parse is skipped.</summary>
@@ -293,9 +289,12 @@ namespace PlayniteAchievements.Services.GameCustomData
                     // Normalization upgrades the record in place, so this is the last point where
                     // the stored schema version is still visible.
                     EnsureSchemaMigrationBackup(GameCustomLayer.SchemaVersionOf(game.SettingsJson));
-                    var data = GameCustomDataNormalizer.NormalizeInternal(
-                        GameCustomLayer.FromRows(gameId, game, achievementsByGame[game.PlayniteGameId], categoriesByGame[game.PlayniteGameId]),
-                        gameId);
+                    var data = Read(gameId, new GameCustomLayerRows
+                    {
+                        State = game,
+                        Achievements = achievementsByGame[game.PlayniteGameId].ToList(),
+                        Categories = categoriesByGame[game.PlayniteGameId].ToList()
+                    });
                     if (GameCustomDataNormalizer.HasInternalData(data))
                     {
                         results.Add(data);
@@ -321,13 +320,13 @@ namespace PlayniteAchievements.Services.GameCustomData
             var storedGame = Games(db, $"SELECT {GameColumns} FROM {AchievementLayerSql.GamesTable} WHERE PlayniteGameId = ?;", idText)
                 .FirstOrDefault();
             var storedAchievements = Achievements(db, $"SELECT {AchievementColumns} FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ?;", idText)
-                .GroupBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().Signature(), StringComparer.OrdinalIgnoreCase);
+                .GroupBy(row => row.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             var storedCategories = CategorySignature(
                 Categories(db, $"SELECT {CategoryColumns} FROM {AchievementLayerSql.CategoriesTable} WHERE PlayniteGameId = ?;", idText));
 
             var desiredAchievements = (rows?.Achievements ?? new List<CustomAchievementRow>())
-                .GroupBy(row => row.ApiName, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(row => row.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
             var changed = false;
 
@@ -356,21 +355,22 @@ namespace PlayniteAchievements.Services.GameCustomData
             var nowIso = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
             var insertSql = $"INSERT INTO {AchievementLayerSql.AchievementsTable} ({AchievementColumns}, UpdatedUtc) VALUES (" +
                 string.Join(", ", Enumerable.Repeat("?", AchievementColumns.Split(',').Length + 1)) + ");";
-            foreach (var apiName in storedAchievements.Keys.Where(apiName => !desiredAchievements.ContainsKey(apiName)).ToList())
+            var deleteSql = $"DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ? AND IsAuthored = ?;";
+            foreach (var row in storedAchievements.Where(pair => !desiredAchievements.ContainsKey(pair.Key)).Select(pair => pair.Value).ToList())
             {
-                db.ExecuteNonQuery($"DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ?;", idText, apiName);
+                db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);
                 changed = true;
             }
 
             foreach (var row in desiredAchievements.Values)
             {
-                if (storedAchievements.TryGetValue(row.ApiName, out var signature) &&
-                    string.Equals(signature, row.Signature(), StringComparison.Ordinal))
+                if (storedAchievements.TryGetValue(row.Key, out var stored) &&
+                    string.Equals(stored.Signature(), row.Signature(), StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                db.ExecuteNonQuery($"DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ?;", idText, row.ApiName);
+                db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);
                 db.ExecuteNonQuery(insertSql, new object[] { idText }.Concat(row.Values()).Concat(new object[] { nowIso }).ToArray());
                 changed = true;
             }
@@ -512,7 +512,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 var rows = GameCustomDataNormalizer.HasInternalData(normalized) ? ToRows(normalized) : null;
-                result.StoredWhole += rows?.StoredWhole == true ? 1 : 0;
                 parsed.Add(new KeyValuePair<Guid, GameCustomLayerRows>(gameId, rows));
             }
 
@@ -535,7 +534,7 @@ namespace PlayniteAchievements.Services.GameCustomData
             {
                 _logger?.Info(
                     $"[GameCustomData] Moved {result.Migrated} game(s) of custom data into the custom layer tables " +
-                    $"({result.StoredWhole} stored whole, {result.Unreadable} unreadable); backup: {result.BackupPath}.");
+                    $"({result.Unreadable} unreadable); backup: {result.BackupPath}.");
             }
         }
 
