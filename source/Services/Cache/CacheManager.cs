@@ -1342,22 +1342,27 @@ namespace PlayniteAchievements.Services.Cache
             }
         }
 
+        // The change is raised outside the cache lock: a definition change reads which library
+        // games it names on the read connection, and handlers may call back into the cache.
         private FriendCacheWriteResult FriendWrite(
             string operation,
             Func<FriendCacheWriteResult> write,
-            Func<FriendCacheChange> change)
+            Func<FriendCacheChange> change,
+            Func<FriendCacheWriteResult, bool> changed = null)
         {
+            FriendCacheWriteResult result;
             lock (_sync)
             {
                 EnsureReady_Locked(operation);
-                var result = write();
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(change());
-                }
-
-                return result;
+                result = write();
             }
+
+            if (result?.Success == true && changed?.Invoke(result) != false)
+            {
+                RaiseOrDeferFriendCacheInvalidatedEvent(change());
+            }
+
+            return result;
         }
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendList(
@@ -1382,18 +1387,10 @@ namespace PlayniteAchievements.Services.Cache
             string providerKey,
             FriendGameDefinition definition)
         {
-            FriendCacheWriteResult result;
-            lock (_sync)
-            {
-                EnsureReady_Locked("SaveFriendGameDefinition");
-                result = _store.SaveFriendGameDefinition(providerKey, definition);
-                if (result?.Success == true)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, definition?.AppId ?? 0, definition?.ProviderGameKey));
-                }
-            }
-
+            var result = FriendWrite(
+                "SaveFriendGameDefinition",
+                () => _store.SaveFriendGameDefinition(providerKey, definition),
+                () => FriendCacheChange.ForGameDefinition(providerKey, definition?.AppId ?? 0, definition?.ProviderGameKey));
             if (result?.Success == true)
             {
                 // Outside the cache lock: CustomDataChanged handlers are synchronous and may call
@@ -1437,18 +1434,20 @@ namespace PlayniteAchievements.Services.Cache
 
         FriendUnownedCacheClearResult IFriendCacheManager.ClearUnownedFriendGameData()
         {
+            FriendUnownedCacheClearResult result;
             lock (_sync)
             {
                 EnsureReady_Locked("ClearUnownedFriendGameData");
-                var result = _store.ClearUnownedFriendGameData();
-                if (result?.Success == true)
-                {
-                    // Bulk clear has no per-game scope; forces a full invalidation.
-                    RaiseOrDeferFriendCacheInvalidatedEvent(null);
-                }
-
-                return result;
+                result = _store.ClearUnownedFriendGameData();
             }
+
+            if (result?.Success == true)
+            {
+                // Bulk clear has no per-game scope; forces a full invalidation.
+                RaiseOrDeferFriendCacheInvalidatedEvent(null);
+            }
+
+            return result;
         }
 
         FriendCacheWriteResult IFriendCacheManager.ClearUnownedFriendGame(
@@ -1474,21 +1473,12 @@ namespace PlayniteAchievements.Services.Cache
             string providerKey,
             int appId,
             string providerGameKey,
-            Guid playniteGameId)
-        {
-            lock (_sync)
-            {
-                EnsureReady_Locked("PromoteProviderOnlyGameToPlayniteBacked");
-                var result = _store.PromoteProviderOnlyGameToPlayniteBacked(providerKey, appId, providerGameKey, playniteGameId);
-                if (result?.Success == true && result.WrittenCount > 0)
-                {
-                    RaiseOrDeferFriendCacheInvalidatedEvent(
-                        FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey));
-                }
-
-                return result;
-            }
-        }
+            Guid playniteGameId) =>
+            FriendWrite(
+                "PromoteProviderOnlyGameToPlayniteBacked",
+                () => _store.PromoteProviderOnlyGameToPlayniteBacked(providerKey, appId, providerGameKey, playniteGameId),
+                () => FriendCacheChange.ForGameDefinition(providerKey, appId, providerGameKey),
+                result => result.WrittenCount > 0);
 
         FriendCacheWriteResult IFriendCacheManager.SaveFriendGameAchievements(
             string providerKey,
