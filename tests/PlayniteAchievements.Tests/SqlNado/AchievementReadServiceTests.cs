@@ -268,7 +268,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             WithFixture(db =>
             {
                 db.ExecuteNonQuery(
-                    "INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UpdatedUtc) VALUES (?, 'it''s; DROP TABLE Games; --', 'Quote', 1, 0, ?);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UpdatedUtc) VALUES (?, 'it''s; DROP TABLE Games; --', 'Quote', 1, 0, ?);",
                     Alpha, "2025-01-01T00:00:00.0000000Z");
                 var query = AchievementQuery.CurrentUser.ForGames(new[] { Guid.Parse(Alpha) });
                 var authored = AchievementReadService.SortedKeys(db, query).Where(key => key.PlayniteGameId != null).ToList();
@@ -373,16 +373,16 @@ namespace PlayniteAchievements.SqlNado.Tests
             // The user's edits: a1's points and unlock time, a2's cleared time and capstone, a4
             // filtered, a5 filtered from summaries, and two authored achievements on Alpha and one
             // on a game with nothing else.
-            Exec(@"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, Points, UnlockTimeUtc, Cleared, CapstoneAssigned, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES
+            Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Points, UnlockTimeUtc, Cleared, CapstoneAssigned, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES
                 (?1, 'a1', 99, ?2, 0, 0, 0, 0, ?4), (?1, 'a2', NULL, NULL, ?3, 1, 0, 0, ?4),
                 (?1, 'a4', NULL, NULL, 0, 0, 1, 0, ?4), (?1, 'a5', NULL, NULL, 0, 0, 0, 1, ?4);",
                 Alpha, A1Override, (long)AchievementField.UnlockTime, Stamp);
-            Exec(@"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, Rarity, GlobalPercentUnlocked, Points, TrophyType, UpdatedUtc) VALUES
+            Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, Rarity, GlobalPercentUnlocked, Points, TrophyType, UpdatedUtc) VALUES
                 (?1, 'custom:one', 'Épilogue', 1, 1, '2025-03-06T10:00:00.0000000Z', 'UltraRare', 2.0, 15, 'platinum', ?3),
                 (?1, 'custom:two', 'Later', 1, 0, NULL, 'Common', NULL, 3, NULL, ?3),
                 (?2, 'custom:solo', 'Solo', 1, 1, '2025-02-01T10:00:00.0000000Z', 'Rare', 9.0, NULL, NULL, ?3);",
                 Alpha, AuthoredOnly, Stamp);
-            Exec("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?1, 1, 0), (?2, 0, 1);", Alpha, Beta);
+            Exec("INSERT INTO CustomLayerGames (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?1, 1, 0), (?2, 0, 1);", Alpha, Beta);
         }
 
         internal static void WithFixture(Action<SQLiteDatabase> test)
