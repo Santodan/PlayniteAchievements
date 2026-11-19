@@ -27,7 +27,7 @@ namespace PlayniteAchievements.SqlNado.Tests
     [TestClass]
     public class AchievementReadServiceTests
     {
-        private const string Alpha = "aaaaaaaa-0000-0000-0000-000000000001";
+        internal const string Alpha = "aaaaaaaa-0000-0000-0000-000000000001";
         private const string Beta = "aaaaaaaa-0000-0000-0000-000000000002";
         private const string Retro = "aaaaaaaa-0000-0000-0000-000000000003";
         private const string Multi = "aaaaaaaa-0000-0000-0000-000000000004";
@@ -515,7 +515,7 @@ namespace PlayniteAchievements.SqlNado.Tests
             Exec("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?1, 1, 0), (?2, 0, 1);", Alpha, Beta);
         }
 
-        private static void WithFixture(Action<SQLiteDatabase> test)
+        internal static void WithFixture(Action<SQLiteDatabase> test)
         {
             var dir = Path.Combine(Path.GetTempPath(), "playach-reads-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
