@@ -50,7 +50,7 @@
                  ticked box cannot be mistaken for "hide this". -->
             <Style x:Key="RevealMatrixCaptionStyle"
                    TargetType="TextBlock"
-                   BasedOn="{StaticResource ContextLabelStyle}">
+                   BasedOn="{StaticResource MutedTextStyle}">
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0,0,0,2"/>
             </Style>
@@ -60,7 +60,7 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
             <Border Style="{StaticResource SectionBorderStyle}"
-                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    Background="Transparent"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}">
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Spoilers}"
                            Style="{StaticResource SectionHeaderStyle}"
@@ -81,7 +81,8 @@
                                        TextWrapping="Wrap"
                                        Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementDataGridControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -89,7 +90,8 @@
                                 PreviewMaxHeightOverride="220"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                             <!-- Reveal matrix. A hidden achievement is also locked, so its row uses
                                  the Hidden column and a merely locked one uses the Locked column;

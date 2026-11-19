@@ -32,7 +32,7 @@
          Relevant to this section specifically: the toast mockup is meant to match the live toast,
          and the live toast window sets the same pair. The description line opts itself back out
          locally (NotificationResources ToastDescriptionLine) so its two-line clamp keeps matching. -->
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}"
+    <Grid Background="Transparent"
           UseLayoutRounding="True"
           SnapsToDevicePixels="True">
         <Grid Margin="20">

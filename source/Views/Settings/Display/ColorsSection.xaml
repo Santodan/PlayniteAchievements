@@ -24,7 +24,7 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
             <Border Style="{StaticResource SectionBorderStyle}"
-                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    Background="Transparent"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Colors}"
@@ -282,7 +282,7 @@
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_ProviderColors}"
                                Style="{StaticResource SectionHeaderStyle}"
-                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <Border Style="{StaticResource SettingGroupCardStyle}">
@@ -369,17 +369,16 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Advanced -->
+                    <!-- Advanced: a collapsed section, headed like the sections above it. -->
                     <Expander IsExpanded="False"
-                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
-                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                              Background="Transparent"
+                              BorderThickness="0"
                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
-                              Padding="12,10,12,12">
+                              Padding="0,12,0,0">
                         <Expander.Header>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Common_Advanced}"
-                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                       FontWeight="SemiBold"/>
+                                       Style="{StaticResource SectionHeaderStyle}"
+                                       Margin="0"/>
                         </Expander.Header>
 
                         <StackPanel>

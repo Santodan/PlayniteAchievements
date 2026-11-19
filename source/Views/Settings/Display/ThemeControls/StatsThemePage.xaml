@@ -46,7 +46,8 @@
                             Visibility="{Binding Persisted.EnableAchievementStatsControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementStatsControl Width="200"
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>

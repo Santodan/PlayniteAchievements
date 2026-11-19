@@ -18,7 +18,7 @@
 
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
+    <Grid Background="Transparent">
         <!-- The Metadata tab's Sources page: the grid fills the page and scrolls itself. -->
                 <Border Style="{StaticResource SectionBorderStyle}">
                     <DockPanel LastChildFill="True">

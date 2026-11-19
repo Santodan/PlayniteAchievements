@@ -18,7 +18,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}">
+    <Grid Background="Transparent">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="220" MinWidth="190" MaxWidth="260"/>
             <ColumnDefinition Width="*"/>
@@ -27,7 +27,7 @@
         <Border Grid.Column="0"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="0,0,1,0"
-                Background="{DynamicResource PlayAch.Brush.Surface}">
+                Background="{DynamicResource PlayAch.Brush.Panel}">
             <DockPanel LastChildFill="True">
                 <Border DockPanel.Dock="Top"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"

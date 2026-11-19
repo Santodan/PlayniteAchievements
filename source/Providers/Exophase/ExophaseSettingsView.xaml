@@ -19,16 +19,21 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}" Style="{StaticResource ProviderTitleOnlyTextStyle}"/>
-
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     Hint="{DynamicResource LOCPlayAch_Settings_Exophase_EnableProvider_Help}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoExophase}" Fill="{StaticResource PlayAch.Brush.ProviderExophase}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_EnableProvider_Help}" Style="{StaticResource ProviderHelpTextStyle}" TextWrapping="Wrap"/>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
@@ -82,7 +87,7 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
 
-                    <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.10}"
+                    <Border Background="Transparent"
                             CornerRadius="{StaticResource PlayAch.Radius.Card}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Top.Xs}">

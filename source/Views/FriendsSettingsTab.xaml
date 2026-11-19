@@ -44,29 +44,25 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" Style="{StaticResource SectionBorderStyle}" Margin="0,0,10,20" Grid.IsSharedSizeScope="True">
+        <StackPanel Grid.Row="0">
+            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
                 <StackPanel>
-                    <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscover}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <DockPanel Margin="0,0,0,10">
                         <Button DockPanel.Dock="Right"
                                 Content="{DynamicResource LOCPlayAch_Settings_RefreshFriendsList}"
                                 Command="{Binding RefreshAutoDiscoverCommand}"
-                                VerticalAlignment="Top"
+                                VerticalAlignment="Center"
+                                Margin="12,0,0,0"
                                 Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscover}"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscoverHint}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"/>
                     </DockPanel>
-
-                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscoverHint}"
-                               Style="{StaticResource MutedTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,10"/>
 
                     <ItemsControl ItemsSource="{Binding AutoDiscoverProviders}">
                         <ItemsControl.ItemsPanel>
@@ -109,10 +105,11 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Style="{StaticResource SectionBorderStyle}">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_ManualAdd}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -141,7 +138,7 @@
                     </Grid>
                 </StackPanel>
             </Border>
-        </Grid>
+        </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource SectionBorderStyle}">
                 <Grid>
@@ -152,29 +149,20 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0" Margin="0,0,0,4">
-                        <Button DockPanel.Dock="Right"
-                                Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
-                                Command="{Binding MergeSelectedCommand}"
-                                VerticalAlignment="Top"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
-                        <Button DockPanel.Dock="Right"
-                                Content="{Binding IgnoreSelectedLabel}"
-                                Command="{Binding IgnoreSelectedCommand}"
-                                VerticalAlignment="Top"
-                                Margin="0,0,8,0"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
-                        <Button DockPanel.Dock="Right"
-                                Content="{Binding SkipFullScansSelectedLabel}"
-                                Command="{Binding SkipFullScansSelectedCommand}"
-                                ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"
-                                Visibility="{Binding IncludeUnownedFriendGames, Converter={StaticResource BoolToVis}}"
-                                VerticalAlignment="Top"
-                                Margin="0,0,8,0"
-                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
-                        <Grid DockPanel.Dock="Right"
-                              Width="200"
-                              Margin="0,0,8,0"
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FriendsTableHint}"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"/>
+                    </StackPanel>
+
+                    <!-- Toolbar: search on the left, actions on the selected rows on the right. -->
+                    <DockPanel Grid.Row="1" LastChildFill="False" Margin="0,0,0,8">
+                        <Grid DockPanel.Dock="Left"
+                              Width="240"
                               VerticalAlignment="Top">
                             <TextBox x:Name="FriendSearchTextBox"
                                      Text="{Binding FriendSearchText, UpdateSourceTrigger=PropertyChanged, Delay=100}"
@@ -200,17 +188,23 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </Grid>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   VerticalAlignment="Center"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
+                                Command="{Binding MergeSelectedCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="{Binding IgnoreSelectedLabel}"
+                                Command="{Binding IgnoreSelectedCommand}"
+                                Margin="0,0,8,0"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <Button DockPanel.Dock="Right"
+                                Content="{Binding SkipFullScansSelectedLabel}"
+                                Command="{Binding SkipFullScansSelectedCommand}"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_SkipFullScansHint}"
+                                Visibility="{Binding IncludeUnownedFriendGames, Converter={StaticResource BoolToVis}}"
+                                Margin="0,0,8,0"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
                     </DockPanel>
-
-                    <TextBlock Grid.Row="1"
-                               Text="{DynamicResource LOCPlayAch_Settings_FriendsTableHint}"
-                               Style="{StaticResource MutedTextStyle}"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,8"/>
 
                     <DataGrid Grid.Row="2"
                               Style="{StaticResource PlayAch.DataGrid.BaseStyle}"

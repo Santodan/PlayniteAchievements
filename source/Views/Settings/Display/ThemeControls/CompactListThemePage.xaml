@@ -47,7 +47,8 @@
                             Visibility="{Binding Persisted.EnableAchievementCompactListControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementCompactListControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -55,7 +56,8 @@
                                 IconSize="48"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
-                                       Style="{StaticResource ContextLabelStyle}"/>
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
                                       IsChecked="{Binding Persisted.ShowCompactListRarityBar}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
