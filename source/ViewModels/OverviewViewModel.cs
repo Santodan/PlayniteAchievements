@@ -1471,6 +1471,22 @@ namespace PlayniteAchievements.ViewModels
 
         public Task RefreshViewAsync() => RefreshViewAsync(opening: false);
 
+        /// <summary>
+        /// Re-reads after a settings save only when the shown snapshot is no longer the current
+        /// one. Most saves are view state (a Showcase page, a column ratio, a window position),
+        /// and a change to the data or to a setting the snapshot reads marks it stale.
+        /// </summary>
+        public Task RefreshAfterSettingsSavedAsync()
+        {
+            var shown = _latestSnapshot;
+            if (shown != null && ReferenceEquals(_sharedSnapshotTarget?.CurrentSnapshot(), shown))
+            {
+                return Task.CompletedTask;
+            }
+
+            return RefreshViewAsync(opening: false);
+        }
+
         /// <param name="opening">
         /// The window just opened: a kept snapshot no change has made stale is used, and the
         /// grids' reads started at open are current, so the snapshot landing does not repeat them.
