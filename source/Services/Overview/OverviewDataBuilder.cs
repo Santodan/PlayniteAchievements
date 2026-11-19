@@ -285,16 +285,13 @@ namespace PlayniteAchievements.Services.Overview
 
             gameRowScope?.Dispose();
 
-            var listed = ShowcaseRows.ById(snapshot.GameSummaries);
-
             // Every pin's row, read here so no widget reads the database on the UI thread.
             var pins = OverviewDataSnapshot.Pins(settings.Persisted?.Showcase);
             snapshot.PinKeysAtBuild = OverviewDataSnapshot.PinKeys(settings.Persisted?.Showcase);
             try
             {
                 snapshot.PinnedRows = pins.Count == 0 ? snapshot.PinnedRows : LoadRows(settings,
-                    AchievementQuery.CurrentUser.ForAchievements(pins.Select(pin => new KeyValuePair<Guid, string>(pin.GameId, pin.ApiName))),
-                    games: listed);
+                    AchievementQuery.CurrentUser.ForAchievements(pins.Select(pin => new KeyValuePair<Guid, string>(pin.GameId, pin.ApiName))));
             }
             catch (Exception ex)
             {
@@ -304,7 +301,7 @@ namespace PlayniteAchievements.Services.Overview
             var unlockNextGames = UnlockNextCandidateSelector.SelectGames(snapshot.GameSummaries)
                 .Select(game => game.PlayniteGameId.Value)
                 .ToList();
-            snapshot.UnlockNextReader = slice => LoadUnlockNextCandidates(settings, unlockNextGames, listed, slice);
+            snapshot.UnlockNextReader = slice => LoadUnlockNextCandidates(settings, unlockNextGames, slice);
 
             snapshot.GameSummaries = snapshot.GameSummaries
                 .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
@@ -373,7 +370,6 @@ namespace PlayniteAchievements.Services.Overview
         private List<AchievementDisplayItem> LoadUnlockNextCandidates(
             PlayniteAchievementsSettings settings,
             IReadOnlyList<Guid> games,
-            IReadOnlyDictionary<Guid, GameSummaryItem> listed,
             int slice)
         {
             var reads = _achievementDataService.CacheReads;
@@ -392,7 +388,7 @@ namespace PlayniteAchievements.Services.Overview
                         .SelectMany(game => UnlockNextCandidateSelector.SelectAchievements(game.ToList(), row => row.GlobalPercentUnlocked, row => row.ApiName, slice))
                         .Select(AchievementReadService.KeyOf)
                         .ToList();
-                    return LoadRows(settings, query, keys, listed);
+                    return LoadRows(settings, query, keys);
                 }
                 catch (Exception ex)
                 {
@@ -404,14 +400,12 @@ namespace PlayniteAchievements.Services.Overview
 
         /// <summary>
         /// The display rows of <paramref name="keys"/>, or of every row <paramref name="query"/>
-        /// matches, in its order. Authored rows have no provider game, so they show their game's
-        /// provider from <paramref name="games"/>, as its row in a games grid does.
+        /// matches, in its order. The read names an authored row's provider as its game's.
         /// </summary>
         internal List<AchievementDisplayItem> LoadRows(
             PlayniteAchievementsSettings settings,
             AchievementQuery query,
-            IReadOnlyList<AchievementQuerySql.RowKey> keys = null,
-            IReadOnlyDictionary<Guid, GameSummaryItem> games = null)
+            IReadOnlyList<AchievementQuerySql.RowKey> keys = null)
         {
             var reads = _achievementDataService.CacheReads;
             if (reads == null)
@@ -424,13 +418,6 @@ namespace PlayniteAchievements.Services.Overview
             foreach (var row in rows)
             {
                 var gameId = row.PlayniteGameId ?? Guid.Empty;
-                if (row.ProviderKey == null && games != null && games.TryGetValue(gameId, out var game))
-                {
-                    row.ProviderKey = game.ProviderKey;
-                    row.AppId = game.AppId;
-                    row.ProviderGameKey = game.ProviderGameKey;
-                }
-
                 if (!separateLockedIcons.TryGetValue(gameId, out var separate))
                 {
                     separate = GameCustomDataLookup.ShouldUseSeparateLockedIcons(gameId, settings?.Persisted);
