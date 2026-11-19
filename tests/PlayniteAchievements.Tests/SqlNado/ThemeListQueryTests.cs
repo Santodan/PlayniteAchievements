@@ -98,9 +98,8 @@ namespace PlayniteAchievements.SqlNado.Tests
             AchievementReadServiceTests.WithFixture(db =>
             {
                 db.ExecuteNonQuery(
-                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2);",
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, GoalOrder, UpdatedUtc) VALUES (?1, 'a3', 1, ?2), (?1, 'custom:two', 0, ?2);",
                     Alpha, "2025-01-01T00:00:00.0000000Z");
-                db.ExecuteNonQuery("UPDATE CustomLayerAchievements SET GoalOrder = 0 WHERE ApiName = 'custom:two';");
 
                 var rows = AchievementReadService.Rows(db, AchievementQuery.CurrentUser.WithGoalsFirst().OrderBy(AchievementSort.UnlockTime, descending: true));
                 CollectionAssert.AreEqual(new[] { "custom:two", "a3" }, rows.Take(2).Select(row => row.ApiName).ToList());
