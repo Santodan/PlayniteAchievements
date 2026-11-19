@@ -62,6 +62,34 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
+        public void APage_ReadsInTwoSteps_WithTheColumnsOfTheWholeRead()
+        {
+            AchievementReadServiceTests.WithFixture(db =>
+            {
+                var query = AchievementQuery.AllFriends.CompareWith(new[] { B }).OrderBy(AchievementSort.Name);
+                var whole = AchievementReadService.Rows(db, query);
+                var page = AchievementReadService.Rows(db, query.Page(3, 1));
+
+                Assert.AreEqual(3, page.Count);
+                for (var index = 0; index < page.Count; index++)
+                {
+                    var expected = whole[index + 1];
+                    var actual = page[index];
+                    Assert.AreEqual(Key(expected), Key(actual), "the page keeps the order");
+                    Assert.AreEqual(expected.DisplayName, actual.DisplayName);
+                    Assert.AreEqual(expected.UnlockTimeUtc, actual.UnlockTimeUtc);
+                    Assert.AreEqual(expected.SelfUnlocked, actual.SelfUnlocked, "self columns for the page's games");
+                    Assert.AreEqual(expected.SelfHasGameData, actual.SelfHasGameData);
+                    Assert.AreEqual(expected.CompareUnlocked, actual.CompareUnlocked, "compare columns for the page's games");
+                    Assert.AreEqual(expected.CompareHasGame, actual.CompareHasGame);
+                    Assert.AreEqual(expected.UserDisplayName, actual.UserDisplayName);
+                }
+
+                Assert.AreEqual(0, AchievementReadService.Rows(db, query.Page(3, 1000)).Count, "past the end");
+            });
+        }
+
+        [TestMethod]
         public void Filters_HiddenLocked_Capstone_Category_UnlockTime_Nothing()
         {
             AchievementReadServiceTests.WithFixture(db =>
