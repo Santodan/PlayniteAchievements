@@ -24,16 +24,40 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(source, "ResolveFixedRowHeight() ?? _autoRowHeight", "a user-set Row Height wins");
         }
 
-        [TestMethod]
-        public void NameAndDescription_ShareTheCellHeight_WithoutALineCap()
+        [DataTestMethod]
+        [DataRow("AchievementInfoTemplate")]
+        [DataRow("AchievementInfoPlainTemplate")]
+        public void NameAndDescription_ShareTheCellHeight_WithoutALineCap(string key)
         {
             var templates = Read("source", "Resources", "AchievementCellTemplates.xaml");
-            var info = Between(templates, "<DataTemplate x:Key=\"AchievementInfoTemplate\">", "</DataTemplate>");
+            var info = Between(templates, $"<DataTemplate x:Key=\"{key}\">", "</DataTemplate>");
 
             StringAssert.Contains(info, "<DockPanel LastChildFill=\"True\"", "each text gets the height left, so only the bottom one trims");
             StringAssert.Contains(info, "DockPanel.Dock=\"Top\"");
             Assert.AreEqual(2, info.Split(new[] { "TextTrimming=\"CharacterEllipsis\"" }, StringSplitOptions.None).Length - 1);
             Assert.IsFalse(info.Contains("MaxHeight"), "a line cap trims text that fits");
+        }
+
+        [TestMethod]
+        public void PlainInfoTemplate_IsTheDetailTemplateWithoutTheDetails_AndServesAGridWithNoSpot()
+        {
+            var templates = Read("source", "Resources", "AchievementCellTemplates.xaml");
+            var detail = Between(templates, "<DataTemplate x:Key=\"AchievementInfoTemplate\">", "</DataTemplate>");
+            var plain = Between(templates, "<DataTemplate x:Key=\"AchievementInfoPlainTemplate\">", "</DataTemplate>");
+
+            Assert.IsFalse(plain.Contains("InlineUIContainer"), "an empty inline container still reformats each line on arrange");
+            foreach (var run in new[] { "DisplayNameResolved", "HiddenTitleSuffix", "AchievementNoteInlineMarker", "DescriptionResolved" })
+            {
+                var text = $"<Run Text=\"{{Binding {run}, Mode=OneWay}}\"";
+                StringAssert.Contains(detail, text);
+                StringAssert.Contains(plain, text, "the plain template shows the same text");
+            }
+
+            var control = Read("source", "Views", "Controls", "AchievementDataGridControl.xaml.cs");
+            var refresh = Between(control, "private void RefreshInlineDetails(", "private AchievementGridOptions ResolveSurfaceAppearance(");
+            StringAssert.Contains(refresh, "beforeName || beforeDescription");
+            StringAssert.Contains(refresh, "\"AchievementInfoPlainTemplate\"");
+            StringAssert.Contains(refresh, "AchievementInfoColumn.CellTemplate = template;");
         }
 
         private static string Read(params string[] parts)
