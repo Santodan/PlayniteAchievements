@@ -19,17 +19,17 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
-            <Border Style="{StaticResource SectionBorderStyle}"
-                    Background="Transparent"
-                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
-                           Style="{StaticResource SectionHeaderStyle}"
-                           Margin="0"/>
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                </StackPanel>
             </Border>
 
             <!-- Ungrouped: plugin chrome, not a formatting choice. -->
-            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}">
                         <CheckBox IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
@@ -41,7 +41,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Alignment}"
                                Style="{StaticResource SectionHeaderStyle}"
@@ -79,7 +79,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_Formatting}"
                                Style="{StaticResource SectionHeaderStyle}"
@@ -176,7 +176,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
                                Style="{StaticResource SectionHeaderStyle}"
@@ -261,7 +261,7 @@
             <!-- Which parts of the Overview window show. Each score card's options and the
                  mini-showcase's look are set in the window itself (right-click a card; the
                  mini-showcase's editor). -->
-            <Border Style="{StaticResource SectionBorderStyle}" Grid.IsSharedSizeScope="True">
+            <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Menu_OpenOverview}"
                                Style="{StaticResource SectionHeaderStyle}"
@@ -297,7 +297,7 @@
                 </Expander.Header>
 
                 <StackPanel>
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -314,7 +314,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ResetDisplaySettings}"
                                              Hint="{DynamicResource LOCPlayAch_Settings_ResetDisplaySettings_Help}"
                                              Margin="0">
