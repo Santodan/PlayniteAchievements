@@ -111,6 +111,7 @@ namespace PlayniteAchievements.Services.Database
         /// <param name="maxRows">The most rows the list holds; 0 for no cap.</param>
         /// <param name="update">Brings a row or placeholder handed out up to date from a new read of its key; without it the row is replaced.</param>
         /// <param name="pendingRows">Placeholders the list holds until the first read lands; they read nothing.</param>
+        /// <param name="gate">Holds back reloads for feed changes while closed (<see cref="AchievementDataFeed.Subscribe"/>).</param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
@@ -122,7 +123,8 @@ namespace PlayniteAchievements.Services.Database
             Func<TimeSpan> window = null,
             Action<Exception> onError = null,
             Action<T, T> update = null,
-            int pendingRows = 0)
+            int pendingRows = 0,
+            FeedGate gate = null)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
@@ -134,7 +136,7 @@ namespace PlayniteAchievements.Services.Database
             _onError = onError;
             _update = update;
             _count = Math.Max(0, pendingRows);
-            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
+            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset, gate);
             Reset();
         }
 
