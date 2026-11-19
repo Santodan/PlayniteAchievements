@@ -16,6 +16,9 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>Runs <paramref name="action"/> on the UI thread after <paramref name="delay"/>.</summary>
         void PostAfter(TimeSpan delay, Action action);
+
+        /// <summary>Runs <paramref name="action"/> on the UI thread once input and rendering are done.</summary>
+        void PostIdle(Action action);
     }
 
     /// <summary>Reads on the thread pool, applies on a dispatcher at Normal priority.</summary>
@@ -34,5 +37,7 @@ namespace PlayniteAchievements.Services.Database
 
         public void PostAfter(TimeSpan delay, Action action) =>
             Task.Delay(delay).ContinueWith(_ => Post(action), TaskScheduler.Default);
+
+        public void PostIdle(Action action) => _dispatcher.BeginInvoke(action, DispatcherPriority.Background);
     }
 }
