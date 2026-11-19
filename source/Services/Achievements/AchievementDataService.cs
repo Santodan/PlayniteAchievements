@@ -191,12 +191,7 @@ namespace PlayniteAchievements.Services.Achievements
         {
             try
             {
-                if (_cacheReadOptimizations == null)
-                {
-                    return LoadAllCachedGameData();
-                }
-
-                var result = _cacheReadOptimizations.LoadAllGameHeadersFast() ?? new List<GameAchievementData>();
+                var result = _cacheReadOptimizations?.LoadAllGameHeadersFast() ?? new List<GameAchievementData>();
                 AppendSyntheticCustomOnlyGameData(result);
                 return result;
             }
@@ -395,31 +390,6 @@ namespace PlayniteAchievements.Services.Achievements
         {
             var normalized = (value ?? string.Empty).Trim();
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-        }
-
-        private List<GameAchievementData> LoadAllCachedGameData()
-        {
-            List<GameAchievementData> result;
-            if (_cacheReadOptimizations != null)
-            {
-                result = _cacheReadOptimizations.LoadAllGameDataFast() ?? new List<GameAchievementData>();
-                AppendSyntheticCustomOnlyGameData(result);
-                return result;
-            }
-
-            var gameIds = _cacheService.GetCachedGameIds();
-            result = new List<GameAchievementData>();
-            foreach (var gameId in gameIds)
-            {
-                var gameData = _cacheService.LoadGameData(gameId);
-                if (gameData != null)
-                {
-                    result.Add(gameData);
-                }
-            }
-
-            AppendSyntheticCustomOnlyGameData(result);
-            return result;
         }
 
         private GameAchievementData GetMergedGameAchievementData(string playniteGameId)
