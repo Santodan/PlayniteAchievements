@@ -42,21 +42,7 @@
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.Panel}"
-                            CornerRadius="8"
-                            Padding="14"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                 Value="False">
-                                        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                    <Border>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
