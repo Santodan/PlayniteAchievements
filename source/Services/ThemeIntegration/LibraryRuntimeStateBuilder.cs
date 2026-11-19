@@ -12,6 +12,7 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Captures;
 using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Summaries;
 
 namespace PlayniteAchievements.Services.ThemeIntegration
@@ -407,10 +408,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             presentationByGameId ??= new Dictionary<Guid, GamePresentation>();
             var captures = new Dictionary<string, GameCaptureSet>(StringComparer.Ordinal);
+            var categoryArt = new Dictionary<Guid, CategoryArtChainMemo>();
             var result = new List<AchievementDetail>();
             foreach (var recent in rows ?? Enumerable.Empty<CachedRecentUnlockData>())
             {
                 var game = ResolveRecentGame(recent, api, presentationByGameId);
+                var gameId = recent.PlayniteGameId ?? Guid.Empty;
+                if (!categoryArt.TryGetValue(gameId, out var memo))
+                {
+                    categoryArt[gameId] = memo = new CategoryArtChainMemo();
+                }
                 var detail = new AchievementDetail
                 {
                     ApiName = recent.ApiName,
@@ -435,7 +442,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     Unlocked = recent.Unlocked,
                     UnlockTimeUtc = recent.UnlockTimeUtc,
                     ProgressNum = recent.ProgressNum,
-                    ProgressDenom = recent.ProgressDenom
+                    ProgressDenom = recent.ProgressDenom,
+
+                    // A goal is one only while locked; the category's art is the user's image, else
+                    // the default art of the category or its nearest ancestor, as on the other surfaces.
+                    IsGoal = recent.GoalOrder.HasValue && !recent.Unlocked,
+                    GoalOrderIndex = recent.GoalOrder.HasValue && !recent.Unlocked ? recent.GoalOrder.Value : int.MaxValue,
+                    CategoryOrderIndex = recent.CategoryOrder ?? int.MaxValue,
+                    CategoryArtPath = recent.CategoryArtPath ?? (gameId == Guid.Empty ? null : CategoryArtChainResolver.Resolve(
+                        gameId,
+                        recent.Category,
+                        recent.ProviderCategory,
+                        null,
+                        CategoryArtDisplayMode.FilePath,
+                        memo))
                 };
 
                 var gameName = recent.GameName ?? game?.Name ?? string.Empty;
