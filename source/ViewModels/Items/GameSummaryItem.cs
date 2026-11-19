@@ -579,6 +579,11 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public DateTime? LastUnlockLocal => LastUnlockUtc?.ToLocalTime();
 
+        /// <summary>When the last capstone and the first platinum unlocked, which finish the game.</summary>
+        public DateTime? LastCapstoneUnlockUtc { get; set; }
+
+        public DateTime? FirstPlatinumUnlockUtc { get; set; }
+
         private bool _isCompleted;
         public bool IsCompleted
         {
