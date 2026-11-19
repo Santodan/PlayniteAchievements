@@ -11,9 +11,6 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.Services.UI;
-#if !TEST
-using PlayniteAchievements.Services.Library;
-#endif
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using Playnite.SDK;
@@ -47,9 +44,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly IPlayniteAPI _api;
         private readonly RefreshRuntime _refreshService;
         private readonly AchievementDataService _achievementDataService;
-#if !TEST
-        private readonly LibraryProjectionService _libraryProjectionService;
-#endif
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IFriendCacheManager _friendCache;
         private readonly Captures.CaptureLibraryService _captureLibrary;
@@ -79,7 +73,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         // that window is up. Counted rather than a flag, since one window per game can be open.
         private int _librarySuspensionCount;
         private bool _librarySuspensionHasPendingRefresh;
-        private bool _librarySuspensionPendingHeavyLists;
         private const int ThemeRecentUnlockSummaryLimit = 10;
 
         private readonly object _updateGate = new object();
@@ -93,14 +86,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private DateTime _appliedLastUpdatedUtc;
         private volatile bool _hasFriendThemeConsumers;
 
-        // The friend lists and the rows of the friend scope, read once a theme binds friend data.
-        private IReadScheduler _friendScheduler;
+        // The friend lists and the rows of the friend scope, read once a theme binds friend data,
+        // and the library-wide achievement lists, each read once a theme binds it.
+        private IReadScheduler _readScheduler;
         private LiveQuery<FriendsOverviewLists> _friendLists;
         private PagedRows<FriendAchievementDisplayItem> _friendRows;
+        private readonly Dictionary<string, LiveQuery<List<AchievementDetail>>> _libraryLists =
+            new Dictionary<string, LiveQuery<List<AchievementDetail>>>(StringComparer.Ordinal);
 
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
-        private bool _lastLibraryRefreshIncludedHeavyAchievementLists = true;
         private readonly Dictionary<Guid, RelayCommand> _openViewAchievementsCommands =
             new Dictionary<Guid, RelayCommand>();
         private readonly Dictionary<Guid, RelayCommand> _openManageAchievementsCommands =
@@ -110,9 +105,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             IPlayniteAPI api,
             RefreshRuntime refreshRuntime,
             AchievementDataService achievementDataService,
-#if !TEST
-            LibraryProjectionService libraryProjectionService,
-#endif
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             FullscreenWindowService windowService,
@@ -124,17 +116,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             Action<AchievementMarkerTarget> toggleAchievementCapstone = null,
             Action<AchievementMarkerTarget> toggleAchievementGoal = null,
             Captures.CaptureLibraryService captureLibrary = null,
-            IReadScheduler friendScheduler = null)
+            IReadScheduler readScheduler = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-#if !TEST
-            _libraryProjectionService = libraryProjectionService;
-#endif
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _friendCache = friendCache;
-            _friendScheduler = friendScheduler;
+            _readScheduler = readScheduler;
             _runRefreshWithGlobalProgressAsync = runRefreshWithGlobalProgressAsync ?? RunRefreshWithoutGlobalProgressAsync;
             _openManageAchievementsView = openManageAchievementsView;
             _toggleAchievementCapstone = toggleAchievementCapstone;
@@ -480,11 +469,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // property (or a friend scope command) registers demand and triggers the build.
             // Themes without friend bindings never pay the full friends-overview snapshot cost.
             _settings.ModernTheme.FriendDataRequested = EnsureFriendThemeDataLoaded;
+            _settings.ModernTheme.LibraryListRequested = EnsureLibraryListLoaded;
         }
 
         public void Dispose()
         {
             try { _settings.ModernTheme.FriendDataRequested = null; } catch { }
+            try { _settings.ModernTheme.LibraryListRequested = null; } catch { }
             try { _settings.DynamicThemeDefaultsChanged -= Settings_DynamicThemeDefaultsChanged; } catch { }
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
             try
@@ -497,6 +488,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch { }
             _friendLists?.Dispose();
             _friendRows?.Dispose();
+            foreach (var list in _libraryLists.Values)
+            {
+                list.Dispose();
+            }
 
             lock (_refreshLock)
             {
@@ -538,15 +533,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        public void EnsureAllGamesThemeDataLoaded(
-            bool includeHeavyAchievementLists = true,
-            bool forceRefresh = false)
+        public void EnsureAllGamesThemeDataLoaded(bool forceRefresh = false)
         {
             try
             {
-                if (!forceRefresh &&
-                    _hasLoadedLibraryState &&
-                    (!includeHeavyAchievementLists || _lastLibraryRefreshIncludedHeavyAchievementLists))
+                if (!forceRefresh && _hasLoadedLibraryState)
                 {
                     ApplyDynamicOptionBindings();
                     return;
@@ -555,13 +546,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
                 if (dispatcher != null && !dispatcher.CheckAccess())
                 {
-                    dispatcher.Invoke(
-                        new Action(() => PopulateAllGamesDataSync(includeHeavyAchievementLists)),
-                        DispatcherPriority.Background);
+                    dispatcher.Invoke(new Action(PopulateAllGamesDataSync), DispatcherPriority.Background);
                     return;
                 }
 
-                PopulateAllGamesDataSync(includeHeavyAchievementLists);
+                PopulateAllGamesDataSync();
             }
             catch (Exception ex)
             {
@@ -582,13 +571,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             _hasFriendThemeConsumers = true;
-            _friendScheduler = _friendScheduler ?? new DispatcherReadScheduler(
-                _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher);
             _friendLists = new LiveQuery<FriendsOverviewLists>(
                 reads.Feed,
                 AchievementQuery.AllFriends,
                 _ => FriendsOverviewLists.Load(reads, _settings?.Persisted),
-                _friendScheduler,
+                ReadScheduler,
                 FriendReadWindow,
                 ex => _logger?.Error(ex, "Failed to load friend theme lists."));
             _friendLists.PropertyChanged += (_, e) =>
@@ -630,6 +617,121 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 DynamicThemeFilterEvaluator.ApplyAchievementFilters(query, view.FilterKey),
                 view.SortKey,
                 view.SortDirectionKey);
+        }
+
+        private IReadScheduler ReadScheduler =>
+            _readScheduler ??= new DispatcherReadScheduler(
+                _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher);
+
+        /// <summary>
+        /// Reads a library-wide achievement list the first time a theme reads it, and again each
+        /// time the data under it changes. Uncapped, as themes have always had them.
+        /// </summary>
+        public void EnsureLibraryListLoaded(string name)
+        {
+            if (_libraryLists.ContainsKey(name) || !(LibraryListQuery(name) is AchievementQuery query))
+            {
+                return;
+            }
+
+            LiveQuery<List<AchievementDetail>> list = null;
+            list = new LiveQuery<List<AchievementDetail>>(
+                _achievementDataService.CacheReads?.Feed,
+                query,
+                read => LibraryRuntimeStateBuilder.Details(_achievementDataService.ReadRows(read), _api),
+                ReadScheduler,
+                FriendReadWindow,
+                ex => _logger?.Error(ex, "Failed to load the theme list " + name + "."));
+            _libraryLists[name] = list;
+            list.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result))
+                {
+                    ApplyLibraryList(name, list.Result);
+                }
+            };
+            if (list.Result != null)
+            {
+                ApplyLibraryList(name, list.Result);
+            }
+        }
+
+        // The rows each library list reads: the library under the summary rules, goals first in
+        // the whole-library lists, in the list's order.
+        private AchievementQuery LibraryListQuery(string name)
+        {
+            var all = _achievementDataService.SummaryQuery();
+            var descending = name.EndsWith("Desc", StringComparison.Ordinal);
+            switch (name)
+            {
+                case nameof(ModernThemeBindings.AllAchievementsUnlockAsc):
+                case nameof(ModernThemeBindings.AllAchievementsUnlockDesc):
+                    return all.WithGoalsFirst().OrderBy(AchievementSort.UnlockTime, descending);
+                case nameof(ModernThemeBindings.AllAchievementsRarityAsc):
+                case nameof(ModernThemeBindings.AllAchievementsRarityDesc):
+                    return all.WithGoalsFirst().OrderBy(AchievementSort.Rarity, descending);
+                case nameof(ModernThemeBindings.MostRecentUnlocks):
+                    return all.WhereUnlocked(true).WhereUnlockTimeKnown().OrderBy(AchievementSort.UnlockTime, descending: true);
+                case nameof(ModernThemeBindings.RarestRecentUnlocks):
+                    return RarestRecentQuery(all);
+                case nameof(ModernThemeBindings.DynamicLibraryAchievements):
+                    var view = _runtimeState.LibraryAchievements;
+                    var query = all.WithGoalsFirst().WhereProvider(IsAllScopeKey(view.ProviderKey) ? null : view.ProviderKey);
+                    query = !IsAllScopeKey(view.GameKey) && Guid.TryParse(view.GameKey, out var gameId) ? query.ForGames(new[] { gameId }) : query;
+                    return DynamicThemeFilterEvaluator.ApplyAchievementSort(
+                        DynamicThemeFilterEvaluator.ApplyAchievementFilters(query, view.FilterKey),
+                        view.SortKey,
+                        view.SortDirectionKey);
+                default:
+                    return null;
+            }
+        }
+
+        // The rarest unlocks of the last 180 days, rarest first.
+        private static AchievementQuery RarestRecentQuery(AchievementQuery all) =>
+            all.WhereUnlocked(true).WhereUnlockTimeKnown().WhereUnlockedBetween(DateTime.Today.AddDays(-180), null).OrderBy(AchievementSort.Rarity);
+
+        private void ApplyLibraryList(string name, List<AchievementDetail> items)
+        {
+            items = items ?? new List<AchievementDetail>();
+            switch (name)
+            {
+                case nameof(ModernThemeBindings.AllAchievementsUnlockAsc):
+                    _settings.ModernTheme.AllAchievementsUnlockAsc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsUnlockDesc):
+                    _settings.ModernTheme.AllAchievementsUnlockDesc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsRarityAsc):
+                    _settings.ModernTheme.AllAchievementsRarityAsc = items;
+                    break;
+                case nameof(ModernThemeBindings.AllAchievementsRarityDesc):
+                    _settings.ModernTheme.AllAchievementsRarityDesc = items;
+                    break;
+                case nameof(ModernThemeBindings.MostRecentUnlocks):
+                    _settings.ModernTheme.MostRecentUnlocks = items;
+                    break;
+                case nameof(ModernThemeBindings.RarestRecentUnlocks):
+                    _settings.ModernTheme.RarestRecentUnlocks = items;
+                    break;
+                default:
+                    AttachAchievementCommands(items);
+                    _settings.ModernTheme.DynamicLibraryAchievements = items;
+                    break;
+            }
+
+            NotifySettingProperties(name);
+        }
+
+        // Points a library list read at its current query; a list no theme read is left unread.
+        private void UpdateLibraryListQuery(string name)
+        {
+            if (_libraryLists.TryGetValue(name, out var list) &&
+                LibraryListQuery(name) is AchievementQuery query &&
+                AchievementQuerySql.KeyOf(query) != AchievementQuerySql.KeyOf(list.Query))
+            {
+                list.SetQuery(query);
+            }
         }
 
         // A refresh writes every few hundred milliseconds; its changes are read every few seconds.
@@ -689,7 +791,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     if (_hasLoadedLibraryState)
                     {
-                        RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
+                        RequestLibraryRefresh();
                     }
                     else if (IsFullscreen() && _fullscreenInitialized)
                     {
@@ -1021,7 +1123,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             // Immediately populate all-games data on UI thread before opening window
-            PopulateAllGamesDataSync(includeHeavyAchievementLists: true);
+            PopulateAllGamesDataSync();
 
             _windowService.OpenOverviewWindow();
         }
@@ -1087,11 +1189,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+            EnsureAllGamesThemeDataLoaded();
 
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.LibraryAchievements;
-            var providerKey = ResolveLibraryProviderKeyForGame(state, gameId);
+            var providerKey = ResolveGameSummaryProviderKeyForGame(state, gameId);
 
             viewState.HasUserSelection = true;
             viewState.GameKey = gameId.ToString("D");
@@ -1116,7 +1218,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+            EnsureAllGamesThemeDataLoaded();
 
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.GameSummaries;
@@ -1598,30 +1700,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         #region Snapshot Building and Refresh
 
-        private void PopulateAllGamesDataSync(bool includeHeavyAchievementLists)
+        private void PopulateAllGamesDataSync()
         {
             try
             {
-                _logger?.Info("PopulateAllGamesDataSync: Starting to populate all-games achievement data.");
-
-                var state = BuildLibraryState(
-                    includeHeavyAchievementLists,
-                    CancellationToken.None,
-                    out var usedCachedSummary,
-                    out var hydratedCount);
-                if (usedCachedSummary)
-                {
-                    _logger?.Info($"PopulateAllGamesDataSync: Built from cached summary data. AllGamesWithAchievements count={state.AllGamesWithAchievements?.Count ?? 0}.");
-                }
-                else
-                {
-                    _logger?.Info($"PopulateAllGamesDataSync: Found {hydratedCount.GetValueOrDefault()} total game data entries.");
-                }
-
+                var state = BuildLibraryState(CancellationToken.None);
                 _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
 
                 _hasLoadedLibraryState = true;
-                _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
                 ApplyLibraryState(state);
 
                 _logger?.Info($"PopulateAllGamesDataSync: Applied snapshot. AllGamesWithAchievements count={_settings.LegacyTheme.AllGamesWithAchievements?.Count ?? 0}");
@@ -1672,7 +1758,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void RequestRefresh()
         {
-            RequestLibraryRefresh(includeHeavyAchievementLists: false, requireFullscreen: true);
+            RequestLibraryRefresh(requireFullscreen: true);
         }
 
         /// <summary>
@@ -1696,7 +1782,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         public void ResumeLibraryRefresh()
         {
             bool shouldRefresh;
-            bool includeHeavyAchievementLists;
             lock (_refreshLock)
             {
                 if (_librarySuspensionCount > 0)
@@ -1710,14 +1795,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
 
                 shouldRefresh = _librarySuspensionHasPendingRefresh;
-                includeHeavyAchievementLists = _librarySuspensionPendingHeavyLists;
                 _librarySuspensionHasPendingRefresh = false;
-                _librarySuspensionPendingHeavyLists = false;
             }
 
             if (shouldRefresh)
             {
-                RequestLibraryRefresh(includeHeavyAchievementLists);
+                RequestLibraryRefresh();
             }
         }
 
@@ -1733,26 +1816,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        internal bool DeferredLibraryRefreshIncludesHeavyListsForTests
+        internal void RequestLibraryRefreshForTests()
         {
-            get
-            {
-                lock (_refreshLock)
-                {
-                    return _librarySuspensionPendingHeavyLists;
-                }
-            }
-        }
-
-        internal void RequestLibraryRefreshForTests(bool includeHeavyAchievementLists)
-        {
-            RequestLibraryRefresh(includeHeavyAchievementLists);
+            RequestLibraryRefresh();
         }
 #endif
 
-        private void RequestLibraryRefresh(
-            bool includeHeavyAchievementLists,
-            bool requireFullscreen = false)
+        private void RequestLibraryRefresh(bool requireFullscreen = false)
         {
             if (requireFullscreen && !IsFullscreen())
             {
@@ -1766,7 +1836,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     // The fullscreen gate above has already been answered for this request, so the
                     // deferred one does not re-ask it.
                     _librarySuspensionHasPendingRefresh = true;
-                    _librarySuspensionPendingHeavyLists |= includeHeavyAchievementLists;
 
                     // An in-flight rebuild from just before the suspension is abandoned: it would
                     // publish state built from data the burst is still changing.
@@ -1790,16 +1859,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 {
                     await Task.Delay(LibraryRefreshDelay, token).ConfigureAwait(false);
 
-                    var state = BuildLibraryState(
-                        includeHeavyAchievementLists,
-                        token,
-                        out _,
-                        out _);
+                    var state = BuildLibraryState(token);
 
                     Action applyState = () =>
                     {
                         _hasLoadedLibraryState = true;
-                        _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
                         ApplyLibraryState(state);
                     };
 
@@ -1823,53 +1887,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }, token);
         }
 
-        private LibraryRuntimeState BuildLibraryState(
-            bool includeHeavyAchievementLists,
-            CancellationToken token,
-            out bool usedCachedSummary,
-            out int? hydratedCount)
+        // The library's summary, its ten newest unlocks and its ten rarest of the last 180 days.
+        private LibraryRuntimeState BuildLibraryState(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-
-            usedCachedSummary = false;
-            hydratedCount = null;
-
-#if !TEST
-            if (_libraryProjectionService != null)
-            {
-                if (!includeHeavyAchievementLists)
-                {
-                    return _libraryProjectionService.GetThemeLightState(
-                        ThemeRecentUnlockSummaryLimit,
-                        token,
-                        out usedCachedSummary,
-                        out hydratedCount);
-                }
-
-                usedCachedSummary = false;
-                return _libraryProjectionService.GetThemeFullState(token, out hydratedCount);
-            }
-#endif
-
-            if (!includeHeavyAchievementLists)
-            {
-                var summaryData = _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit);
-                if (summaryData != null)
-                {
-                    usedCachedSummary = true;
-                    return LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, _api, token);
-                }
-            }
-
-            var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
-            hydratedCount = allData.Count;
-            token.ThrowIfCancellationRequested();
-
-            return LibraryRuntimeStateBuilder.Build(
-                allData,
+            var rarest = _achievementDataService.ReadRows(RarestRecentQuery(_achievementDataService.SummaryQuery()).Page(ThemeRecentUnlockSummaryLimit));
+            return LibraryRuntimeStateBuilder.BuildFromCachedSummary(
+                _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit),
+                rarest,
                 _api,
-                token,
-                includeHeavyAchievementLists);
+                token);
         }
 
         private void ApplyLibraryState(LibraryRuntimeState state)
@@ -1970,27 +1997,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.LegacyTheme.GSLevelProgress = library.TotalTrophies > 0 ? library.LevelProgress : 0;
             _settings.LegacyTheme.GSRank = library.TotalTrophies > 0 && !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze5";
 
-            var shouldUpdateHeavyLists = library.HeavyListsBuilt || !library.HasData;
-            if (shouldUpdateHeavyLists)
-            {
-                _settings.ModernTheme.AllAchievementsUnlockAsc = library.AllAchievementsUnlockAsc;
-                _settings.ModernTheme.AllAchievementsUnlockDesc = library.AllAchievementsUnlockDesc;
-                _settings.ModernTheme.AllAchievementsRarityAsc = library.AllAchievementsRarityAsc;
-                _settings.ModernTheme.AllAchievementsRarityDesc = library.AllAchievementsRarityDesc;
-                _settings.ModernTheme.MostRecentUnlocks = library.MostRecentUnlocks;
-                _settings.ModernTheme.RarestRecentUnlocks = library.RarestRecentUnlocks;
-            }
-
             ApplyDynamicLibraryAchievementBindings(updateOptions: false);
             ApplyDynamicGameSummaryBindings(updateOptions: false);
             ApplyDynamicOptionBindings();
 
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.CompatibilityAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesCore);
-            if (shouldUpdateHeavyLists)
-            {
-                NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesHeavy);
-            }
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicFriends);
         }
@@ -2618,7 +2630,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     return rows;
                 },
                 () => new FriendAchievementDisplayItem { IsPlaceholder = true },
-                _friendScheduler,
+                ReadScheduler,
                 window: FriendReadWindow,
                 onError: ex => _logger?.Error(ex, "Failed to load friend theme rows."));
             _settings.ModernTheme.DynamicFriendAchievements = _friendRows;
@@ -3651,13 +3663,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.LibraryAchievements;
-            var items = BuildDynamicLibraryAchievements(state, viewState);
-            AttachAchievementCommands(items);
-
-            _settings.ModernTheme.DynamicLibraryAchievements = items;
+            UpdateLibraryListQuery(nameof(ModernThemeBindings.DynamicLibraryAchievements));
             ApplyDynamicListKeyBindings(LibraryAchievementListBinding);
             _settings.ModernTheme.DynamicLibraryAchievementsProviderOptions = DynamicThemeOptionFactory.CreateProviderOptions(
-                EnumerateLibraryAchievementProviderKeys(state),
+                (state.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>()).Select(item => item?.ProviderKey),
                 viewState.ProviderKey,
                 _settings.FilterDynamicLibraryAchievementsByProviderCommand);
             ApplyDynamicListOptionBindings(LibraryAchievementListBinding);
@@ -4067,22 +4076,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        private List<AchievementDetail> BuildDynamicLibraryAchievements(
-            LibraryRuntimeState state,
-            LibraryAchievementViewState viewState)
-        {
-            if (state == null || !state.HasData)
-            {
-                return EmptyAchievementList;
-            }
-
-            IEnumerable<AchievementDetail> source = SelectLibraryAchievementSource(state, viewState);
-            source = ApplyProviderFilter(source, viewState.ProviderKey);
-            source = ApplyGameFilter(source, viewState.GameKey, item => item.Game?.Id ?? Guid.Empty);
-            source = DynamicThemeFilterEvaluator.ApplyAchievementFilters(source, viewState.FilterKey);
-            return source.ToList();
-        }
-
         private List<GameAchievementSummary> BuildDynamicGameSummaries(
             LibraryRuntimeState state,
             GameSummaryViewState viewState)
@@ -4359,16 +4352,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 viewState?.SortDirectionKey);
         }
 
-        private static IEnumerable<AchievementDetail> SelectLibraryAchievementSource(
-            LibraryRuntimeState state,
-            LibraryAchievementViewState viewState)
-        {
-            return AchievementSortHelper.ResolveLibraryAchievements(
-                state,
-                viewState?.SortKey,
-                viewState?.SortDirectionKey);
-        }
-
         private static IEnumerable<TItem> ApplyGameFilter<TItem>(
             IEnumerable<TItem> source,
             string gameKey,
@@ -4382,13 +4365,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             return items.Where(item => item != null && gameIdSelector(item) == gameId);
-        }
-
-        private static IEnumerable<AchievementDetail> ApplyProviderFilter(
-            IEnumerable<AchievementDetail> source,
-            string providerKey)
-        {
-            return ApplyProviderFilter(source, providerKey, item => item.ProviderKey);
         }
 
         private static IEnumerable<GameAchievementSummary> ApplyProviderFilter(
@@ -4427,25 +4403,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return IsAllScopeKey(scopeProviderKey) ||
                    (!string.IsNullOrWhiteSpace(providerKey) &&
                     string.Equals(scopeProviderKey, providerKey, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static string ResolveLibraryProviderKeyForGame(LibraryRuntimeState state, Guid gameId)
-        {
-            if (gameId == Guid.Empty)
-            {
-                return null;
-            }
-
-            var providerKey = (state?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
-                .Where(item => item?.Game?.Id == gameId)
-                .Select(item => item?.ProviderKey)
-                .FirstOrDefault(key => !string.IsNullOrWhiteSpace(key));
-            if (!string.IsNullOrWhiteSpace(providerKey))
-            {
-                return providerKey;
-            }
-
-            return ResolveGameSummaryProviderKeyForGame(state, gameId);
         }
 
         private static string ResolveGameSummaryProviderKeyForGame(LibraryRuntimeState state, Guid gameId)
@@ -4493,28 +4450,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .FirstOrDefault();
         }
 
-        private static IEnumerable<string> EnumerateLibraryAchievementProviderKeys(LibraryRuntimeState state)
-        {
-            var achievements = GetAvailableLibraryAchievements(state);
-            if (achievements.Count > 0)
-            {
-                return achievements.Select(item => item?.ProviderKey);
-            }
-
-            return (state?.AllGamesWithAchievements ?? Enumerable.Empty<GameAchievementSummary>())
-                .Select(item => item?.ProviderKey);
-        }
-
-        private static List<AchievementDetail> GetAvailableLibraryAchievements(LibraryRuntimeState state)
-        {
-            if (state == null)
-            {
-                return new List<AchievementDetail>();
-            }
-
-            return state.AllAchievements ?? new List<AchievementDetail>();
-        }
-
         private bool TryNormalizeProviderKey(object parameter, out string providerKey)
         {
             var raw = ExtractProviderKeyParameter(parameter);
@@ -4551,13 +4486,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             foreach (var key in YieldKnown(
                 (_runtimeState?.SelectedGame?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
-                .Select(item => item?.ProviderKey)))
-            {
-                yield return key;
-            }
-
-            foreach (var key in YieldKnown(
-                (_runtimeState?.Library?.AllAchievements ?? Enumerable.Empty<AchievementDetail>())
                 .Select(item => item?.ProviderKey)))
             {
                 yield return key;
