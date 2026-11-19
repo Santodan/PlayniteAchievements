@@ -99,8 +99,8 @@ namespace PlayniteAchievements.Services.Cache
         internal AchievementReadService Reads => _reads ?? (_reads = new AchievementReadService(read =>
         {
             EnsureReadyForRead("AchievementReadService");
-            return _store.WithReadDb(read);
-        }));
+            return _store.ReadOrThrow(read);
+        }, _logger));
 
         private AchievementReadService _reads;
 
@@ -208,11 +208,8 @@ namespace PlayniteAchievements.Services.Cache
 
         AchievementDataFeed ICacheReadOptimizations.Feed => _feed;
 
-        List<CachedRecentUnlockData> ICacheReadOptimizations.LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
-        {
-            EnsureReadyForRead("LoadRows");
-            return _store.LoadRows(query, keys);
-        }
+        List<CachedRecentUnlockData> ICacheReadOptimizations.LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            Reads.Read(db => _store.LoadRows(db, query, keys));
 
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
             int limit,
