@@ -67,9 +67,10 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(2000, rows.Count);
             Assert.AreEqual(1, _events.Count);
             Assert.AreEqual(NotifyCollectionChangedAction.Reset, _events[0].Action);
-            CollectionAssert.AreEqual(new[] { 0, 100 }, ReadOffsets.ToList());
-            Assert.IsTrue(_pageReads.All(query => query.Limit == PagedRows<Row>.PageSize));
+            Assert.AreEqual(0, _pageReads.Single().Offset, "the first two pages in one read");
+            Assert.AreEqual(2 * PagedRows<Row>.PageSize, _pageReads.Single().Limit);
             Assert.AreEqual(150, At(rows, 150).Index);
+            Assert.IsFalse(At(rows, 199).IsPlaceholder);
         }
 
         [TestMethod]
@@ -168,7 +169,8 @@ namespace PlayniteAchievements.Services.Tests
             _scheduler.Drain();
 
             Assert.AreEqual(2000, rows.Count);
-            CollectionAssert.AreEquivalent(new[] { 400, 500, 600 }, ReadOffsets.ToList());
+            Assert.AreEqual(400, _pageReads.Single().Offset, "the pages around the last read index in one read");
+            Assert.AreEqual(300, _pageReads.Single().Limit);
             Assert.AreEqual(300, _events.Count);
             Assert.IsTrue(_events.All(e => e.Action == NotifyCollectionChangedAction.Replace));
             Assert.AreEqual(1, ((Row)rows[551]).Version);
@@ -332,12 +334,12 @@ namespace PlayniteAchievements.Services.Tests
 
             rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(true));
             _scheduler.Drain();
-            CollectionAssert.AreEquivalent(new[] { 2900, 3000, 3100 }, ReadOffsets.ToList(), "a filter keeps the place");
+            CollectionAssert.AreEqual(new[] { 2900 }, ReadOffsets.ToList(), "a filter keeps the place");
 
             _pageReads.Clear();
             rows.SetQuery(AchievementQuery.CurrentUser.WhereUnlocked(false), fromStart: true);
             _scheduler.Drain();
-            CollectionAssert.AreEquivalent(new[] { 0, 100 }, ReadOffsets.ToList(), "a new selection starts at the top");
+            CollectionAssert.AreEqual(new[] { 0 }, ReadOffsets.ToList(), "a new selection starts at the top");
         }
 
         [TestMethod]
