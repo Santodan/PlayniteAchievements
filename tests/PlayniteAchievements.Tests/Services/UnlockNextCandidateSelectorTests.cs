@@ -61,7 +61,7 @@ namespace PlayniteAchievements.Tests.Services
                 achievements.Add(Achievement("locked" + i, order: i + 1, percent: i));
             }
 
-            var selected = UnlockNextCandidateSelector.SelectAchievements(achievements);
+            var selected = Select(achievements, UnlockNextCandidateSelector.PerGameSlice);
 
             Assert.IsFalse(selected.Any(detail => detail.Unlocked));
             Assert.IsTrue(selected.Count <= UnlockNextCandidateSelector.PerGameSlice * 2);
@@ -82,7 +82,7 @@ namespace PlayniteAchievements.Tests.Services
             }
 
             var slice = UnlockNextCandidateSelector.SliceFor(30);
-            var selected = UnlockNextCandidateSelector.SelectAchievements(achievements, slice);
+            var selected = Select(achievements, slice);
 
             Assert.AreEqual(30, slice);
             Assert.AreEqual(60, selected.Count, "30 from the order head plus 30 most common, disjoint here");
@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Tests.Services
             var unknown = Achievement("unknown", order: 50, percent: null);
             var known = Achievement("known", order: 51, percent: 5);
 
-            var selected = UnlockNextCandidateSelector.SelectAchievements(new[] { unknown, known });
+            var selected = Select(new[] { unknown, known }, UnlockNextCandidateSelector.PerGameSlice);
 
             // Both fit inside the order slice here; the point is that a missing percentage never
             // reads as "easiest", which a null-as-zero comparison would invert.
@@ -126,6 +126,14 @@ namespace PlayniteAchievements.Tests.Services
                 LastPlayed = DateTime.Now.AddDays(-daysAgo)
             };
         }
+
+        // The selector takes a game's locked rows in its order, as the pool reads them.
+        private static IReadOnlyList<AchievementDetail> Select(IEnumerable<AchievementDetail> achievements, int slice) =>
+            UnlockNextCandidateSelector.SelectAchievements(
+                achievements.Where(detail => !detail.Unlocked).OrderBy(detail => detail.DefaultOrderIndex).ToList(),
+                detail => detail.GlobalPercentUnlocked,
+                detail => detail.ApiName,
+                slice);
 
         private static AchievementDetail Achievement(
             string apiName,
