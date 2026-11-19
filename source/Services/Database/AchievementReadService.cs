@@ -207,9 +207,41 @@ namespace PlayniteAchievements.Services.Database
 
         internal static IReadOnlyList<AchievementRowRecord> Rows(SQLiteDatabase db, AchievementQuery query)
         {
+            if (query.Friends && (query.Limit > 0 || query.Offset > 0))
+            {
+                return FriendPage(db, query);
+            }
+
             var command = AchievementQuerySql.Rows(query);
             return db.Load<AchievementRowRecord>(command.Sql, command.Args).ToList();
         }
+
+        // A page of friend rows in two reads: the sorted keys of the page, which skips building the
+        // display columns of every row the sort passes over, then the columns of those rows.
+        private static IReadOnlyList<AchievementRowRecord> FriendPage(SQLiteDatabase db, AchievementQuery query)
+        {
+            var keysCommand = AchievementQuerySql.PageKeys(query);
+            var keys = db.Load<AchievementQuerySql.PageKey>(keysCommand.Sql, keysCommand.Args).ToList();
+            if (keys.Count == 0)
+            {
+                return Array.Empty<AchievementRowRecord>();
+            }
+
+            var command = AchievementQuerySql.Rows(query, keys);
+            var byKey = new Dictionary<string, AchievementRowRecord>(StringComparer.Ordinal);
+            foreach (var row in db.Load<AchievementRowRecord>(command.Sql, command.Args))
+            {
+                byKey[PageKeyOf(row.UserId ?? 0, row.GameId, row.ApiName)] = row;
+            }
+
+            // A row written between the two reads drops out; the page reads short and reloads.
+            return keys.Select(key => byKey.TryGetValue(PageKeyOf(key.UserId, key.GameId, key.ApiName), out var row) ? row : null)
+                .Where(row => row != null)
+                .ToList();
+        }
+
+        private static string PageKeyOf(long userId, long? gameId, string apiName) =>
+            userId + "\u001f" + gameId + "\u001f" + apiName;
 
         internal static IReadOnlyList<AchievementTotalsRecord> Totals(SQLiteDatabase db, AchievementQuery query, AchievementGroup group)
         {
