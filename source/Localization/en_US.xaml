@@ -1212,8 +1212,6 @@
     <sys:String x:Key="LOCPlayAch_UseCoverImages">Use Cover Images Instead of Icons in Games List</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewItemPreview">View Item</sys:String>
     <!-- Context_Preview / Context_Settings: uppercase panel labels above theme preview and settings columns -->
-    <sys:String x:Key="LOCPlayAch_Settings_Context_Preview">PREVIEW</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Context_Settings">SETTINGS</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance">Styles</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_PresetNumbered">Preset {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_BadgeColors">Badge colors</sys:String>
