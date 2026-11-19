@@ -17,7 +17,6 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
-using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.Services.UI;
@@ -71,7 +70,6 @@ namespace PlayniteAchievements.Views
         private readonly Action _persistSettingsForUi;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementDataService _achievementDataService;
-        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly RefreshEntryPoint _refreshEntryPoint;
         private readonly OverviewLaunchContext _launchContext;
@@ -149,7 +147,6 @@ namespace PlayniteAchievements.Views
             Action persistSettingsForUi,
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
             GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
@@ -173,7 +170,6 @@ namespace PlayniteAchievements.Views
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-            _libraryProjectionService = libraryProjectionService;
             _playniteApi = api ?? throw new ArgumentNullException(nameof(api));
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _launchContext = launchContext;
@@ -199,7 +195,6 @@ namespace PlayniteAchievements.Views
                     refreshRuntime,
                     _persistSettingsForUi,
                     _achievementDataService,
-                    _libraryProjectionService,
                     gameCustomDataStore,
                     _refreshEntryPoint,
                     api,
