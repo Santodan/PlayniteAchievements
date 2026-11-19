@@ -15,6 +15,7 @@ using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.ThemeIntegration;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.Tests.TestSupport;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
@@ -1869,7 +1870,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 .ApplyCommand.Execute(null);
             Assert.AreEqual(aliceKey, context.Settings.DynamicFriendScopeUserKey);
             Assert.AreEqual(gameOneKey, context.Settings.DynamicFriendScopeGameKey);
-            WaitForPairFetch(context);
+            context.Settle();
             AssertFriendGameNames(context.Settings.DynamicFriendGameSummaries, "Game One");
             AssertOptionSelected(context.Settings.DynamicFriendScopeUserOptions, aliceKey);
             AssertOptionSelected(context.Settings.DynamicFriendScopeGameOptions, gameOneKey);
@@ -2235,17 +2236,17 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void FriendDynamicLists_LoadFriendCacheOffConstructionThread()
+        public void FriendDynamicLists_ReadOnTheReadScheduler()
         {
-            var data = CreateFriendOverviewData();
-            var cache = new FakeFriendCache(data);
-            var constructionThreadId = Thread.CurrentThread.ManagedThreadId;
-
+            var cache = new FakeFriendCache(CreateFriendOverviewData());
             using var context = CreateServiceContext(friendCache: cache);
-            WaitForFriendThemeData(context);
 
+            _ = context.Settings.DynamicFriendSummaries;
+            Assert.AreEqual(0, cache.LoadFriendsOverviewDataCalls, "the binding read only queues the read");
+
+            context.Settle();
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
-            Assert.AreNotEqual(constructionThreadId, cache.FirstLoadThreadId);
+            Assert.IsTrue(cache.Reads.RowReads.Count > 0, "the scope's rows are read once the lists arrive");
         }
 
         [TestMethod]
@@ -2257,7 +2258,9 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             // No friend theme property has been read, so neither construction nor an
             // invalidation may build the friends overview snapshot.
             cache.RaiseFriendCacheInvalidated();
-            Task.Delay(250).GetAwaiter().GetResult();
+            context.Settle();
+            context.Scheduler.Elapse();
+            context.Settle();
             Assert.AreEqual(0, cache.LoadFriendsOverviewDataCalls);
 
             // The first read registers demand and builds once, even after the invalidation.
@@ -2275,9 +2278,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(1, cache.LoadFriendsOverviewDataCalls);
 
             cache.RaiseFriendCacheInvalidated();
-            WaitForConditionAsync(
-                () => cache.LoadFriendsOverviewDataCalls == 2,
-                timeoutMs: 3000).GetAwaiter().GetResult();
+            cache.RaiseFriendCacheInvalidated();
+            context.Settle();
+            context.Scheduler.Elapse();
+            context.Settle();
+            Assert.AreEqual(2, cache.LoadFriendsOverviewDataCalls, "one reread for the window's changes");
         }
 
         [TestMethod]
@@ -2290,13 +2295,18 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             AssertFriendNames(settings.DynamicFriendSummaries, "Alice", "Bob", "Cora");
             AssertFriendGameNames(settings.DynamicFriendGameSummaries, "Game One", "Game Two", "GOG Game");
-            AssertFriendAchievementNames(settings.DynamicFriendAchievements, "Recent Only");
+            AssertFriendAchievementNames(settings.DynamicFriendAchievements, "Recent Only", "Alice Game Two", "Bob Game One", "Cora GOG");
 
             var alice = settings.DynamicFriendSummaries.Single(item => item.DisplayName == "Alice");
             var aliceKey = FriendOverviewProjection.GetFriendScopeKey(data.Friends[0]);
             Assert.AreEqual("avatars/alice.png", alice.AvatarPath);
-            Assert.AreEqual(111, alice.CollectionScore);
-            Assert.AreEqual(222, alice.PrestigeScore);
+            // Scored from Alice's unlocks: a common one at 75% and an uncommon one at 35%.
+            Assert.AreEqual(
+                AchievementScoreCalculator.GetCollectionValue(RarityTier.Common) + AchievementScoreCalculator.GetCollectionValue(RarityTier.Uncommon),
+                alice.CollectionScore);
+            Assert.AreEqual(
+                AchievementScoreCalculator.GetPrestigeValue(75, RarityTier.Common) + AchievementScoreCalculator.GetPrestigeValue(35, RarityTier.Uncommon),
+                alice.PrestigeScore);
             Assert.AreEqual(aliceKey, alice.FriendScopeKey);
             Assert.AreEqual(aliceKey, alice.Key);
             Assert.AreEqual("Alice", alice.Label);
@@ -2315,6 +2325,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(4, aggregateGameOne.TrophyBronzeTotal);
 
             settings.DynamicFriendScopeUserKey = alice.FriendScopeKey;
+            context.Settle();
 
             Assert.AreEqual(aliceKey, settings.DynamicFriendScopeUserKey);
             AssertFriendGameNames(settings.DynamicFriendGameSummaries, "Game One", "Game Two");
@@ -2344,9 +2355,36 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsNotNull(gameOne.Overall);
 
             settings.DynamicFriendScopeGameKey = gameOne.FriendGameScopeKey;
+            context.Settle();
 
             Assert.AreEqual(gameOne.FriendGameScopeKey, settings.DynamicFriendScopeGameKey);
             AssertFriendGameNames(settings.DynamicFriendGameSummaries, "Game One");
+        }
+
+        [TestMethod]
+        public void FriendDynamicLists_AFriendAndGameScopeReadsTheirLockedRowsToo()
+        {
+            var data = CreateFriendOverviewData();
+            var locked = FriendAchievement("Steam", "alice", "Alice", 10, data.Games[0].PlayniteGameId.Value, "Game One", "Alice Locked", Utc(2026, 1, 1, 0, 0, 0));
+            locked.Unlocked = false;
+            locked.UnlockTimeUtc = null;
+            data.AllAchievements.Add(locked);
+            var cache = new FakeFriendCache(data);
+            using var context = CreateServiceContext(friendCache: cache);
+            WaitForFriendThemeData(context);
+            var settings = context.Settings;
+            CollectionAssert.DoesNotContain(settings.DynamicFriendAchievements.Select(item => item.DisplayName).ToList(), "Alice Locked");
+
+            settings.SetDynamicFriendScopeUserCommand.Execute(FriendOverviewProjection.GetFriendScopeKey(data.Friends[0]));
+            settings.SetDynamicFriendScopeGameCommand.Execute(FriendOverviewProjection.GetGameScopeKey(data.Games[0]));
+            context.Settle();
+
+            var read = cache.Reads.RowReads.Last();
+            Assert.IsNull(read.Unlocked, "locked rows too");
+            Assert.AreEqual("alice", read.FriendAccounts.Single().ExternalUserId);
+            CollectionAssert.AreEquivalent(
+                new[] { "Recent Only", "Alice Locked" },
+                settings.DynamicFriendAchievements.Select(item => item.DisplayName).ToArray());
         }
 
         [TestMethod]
@@ -2363,6 +2401,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var alice = settings.DynamicFriendSummaries.Single(item => item.DisplayName == "Alice");
             Assert.IsNotNull(alice.SetDynamicFriendScopeUserCommand);
             alice.SetDynamicFriendScopeUserCommand.Execute(null);
+            context.Settle();
 
             var aliceKey = FriendOverviewProjection.GetFriendScopeKey(data.Friends[0]);
             Assert.AreEqual(aliceKey, settings.DynamicFriendScopeUserKey);
@@ -2372,12 +2411,14 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsNotNull(gameOne.SetDynamicFriendScopeGameCommand);
             Assert.IsNotNull(gameOne.SetDynamicFriendScopeProviderCommand);
             gameOne.SetDynamicFriendScopeGameCommand.Execute(null);
+            context.Settle();
 
             Assert.AreEqual(FriendOverviewProjection.GetGameScopeKey(data.Games[0]), settings.DynamicFriendScopeGameKey);
             AssertFriendGameNames(settings.DynamicFriendGameSummaries, "Game One");
             AssertFriendAchievementNames(settings.DynamicFriendAchievements, "Recent Only");
 
             settings.ResetDynamicFriendScopeCommand.Execute(null);
+            context.Settle();
             var recent = settings.DynamicFriendAchievements.Single(item => item.DisplayName == "Recent Only");
             Assert.IsNotNull(recent.SetDynamicFriendScopeUserCommand);
             Assert.IsNotNull(recent.SetDynamicFriendScopeGameCommand);
@@ -2403,6 +2444,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             settings.SetDynamicFriendScopeUserCommand.Execute(aliceKey);
             settings.SetDynamicFriendScopeGameCommand.Execute(gogGameKey);
+            context.Settle();
 
             Assert.AreEqual(aliceKey, settings.DynamicFriendScopeUserKey);
             Assert.AreEqual(DynamicThemeViewKeys.All, settings.DynamicFriendScopeGameKey);
@@ -2455,6 +2497,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var settings = context.Settings;
 
             settings.SetDynamicFriendScopeProviderCommand.Execute("GOG");
+            context.Settle();
 
             Assert.AreEqual("GOG", settings.DynamicFriendScopeProviderKey);
             AssertFriendNames(settings.DynamicFriendSummaries, "Cora");
@@ -2473,6 +2516,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             settings.ResetDynamicFriendScopeCommand.Execute(null);
             settings.SetDynamicFriendScopeGameCommand.Execute(FriendOverviewProjection.GetGameScopeKey(data.Games[0]));
+            context.Settle();
 
             AssertFriendNames(settings.DynamicFriendSummaries, "Alice", "Bob");
             AssertFriendGameNames(settings.DynamicFriendGameSummaries, "Game One");
@@ -2515,6 +2559,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             void AssertRunningGameScopeApplied()
             {
+                context.Settle();
                 Assert.AreEqual("Steam", settings.DynamicFriendScopeProviderKey);
                 Assert.AreEqual(DynamicThemeViewKeys.All, settings.DynamicFriendScopeUserKey);
                 Assert.AreEqual(gameOneKey, settings.DynamicFriendScopeGameKey);
@@ -2558,15 +2603,10 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreNotEqual(DynamicThemeViewKeys.All, settings.DynamicFriendScopeUserKey);
 
             friendCache.Data = new FriendsOverviewData();
-            var previousLoadCount = friendCache.LoadFriendsOverviewDataCalls;
             friendCache.RaiseFriendCacheInvalidated();
-            WaitForConditionAsync(
-                () => friendCache.LoadFriendsOverviewDataCalls > previousLoadCount &&
-                      settings.DynamicFriendScopeProviderKey == DynamicThemeViewKeys.All &&
-                      settings.DynamicFriendScopeUserKey == DynamicThemeViewKeys.All &&
-                      settings.DynamicFriendScopeGameKey == DynamicThemeViewKeys.All &&
-                      settings.DynamicFriendSummaries.Count == 0,
-                timeoutMs: 3000).GetAwaiter().GetResult();
+            context.Settle();
+            context.Scheduler.Elapse();
+            context.Settle();
 
             Assert.AreEqual(DynamicThemeViewKeys.All, settings.DynamicFriendScopeProviderKey);
             Assert.AreEqual(DynamicThemeViewKeys.All, settings.DynamicFriendScopeUserKey);
@@ -2886,6 +2926,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
             var windowService = new FullscreenWindowService(api, settings, _ => { });
             var logger = new FakeLogger();
+            var scheduler = new ManualReadScheduler();
             var service = new ThemeIntegrationService(
                 api,
                 refreshRuntime,
@@ -2897,9 +2938,10 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 friendCache: friendCache,
                 resolveRunningGameTarget: resolveRunningGameTarget,
                 toggleAchievementCapstone: toggleAchievementCapstone,
-                toggleAchievementGoal: toggleAchievementGoal);
+                toggleAchievementGoal: toggleAchievementGoal,
+                friendScheduler: scheduler);
 
-            return new ServiceTestContext(settings, achievementDataService, logger, service);
+            return new ServiceTestContext(settings, achievementDataService, logger, service, scheduler);
         }
 
         private static void DrainDispatcher(Dispatcher dispatcher)
@@ -2929,26 +2971,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(condition(), "Timed out waiting for asynchronous theme binding update.");
         }
 
-        // Without a dispatcher the friend refresh applies on a pool thread and writes several lists in
-        // turn, so the first list being populated does not mean the apply has finished. Waits for the
-        // refresh task to complete before reading, so no assertion enumerates a list mid-write.
-        private static void WaitForFriendThemeData(ServiceTestContext context, string expectedFriendName = "Alice")
+        // Reading a friend list registers the theme's demand; the reads then run on the scheduler.
+        private static void WaitForFriendThemeData(ServiceTestContext context)
         {
-            WaitForConditionAsync(
-                () => context.Service.FriendRefreshTaskForTests.IsCompleted &&
-                      context.Settings.DynamicFriendSummaries.Any(item => item.DisplayName == expectedFriendName),
-                timeoutMs: 3000).GetAwaiter().GetResult();
-        }
-
-        // Selecting a friend and a game starts a pair-row fetch whose apply rewrites the friend lists
-        // on a pool thread when there is no dispatcher.
-        private static void WaitForPairFetch(ServiceTestContext context)
-        {
-            var fetch = context.Service.DynamicFriendPairFetchTask;
-            if (fetch != null)
-            {
-                Assert.IsTrue(fetch.Wait(3000), "Pair fetch did not complete.");
-            }
+            _ = context.Settings.DynamicFriendSummaries;
+            context.Settle();
         }
 
         private static HashSet<string> TrackPropertyChanges(INotifyPropertyChanged source)
@@ -3083,8 +3110,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             {
                 Friends = friends,
                 Games = games,
-                RecentUnlocks = new List<FriendAchievementDisplayItem> { allUnlocked[0] },
-                AllUnlockedAchievements = allUnlocked,
+                AllAchievements = allUnlocked,
                 FriendGameLinks = new List<FriendGameLinkItem>
                 {
                     new FriendGameLinkItem
@@ -3300,13 +3326,20 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 PlayniteAchievementsSettings settings,
                 AchievementDataService achievementDataService,
                 FakeLogger logger,
-                ThemeIntegrationService service)
+                ThemeIntegrationService service,
+                ManualReadScheduler scheduler)
             {
                 Settings = settings;
                 AchievementDataService = achievementDataService;
                 Logger = logger;
                 Service = service;
+                Scheduler = scheduler;
             }
+
+            public ManualReadScheduler Scheduler { get; }
+
+            /// <summary>Runs the queued friend reads and their applies.</summary>
+            public void Settle() => Scheduler.Drain();
 
             public PlayniteAchievementsSettings Settings { get; }
 
@@ -3326,21 +3359,23 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             public FakeFriendCache(FriendsOverviewData data)
             {
-                Data = data;
+                Reads = new InMemoryFriendsOverviewReads(data);
             }
 
-            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
+            public InMemoryFriendsOverviewReads Reads { get; }
 
-            public FriendsOverviewData Data { get; set; }
+            public IFriendsOverviewReads FriendReads => Reads;
 
-            public int LoadFriendsOverviewDataCalls { get; private set; }
-
-            public int FirstLoadThreadId { get; private set; }
-
-            public void RaiseFriendCacheInvalidated()
+            public FriendsOverviewData Data
             {
-                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
+                get => Reads.Data;
+                set => Reads.Data = value;
             }
+
+            public int LoadFriendsOverviewDataCalls => Reads.ListLoads;
+
+            public void RaiseFriendCacheInvalidated() =>
+                Reads.Feed.Raise(null, FriendCacheInvalidatedEventArgs.FullInvalidation);
 
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() =>
                 NullFriendCacheInvalidationBatch.Instance;
@@ -3436,29 +3471,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 string providerKey,
                 string externalUserId) =>
                 new Dictionary<string, FriendOwnershipRecency>();
-
-            public FriendsOverviewData LoadFriendsOverviewData(int recentLimit)
-            {
-                LoadFriendsOverviewDataCalls++;
-                if (FirstLoadThreadId == 0)
-                {
-                    FirstLoadThreadId = Thread.CurrentThread.ManagedThreadId;
-                }
-
-                return Data;
-            }
-
-            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) =>
-                Data;
-
-            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) =>
-                new FriendsOverviewData();
-
-            public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) =>
-                Data;
-
-            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() =>
-                Array.Empty<Guid>();
 
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() =>
                 new List<CurrentUserGameLabel>();
