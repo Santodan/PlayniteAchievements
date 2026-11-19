@@ -241,6 +241,9 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>The identities of the rows <paramref name="query"/> matches, in its order.</summary>
         public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query) => Read(db => SortedKeys(db, query));
 
+        /// <inheritdoc cref="AchievementQuerySql.SlicedKeys"/>
+        public IReadOnlyList<AchievementQuerySql.RowKey> SlicedKeys(AchievementQuery query, int slice) => Read(db => SlicedKeys(db, query, slice));
+
         /// <summary>The rows of <paramref name="keys"/>, in their order; a key whose row no longer matches is left out.</summary>
         public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
             Read(db => Rows(db, query, keys));
@@ -265,11 +268,15 @@ namespace PlayniteAchievements.Services.Database
             return db.Load<AchievementRowRecord>(command.Sql, command.Args).ToList();
         }
 
-        internal static IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(SQLiteDatabase db, AchievementQuery query)
-        {
-            var command = AchievementQuerySql.SortedKeys(query);
-            return db.Load<AchievementQuerySql.RowKey>(command.Sql, command.Args).ToList();
-        }
+        internal static IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(SQLiteDatabase db, AchievementQuery query) =>
+            Load(db, AchievementQuerySql.SortedKeys(query));
+
+        /// <summary>The keys <see cref="AchievementQuerySql.SlicedKeys"/> reads.</summary>
+        internal static IReadOnlyList<AchievementQuerySql.RowKey> SlicedKeys(SQLiteDatabase db, AchievementQuery query, int slice) =>
+            Load(db, AchievementQuerySql.SlicedKeys(query, slice));
+
+        private static IReadOnlyList<AchievementQuerySql.RowKey> Load(SQLiteDatabase db, AchievementQuerySql.Command command) =>
+            db.Load<AchievementQuerySql.RowKey>(command.Sql, command.Args).ToList();
 
         // The columns of the keyed rows only, which skips building them for every row the sort
         // passed over.
