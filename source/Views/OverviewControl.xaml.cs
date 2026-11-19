@@ -523,8 +523,8 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                // The host disposes this control before its Unloaded fires, and Dispose alone
-                // drops a pending save, so flush the last control bar toggle here.
+                // Dispose alone drops a pending save, and a host may dispose this control before
+                // its Unloaded fires, so flush the last control bar toggle here.
                 _controlBarPersist?.Flush();
                 _controlBarPersist?.Dispose();
                 _controlBarPersist = null;
