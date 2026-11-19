@@ -1111,6 +1111,7 @@ namespace PlayniteAchievements
                         _logger,
                         _gameCustomDataStore);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
+                    _gameCustomDataStore.AttachChangeFeed((_cacheManager as Services.Cache.CacheManager)?.Feed);
 
                     // Linked files are read after each refresh's provider work, for the games it covers.
                     _linkedFileSyncService = new Services.LinkedFiles.LinkedFileSyncService(
@@ -1123,15 +1124,6 @@ namespace PlayniteAchievements
                         _logger,
                         _managedCustomIconService);
                     _refreshService.LinkedFilePass = (scope, cancel) => _linkedFileSyncService.RunPassAsync(scope, cancel);
-
-                    // Reconcile the cache DB's AchievementFilters mirror against custom data
-                    // before any summary read (theme wiring, projection warm). Synchronous and
-                    // cheap when unchanged; also covers legacy custom-data migrations that
-                    // bypass CustomDataChanged.
-                    using (PerfScope.StartStartup(_logger, "PluginCtor.AchievementFilterResync", thresholdMs: 50))
-                    {
-                        _achievementDataService.SyncAllAchievementFiltersFromCustomData();
-                    }
 
                     _notifications = new NotificationPublisher(api, settings, _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
