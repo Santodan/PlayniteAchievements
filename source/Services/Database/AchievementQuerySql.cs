@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Services.Database
 
         private const string TrophySql = "NULLIF(LOWER(TRIM(r.TrophyType)), '')";
 
-        // Matches SummaryCacheReader's platform score rule: the derived Softcore tag marks the unlock.
+        // Platform scores leave out softcore unlocks: the derived Softcore tag marks the unlock.
         private const string SoftcoreSql = "('|' || COALESCE(r.Tags, '') || '|') LIKE '%|Softcore|%'";
 
         // Whether the friend's ownership row came from their game list or carries playtime, as
@@ -251,6 +251,7 @@ namespace PlayniteAchievements.Services.Database
                 COUNT(Percent) AS PercentCount,
                 MIN(Percent) AS MinPercent,
                 SUM(Hidden * (1 - Unlocked)) AS HiddenLockedCount,
+                SUM(Authored) AS AuthoredCount,
                 MIN(CategoryOrder) AS MinCategoryOrder,
                 MIN(DisplayOrder) AS FirstDisplayOrder
             FROM (" + TotalsRows(query, group, args) + @")
@@ -270,6 +271,7 @@ namespace PlayniteAchievements.Services.Database
                 " + TrophySql + @" AS Trophy,
                 CASE WHEN r.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
                 CASE WHEN r.Hidden = 1 THEN 1 ELSE 0 END AS Hidden,
+                r.IsAuthored AS Authored,
                 pa_prestige(r.GlobalPercentUnlocked, r.Rarity) AS Prestige,
                 CASE WHEN r.Points > 0 THEN r.Points ELSE 0 END AS Points,
                 CASE WHEN " + SoftcoreSql + @" THEN 1 ELSE 0 END AS Softcore,
@@ -286,7 +288,7 @@ namespace PlayniteAchievements.Services.Database
 
             // Definition values are the same on every user's row; the unlock is the best of them.
             return @"SELECT Key, MAX(Unlocked) AS Unlocked, MAX(Tier) AS Tier, MAX(Trophy) AS Trophy,
-                MAX(IsCapstone) AS IsCapstone, MAX(Hidden) AS Hidden, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
+                MAX(IsCapstone) AS IsCapstone, MAX(Hidden) AS Hidden, MAX(Authored) AS Authored, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
                 MIN(Softcore) AS Softcore, MAX(CASE WHEN Unlocked = 1 THEN UnlockTimeUtc END) AS UnlockTimeUtc,
                 MAX(Percent) AS Percent, MIN(CategoryOrder) AS CategoryOrder, MIN(DisplayOrder) AS DisplayOrder
             FROM (" + rows + @")
@@ -388,6 +390,13 @@ namespace PlayniteAchievements.Services.Database
                     ? "0"
                     : "r.PlayniteGameId IN (" + string.Join(", ", query.GameIds.Select(_ => "?")) + ")");
                 args.AddRange(query.GameIds.Select(id => (object)id.ToString("D")));
+            }
+
+            if (query.ExceptGameIds != null)
+            {
+                // Inlined: a Guid's text is hex and dashes only, and the list can outgrow a parameter limit.
+                conditions.Add("COALESCE(r.PlayniteGameId, '') NOT IN (" +
+                    string.Join(", ", query.ExceptGameIds.Select(id => "'" + id.ToString("D") + "'")) + ")");
             }
 
             if (!string.IsNullOrWhiteSpace(query.GameProviderKey))
@@ -562,6 +571,11 @@ namespace PlayniteAchievements.Services.Database
                     return KeySql(query, AchievementGroup.Friend) + " || char(30) || " + ProviderGameKeySql;
                 case AchievementGroup.Category:
                     return "r.Category";
+                case AchievementGroup.GameDay:
+                    return "COALESCE(r.PlayniteGameId, '') || char(31) || COALESCE(" + KeySql(query, AchievementGroup.Day) + ", '')";
+                case AchievementGroup.Tally:
+                    return "COALESCE(r.PlayniteGameId, '') || char(31) || COALESCE(r.Tags, '') || char(31) || " + RarityTierSql +
+                           " || char(31) || COALESCE(" + TrophySql + ", '') || char(31) || (r.IsCapstone IS 1)";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group), group, null);
             }
