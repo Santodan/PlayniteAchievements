@@ -2951,12 +2951,13 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>
         /// Friend summaries, game summaries and ownership links, without achievement rows; with a
-        /// Playnite game, the friends and links of that game and their counts in it.
+        /// Playnite game, the friends and links of that game and their counts in it. A failed read
+        /// throws, so a live query keeps its last result.
         /// </summary>
         public FriendsOverviewData LoadFriendLists(Guid? playniteGameId = null)
         {
             PrimeFileCache();
-            return WithReadDb(db =>
+            return ReadOrThrow(db =>
             {
                 using (PerfScope.Start(_logger, "Friends.LoadLists", thresholdMs: 15))
                 {
