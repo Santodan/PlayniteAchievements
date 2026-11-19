@@ -99,6 +99,7 @@ namespace PlayniteAchievements.ViewModels
         // sort and cap describe.
         private PagedRows<AchievementDisplayItem> _recent;
         private string _recentKey;
+        private bool _recentDataChanged;
         private int? _recentCap;
         private bool _recentDecorationPending;
 
@@ -1825,7 +1826,7 @@ namespace PlayniteAchievements.ViewModels
             // The data changed, so the games the achievement filters keep and the grid's rows
             // are read again.
             _matchingGames?.SetQuery(_matchingGames.Query);
-            _recentKey = null;
+            _recentDataChanged = true;
             ApplyLeftFilters();
 
             // A full snapshot replaces every game's rows, so the selected game's own rows are
@@ -2711,6 +2712,8 @@ namespace PlayniteAchievements.ViewModels
 
             query = ApplyRecentSort(query);
             var key = AchievementQuerySql.KeyOf(query);
+            var dataChanged = _recentDataChanged;
+            _recentDataChanged = false;
             var cap = PersistedSettings.NormalizeGridMaxRows(_settings?.Persisted?.OverviewRecentAchievementsGridMaxRows);
             if (_recent == null || cap != _recentCap)
             {
@@ -2725,7 +2728,8 @@ namespace PlayniteAchievements.ViewModels
                     () => new AchievementDisplayItem { IsPlaceholder = true },
                     _scheduler,
                     cap ?? 0,
-                    onError: ex => _logger?.Error(ex, "Failed to load the overview's achievement rows."));
+                    onError: ex => _logger?.Error(ex, "Failed to load the overview's achievement rows."),
+                    update: (kept, fresh) => kept.RefreshFrom(fresh));
                 _recent.CollectionChanged += OnRecentRowsChanged;
                 OnPropertyChanged(nameof(RecentAchievements));
                 return;
@@ -2735,6 +2739,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 _recentKey = key;
                 _recent.SetQuery(query);
+            }
+            else if (dataChanged)
+            {
+                _recent.Refresh();
             }
         }
 
