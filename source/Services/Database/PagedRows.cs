@@ -24,7 +24,8 @@ namespace PlayniteAchievements.Services.Database
     /// first load. A load reads the sorted keys of every matching row and keeps them; a page is
     /// then the columns of a slice of those keys. Reading an index that is not loaded hands out a
     /// placeholder kept for that index and loads its page; when the page arrives, each
-    /// placeholder handed out is replaced in place.
+    /// placeholder handed out is brought up to date as the row (an <c>Item[]</c> change), or
+    /// replaced when the list has no update.
     /// <para>
     /// How reads load: a read moves the anchor, and pages more than one page from the anchor are
     /// neither loaded nor kept past <see cref="MaxLoadedPages"/>, so a scrolled grid loads only
@@ -88,7 +89,7 @@ namespace PlayniteAchievements.Services.Database
         /// <param name="loadRows">Runs off the UI thread; the rows of the keys, in their order.</param>
         /// <param name="newPlaceholder">A row standing in for one not loaded yet.</param>
         /// <param name="maxRows">The most rows the list holds; 0 for no cap.</param>
-        /// <param name="update">Brings a row handed out up to date from a new read of its key; without it the row is replaced.</param>
+        /// <param name="update">Brings a row or placeholder handed out up to date from a new read of its key; without it the row is replaced.</param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
@@ -150,11 +151,14 @@ namespace PlayniteAchievements.Services.Database
                     throw new ArgumentOutOfRangeException(nameof(index));
                 }
 
+                // A grid whose rows differ in height reads every index on each layout pass, so a
+                // read only looks for a load when it wants or keeps a page it did not before.
                 var page = index / PageSize;
+                var load = false;
                 if (_notifying)
                 {
                     // A binding reading again because the list announced a change: the index is bound.
-                    _keptPages.Add(page);
+                    load = _keptPages.Add(page);
                 }
                 else
                 {
@@ -171,17 +175,18 @@ namespace PlayniteAchievements.Services.Database
                         // A sweep: the consumer holds every row it read, from the first.
                         for (var swept = index - _runStart == WholeLoadRows ? _runStart / PageSize : page; swept <= page; swept++)
                         {
-                            _keptPages.Add(swept);
+                            load |= _keptPages.Add(swept);
                         }
 
                         _anchor = _runStart;
                     }
                 }
 
-                Want(page - 1);
-                Want(page);
-                Want(page + 1);
-                LoadNextPage();
+                if (Want(page - 1) | Want(page) | Want(page + 1) | load)
+                {
+                    LoadNextPage();
+                }
+
                 return Peek(index) ?? NewPlaceholder(index);
             }
             set => throw new NotSupportedException();
@@ -365,13 +370,9 @@ namespace PlayniteAchievements.Services.Database
             a.UserId == b.UserId && a.GameId == b.GameId && a.DefinitionId == b.DefinitionId &&
             a.PlayniteGameId == b.PlayniteGameId && a.ApiName == b.ApiName;
 
-        private void Want(int page)
-        {
-            if (page >= 0 && page * PageSize < _count && !IsLoaded(page))
-            {
-                _wantedPages.Add(page);
-            }
-        }
+        // True when the page was not wanted yet.
+        private bool Want(int page) =>
+            page >= 0 && page * PageSize < _count && !IsLoaded(page) && _wantedPages.Add(page);
 
         private bool IsLoaded(int page) => _pages.ContainsKey(page) && !_stalePages.Contains(page);
 
@@ -473,6 +474,15 @@ namespace PlayniteAchievements.Services.Database
                 if (kept != null && _update != null && sameKey?.Invoke(index) == true)
                 {
                     _update(kept, rows[offset]);
+                    continue;
+                }
+
+                if (kept == null && before != null && _update != null && index < _count)
+                {
+                    // A placeholder handed out becomes the row, so no consumer rebuilds what shows it.
+                    _update(before, rows[offset]);
+                    items[offset] = before;
+                    _changed = true;
                     continue;
                 }
 
