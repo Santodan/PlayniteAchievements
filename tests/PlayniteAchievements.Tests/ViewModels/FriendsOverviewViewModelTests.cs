@@ -797,6 +797,31 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void SettingsSaves_RereadOnlyForTheSettingsWindowOrChangedFriendEntries()
+        {
+            using var h = new Harness(CreateData()).Load();
+            var listLoads = h.Reads.ListLoads;
+
+            // View state: a Showcase page, a window position.
+            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            h.Settle();
+            Assert.AreEqual(listLoads, h.Reads.ListLoads, "a view-state save re-reads nothing");
+
+            h.Settings.Persisted.AddOrUpdateFriend("Steam", "alice", null, null, null, FriendSettingsSource.AutoDiscovered).IsFavorite = true;
+            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            h.Settle();
+            Assert.AreEqual(listLoads + 1, h.Reads.ListLoads, "a changed friend entry re-reads the lists");
+
+            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            h.Settle();
+            Assert.AreEqual(listLoads + 1, h.Reads.ListLoads, "the same entries do not re-read again");
+
+            PlayniteAchievementsPlugin.NotifySettingsSaved(settingsWindow: true);
+            h.Settle();
+            Assert.AreEqual(listLoads + 2, h.Reads.ListLoads, "a settings window save re-reads");
+        }
+
+        [TestMethod]
         public void FeedChanges_RereadTheQueriesTheyTouch_AtTheEndOfTheWindow()
         {
             var data = CreateData();
