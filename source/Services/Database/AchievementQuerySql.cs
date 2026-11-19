@@ -557,7 +557,8 @@ namespace PlayniteAchievements.Services.Database
             "COALESCE(NULLIF(TRIM(g.ProviderPlatformKey), ''), r.ProviderKey, (SELECT COALESCE(NULLIF(TRIM(pg.ProviderPlatformKey), ''), pg.ProviderKey) " +
             "FROM Games pg WHERE pg.PlayniteGameId = r.PlayniteGameId LIMIT 1))";
 
-        private const string HasProgressSql = "(r.ProgressNum IS NOT NULL AND r.ProgressDenom > 0)";
+        // Never NULL, so NOT of it is the rows without progress.
+        private const string HasProgressSql = "(r.ProgressNum IS NOT NULL AND COALESCE(r.ProgressDenom, 0) > 0)";
 
         private const string HasNoteSql = "TRIM(COALESCE(r.Note, '')) <> ''";
 
