@@ -18,21 +18,21 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
             <!-- ================== SYNC & UPDATES ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Section_SyncUpdates}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <!-- Periodic Updates -->
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_EnablePeriodicUpdates}">
                         <CheckBox IsChecked="{Binding Persisted.EnablePeriodicUpdates}"/>
                     </controls:SettingRow>
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                IsEnabled="{Binding Persisted.EnablePeriodicUpdates}"
-                                Grid.IsSharedSizeScope="True">
+                                IsEnabled="{Binding Persisted.EnablePeriodicUpdates}">
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_HoursBetweenUpdates}">
                             <TextBox Text="{Binding Persisted.PeriodicUpdateHours, UpdateSourceTrigger=PropertyChanged}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
@@ -46,8 +46,7 @@
                             <CheckBox IsChecked="{Binding Persisted.EnableFriendsPeriodicUpdates}"/>
                         </controls:SettingRow>
                         <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                    IsEnabled="{Binding Persisted.EnableFriendsPeriodicUpdates}"
-                                    Grid.IsSharedSizeScope="True">
+                                    IsEnabled="{Binding Persisted.EnableFriendsPeriodicUpdates}">
                             <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_HoursBetweenUpdates}">
                                 <TextBox Text="{Binding Persisted.FriendsPeriodicUpdateHours, UpdateSourceTrigger=PropertyChanged}"
                                          Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
@@ -62,8 +61,7 @@
                         <CheckBox IsChecked="{Binding Persisted.EnableInGamePolling}"/>
                     </controls:SettingRow>
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                IsEnabled="{Binding Persisted.EnableInGamePolling}"
-                                Grid.IsSharedSizeScope="True">
+                                IsEnabled="{Binding Persisted.EnableInGamePolling}">
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_InGamePollIntervalSeconds}">
                             <TextBox Text="{Binding Persisted.InGamePollIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
@@ -76,8 +74,7 @@
                                 <CheckBox IsChecked="{Binding Persisted.InGamePollRefreshFriends}"/>
                             </controls:SettingRow>
                             <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                        IsEnabled="{Binding Persisted.InGamePollRefreshFriends}"
-                                        Grid.IsSharedSizeScope="True">
+                                        IsEnabled="{Binding Persisted.InGamePollRefreshFriends}">
                                 <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_InGameFriendRefreshMultiplier}">
                                     <TextBox Text="{Binding Persisted.InGameFriendRefreshMultiplier, UpdateSourceTrigger=PropertyChanged}"
                                              Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
