@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Views
         private PlayniteAchievementsSettings _settings;
         private readonly ProviderRegistry _providerRegistry;
         private readonly IPlayniteAPI _api;
-        private readonly ThemeDiscoveryService _themeDiscovery;
+        private readonly ThemeDiscoveryCache _discoveredThemes;
         private readonly ThemeMigrationService _themeMigration;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -241,11 +241,12 @@ namespace PlayniteAchievements.Views
             _providers = new ObservableCollection<ProviderStatus>();
             _availableThemes = new ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
             _revertableThemes = new ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
-            _themeDiscovery = new ThemeDiscoveryService(_logger, _api);
+            _discoveredThemes = _plugin.DiscoveredThemes;
             _themeMigration = new ThemeMigrationService(
                 _logger,
                 _settings,
-                () => _plugin.SavePluginSettings(_settings));
+                () => _plugin.SavePluginSettings(_settings),
+                _discoveredThemes);
 
             var modes = _refreshService.GetRefreshModes();
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -263,7 +264,7 @@ namespace PlayniteAchievements.Views
             DataContext = this;
 
             RefreshProviderStatuses();
-            LoadAvailableThemes();
+            _ = LoadAvailableThemesAsync();
         }
 
         /// <summary>
@@ -785,53 +786,24 @@ namespace PlayniteAchievements.Views
         });
 
         /// <summary>
-        /// Loads the list of themes that need migrating.
+        /// Loads the lists of themes to migrate and revert from the session's theme discovery,
+        /// waiting on the startup scan off the UI thread if it has not finished.
         /// </summary>
-        private void LoadAvailableThemes()
-        {
-            // Ensure we're on the UI thread before accessing ObservableCollection
-            if (Dispatcher.CheckAccess())
-            {
-                LoadAvailableThemesInternal();
-            }
-            else
-            {
-                Dispatcher.BeginInvoke(new Action(LoadAvailableThemesInternal));
-            }
-        }
-
-        private void LoadAvailableThemesInternal()
+        private async Task LoadAvailableThemesAsync()
         {
             try
             {
+                var themes = await _discoveredThemes.GetThemesAsync();
+
                 _availableThemes.Clear();
                 _revertableThemes.Clear();
 
-                var themesPath = _themeDiscovery.GetDefaultThemesPath();
-                if (string.IsNullOrEmpty(themesPath))
-                {
-                    _logger.Info("No themes path found, skipping theme discovery.");
-                    ShowNoThemesMessage = true;
-                    ShowNoRevertableThemesMessage = true;
-                    OnPropertyChanged(nameof(HasThemesToMigrate));
-                    OnPropertyChanged(nameof(HasRevertableThemes));
-                    UpdateThemeMigrationModeButtonState();
-                    return;
-                }
-
-                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
-
-                // Load themes that need migration
-                var themesNeedingMigration = themes.Where(t => t.NeedsMigration).ToList();
-                foreach (var theme in themesNeedingMigration)
+                foreach (var theme in themes.Where(t => t.NeedsMigration))
                 {
                     _availableThemes.Add(theme);
                 }
 
-                // Load themes that can be reverted
-                var themesWithBackups = themes.Where(t => t.HasBackup).ToList();
-                foreach (var theme in themesWithBackups)
+                foreach (var theme in themes.Where(t => t.HasBackup))
                 {
                     _revertableThemes.Add(theme);
                 }
@@ -878,7 +850,7 @@ namespace PlayniteAchievements.Views
                         NotificationType.Info));
                 }
 
-                LoadAvailableThemes();
+                await LoadAvailableThemesAsync();
             }
             else
             {
@@ -907,7 +879,7 @@ namespace PlayniteAchievements.Views
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
-                LoadAvailableThemes();
+                await LoadAvailableThemesAsync();
             }
             else
             {
