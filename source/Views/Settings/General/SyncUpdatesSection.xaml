@@ -151,7 +151,7 @@
 
                     <!-- Advanced -->
                     <Expander IsExpanded="False"
-                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                              Background="Transparent"
                               BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                               BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                               Margin="{StaticResource PlayAch.Thickness.Top.Lg}"
