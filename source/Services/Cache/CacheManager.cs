@@ -217,7 +217,8 @@ namespace PlayniteAchievements.Services.Cache
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
             int limit,
             IEnumerable<Guid> excludedGameIds,
-            Func<Guid, CachedGameSummaryData> authoredGame)
+            Func<Guid, CachedGameSummaryData> authoredGame,
+            bool days)
         {
             using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
             {
@@ -231,7 +232,7 @@ namespace PlayniteAchievements.Services.Cache
                     }
 
                     // On the store's read connection, off _sync.
-                    return _store.LoadCachedSummaryData(limit, excludedGameIds, authoredGame) ?? new CachedSummaryData();
+                    return _store.LoadCachedSummaryData(limit, excludedGameIds, authoredGame, days) ?? new CachedSummaryData();
                 }
                 catch (Exception ex)
                 {
@@ -1223,10 +1224,8 @@ namespace PlayniteAchievements.Services.Cache
                 RaiseGameCacheUpdatedEvent(cacheKey);
                 RaiseCacheDeltaUpdatedEvent(cacheKey, CacheDeltaOperationType.Remove);
 
-                // Scoped, like the in-game write path above. A full invalidation makes
-                // LibraryProjectionService treat this as unscoped, which skips its idle delay
-                // and schedules an eager whole-library projection rebuild -- for one game
-                // leaving the cache. The id is already in hand.
+                // Scoped, like the in-game write path above: the id is in hand, and a full
+                // invalidation would rebuild every read model for one game leaving the cache.
                 RaiseCacheInvalidatedEvent(CacheInvalidatedEventArgs.Scoped(new[] { playniteGameId }));
             }
             catch (Exception ex)
