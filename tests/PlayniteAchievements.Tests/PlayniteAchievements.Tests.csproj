@@ -825,6 +825,8 @@
     <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewDataCoordinator.cs" Link="Source\Services\Friends\FriendsOverviewDataCoordinator.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendsOverviewDerivations.cs" Link="Source\Services\Friends\FriendsOverviewDerivations.cs" />
+    <Compile Include="..\..\source\Services\Friends\FriendsOverviewLists.cs" Link="Source\Services\Friends\FriendsOverviewLists.cs" />
+    <Compile Include="..\..\source\Services\Friends\FriendsOverviewReads.cs" Link="Source\Services\Friends\FriendsOverviewReads.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendDisplayNameResolver.cs" Link="Source\Services\Friends\FriendDisplayNameResolver.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendOverviewProjection.cs" Link="Source\Services\Friends\FriendOverviewProjection.cs" />
     <Compile Include="..\..\source\Services\Friends\FriendImageCacheKeys.cs" Link="Source\Services\Friends\FriendImageCacheKeys.cs" />
