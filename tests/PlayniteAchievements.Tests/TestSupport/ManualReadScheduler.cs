@@ -19,10 +19,31 @@ namespace PlayniteAchievements.Tests.TestSupport
 
         public int PendingTimers { get { lock (_sync) { return _timers.Count; } } }
 
-        public void Run(Action work) { lock (_sync) { _background.Enqueue(work); } }
+        /// <summary>Runs reads and UI work as they are queued, for tests that read synchronously.</summary>
+        public bool Immediate { get; set; }
+
+        public void Run(Action work)
+        {
+            if (Immediate)
+            {
+                work();
+                return;
+            }
+
+            lock (_sync) { _background.Enqueue(work); }
+        }
 
         // Code under test may post from another thread; the queued work still runs on the test's.
-        public void Post(Action action) { lock (_sync) { _ui.Enqueue(action); } }
+        public void Post(Action action)
+        {
+            if (Immediate)
+            {
+                action();
+                return;
+            }
+
+            lock (_sync) { _ui.Enqueue(action); }
+        }
 
         /// <summary>The delay of every <see cref="PostAfter"/>, in call order.</summary>
         public List<TimeSpan> Delays { get; } = new List<TimeSpan>();
