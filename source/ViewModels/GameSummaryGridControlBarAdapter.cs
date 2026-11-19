@@ -47,8 +47,7 @@ namespace PlayniteAchievements.ViewModels
         /// <param name="achievementFilters">
         /// True to add the Tags filter after Game and the Rarity and Trophy filters last. They
         /// narrow which achievements count, never which games: <see cref="Apply"/> ignores them,
-        /// and the widget counts the kept games' achievements through
-        /// <see cref="MatchesAchievement"/> and <see cref="MatchesTally"/>.
+        /// and the widget counts the kept games' achievements through <see cref="MatchesTally"/>.
         /// </param>
         protected GameSummaryGridControlBarAdapter(
             bool chartFilters,
@@ -125,10 +124,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        /// <summary>True for an achievement row the applying achievement filters keep.</summary>
-        public bool MatchesAchievement(AchievementDisplayItem row) =>
-            !AchievementFiltersApply ||
-            ((TagFilter?.MatchesRow(row) ?? true) && (TierFilters?.Matches(row) ?? true));
+        /// <summary><paramref name="query"/> narrowed by the applying achievement filters, as <see cref="MatchesTally"/> narrows tallies.</summary>
+        internal Services.Database.AchievementQuery ApplyAchievementFilters(Services.Database.AchievementQuery query)
+        {
+            if (!AchievementFiltersApply || TierFilters == null)
+            {
+                return query;
+            }
+
+            return TierFilters.ApplyTo(TagFilter.HasSelection ? query.WhereClassification(TagFilter.SelectedTags) : query);
+        }
 
         /// <summary>True for a tally whose achievements the applying achievement filters keep.</summary>
         public bool MatchesTally(PlayniteAchievements.Models.Achievements.AchievementTally tally) =>
