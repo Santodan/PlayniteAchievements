@@ -15,6 +15,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
@@ -267,9 +268,19 @@ namespace PlayniteAchievements.Views.Controls
 
         public bool HasAnyFavorites => (bool)GetValue(HasAnyFavoritesProperty);
 
+        /// <summary>
+        /// The rows a scan for a property of the source reads: all of them, or for a source that
+        /// holds only some rows (<see cref="IPartiallyLoadedRows"/>) the loaded ones, so a scan
+        /// never walks or loads rows nobody looks at.
+        /// </summary>
+        private static IEnumerable<AchievementDisplayItem> Scannable(IEnumerable<AchievementDisplayItem> source) =>
+            source is IPartiallyLoadedRows partial
+                ? partial.LoadedItems.OfType<AchievementDisplayItem>()
+                : source;
+
         private void RecomputeHasAnyFavorites()
         {
-            var hasAny = ItemsSource?.Any(item => item?.FriendIsFavorite == true) ?? false;
+            var hasAny = Scannable(ItemsSource)?.Any(item => item?.FriendIsFavorite == true) ?? false;
             SetValue(HasAnyFavoritesPropertyKey, hasAny);
         }
 
@@ -1207,7 +1218,7 @@ namespace PlayniteAchievements.Views.Controls
         // hidden mid-load before data arrives.
         private bool IsCategorySourceSingleGame()
         {
-            var items = ItemsSource;
+            var items = Scannable(ItemsSource);
             if (items == null)
             {
                 return true;
@@ -1243,7 +1254,7 @@ namespace PlayniteAchievements.Views.Controls
         // exactly the case nesting exists for.
         private bool HasMultipleCategories()
         {
-            var items = CategorySummarySource ?? ItemsSource;
+            var items = Scannable(CategorySummarySource ?? ItemsSource);
             if (items == null)
             {
                 return false;
@@ -1740,7 +1751,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             // Build from the unfiltered source (when provided) so achievement filters applied while
             // drilled never change the category rollups; fall back to ItemsSource otherwise.
-            var items = (CategorySummarySource ?? ItemsSource)?.ToList();
+            var items = Scannable(CategorySummarySource ?? ItemsSource)?.ToList();
             // Every node of the tree at once rather than one level per click: the list is the whole
             // map, so any category is one click away and one click back.
             //
@@ -2232,7 +2243,7 @@ namespace PlayniteAchievements.Views.Controls
                 var drillSource = DrillIntoCategorySummarySource && CategorySummarySource != null
                     ? CategorySummarySource
                     : ItemsSource;
-                var filtered = (drillSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                var filtered = (Scannable(drillSource) ?? Enumerable.Empty<AchievementDisplayItem>())
                     .Where(i => i != null && (selfOnly
                         ? CategoryPathHelper.IsSame(i.CategoryLabel, drilled)
                         : CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled)))
@@ -2388,7 +2399,7 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         private void ReconcileDrillPath()
         {
-            var labels = (CategorySummarySource ?? ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            var labels = (Scannable(CategorySummarySource ?? ItemsSource) ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(i => i != null)
                 .Select(i => i.CategoryLabel)
                 .ToList();
@@ -2475,7 +2486,7 @@ namespace PlayniteAchievements.Views.Controls
             // drilled subtree's achievements rather than the whole source - the header row's
             // counts, art, and type all resolve from its own subtree, so the scoped build
             // produces the same row without a second whole-tree pass.
-            var items = (CategorySummarySource ?? ItemsSource)?
+            var items = Scannable(CategorySummarySource ?? ItemsSource)?
                 .Where(i => i != null && CategoryPathHelper.IsSelfOrDescendantOf(i.CategoryLabel, drilled))
                 .ToList();
             CategorySummaryItem match = null;
@@ -2679,7 +2690,7 @@ namespace PlayniteAchievements.Views.Controls
                 return true;
             }
 
-            var fallback = (ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            var fallback = (Scannable(ItemsSource) ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Select(item => item?.PlayniteGameId)
                 .Where(id => id.HasValue && id.Value != Guid.Empty)
                 .Select(id => id.Value)
@@ -3333,7 +3344,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void RefreshCategoryLabelDisplays()
         {
-            foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+            foreach (var item in Scannable(ItemsSource) ?? Enumerable.Empty<AchievementDisplayItem>())
             {
                 item?.RefreshCategoryLabelDisplay();
             }
@@ -3501,7 +3512,7 @@ namespace PlayniteAchievements.Views.Controls
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                foreach (var item in ItemsSource ?? Enumerable.Empty<AchievementDisplayItem>())
+                foreach (var item in Scannable(ItemsSource) ?? Enumerable.Empty<AchievementDisplayItem>())
                 {
                     if (item != null && (e?.GameId == null || item.PlayniteGameId == e.GameId))
                     {
@@ -3527,13 +3538,17 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            foreach (var item in AchievementsDataGrid.Items)
+            // The realized rows only: walking Items would visit every row of the source.
+            var presenter = VisualTreeHelpers.FindVisualChild<System.Windows.Controls.Primitives.DataGridRowsPresenter>(AchievementsDataGrid);
+            if (presenter == null)
             {
-                if (AchievementsDataGrid.ItemContainerGenerator.ContainerFromItem(item) is DataGridRow row)
-                {
-                    ApplyFixedRowHeight(row);
-                    ApplyRowHighlight(row);
-                }
+                return;
+            }
+
+            foreach (var row in presenter.Children.OfType<DataGridRow>())
+            {
+                ApplyFixedRowHeight(row);
+                ApplyRowHighlight(row);
             }
         }
 
