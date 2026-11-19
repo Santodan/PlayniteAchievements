@@ -411,7 +411,6 @@ namespace PlayniteAchievements.Services.Database
             new Dictionary<string, CachedCurrentUserState>(StringComparer.OrdinalIgnoreCase);
         private readonly string _pluginUserDataPath;
         private readonly CacheCsvExporter _csvExporter;
-        private readonly SummaryCacheReader _summaryReader;
         internal SQLiteDatabase _db;
         private bool _initialized;
 
@@ -438,7 +437,6 @@ namespace PlayniteAchievements.Services.Database
             _schemaManager = new SqlNadoSchemaManager(logger, DatabasePath, baseDir);
             _fileCachePrimer = new DatabaseFileCachePrimer(logger, new[] { DatabasePath, DatabasePath + "-wal" });
             _csvExporter = new CacheCsvExporter(this);
-            _summaryReader = new SummaryCacheReader(this);
         }
 
         public void EnsureInitialized()
@@ -934,39 +932,27 @@ namespace PlayniteAchievements.Services.Database
             return detail;
         }
 
-        public CachedSummaryData LoadCachedSummaryData(int recentAchievementDetailLimit = 0)
+        /// <inheritdoc cref="SummaryCacheReader.Load"/>
+        public CachedSummaryData LoadCachedSummaryData(
+            int limit,
+            IEnumerable<Guid> excludedGameIds,
+            Func<Guid, CachedGameSummaryData> authoredGame)
         {
-            return _summaryReader.LoadCachedSummaryData(recentAchievementDetailLimit);
-        }
-
-        /// <summary>
-        /// One game's contribution to the library summary, for patching a cached whole-library
-        /// result instead of re-reading it.
-        /// </summary>
-        public CachedSummaryData LoadCachedSummaryDataForGame(Guid playniteGameId)
-        {
-            return _summaryReader.LoadCachedSummaryDataForGame(playniteGameId);
-        }
-
-        /// <inheritdoc cref="SummaryCacheReader.LoadUnlockedApiNames"/>
-        public Dictionary<Guid, HashSet<string>> LoadUnlockedApiNames(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
-        {
-            return _summaryReader.LoadUnlockedApiNames(wanted);
-        }
-
-        /// <inheritdoc cref="SummaryCacheReader.LoadAchievementTallyStates"/>
-        public Dictionary<Guid, Dictionary<string, AchievementTallyState>> LoadAchievementTallyStates(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
-            ISet<Guid> providerCapstoneGames = null)
-        {
-            return _summaryReader.LoadAchievementTallyStates(wanted, providerCapstoneGames);
-        }
-
-        /// <inheritdoc cref="SummaryCacheReader.LoadTalliesForGame"/>
-        public AchievementTally[] LoadTalliesForGame(Guid playniteGameId)
-        {
-            return _summaryReader.LoadTalliesForGame(playniteGameId);
+            PrimeFileCache();
+            var identities = LoadAllCurrentUserGameHeadersByCacheKey().Select(header => new CachedGameSummaryData
+            {
+                CacheKey = header.Key,
+                PlayniteGameId = header.Value.PlayniteGameId,
+                ProviderKey = header.Value.ProviderKey,
+                ProviderPlatformKey = header.Value.ProviderPlatformKey,
+                RaritySource = header.Value.RaritySource,
+                AppId = header.Value.AppId,
+                ProviderGameKey = header.Value.ProviderGameKey,
+                GameName = header.Value.GameName,
+                HasAchievements = header.Value.HasAchievements,
+                LastUpdatedUtc = header.Value.LastUpdatedUtc
+            }).ToList();
+            return WithReadDb(db => SummaryCacheReader.Load(db, identities, authoredGame, limit, excludedGameIds, MakeAbsolutePath));
         }
 
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
