@@ -1274,7 +1274,7 @@ namespace PlayniteAchievements.Services.Database
                                 }
                                 else if (db.ExecuteScalar<long>(
                                     "SELECT COUNT(1) FROM PlatformDefinitions WHERE GameId = ?;",
-                                    gameId) == 0)
+                                    new object[] { gameId }) == 0)
                                 {
                                     UpsertAchievementDefinitions(
                                         db,
@@ -3484,7 +3484,7 @@ namespace PlayniteAchievements.Services.Database
             {
                 var progressCount = db.ExecuteScalar<long>(
                     "SELECT COUNT(*) FROM UserGameProgress WHERE GameId = ?;",
-                    candidate.Id);
+                    new object[] { candidate.Id });
                 if (progressCount > keeperProgressCount ||
                     (progressCount == keeperProgressCount &&
                      string.CompareOrdinal(candidate.LastUpdatedUtc, keeper?.LastUpdatedUtc) > 0))
