@@ -191,7 +191,10 @@ namespace PlayniteAchievements.ViewModels
             _progressTracker.PropertyChanged += OnProgressTrackerChanged;
 
             // Initialize collections
-            GameSummaries = new BulkObservableCollection<GameSummaryItem>();
+            // Skeleton rows until the first snapshot lands (SyncGameSummariesDisplay keeps them).
+            var gameSummaries = new BulkObservableCollection<GameSummaryItem>();
+            gameSummaries.ReplaceAll(PlaceholderRows.Create(() => new GameSummaryItem { IsPlaceholder = true }));
+            GameSummaries = gameSummaries;
             SelectedGameAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             SelectedGameAllAchievements = new BulkObservableCollection<AchievementDisplayItem>();
             CompletenessFilterOptions = new ObservableCollection<string>();
@@ -963,9 +966,12 @@ namespace PlayniteAchievements.ViewModels
         public ScoreCardBadgePosition ScoreCard2BadgePosition =>
             ShowcaseWidgetOptions.GetScoreCardBadgePosition(_settings?.Persisted?.OverviewScoreCard2);
 
-        public bool ShowOverviewScoreCards => _hasAppliedSnapshot && (ShowOverviewScoreCard1 || ShowOverviewScoreCard2);
+        public bool ShowOverviewScoreCards => ShowOverviewScoreCard1 || ShowOverviewScoreCard2;
 
-        public bool ShowOverviewScoreCardDivider => _hasAppliedSnapshot && ShowOverviewScoreCard1 && ShowOverviewScoreCard2;
+        public bool ShowOverviewScoreCardDivider => ShowOverviewScoreCard1 && ShowOverviewScoreCard2;
+
+        /// <summary>True until the first snapshot lands; the score cards show skeleton blocks meanwhile.</summary>
+        public bool IsSnapshotPending => !_hasAppliedSnapshot;
 
         /// <summary>The header's first score card; its options follow <see cref="PersistedSettings.OverviewScoreCard1"/>.</summary>
         public ScoreCardViewModel ScoreCard1 { get; } = new ScoreCardViewModel(ScoreCardType.Collection);
@@ -1154,6 +1160,13 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedGame;
             set
             {
+                if (value?.IsPlaceholder == true)
+                {
+                    // A skeleton row is not a game.
+                    OnPropertyChanged(nameof(SelectedGame));
+                    return;
+                }
+
                 var previousGameId = _selectedGame?.PlayniteGameId;
                 var newGameId = value?.PlayniteGameId;
                 var keepDisplayedContent = newGameId.HasValue && IsSelectedGameContentReady;
@@ -1976,8 +1989,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _hasAppliedSnapshot = true;
-            OnPropertyChanged(nameof(ShowOverviewScoreCards));
-            OnPropertyChanged(nameof(ShowOverviewScoreCardDivider));
+            OnPropertyChanged(nameof(IsSnapshotPending));
         }
 
         private void ApplyScoreCards()
@@ -2692,6 +2704,12 @@ namespace PlayniteAchievements.ViewModels
 
         private void SyncGameSummariesDisplay()
         {
+            // The skeleton rows stay until the first snapshot lists the games.
+            if (_latestSnapshot == null)
+            {
+                return;
+            }
+
             var displayItems = DisplayGridRowLimitHelper.Limit(
                 _filteredGameSummaries,
                 _settings?.Persisted?.OverviewGameSummariesGridMaxRows);
@@ -2770,7 +2788,8 @@ namespace PlayniteAchievements.ViewModels
                     _scheduler,
                     cap ?? 0,
                     onError: ex => _logger?.Error(ex, "Failed to load the overview's achievement rows."),
-                    update: (kept, fresh) => kept.RefreshFrom(fresh));
+                    update: (kept, fresh) => kept.RefreshFrom(fresh),
+                    pendingRows: PlaceholderRows.Count);
                 _recent.CollectionChanged += OnRecentRowsChanged;
                 _recent.PropertyChanged += OnRecentRowsChanged;
                 OnPropertyChanged(nameof(RecentAchievements));
