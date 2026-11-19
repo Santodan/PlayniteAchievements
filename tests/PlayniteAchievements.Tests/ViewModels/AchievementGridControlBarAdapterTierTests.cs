@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
@@ -60,7 +61,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             adapter.UpdateOptions(new[] { new AchievementDisplayItem { TrophyType = "gold" } });
             Assert.AreEqual(4, adapter.TierFilters.TrophyOptions.Count);
 
-            adapter.UpdateOptions(null);
+            adapter.UpdateOptions((IEnumerable<AchievementDisplayItem>)null);
             Assert.AreEqual(0, adapter.TierFilters.TrophyOptions.Count, "no rows, no trophy filter");
 
             adapter.UpdateOptions(new[] { new AchievementDisplayItem { Rarity = RarityTier.Rare } });
