@@ -189,7 +189,23 @@ namespace PlayniteAchievements.Services.Database
 
         public const string DeleteSql = "DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = ?;";
 
-        /// <summary>Dropped and recreated on every start, so they always match this code.</summary>
+        /// <summary>
+        /// Whether the database holds exactly the views <see cref="RecreateViewSql"/> creates, by
+        /// the CREATE text SQLite keeps for each, and none of the retired ones.
+        /// </summary>
+        public static bool ViewsAreCurrent(SQLiteDatabase db)
+        {
+            var expected = RecreateViewSql().Where(sql => sql.StartsWith("CREATE ")).Select(sql => sql.TrimEnd(';')).ToList();
+            return AllViewNames.All(name =>
+            {
+                var stored = db.ExecuteScalar<string>("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?;", new object[] { name });
+                return stored == null
+                    ? !expected.Any(sql => sql.StartsWith("CREATE VIEW " + name + " "))
+                    : expected.Contains(stored);
+            });
+        }
+
+        /// <summary>Dropped and recreated on a start that finds them differ from this code (<see cref="ViewsAreCurrent"/>).</summary>
         public static IEnumerable<string> RecreateViewSql()
         {
             foreach (var view in AllViewNames)
