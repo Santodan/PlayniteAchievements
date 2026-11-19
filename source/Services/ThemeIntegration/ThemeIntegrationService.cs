@@ -640,7 +640,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 query,
                 read => LibraryRuntimeStateBuilder.Details(_achievementDataService.ReadRows(read), _api),
                 ReadScheduler,
-                FriendReadWindow,
+                // A whole-library list reads every row, so a refresh's changes are read every half minute.
+                () => _refreshService.IsRebuilding ? TimeSpan.FromSeconds(30) : LiveQuery<object>.DefaultWindow,
                 ex => _logger?.Error(ex, "Failed to load the theme list " + name + "."));
             _libraryLists[name] = list;
             list.PropertyChanged += (_, e) =>
