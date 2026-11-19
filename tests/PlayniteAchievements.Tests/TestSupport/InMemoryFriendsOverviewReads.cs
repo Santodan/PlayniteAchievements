@@ -241,9 +241,45 @@ namespace PlayniteAchievements.Tests.TestSupport
                 return false;
             }
 
+            if (query.ProviderKey != null && !Same(query.ProviderKey, row.ProviderKey))
+            {
+                return false;
+            }
+
+            if (query.KeyGroups != null && !query.KeyGroups.All(group => group.Any(key => MatchesKey(key, row))))
+            {
+                return false;
+            }
+
             var search = SearchQuery.From(query.SearchText);
             return !search.HasValue ||
                    search.Matches(SearchTextBuilder.FromValues(NameOf(query, row), row.GameName, row.DisplayName, row.Description, row.CategoryLabel, row.ProviderKey));
+        }
+
+        // As AchievementQuerySql matches one key of AchievementQuery.KeyGroups.
+        private static bool MatchesKey(string key, FriendAchievementDisplayItem row)
+        {
+            switch (key)
+            {
+                case "Unlocked":
+                    return row.Unlocked;
+                case "Locked":
+                    return !row.Unlocked;
+                case "Capstone":
+                    return row.IsCapstone;
+                case "Common":
+                case "Uncommon":
+                case "Rare":
+                case "UltraRare":
+                    return row.Rarity.ToString() == key;
+                case "Platinum":
+                case "Gold":
+                case "Silver":
+                case "Bronze":
+                    return Same(row.TrophyType?.Trim(), key);
+                default:
+                    return AchievementClassificationFilter.Matches(row.CategoryKind, row.Tags, key);
+            }
         }
 
         private List<FriendAchievementDisplayItem> Sorted(List<FriendAchievementDisplayItem> rows, AchievementQuery query)
