@@ -25,20 +25,21 @@ namespace PlayniteAchievements.Services.Database
         private bool _disposed;
 
         /// <param name="load">Runs off the UI thread; reads through <see cref="AchievementReadService"/>.</param>
+        /// <param name="window">How long after a touching change it reloads; <see cref="DefaultWindow"/> by default.</param>
         /// <param name="onError">Receives a failed load's exception; the last result stays.</param>
         public LiveQuery(
             AchievementDataFeed feed,
             AchievementQuery query,
             Func<AchievementQuery, T> load,
             IReadScheduler scheduler,
-            TimeSpan? window = null,
+            Func<TimeSpan> window = null,
             Action<Exception> onError = null)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _load = load ?? throw new ArgumentNullException(nameof(load));
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _onError = onError;
-            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? DefaultWindow, Load);
+            _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => DefaultWindow), Load);
             Load();
         }
 
