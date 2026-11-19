@@ -71,6 +71,25 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void TenRefreshSaves_InOneWindow_RerunTheLibraryReadOnce()
+        {
+            var live = Create(AchievementQuery.CurrentUser.WithSummaryRules());
+            _scheduler.Drain();
+
+            // A bulk refresh publishes each game's save on its own.
+            for (var i = 0; i < 10; i++)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(new[] { Guid.NewGuid() }));
+            }
+
+            _scheduler.Drain();
+            _scheduler.Elapse();
+            _scheduler.Drain();
+            Assert.AreEqual(2, _loads.Count, "the first load and one rerun");
+            Assert.AreEqual("all#2", live.Result);
+        }
+
+        [TestMethod]
         public void ChangesThatDoNotTouchTheQuery_AreIgnored()
         {
             Create(AchievementQuery.CurrentUser.ForGames(new[] { GameA }));
