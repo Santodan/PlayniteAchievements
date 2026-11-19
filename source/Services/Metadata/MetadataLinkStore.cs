@@ -223,8 +223,7 @@ namespace PlayniteAchievements.Services.Metadata
             _customData.Update(
                 gameId,
                 data => data.ExcludedFromMetadata = excluded ? true : (bool?)null,
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
+                affectsSummaryData: false);
             LinkChanged?.Invoke(gameId);
             return true;
         }
@@ -249,8 +248,7 @@ namespace PlayniteAchievements.Services.Metadata
                 _customData.Update(
                     gameId,
                     data => data.MetadataChoices = next,
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
             }
 
             LinkChanged?.Invoke(gameId);
@@ -411,8 +409,7 @@ namespace PlayniteAchievements.Services.Metadata
                             data.MetadataLinks = null;
                         }
                     },
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
             }
 
             LinkChanged?.Invoke(gameId);
@@ -571,8 +568,7 @@ namespace PlayniteAchievements.Services.Metadata
                                              new Dictionary<string, MetadataLinkData>(StringComparer.OrdinalIgnoreCase);
                         data.MetadataLinks[key] = next;
                     },
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
             }
 
             LinkChanged?.Invoke(gameId);
