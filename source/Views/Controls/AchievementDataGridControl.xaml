@@ -151,11 +151,6 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="AchievementRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp"/>
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                        <Setter Property="Template" Value="{StaticResource AchievementPlaceholderRowTemplate}"/>
-                    </DataTrigger>
-                </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
 
@@ -164,7 +159,7 @@
             <DataGridTemplateColumn x:Name="StatusColumn"
                                     Width="40" MinWidth="28" MaxWidth="96" CanUserSort="False" CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Column_Status}"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Status"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Status" helpers:PlaceholderCell.Shape="Dot"
                                     CellStyle="{StaticResource AchievementStatusCellStyle}"
                                     CellTemplate="{StaticResource AchievementStatusTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
             </DataGridTemplateColumn>
@@ -173,13 +168,13 @@
             <!-- Achievement Icon -->
             <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="180" CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Common_Icon}"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Icon"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Icon" helpers:PlaceholderCell.Shape="Block"
                                     CellStyle="{StaticResource AchievementGlowIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
             </DataGridTemplateColumn>
 
             <!-- Achievement Info -->
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement"
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement" helpers:PlaceholderCell.Shape="Lines"
                                     CellTemplate="{StaticResource AchievementInfoTemplate}">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
@@ -272,7 +267,7 @@
                                     CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Column_Game}"
                                     SortMemberPath="SortingName"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Game"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Game" helpers:PlaceholderCell.Shape="Block"
                                     Visibility="Collapsed"
                                     CellTemplate="{StaticResource AchievementGameColumnTemplate}">
                 <DataGridTemplateColumn.CellStyle>
@@ -291,7 +286,7 @@
                                     CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Column_Avatar}"
                                     CanUserSort="False"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Avatar"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Avatar" helpers:PlaceholderCell.Shape="Block"
                                     Visibility="Collapsed" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell"
@@ -453,7 +448,7 @@
                                     CanUserResize="True"
                                     Header="{DynamicResource LOCPlayAch_Column_CategoryArt}"
                                     SortMemberPath="CategoryLabel"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="CategoryIcon"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="CategoryIcon" helpers:PlaceholderCell.Shape="Block"
                                     Visibility="Collapsed"
                                     CellTemplate="{StaticResource AchievementCategoryColumnTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
@@ -466,7 +461,7 @@
             </DataGridTemplateColumn>
 
             <!-- Trophy -->
-            <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="160" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="True" SortMemberPath="TrophyType" helpers:ColumnVisibilityHelper.ColumnKey="Trophy"
+            <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="160" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="True" SortMemberPath="TrophyType" helpers:ColumnVisibilityHelper.ColumnKey="Trophy" helpers:PlaceholderCell.Shape="Dot"
                                     CellTemplate="{StaticResource AchievementTrophyTemplate}">
                 <DataGridTemplateColumn.CellStyle>
                     <!-- Switches on TrophyTypeResolved like the cell template does, so a masked
@@ -508,7 +503,7 @@
                 </DataGridTemplateColumn.CellStyle>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="160" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_RarityTier}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="RarityTier"
+            <DataGridTemplateColumn Width="72" MinWidth="32" MaxWidth="160" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_RarityTier}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="RarityTier" helpers:PlaceholderCell.Shape="Dot"
                                     Visibility="Collapsed"
                                     CellTemplate="{StaticResource AchievementRarityTierTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
                 <DataGridTemplateColumn.CellStyle>
@@ -584,7 +579,7 @@
                                     CellTemplate="{StaticResource AchievementPointsTemplate}"/>
             <DataGridTemplateColumn Width="56" MinWidth="40" MaxWidth="120" CanUserResize="True" CanUserSort="False"
                                     Header="{DynamicResource LOCPlayAch_Column_Captures}"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Captures">
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Captures" helpers:PlaceholderCell.Shape="None">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Button Content="&#xEC74;"
