@@ -23,13 +23,15 @@ namespace PlayniteAchievements.Services.Database
         /// <param name="authoredGame">The identity of a game with only authored achievements.</param>
         /// <param name="limit">The newest dated unlocks to read into <see cref="CachedSummaryData.RecentUnlocks"/>; 0 for none.</param>
         /// <param name="excludedGameIds">Games left out on top of the summary rules.</param>
+        /// <param name="days">Whether to read <see cref="CachedSummaryData.Unlocks"/> and the day counts.</param>
         public static CachedSummaryData Load(
             SQLiteDatabase db,
             IEnumerable<CachedGameSummaryData> identities,
             Func<Guid, CachedGameSummaryData> authoredGame,
             int limit,
             IEnumerable<Guid> excludedGameIds,
-            Func<string, string> absolutePath)
+            Func<string, string> absolutePath,
+            bool days = true)
         {
             var query = AchievementQuery.CurrentUser.WithSummaryRules().ExceptGames(excludedGameIds);
             var known = new Dictionary<Guid, CachedGameSummaryData>();
@@ -103,11 +105,14 @@ namespace PlayniteAchievements.Services.Database
             }
 
             // Days are local calendar days, as UnlockDayCounts.DayOf gives them.
-            result.Unlocks = AchievementReadService.Totals(db, query.WhereUnlocked(true), AchievementGroup.DayTally)
-                .Select(Overview.UnlockFact.From)
-                .Where(fact => fact != null)
-                .ToList();
-            Overview.UnlockFact.CountDays(result.Unlocks, result.GlobalUnlockCountsByDate, result.UnlockCountsByDateByGame);
+            if (days)
+            {
+                result.Unlocks = AchievementReadService.Totals(db, query.WhereUnlocked(true), AchievementGroup.DayTally)
+                    .Select(Overview.UnlockFact.From)
+                    .Where(fact => fact != null)
+                    .ToList();
+                Overview.UnlockFact.CountDays(result.Unlocks, result.GlobalUnlockCountsByDate, result.UnlockCountsByDateByGame);
+            }
             if (limit > 0)
             {
                 var rows = AchievementReadService.Rows(db, query.WhereUnlocked(true).WhereUnlockTimeKnown()
