@@ -92,6 +92,33 @@ namespace PlayniteAchievements.Services.Friends
             return Build(reads.LoadLists(playniteGameId), reads.Totals(unlocked, AchievementGroup.FriendGame), settings);
         }
 
+        /// <summary>
+        /// <paramref name="query"/> narrowed to the friend's accounts and to the game: its provider
+        /// game, and its Playnite game, which also narrows which of the user's changes rerun it.
+        /// </summary>
+        public static AchievementQuery Scope(AchievementQuery query, FriendSummaryItem friend, FriendGameSummaryItem game)
+        {
+            if (friend != null)
+            {
+                query = query.ForFriendAccounts(AccountsOf(friend));
+            }
+
+            if (game == null)
+            {
+                return query;
+            }
+
+            var providerGame = game.AppId > 0 || !string.IsNullOrWhiteSpace(game.ProviderGameKey);
+            if (providerGame)
+            {
+                query = query.ForProviderGame(game.ProviderKey, game.AppId, game.ProviderGameKey);
+            }
+
+            return game.PlayniteGameId.HasValue
+                ? query.ForGames(new[] { game.PlayniteGameId.Value })
+                : providerGame ? query : query.MatchNothing();
+        }
+
         public FriendSummaryItem FindFriend(string friendScopeKey) => Projection.FindFriend(friendScopeKey);
 
         public FriendGameSummaryItem FindGame(string gameScopeKey) => Projection.FindGame(gameScopeKey);
@@ -462,9 +489,12 @@ namespace PlayniteAchievements.Services.Friends
             friend.TrophyGoldCount = Int(totals.GoldUnlocked);
             friend.TrophySilverCount = Int(totals.SilverUnlocked);
             friend.TrophyBronzeCount = Int(totals.BronzeUnlocked);
-            friend.CollectionLevel = FriendsOverviewDerivations.GetDisplayLevel(AchievementLevelCalculator.CalculateModern(friend.CollectionScore));
-            friend.PrestigeLevel = FriendsOverviewDerivations.GetDisplayLevel(AchievementLevelCalculator.CalculateModern(friend.PrestigeScore));
+            friend.CollectionLevel = DisplayLevel(AchievementLevelCalculator.CalculateModern(friend.CollectionScore));
+            friend.PrestigeLevel = DisplayLevel(AchievementLevelCalculator.CalculateModern(friend.PrestigeScore));
         }
+
+        private static int DisplayLevel(AchievementLevelSnapshot snapshot) =>
+            snapshot == null ? 0 : snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
 
         private string ScopeKeyOf(string accountKey) =>
             _scopeKeyByAccount.TryGetValue(accountKey, out var scope) ? scope : accountKey;
