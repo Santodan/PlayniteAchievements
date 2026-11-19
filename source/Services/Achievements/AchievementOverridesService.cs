@@ -115,11 +115,7 @@ namespace PlayniteAchievements.Services.Achievements
                         customData.CapstonesMaterialized = true;
                         customData.Capstones = next;
                     },
-                    affectsSummaryData,
-                    // Capstones are not in the override mirror, which carries only the filtered
-                    // ApiNames and the user-editable points and trophy type, so resyncing it here
-                    // would clone the record and take the write connection for nothing.
-                    affectsOverrideMirror: false);
+                    affectsSummaryData);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -976,8 +972,8 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         /// <remarks>
         /// The per-achievement form costs a whole store write -- several deep clones of the
-        /// game's record, three normalizations, a serialize, a SQLite open and close, and for a
-        /// mirrored field a delete and re-insert of every override row. Applying a value across a
+        /// game's record, three normalizations, a serialize, and a SQLite open and close. Applying
+        /// a value across a
         /// selection by calling it in a loop paid all of that once per row. This batches the same
         /// edit into one write, matching the shape ClearCustomizations already uses.
         ///
@@ -1016,15 +1012,11 @@ namespace PlayniteAchievements.Services.Achievements
             // edit lands in the store and nothing on screen re-reads it, which is what left a
             // hidden edit visible only inside the editor.
             const bool affectsSummaryData = true;
-            var affectsOverrideMirror =
-                field == AchievementEditableField.Points ||
-                field == AchievementEditableField.TrophyType;
 
             _gameCustomDataStore.Update(
                 gameId,
                 customData => MutateOverrides(customData, targets, entry => ApplyFieldToEntry(entry, field, value)),
-                affectsSummaryData,
-                affectsOverrideMirror);
+                affectsSummaryData);
         }
 
         /// <summary>
@@ -1076,19 +1068,6 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // The flags are the union over the fields written, for the reasons the single-value
-            // overload documents: a mirrored field anywhere in the batch means the batch moves
-            // the mirror.
-            // Every editable field is displayed on summary rows, so any write affects the summary.
-            var affectsSummary = true;
-            var affectsMirror = false;
-            foreach (var write in resolved)
-            {
-                affectsMirror |=
-                    write.Field == AchievementEditableField.Points ||
-                    write.Field == AchievementEditableField.TrophyType;
-            }
-
             _gameCustomDataStore.Update(
                 gameId,
                 customData =>
@@ -1114,8 +1093,8 @@ namespace PlayniteAchievements.Services.Achievements
 
                     StoreOverrides(customData, overrides);
                 },
-                affectsSummary,
-                affectsMirror);
+                // Every editable field is displayed on summary rows.
+                affectsSummaryData: true);
         }
 
         private static void ApplyFieldToEntry(
@@ -1217,8 +1196,6 @@ namespace PlayniteAchievements.Services.Achievements
 
             var normalizedGoals = AchievementOrderHelper.NormalizeApiNames(goalApiNames);
 
-            // A dropped record may have carried a points or trophy-type override, both of which
-            // the summary SQL resolves through the mirror, so the rebuild is warranted.
             _gameCustomDataStore.Update(
                 gameId,
                 customData =>
@@ -1496,8 +1473,7 @@ namespace PlayniteAchievements.Services.Achievements
             _gameCustomDataStore.Update(
                 gameId,
                 customData => customData.AutoCapstoneGenerated = true,
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
+                affectsSummaryData: false);
         }
 
         public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)
