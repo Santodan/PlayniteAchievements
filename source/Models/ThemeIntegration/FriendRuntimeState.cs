@@ -1,42 +1,29 @@
-using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Friends;
-using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
+using System;
 using System.Collections.Generic;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
+    /// <summary>The theme's friend lists and the achievement rows of its friend scope.</summary>
     internal sealed class FriendRuntimeState
     {
-        public static FriendRuntimeState Empty { get; } = new FriendRuntimeState(null);
+        public static FriendRuntimeState Empty { get; } = new FriendRuntimeState(null, null);
 
-        public FriendRuntimeState(FriendsOverviewData data, PersistedSettings settings = null)
+        public FriendRuntimeState(FriendsOverviewLists lists, IReadOnlyList<FriendAchievementDisplayItem> rows)
         {
-            Projection = new FriendOverviewProjection(data, settings);
+            Lists = lists ?? FriendsOverviewLists.Empty;
+            Rows = rows ?? Array.Empty<FriendAchievementDisplayItem>();
         }
 
-        public FriendRuntimeState(FriendOverviewProjection projection)
-        {
-            Projection = projection ?? new FriendOverviewProjection(null);
-        }
+        public FriendsOverviewLists Lists { get; }
 
-        public FriendOverviewProjection Projection { get; }
+        public IReadOnlyList<FriendAchievementDisplayItem> Rows { get; }
 
-        public bool HasData => Projection?.HasData == true;
+        public bool HasData => Lists.HasData;
 
-        public IReadOnlyList<FriendSummaryItem> Friends =>
-            Projection?.Friends ?? new List<FriendSummaryItem>();
+        public IReadOnlyList<FriendSummaryItem> Friends => Lists.Friends;
 
-        public IReadOnlyList<FriendGameSummaryItem> AggregateGames =>
-            Projection?.AggregateGames ?? new List<FriendGameSummaryItem>();
-
-        public IReadOnlyList<FriendAchievementDisplayItem> RecentUnlocks =>
-            Projection?.RecentUnlocks ?? new List<FriendAchievementDisplayItem>();
-
-        public IReadOnlyList<FriendAchievementDisplayItem> AllAchievements =>
-            Projection?.AllAchievements ?? new List<FriendAchievementDisplayItem>();
-
-        public IReadOnlyList<FriendAchievementDisplayItem> AllUnlockedAchievements =>
-            Projection?.AllUnlockedAchievements ?? new List<FriendAchievementDisplayItem>();
+        public IReadOnlyList<FriendGameSummaryItem> AggregateGames => Lists.Games;
     }
 }
