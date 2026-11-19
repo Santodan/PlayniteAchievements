@@ -44,24 +44,86 @@ namespace PlayniteAchievements.Services.Overview
             new HashSet<string>(Pins(showcase).Select(pin => pin.Key.ToUpperInvariant()), StringComparer.Ordinal);
 
         /// <summary>
-        /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty unless
-        /// some live widget asks for it; <see cref="UnlockNextPoolBuilt"/> distinguishes "not
-        /// requested" from "nothing found".
+        /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty until a
+        /// shown widget asks for it (<see cref="RequestUnlockNextPool"/>);
+        /// <see cref="UnlockNextPoolBuilt"/> distinguishes "not read" from "nothing found".
         /// </summary>
         public List<AchievementDisplayItem> UnlockNextCandidates { get; set; } =
             new List<AchievementDisplayItem>();
 
-        /// <summary>
-        /// Whether this snapshot was built with the Unlock Next pool populated. A dashboard that
-        /// starts needing the pool triggers a rebuild off this flag.
-        /// </summary>
+        /// <summary>Whether the Unlock Next pool has been read.</summary>
         public bool UnlockNextPoolBuilt { get; set; }
 
-        /// <summary>
-        /// Locked rows per game the pool retained from each ranking. A widget asking for more per
-        /// game than this triggers a rebuild.
-        /// </summary>
+        /// <summary>Locked rows per game the pool retained from each ranking.</summary>
         public int UnlockNextPoolSlice { get; set; }
+
+        /// <summary>
+        /// Reads the Unlock Next pool at a depth (<see cref="UnlockNextCandidateSelector.SliceFor"/>)
+        /// off the UI thread; set by the build, null on derived views, which show no pool.
+        /// </summary>
+        internal Func<int, List<AchievementDisplayItem>> UnlockNextReader { get; set; }
+
+        private int _unlockNextReadingSlice;
+        private Action _unlockNextLanded;
+
+        /// <summary>Whether a widget asking for <paramref name="maxPerGame"/> waits for a pool read.</summary>
+        internal bool NeedsUnlockNextRead(int maxPerGame) =>
+            UnlockNextReader != null &&
+            maxPerGame > 0 &&
+            !(UnlockNextPoolBuilt && UnlockNextPoolSlice >= UnlockNextCandidateSelector.SliceFor(maxPerGame));
+
+        /// <summary>
+        /// Reads the pool deep enough for <paramref name="maxPerGame"/>, once per depth, and runs
+        /// <paramref name="landed"/> on the calling thread's context after the pool is attached.
+        /// UI thread.
+        /// </summary>
+        internal void RequestUnlockNextPool(int maxPerGame, Action landed)
+        {
+            if (!NeedsUnlockNextRead(maxPerGame))
+            {
+                return;
+            }
+
+            _unlockNextLanded += landed;
+            var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
+            if (_unlockNextReadingSlice >= slice)
+            {
+                return;
+            }
+
+            _unlockNextReadingSlice = slice;
+            var reader = UnlockNextReader;
+            var context = System.Threading.SynchronizationContext.Current;
+            System.Threading.Tasks.Task.Run(() => reader(slice)).ContinueWith(read =>
+            {
+                void Attach()
+                {
+                    // A deeper read asked for meanwhile attaches and notifies instead.
+                    if (slice < _unlockNextReadingSlice)
+                    {
+                        return;
+                    }
+
+                    UnlockNextCandidates = read.Exception == null && read.Result != null
+                        ? read.Result
+                        : new List<AchievementDisplayItem>();
+                    UnlockNextPoolBuilt = true;
+                    UnlockNextPoolSlice = slice;
+                    var notify = _unlockNextLanded;
+                    _unlockNextLanded = null;
+                    notify?.Invoke();
+                }
+
+                if (context != null)
+                {
+                    context.Post(_ => Attach(), null);
+                }
+                else
+                {
+                    Attach();
+                }
+            }, System.Threading.Tasks.TaskScheduler.Default);
+        }
 
         /// <summary>
         /// Whether this snapshot was cut to the unlocks an achievement filter keeps, so its
