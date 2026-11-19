@@ -3364,7 +3364,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             }
         }
 
-        private sealed class FakeFriendCache : IFriendCacheManager
+        internal sealed class FakeFriendCache : IFriendCacheManager
         {
             public FakeFriendCache(FriendsOverviewData data)
             {
