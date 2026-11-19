@@ -1011,15 +1011,10 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // This flag gates two things: the summary memo, and the Overview's per-game delta. So
-            // it has to be true for any field a displayed row shows, not just the ones a summary
-            // aggregate sums -- otherwise the edit lands in the store and nothing on screen
-            // re-reads it, which is what left a hidden edit visible only inside the editor.
-            //
-            // Points and trophy type additionally move SQL-resolved aggregates, via the override
-            // mirror. The rest are applied in code over the rows, so they need the re-read but not
-            // the mirror. That includes the unlock time: summary rows show the overridden date, and
-            // the summary's unlock-date counts follow it (ApplyAchievementSummaryCustomization).
+            // This flag gates the Overview's per-game delta. So it has to be true for any field a
+            // displayed row shows, not just the ones a summary aggregate sums -- otherwise the
+            // edit lands in the store and nothing on screen re-reads it, which is what left a
+            // hidden edit visible only inside the editor.
             const bool affectsSummaryData = true;
             var affectsOverrideMirror =
                 field == AchievementEditableField.Points ||
