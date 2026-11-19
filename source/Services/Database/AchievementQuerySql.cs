@@ -1,3 +1,5 @@
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Search;
 using System;
 using System.Collections.Generic;
@@ -89,14 +91,50 @@ namespace PlayniteAchievements.Services.Database
         private const string SelfJoins = @"
             LEFT JOIN SelfUnlocks me ON me.PlayniteGameId = r.PlayniteGameId AND me.ApiName = r.ApiName";
 
+        private const string CompareJoins = @"
+            LEFT JOIN CompareUnlocks cmp ON cmp.GameId = r.GameId AND cmp.ApiName = r.ApiName
+            LEFT JOIN CompareGames cg ON cg.GameId = r.GameId";
+
+        /// <summary>
+        /// The compare accounts' unlocks per provider game and achievement, and the provider games
+        /// they have: an unlock in it, or ownership from their game list or with playtime.
+        /// </summary>
+        private static string CompareCtes(AchievementQuery query, List<object> args)
+        {
+            var unlockUsers = AccountUsers(query.CompareAccounts, args);
+            var unlocks = @",
+            CompareUnlocks AS (
+                SELECT c.GameId AS GameId, c.ApiName AS ApiName, MAX(c.UnlockTimeUtc) AS UnlockTimeUtc
+                FROM " + AchievementLayerSql.AllUsersViewName + @" c
+                WHERE c.UserId IN (" + unlockUsers + @") AND c.Unlocked = 1
+                GROUP BY c.GameId, c.ApiName
+            ),
+            CompareGames AS (
+                SELECT GameId FROM CompareUnlocks
+                UNION
+                SELECT co.GameId FROM FriendOwnership co
+                WHERE co.UserId IN (" + AccountUsers(query.CompareAccounts, args) + @")
+                  AND (co.LastOwnershipRefreshUtc IS NOT NULL OR co.PlaytimeForeverMinutes > 0)
+            )
+            ";
+            return unlocks;
+        }
+
         /// <summary>A page of rows, in the query's order, with the friend identity and self state for friend rows.</summary>
         public static Command Rows(AchievementQuery query)
         {
             var args = new List<object>();
             var sql = new StringBuilder();
+            var compare = query.Friends && query.CompareAccounts != null;
             if (query.Friends)
             {
-                sql.Append(SelfCtes);
+                sql.Append(SelfCtes.TrimEnd());
+                if (compare)
+                {
+                    sql.Append(CompareCtes(query, args));
+                }
+
+                sql.Append(' ');
             }
 
             sql.Append("SELECT").Append(RowColumns);
@@ -105,10 +143,21 @@ namespace PlayniteAchievements.Services.Database
                 : @",
                 NULL AS UserProviderKey, NULL AS ExternalUserId, NULL AS UserDisplayName, NULL AS AvatarUrl, NULL AS AvatarPath,
                 0 AS OwnershipConfirmed, 0 AS SelfUnlocked, NULL AS SelfUnlockTimeUtc, 0 AS SelfHasGameData");
+            sql.Append(compare
+                ? @",
+                CASE WHEN cmp.ApiName IS NULL THEN 0 ELSE 1 END AS CompareUnlocked, cmp.UnlockTimeUtc AS CompareUnlockTimeUtc,
+                CASE WHEN cg.GameId IS NULL THEN 0 ELSE 1 END AS CompareHasGame"
+                : @",
+                0 AS CompareUnlocked, NULL AS CompareUnlockTimeUtc, 0 AS CompareHasGame");
             sql.Append(From(query));
             if (query.Friends)
             {
                 sql.Append(SelfJoins);
+            }
+
+            if (compare)
+            {
+                sql.Append(CompareJoins);
             }
 
             sql.Append(Where(query, args));
@@ -154,21 +203,47 @@ namespace PlayniteAchievements.Services.Database
                 MIN(CASE WHEN Unlocked = 1 AND Trophy = 'platinum' THEN UnlockTimeUtc END) AS FirstPlatinumUnlockUtc,
                 TOTAL(Percent) AS PercentSum,
                 COUNT(Percent) AS PercentCount,
-                MIN(Percent) AS MinPercent
-            FROM (SELECT " + KeySql(query, group) + @" AS Key,
+                MIN(Percent) AS MinPercent,
+                SUM(Hidden * (1 - Unlocked)) AS HiddenLockedCount,
+                MIN(CategoryOrder) AS MinCategoryOrder
+            FROM (" + TotalsRows(query, group, args) + @")
+            GROUP BY Key;";
+            return new Command(sql, args.ToArray());
+        }
+
+        // One row per matching row, or with DistinctAchievements one per achievement of a provider
+        // game across the matching users.
+        private static string TotalsRows(AchievementQuery query, AchievementGroup group, List<object> args)
+        {
+            var rows = "SELECT " + KeySql(query, group) + @" AS Key,
+                r.GameId AS DefinitionGameId,
+                r.ApiName AS DefinitionApiName,
                 r.Unlocked AS Unlocked,
                 " + RarityTierSql + @" AS Tier,
                 " + TrophySql + @" AS Trophy,
                 CASE WHEN r.IsCapstone = 1 THEN 1 ELSE 0 END AS IsCapstone,
+                CASE WHEN r.Hidden = 1 THEN 1 ELSE 0 END AS Hidden,
                 pa_prestige(r.GlobalPercentUnlocked, r.Rarity) AS Prestige,
                 CASE WHEN r.Points > 0 THEN r.Points ELSE 0 END AS Points,
                 CASE WHEN " + SoftcoreSql + @" THEN 1 ELSE 0 END AS Softcore,
                 r.UnlockTimeUtc AS UnlockTimeUtc,
-                r.GlobalPercentUnlocked AS Percent" +
+                r.GlobalPercentUnlocked AS Percent,
+                r.CategoryOrder AS CategoryOrder" +
                 From(query) + Where(query, args) + @"
-            LIMIT -1)
-            GROUP BY Key;";
-            return new Command(sql, args.ToArray());
+            LIMIT -1";
+            if (!query.DistinctAchievements)
+            {
+                return rows;
+            }
+
+            // Definition values are the same on every user's row; the unlock is the best of them.
+            return @"SELECT Key, MAX(Unlocked) AS Unlocked, MAX(Tier) AS Tier, MAX(Trophy) AS Trophy,
+                MAX(IsCapstone) AS IsCapstone, MAX(Hidden) AS Hidden, MAX(Prestige) AS Prestige, MAX(Points) AS Points,
+                MIN(Softcore) AS Softcore, MAX(CASE WHEN Unlocked = 1 THEN UnlockTimeUtc END) AS UnlockTimeUtc,
+                MAX(Percent) AS Percent, MIN(CategoryOrder) AS CategoryOrder
+            FROM (" + rows + @")
+            GROUP BY Key, DefinitionGameId, DefinitionApiName
+            LIMIT -1";
         }
 
         /// <summary>The number of matching rows; the query's page is ignored.</summary>
@@ -214,10 +289,20 @@ namespace PlayniteAchievements.Services.Database
 
                     conditions.Add("r.UserId IN (" + friend + ")");
                 }
+
+                if (query.FriendAccounts != null)
+                {
+                    conditions.Add("r.UserId IN (" + AccountUsers(query.FriendAccounts, args) + ")");
+                }
             }
             else
             {
                 conditions.Add("r.IsCurrentUser = 1");
+            }
+
+            if (query.MatchesNothing)
+            {
+                conditions.Add("0");
             }
 
             if (query.GameIds != null)
@@ -307,9 +392,51 @@ namespace PlayniteAchievements.Services.Database
                 conditions.Add("r.ExcludedFromSummaries = 0 AND r.IsFiltered = 0 AND r.IsSummaryFiltered = 0");
             }
 
+            if (query.RequireUnlockTime)
+            {
+                conditions.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
+            }
+
+            if (query.HideHiddenLocked)
+            {
+                conditions.Add("NOT (r.Hidden = 1 AND r.Unlocked = 0)");
+            }
+
+            if (query.CapstonesOnly)
+            {
+                conditions.Add("r.IsCapstone = 1");
+            }
+
+            if (query.CategoryLabels != null)
+            {
+                conditions.Add(InList(
+                    "pa_category(r.Category)",
+                    query.CategoryLabels.Select(AchievementCategoryHelper.NormalizeCategoryOrDefault).Distinct(StringComparer.Ordinal).ToList(),
+                    args));
+            }
+
             return @"
             WHERE " + string.Join(@"
               AND ", conditions);
+        }
+
+        // The Users ids of the accounts; no row when there are none.
+        private static string AccountUsers(IReadOnlyList<FriendAccountRef> accounts, List<object> args)
+        {
+            if (accounts == null || accounts.Count == 0)
+            {
+                return "SELECT NULL WHERE 0";
+            }
+
+            var terms = new List<string>();
+            foreach (var account in accounts)
+            {
+                terms.Add("(fu.ProviderKey = ? AND fu.ExternalUserId = ?)");
+                args.Add(account.ProviderKey);
+                args.Add(account.ExternalUserId);
+            }
+
+            return "SELECT fu.Id FROM Users fu WHERE " + string.Join(" OR ", terms);
         }
 
         private static string InList(string expression, IReadOnlyList<string> values, List<object> args)
@@ -346,22 +473,69 @@ namespace PlayniteAchievements.Services.Database
                     return TrophySql;
                 case AchievementGroup.Tag:
                     return "r.Tags";
+                case AchievementGroup.ProviderGame:
+                    return ProviderGameKeySql;
+                case AchievementGroup.FriendGame:
+                    return KeySql(query, AchievementGroup.Friend) + " || char(30) || " + ProviderGameKeySql;
+                case AchievementGroup.Category:
+                    return "r.Category";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(group), group, null);
             }
         }
 
+        // AchievementGroupKeys.ProviderGame reads it back.
+        private const string ProviderGameKeySql =
+            "COALESCE(g.ProviderKey, r.ProviderKey, '') || char(31) || COALESCE(g.ProviderGameKey, '') || char(31) || " +
+            "COALESCE(g.ProviderGameId, 0) || char(31) || COALESCE(r.PlayniteGameId, '')";
+
+        // Unlocked rows with a time, then unlocked rows without one, then locked rows, in either
+        // direction, as AchievementSortHelper buckets them.
+        private const string UnlockBucketSql =
+            "CASE WHEN r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL THEN 0 WHEN r.Unlocked = 1 THEN 1 ELSE 2 END";
+
+        private const string TrophyRankSql =
+            "CASE LOWER(TRIM(r.TrophyType)) WHEN 'platinum' THEN 4 WHEN 'gold' THEN 3 WHEN 'silver' THEN 2 WHEN 'bronze' THEN 1 ELSE 0 END";
+
         private static string OrderBy(AchievementQuery query)
         {
             var direction = query.Descending ? " DESC" : " ASC";
-            var friend = query.Friends ? "u.DisplayName, " : string.Empty;
+            var friend = query.Friends ? "u.DisplayName COLLATE NOCASE, " : string.Empty;
+            var tieBreak = ", " + friend + "r.PlayniteGameId, r.GameId, r.ApiName, r.UserId";
+            var unlock = UnlockBucketSql + ", r.UnlockTimeUtc" + direction;
             var display = string.Join(", ", AchievementLayerSql.DisplayOrderSql.Split(',').Select(term => "r." + term.Trim()));
             switch (query.Sort)
             {
                 case AchievementSort.UnlockTime:
-                    return "r.UnlockTimeUtc" + direction + ", " + friend + "r.PlayniteGameId, r.ApiName, r.UserId";
+                    return unlock + tieBreak;
                 case AchievementSort.GlobalPercent:
-                    return "r.GlobalPercentUnlocked" + direction + ", r.UnlockTimeUtc DESC, " + friend + "r.PlayniteGameId, r.ApiName, r.UserId";
+                    return "r.GlobalPercentUnlocked" + direction + ", r.UnlockTimeUtc DESC" + tieBreak;
+                case AchievementSort.Rarity:
+                    return "pa_raritysort(r.GlobalPercentUnlocked, r.Rarity)" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Name:
+                    return "r.DisplayName COLLATE NOCASE" + direction + tieBreak;
+                case AchievementSort.Game:
+                    return "r.GameName COLLATE NOCASE" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Friend:
+                    return query.Friends
+                        ? "u.DisplayName COLLATE NOCASE" + direction + ", " + unlock + tieBreak
+                        : unlock + tieBreak;
+                case AchievementSort.Points:
+                    return "COALESCE(r.ScaledPoints, r.Points, 0)" + direction + tieBreak;
+                case AchievementSort.Trophy:
+                    return TrophyRankSql + direction + ", pa_raritysort(r.GlobalPercentUnlocked, r.Rarity)" + tieBreak;
+                case AchievementSort.Category:
+                    return "COALESCE(r.CategoryOrder, 2147483647)" + direction + ", pa_category(r.Category)" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Kind:
+                    return "pa_kindsort(r.CategoryKind)" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Tags:
+                    return "pa_tagcount(r.Tags)" + direction + ", r.Tags COLLATE NOCASE" + direction + ", " + unlock + tieBreak;
+                case AchievementSort.Note:
+                    return "CASE WHEN TRIM(COALESCE(r.Note, '')) <> '' THEN 1 ELSE 0 END" + direction + ", r.DisplayName COLLATE NOCASE" + tieBreak;
+                case AchievementSort.CollectionScore:
+                    return "pa_collection(r.Rarity)" + direction + tieBreak;
+                case AchievementSort.PrestigeScore:
+                    return "pa_prestige(r.GlobalPercentUnlocked, r.Rarity)" + direction + tieBreak;
                 default:
                     return friend + "r.GameName, r.PlayniteGameId, " + display + ", r.UserId";
             }
