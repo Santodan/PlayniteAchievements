@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Views.Controls
         private RowPrepareCounter _rowPrepareCounter;
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
+
+        // Read at Loaded: by Unloaded the inherited value has left with the tree.
+        private bool _ownerDisposes;
         private bool _wheelDiagnosticsAttached;
         private PersistedSettingsSubscription _persistedSubscription;
         private AchievementGridOptions _appearanceRecord;
@@ -3290,6 +3293,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            _ownerDisposes = GridLifetime.GetOwnerDisposes(this);
             UpdateControlBarOptions();
             ControlBarHost.ShownItemsChanged -= ControlBarHost_ShownItemsChanged;
             ControlBarHost.ShownItemsChanged += ControlBarHost_ShownItemsChanged;
@@ -3526,6 +3530,14 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (!_ownerDisposes)
+            {
+                ReleaseLoadedState();
+            }
+        }
+
+        private void ReleaseLoadedState()
         {
             AchievementTagRegistry.Changed -= OnTagsChanged;
             UnsubscribeAppearance();
@@ -4511,6 +4523,14 @@ namespace PlayniteAchievements.Views.Controls
             DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(AchievementsDataGrid, null);
             DataGridAlignmentBehavior.SetColumnHeaderHorizontalAlignmentOverridesProvider(AchievementsDataGrid, null);
             _isAttached = false;
+
+            // An owner that disposes this grid kept it loaded through Unloaded.
+            if (_ownerDisposes)
+            {
+                ReleaseLoadedState();
+                CategoryDrillHeaderGrid?.Dispose();
+                CategoryListGrid?.Dispose();
+            }
         }
     }
 }
