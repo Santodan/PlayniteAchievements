@@ -13,8 +13,8 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Uniform height for a single account entry, shared by every per-account column so
