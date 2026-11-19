@@ -703,16 +703,16 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             StringAssert.Contains(store, "GameLogo = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
             StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
-            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.IconPath)");
-            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.CoverPath)");
+            StringAssert.Contains(store, "GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.GameIconPath)");
+            StringAssert.Contains(store, "GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.GameCoverPath)");
         }
 
         [TestMethod]
         public void CacheStore_FriendAchievementRowsRequireCurrentOwnership()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
 
-            StringAssert.Contains(store, "INNER JOIN FriendOwnership fo ON fo.UserId = u.Id AND fo.GameId = g.Id");
+            StringAssert.Contains(sql, "INNER JOIN FriendOwnership fo ON fo.UserId = r.UserId AND fo.GameId = r.GameId");
         }
 
         [TestMethod]
@@ -844,25 +844,22 @@ namespace PlayniteAchievements.SqlNado.Tests
         [TestMethod]
         public void CacheStore_FriendAchievementRowsCoverFullDefinitionSchema()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var layers = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementLayerSql.cs"));
 
             // The friend+game view shows the game's full schema with the friend's unlock state
             // joined per definition, not just the rows the friend scrape happened to store.
-            StringAssert.Contains(store, "INNER JOIN \" + AchievementLayerSql.ViewName + @\" ad ON ad.GameId = g.Id");
-            StringAssert.Contains(store, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id");
-            StringAssert.Contains(store, "AND ua.AchievementDefinitionId = ad.Id");
-            StringAssert.Contains(store, "COALESCE(ua.Unlocked, 0) AS Unlocked");
+            StringAssert.Contains(layers, "INNER JOIN \" + ViewName + @\" ad ON ad.GameId = ugp.GameId");
+            StringAssert.Contains(layers, "LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id");
         }
 
         [TestMethod]
         public void CacheStore_FriendAchievementRowsResolveMyUnlocksByPlayniteGameAndApiName()
         {
-            var store = File.ReadAllText(FindRepoFile("source", "Services", "Database", "SqlNadoCacheStore.cs"));
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
 
-            StringAssert.Contains(store, "WITH CurrentUnlocks AS");
-            StringAssert.Contains(store, "GROUP BY cg.PlayniteGameId, cad.ApiName");
-            StringAssert.Contains(store, "LEFT JOIN CurrentUnlocks cu ON cu.PlayniteGameId = g.PlayniteGameId");
-            StringAssert.Contains(store, "AND cu.ApiName = ad.ApiName");
+            StringAssert.Contains(sql, "WITH SelfUnlocks AS");
+            StringAssert.Contains(sql, "GROUP BY s.PlayniteGameId, s.ApiName");
+            StringAssert.Contains(sql, "LEFT JOIN SelfUnlocks me ON me.PlayniteGameId = r.PlayniteGameId AND me.ApiName = r.ApiName");
         }
 
         [TestMethod]
@@ -874,12 +871,13 @@ namespace PlayniteAchievements.SqlNado.Tests
             StringAssert.Contains(store, "GameCustomDataLookup.ResolveGameCustomData(");
             StringAssert.Contains(store, "_plugin?.GameCustomDataStore");
             // Capstone, category kind and note come resolved from the achievement view.
-            StringAssert.Contains(store, "ad.IsCapstone AS IsCapstone,");
-            StringAssert.Contains(store, "ad.CategoryKind AS CategoryKind,");
-            StringAssert.Contains(store, "ad.Note AS Note,");
+            var sql = File.ReadAllText(FindRepoFile("source", "Services", "Database", "AchievementQuerySql.cs"));
+            StringAssert.Contains(sql, "r.IsCapstone AS IsCapstone");
+            StringAssert.Contains(sql, "r.CategoryKind AS CategoryKind");
+            StringAssert.Contains(sql, "r.Note AS Note");
             StringAssert.Contains(store, "AchievementNote = string.IsNullOrWhiteSpace(row.Note) ? null : row.Note.Trim(),");
             // Category art is keyed by the category before the user's rename.
-            StringAssert.Contains(store, "ad.ProviderCategory AS ProviderCategory,");
+            StringAssert.Contains(sql, "r.ProviderCategory AS ProviderCategory");
             StringAssert.Contains(store, "AchievementCategoryHelper.NormalizeCategoryOrDefault(providerCategory),");
             Assert.IsFalse(store.Contains("ApplyCustomDataToFriendAchievement"));
         }
