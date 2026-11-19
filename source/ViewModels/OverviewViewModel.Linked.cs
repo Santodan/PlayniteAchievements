@@ -155,10 +155,10 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The Achievements grid's filters, less those in <paramref name="exclude"/>, as one test
-        /// on an achievement row. Only unlocked rows pass: the filters describe unlocks. An unlock
-        /// with no time passes unless the date range is set, which it cannot fall inside.
+        /// on the snapshot's unlocks. An unlock with no time passes unless the date range is set,
+        /// which it cannot fall inside.
         /// </summary>
-        private Func<AchievementDisplayItem, bool> AchievementFilter(OverviewLinkedFilter exclude)
+        private Func<UnlockFact, bool> AchievementFilter(OverviewLinkedFilter exclude)
         {
             var span = (exclude & OverviewLinkedFilter.UnlockSpan) == 0 ? UnlockSpanFilter : null;
             var tiers = _tierFilters;
@@ -168,13 +168,11 @@ namespace PlayniteAchievements.ViewModels
                 ? _selectedTagFilters.ToList()
                 : null;
 
-            return item =>
-                item?.Unlocked == true &&
-                (!span.HasValue ||
-                 (item.UnlockTimeUtc.HasValue && span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))) &&
-                (!applyRarity || tiers.MatchesRarity(item)) &&
-                (!applyTrophy || tiers.MatchesTrophy(item)) &&
-                (tags == null || tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
+            return fact =>
+                (!span.HasValue || (fact.Day.HasValue && span.Value.Contains(fact.Day.Value))) &&
+                (!applyRarity || tiers.MatchesRarity(fact.Tally)) &&
+                (!applyTrophy || tiers.MatchesTrophy(fact.Tally)) &&
+                (tags == null || tags.Any(tag => AchievementTagHelper.Contains(fact.Tally.Key, tag)));
         }
 
         // A key for the filters a view applies, so a cached view knows when they moved.
@@ -198,8 +196,8 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Games with at least one unlock the Achievements grid's filters keep (less those in
         /// <paramref name="exclude"/>); every game while none is set. The grid's own filters read
-        /// the games from the database; a linked widget leaving one of them out scans the
-        /// snapshot's rows, until the linked views read their own.
+        /// the games from the database; a linked widget leaving one of them out counts them from
+        /// the snapshot's unlocks.
         /// </summary>
         private IEnumerable<GameSummaryItem> ApplyAchievementFiltersToGames(
             IEnumerable<GameSummaryItem> games,
@@ -222,10 +220,9 @@ namespace PlayniteAchievements.ViewModels
             }
             else
             {
-                kept = new HashSet<Guid>((_latestSnapshot?.Achievements ?? new List<AchievementDisplayItem>())
+                kept = new HashSet<Guid>((_latestSnapshot?.Unlocks ?? Array.Empty<UnlockFact>())
                     .Where(AchievementFilter(exclude))
-                    .Where(item => item.PlayniteGameId.HasValue)
-                    .Select(item => item.PlayniteGameId.Value));
+                    .Select(fact => fact.GameId));
             }
 
             return games.Where(game => game?.PlayniteGameId.HasValue == true && kept.Contains(game.PlayniteGameId.Value));
