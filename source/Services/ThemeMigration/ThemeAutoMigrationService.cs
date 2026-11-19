@@ -13,6 +13,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
     {
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
+        private readonly ThemeDiscoveryCache _discoveredThemes;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action _saveSettings;
         private readonly Action<string> _notifyThemeAutoMigrated;
@@ -20,12 +21,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
         public ThemeAutoMigrationService(
             ILogger logger,
             IPlayniteAPI playniteApi,
+            ThemeDiscoveryCache discoveredThemes,
             PlayniteAchievementsSettings settings,
             Action saveSettings,
             Action<string> notifyThemeAutoMigrated)
         {
             _logger = logger;
             _playniteApi = playniteApi;
+            _discoveredThemes = discoveredThemes ?? throw new ArgumentNullException(nameof(discoveredThemes));
             _settings = settings;
             _saveSettings = saveSettings;
             _notifyThemeAutoMigrated = notifyThemeAutoMigrated;
@@ -39,18 +42,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 {
                     try
                     {
-                        var themesDiscovery = new ThemeDiscoveryService(_logger, _playniteApi);
-                        var themesPath = themesDiscovery.GetDefaultThemesPath();
-                        if (string.IsNullOrWhiteSpace(themesPath))
-                        {
-                            return;
-                        }
+                        // This scan fills the shared discovery result, so the settings and
+                        // first-time setup theme lists open without scanning again.
+                        var themes = await _discoveredThemes.GetThemesAsync();
 
                         var persisted = _settings?.Persisted;
                         var wasCacheEmpty = persisted != null &&
                                             (persisted.ThemeMigrationVersionCache == null || persisted.ThemeMigrationVersionCache.Count == 0);
-
-                        var themes = themesDiscovery.DiscoverThemes(themesPath, null);
 
                         if (wasCacheEmpty)
                         {
@@ -92,7 +90,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var migrationService = new ThemeMigrationService(
                             _logger,
                             _settings,
-                            _saveSettings);
+                            _saveSettings,
+                            _discoveredThemes);
 
                         var migratedThemes = new List<string>();
 
