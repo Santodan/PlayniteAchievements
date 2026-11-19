@@ -40,6 +40,7 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                             CornerRadius="8"
@@ -99,6 +100,7 @@
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                         <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"
@@ -129,6 +131,7 @@
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles_Help}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"
