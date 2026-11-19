@@ -27,7 +27,7 @@
         <Border Grid.Column="0"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="0,0,1,0"
-                Background="Transparent">
+                Background="{DynamicResource PlayAch.Brush.Panel}">
             <DockPanel LastChildFill="True">
                 <Border DockPanel.Dock="Top"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
