@@ -532,7 +532,12 @@ namespace PlayniteAchievements
         /// roster merge during refresh) the event is marshaled onto the UI dispatcher to avoid
         /// cross-thread access exceptions. On the UI thread it is raised inline as before.
         /// </summary>
-        public static void NotifySettingsSaved()
+        /// <param name="settingsWindow">
+        /// The settings window saved, so any setting may have changed. Other saves are mostly view
+        /// state (a Showcase page, a window position, a column ratio); listeners receive
+        /// <see cref="SettingsWindowSave"/> as the event args only for this one.
+        /// </param>
+        public static void NotifySettingsSaved(bool settingsWindow = false)
         {
             var handler = SettingsSaved;
             if (handler == null)
@@ -540,15 +545,19 @@ namespace PlayniteAchievements
                 return;
             }
 
+            var args = settingsWindow ? SettingsWindowSave : EventArgs.Empty;
             var dispatcher = Instance?.PlayniteApi?.MainView?.UIDispatcher;
             if (dispatcher != null && !dispatcher.CheckAccess())
             {
-                dispatcher.BeginInvoke(new Action(() => handler.Invoke(null, EventArgs.Empty)));
+                dispatcher.BeginInvoke(new Action(() => handler.Invoke(null, args)));
                 return;
             }
 
-            handler.Invoke(null, EventArgs.Empty);
+            handler.Invoke(null, args);
         }
+
+        /// <summary>The <see cref="SettingsSaved"/> args of a settings window save.</summary>
+        public static readonly EventArgs SettingsWindowSave = new EventArgs();
 
         public static void NotifyAchievementUnlocked(AchievementUnlockedEventArgs args)
         {
