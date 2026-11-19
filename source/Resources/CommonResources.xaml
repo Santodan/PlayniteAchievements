@@ -982,8 +982,10 @@
                                               ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                               ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                               TextElement.Foreground="{TemplateBinding Foreground}"/>
+                            <!-- Collapsed, not Hidden, until IsEditable: a hidden element is still
+                                 measured, which applies a full TextBox template to every combo. -->
                             <TextBox x:Name="PART_EditableTextBox"
-                                     Visibility="Hidden"
+                                     Visibility="Collapsed"
                                      VerticalAlignment="Center"
                                      HorizontalAlignment="Stretch"
                                      Margin="0,0,25,0"
