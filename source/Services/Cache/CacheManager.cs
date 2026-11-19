@@ -52,12 +52,6 @@ namespace PlayniteAchievements.Services.Cache
         private bool _startupFailureDialogShown;
         private readonly AchievementDataFeed _feed;
 
-        // Bumped under _sync on every in-memory mutation. LoadAllGameDataFast reads the
-        // whole-library snapshot off _sync, so it uses this to detect writes that landed during
-        // that read and skip stale-entry pruning (which could otherwise drop a freshly written
-        // game absent from the snapshot).
-        private long _writeGeneration;
-
         public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
         public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
         public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
@@ -146,11 +140,6 @@ namespace PlayniteAchievements.Services.Cache
             {
                 _logger?.Error(ex, $"Failed to rewrite custom-data achievement keys for game {playniteGameId}.");
             }
-        }
-
-        List<GameAchievementData> ICacheReadOptimizations.LoadAllGameDataFast()
-        {
-            return LoadAllGameDataFast();
         }
 
         List<GameAchievementData> ICacheReadOptimizations.LoadAllGameHeadersFast()
@@ -440,7 +429,6 @@ namespace PlayniteAchievements.Services.Cache
         {
             _userAchievements = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
             _lruOrder = new LinkedList<string>();
-            _writeGeneration++;
         }
 
         private bool TryGetMemoryGameData_Locked(string key, out GameAchievementData data)
@@ -476,7 +464,6 @@ namespace PlayniteAchievements.Services.Cache
 
             var normalized = UserKey(key);
             var copy = CloneGameData(data);
-            _writeGeneration++;
             if (_userAchievements.TryGetValue(normalized, out var existing) && existing != null)
             {
                 existing.Data = copy;
@@ -543,29 +530,6 @@ namespace PlayniteAchievements.Services.Cache
                 }
 
                 _userAchievements.Remove(normalized);
-                _writeGeneration++;
-            }
-        }
-
-        private void RemoveStaleMemoryEntries_Locked(HashSet<string> validKeys)
-        {
-            if (validKeys == null)
-            {
-                return;
-            }
-
-            var stale = new List<string>();
-            foreach (var key in _userAchievements.Keys)
-            {
-                if (!validKeys.Contains(key))
-                {
-                    stale.Add(key);
-                }
-            }
-
-            for (var i = 0; i < stale.Count; i++)
-            {
-                RemoveMemoryGameData_Locked(stale[i]);
             }
         }
 
@@ -782,98 +746,6 @@ namespace PlayniteAchievements.Services.Cache
         // ---------------------------
 
         private string UserKey(string key) => key?.Trim() ?? string.Empty;
-
-        internal List<GameAchievementData> LoadAllGameDataFast()
-        {
-            using (PerfScope.Start(_logger, "Cache.LoadAllGameDataFast", thresholdMs: 25))
-            {
-                var scopeChanged = false;
-
-                try
-                {
-                    long startGeneration;
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadAllGameDataFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                        startGeneration = _writeGeneration;
-                    }
-
-                    // Read the whole-library snapshot off _sync (on the store's read connection)
-                    // so this multi-second scan does not stall short per-game grid reads.
-                    var records = _store.LoadAllCurrentUserGameDataByCacheKey() ??
-                                  new List<KeyValuePair<string, GameAchievementData>>();
-
-                    lock (_sync)
-                    {
-                        // A write that landed while the snapshot was read may have added a game
-                        // absent from it; skip pruning in that case so the freshly written game
-                        // is kept. The per-entry timestamp check below still prevents clobbering
-                        // newer in-memory data with the older snapshot.
-                        var pruneStaleEntries = _writeGeneration == startGeneration;
-
-                        var result = new List<GameAchievementData>(records.Count);
-                        var validKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                        for (var i = 0; i < records.Count; i++)
-                        {
-                            var record = records[i];
-                            var cacheKey = UserKey(record.Key);
-                            if (string.IsNullOrWhiteSpace(cacheKey))
-                            {
-                                continue;
-                            }
-
-                            validKeys.Add(cacheKey);
-
-                            var dbData = record.Value;
-                            if (dbData == null)
-                            {
-                                RemoveMemoryGameData_Locked(cacheKey);
-                                continue;
-                            }
-
-                            NormalizeLoadedData(cacheKey, dbData);
-
-                            if (TryGetMemoryGameData_Locked(cacheKey, out var memoryData) && memoryData != null)
-                            {
-                                var memoryUpdated = DateTimeUtilities.AsUtcKind(memoryData.LastUpdatedUtc);
-                                var dbUpdated = DateTimeUtilities.AsUtcKind(dbData.LastUpdatedUtc);
-                                if (memoryUpdated >= dbUpdated)
-                                {
-                                    result.Add(CloneGameData(memoryData));
-                                    continue;
-                                }
-                            }
-
-                            // The memory cache keeps its own copy; the freshly read record is
-                            // otherwise unshared, so it goes to the caller as is.
-                            SetMemoryGameData_Locked(cacheKey, dbData);
-                            result.Add(dbData);
-                        }
-
-                        if (pruneStaleEntries)
-                        {
-                            RemoveStaleMemoryEntries_Locked(validKeys);
-                        }
-
-                        return result;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed loading all game data from cache.");
-                    return new List<GameAchievementData>();
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
 
         public GameAchievementData LoadGameData(string key)
         {
