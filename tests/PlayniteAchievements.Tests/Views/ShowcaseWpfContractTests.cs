@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Tests.Views
 
             StringAssert.Contains(plugin, "Games_ItemCollectionChanged");
             StringAssert.Contains(plugin, "Games_ItemUpdated");
-            StringAssert.Contains(plugin, "InvalidateStartPageData();");
+            StringAssert.Contains(plugin, "InvalidateStartPageData(\"");
             StringAssert.Contains(editor, "PlayniteUiProvider.CreateExtensionWindow");
             StringAssert.Contains(editor, "LOCPlayAch_Showcase_WidgetSettingsTitle");
             StringAssert.Contains(profileEditor, "LOCPlayAch_Common_Clear");
