@@ -2395,8 +2395,7 @@ namespace PlayniteAchievements.Views.Showcase
                 $"rows={projection?.AchievementRows?.Count ?? 0} " +
                 $"mosaic={projection?.MosaicAchievements?.Count ?? 0} " +
                 $"games={projection?.Games?.Count ?? 0} " +
-                $"chart={projection?.ChartEntries?.Count ?? 0} " +
-                $"snapshot={projection?.Snapshot?.Achievements?.Count ?? 0}";
+                $"chart={projection?.ChartEntries?.Count ?? 0}";
         }
 
         private Button CreateAddWidgetButton(ShowcaseBlockSettings block)
