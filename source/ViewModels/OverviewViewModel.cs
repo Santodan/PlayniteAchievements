@@ -1393,19 +1393,24 @@ namespace PlayniteAchievements.ViewModels
                 _reloadTimer?.Stop();
                 _progressTracker.NotifyDeactivated();
                 CancelPendingRefresh();
-
-                // Hidden, the grid reads nothing; it reads its rows again when shown.
-                DisposeReads();
             }
             else
             {
                 AttachSharedSnapshotPublisher();
                 _progressTracker.SyncToCurrentState();
                 _compareFriendsStale = true;
+                // Shown again with no change while hidden: the rows it kept are current.
+                if (_latestSnapshot != null && ReferenceEquals(_sharedSnapshotTarget?.CurrentSnapshot(), _latestSnapshot))
+                {
+                    RefreshCompareFriendsWhenIdle();
+                    return;
+                }
+
                 // The snapshot read goes first on the read connection: the games grid, score
                 // cards and widgets wait for it. The Achievements grid's read queues behind it.
                 // A snapshot kept from an earlier open is used while no change has made it stale.
-                _ = RefreshViewAsync(opening: true);
+                // Shown again after a change, the rows it kept are read again with the snapshot.
+                _ = RefreshViewAsync(opening: _latestSnapshot == null);
                 ApplyRightFilters();
             }
         }
