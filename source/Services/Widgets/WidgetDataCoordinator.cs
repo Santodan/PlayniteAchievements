@@ -5,9 +5,7 @@ using System.Threading.Tasks;
 using Playnite.SDK;
 #if !TEST
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Achievements;
-using PlayniteAchievements.Services.Library;
 #endif
 using PlayniteAchievements.Services.Overview;
 
@@ -33,30 +31,13 @@ namespace PlayniteAchievements.Services.Widgets
 #if !TEST
         internal WidgetDataCoordinator(
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
-            IReadOnlyList<IDataProvider> providers,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
             Func<List<PlayniteAchievements.Models.Friends.FriendIdentity>> currentUserIdentityLoader = null)
             : this(
-                () =>
-                {
-                    if (libraryProjectionService != null)
-                    {
-                        return libraryProjectionService.GetOverviewSnapshot(
-                            settings,
-                            CancellationToken.None);
-                    }
-
-                    var builder = new OverviewDataBuilder(
-                        achievementDataService,
-                        providers,
-                        playniteApi,
-                        logger,
-                        currentUserIdentityLoader);
-                    return builder.Build(settings, CancellationToken.None);
-                },
+                () => new OverviewDataBuilder(achievementDataService, null, playniteApi, logger, currentUserIdentityLoader)
+                    .Build(settings, CancellationToken.None),
                 logger)
         {
         }
@@ -69,33 +50,6 @@ namespace PlayniteAchievements.Services.Widgets
         }
 
         public event EventHandler SnapshotInvalidated;
-
-        /// <summary>
-        /// True while at least one snapshot publisher (an active overview view model) is
-        /// attached. While a publisher is attached the coordinator does not self-build;
-        /// it serves whatever the publisher last pushed via <see cref="Publish"/>.
-        /// </summary>
-        public bool HasActivePublisher
-        {
-            get
-            {
-                lock (_syncRoot)
-                {
-                    return _publisherCount > 0;
-                }
-            }
-        }
-
-        /// <summary>Retained snapshot shape, for memory diagnostics.</summary>
-        public void GetRetentionStats(out bool hasSnapshot, out int achievementRows, out int gameRows)
-        {
-            lock (_syncRoot)
-            {
-                hasSnapshot = _snapshot != null;
-                achievementRows = _snapshot?.Achievements?.Count ?? 0;
-                gameRows = _snapshot?.GameSummaries?.Count ?? 0;
-            }
-        }
 
         public void AttachPublisher()
         {
@@ -116,10 +70,8 @@ namespace PlayniteAchievements.Services.Widgets
                 }
 
                 // The retained snapshot exists to serve widget hosts. With the last publisher
-                // gone (the overview closing) and nothing subscribed, holding a full-library
-                // snapshot keeps the overview's whole row set alive for no consumer, so the
-                // close would not return memory. Drop it; the stale flag makes the next pull
-                // rebuild on demand.
+                // gone (the overview closing) and nothing subscribed, nothing needs it; the stale
+                // flag makes the next pull rebuild on demand.
                 if (_publisherCount == 0 && SnapshotInvalidated == null)
                 {
                     _snapshot = null;
@@ -189,9 +141,9 @@ namespace PlayniteAchievements.Services.Widgets
                     }
 
                     // Publisher-fed: an active overview pushes snapshots via Publish, so a
-                    // self-build here would just retain a redundant full-library copy. The
-                    // stale flag from Invalidate survives, making the first pull after the
-                    // publisher detaches rebuild once. Covers forceRefresh too.
+                    // self-build here would be a second copy. The stale flag from Invalidate
+                    // survives, making the first pull after the publisher detaches rebuild once.
+                    // Covers forceRefresh too.
                     if (_publisherCount > 0 && _snapshot != null)
                     {
                         return _snapshot;
