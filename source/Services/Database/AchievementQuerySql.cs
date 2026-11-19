@@ -93,11 +93,11 @@ namespace PlayniteAchievements.Services.Database
         /// The current user's unlocks of each game's achievements across their accounts, with the
         /// latest resolved time; only of the Playnite games of <paramref name="gameIds"/> when given.
         /// </summary>
-        private static string SelfCtes(IReadOnlyList<long> gameIds, List<object> args) => @"WITH SelfUnlocks AS (
+        private static string SelfCtes(IReadOnlyList<long> gameIds) => @"WITH SelfUnlocks AS (
                 SELECT s.PlayniteGameId AS PlayniteGameId, s.ApiName AS ApiName, MAX(s.UnlockTimeUtc) AS UnlockTimeUtc
                 FROM " + AchievementLayerSql.AllUsersViewName + @" s
                 WHERE s.IsCurrentUser = 1 AND s.IsAuthored = 0 AND s.Unlocked = 1" +
-                (gameIds == null ? string.Empty : " AND s.PlayniteGameId IN (SELECT sg.PlayniteGameId FROM Games sg WHERE " + InList("sg.Id", gameIds.Cast<object>().ToList(), args) + ")") + @"
+                (gameIds == null ? string.Empty : " AND s.PlayniteGameId IN (SELECT sg.PlayniteGameId FROM Games sg WHERE " + IdList("sg.Id", gameIds.Select(id => (long?)id)) + ")") + @"
                 GROUP BY s.PlayniteGameId, s.ApiName
             )";
 
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Services.Database
                 SELECT c.GameId AS GameId, c.ApiName AS ApiName, MAX(c.UnlockTimeUtc) AS UnlockTimeUtc
                 FROM " + AchievementLayerSql.AllUsersViewName + @" c
                 WHERE c.UserId IN (" + AccountUsers(query.CompareAccounts, args) + @") AND c.Unlocked = 1" +
-                (gameIds == null ? string.Empty : " AND " + InList("c.GameId", gameIds.Cast<object>().ToList(), args)) + @"
+                (gameIds == null ? string.Empty : " AND " + IdList("c.GameId", gameIds.Select(id => (long?)id))) + @"
                 GROUP BY c.GameId, c.ApiName
             ),
             CompareGames AS (
@@ -128,7 +128,7 @@ namespace PlayniteAchievements.Services.Database
                 SELECT co.GameId FROM FriendOwnership co
                 WHERE co.UserId IN (" + AccountUsers(query.CompareAccounts, args) + @")
                   AND (co.LastOwnershipRefreshUtc IS NOT NULL OR co.PlaytimeForeverMinutes > 0)" +
-                (gameIds == null ? string.Empty : " AND " + InList("co.GameId", gameIds.Cast<object>().ToList(), args)) + @"
+                (gameIds == null ? string.Empty : " AND " + IdList("co.GameId", gameIds.Select(id => (long?)id))) + @"
             )";
             return unlocks;
         }
@@ -168,7 +168,7 @@ namespace PlayniteAchievements.Services.Database
             var gameIds = keys?.Where(key => key.GameId.HasValue).Select(key => key.GameId.Value).Distinct().ToList();
             if (query.Friends)
             {
-                sql.Append(SelfCtes(gameIds, args));
+                sql.Append(SelfCtes(gameIds));
                 if (compare)
                 {
                     sql.Append(CompareCtes(query, gameIds, args));
@@ -208,9 +208,9 @@ namespace PlayniteAchievements.Services.Database
                 var platform = keys.Where(key => key.PlayniteGameId == null).ToList();
                 if (platform.Count > 0)
                 {
-                    terms.Add(InList("r.UserId", platform.Select(key => key.UserId).Distinct().Cast<object>().ToList(), args) +
-                              " AND " + InList("r.GameId", gameIds.Cast<object>().ToList(), args) +
-                              " AND " + InList("r.Id", platform.Select(key => key.DefinitionId).Distinct().Cast<object>().ToList(), args));
+                    terms.Add(IdList("r.UserId", platform.Select(key => key.UserId)) +
+                              " AND " + IdList("r.GameId", gameIds.Select(id => (long?)id)) +
+                              " AND " + IdList("r.Id", platform.Select(key => key.DefinitionId)));
                 }
 
                 var authored = keys.Where(key => key.PlayniteGameId != null).ToList();
@@ -637,6 +637,14 @@ namespace PlayniteAchievements.Services.Database
 
             args.AddRange(values);
             return expression + " IN (" + string.Join(", ", values.Select(_ => "?")) + ")";
+        }
+
+        // Ids the database gave, inline: a long formats as digits only, and a page of keys would
+        // otherwise bind thousands of variables. A null id matches no row.
+        private static string IdList(string expression, IEnumerable<long?> ids)
+        {
+            var values = ids.Where(id => id.HasValue).Select(id => id.Value.ToString(CultureInfo.InvariantCulture)).Distinct().ToList();
+            return values.Count == 0 ? "0" : expression + " IN (" + string.Join(", ", values) + ")";
         }
 
         private static string KeySql(AchievementQuery query, AchievementGroup group)
