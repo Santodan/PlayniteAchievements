@@ -114,9 +114,6 @@ namespace PlayniteAchievements.ViewModels
         // The games of the unlocks the Achievements grid's filters keep, for the Games grid.
         private LiveQuery<HashSet<Guid>> _matchingGames;
 
-        // The listed games by id, read off the UI thread to give authored rows their game's provider.
-        private Dictionary<Guid, GameSummaryItem> _gamesById = new Dictionary<Guid, GameSummaryItem>();
-
         private List<AchievementDisplayItem> _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _selectedGameDefaultOrderedAchievements = new List<AchievementDisplayItem>();
         private readonly SearchTextIndex<GameSummaryItem> _gameSummarySearchIndex =
@@ -1825,10 +1822,6 @@ namespace PlayniteAchievements.ViewModels
             _latestSnapshot = snapshot;
             _everyGameQuery = null;
             _allGameSummaries = snapshot.GameSummaries ?? new List<GameSummaryItem>();
-            _gamesById = _allGameSummaries
-                .Where(game => game?.PlayniteGameId != null)
-                .GroupBy(game => game.PlayniteGameId.Value)
-                .ToDictionary(group => group.Key, group => group.First());
             Services.Captures.CapturePresenceMarker.MarkSummaries(_allGameSummaries, _captureLibrary);
             if (gameSummarySearchEntries != null)
             {
@@ -2838,7 +2831,7 @@ namespace PlayniteAchievements.ViewModels
         {
             using (PerfScope.Start(_logger, "Overview.LoadRows", thresholdMs: 25, context: "rows=" + keys.Count))
             {
-                return _dataBuilder.LoadRows(_settings, query, keys, _gamesById);
+                return _dataBuilder.LoadRows(_settings, query, keys);
             }
         }
 
@@ -3674,7 +3667,6 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameAllAchievements.Clear();
 
             _allGameSummaries = new List<GameSummaryItem>();
-            _gamesById = new Dictionary<Guid, GameSummaryItem>();
             _allSelectedGameAchievements = new List<AchievementDisplayItem>();
             _filteredGameSummaries = new List<GameSummaryItem>();
             _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
