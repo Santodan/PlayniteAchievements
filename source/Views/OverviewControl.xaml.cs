@@ -74,7 +74,6 @@ namespace PlayniteAchievements.Views
         private readonly LibraryProjectionService _libraryProjectionService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly RefreshEntryPoint _refreshEntryPoint;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
         private readonly OverviewLaunchContext _launchContext;
         private const double OverviewColumnRatioChangeThreshold = 0.001d;
         private bool _isActive;
@@ -155,7 +154,6 @@ namespace PlayniteAchievements.Views
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<Services.Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
             using (Common.PerfScope.Start(logger, "OverviewControl.InitializeComponent", thresholdMs: 30))
@@ -178,7 +176,6 @@ namespace PlayniteAchievements.Views
             _libraryProjectionService = libraryProjectionService;
             _playniteApi = api ?? throw new ArgumentNullException(nameof(api));
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
             _launchContext = launchContext;
             Loaded += AttachKeySequenceWindow;
             Unloaded += DetachKeySequenceWindow;
@@ -366,8 +363,7 @@ namespace PlayniteAchievements.Views
                 _launchContext,
                 _playniteApi,
                 _cacheManager,
-                _achievementOverridesService,
-                _friendsOverviewDataCoordinator)
+                _achievementOverridesService)
             {
                 IsEmbedded = true
             };
