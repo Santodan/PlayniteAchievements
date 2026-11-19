@@ -64,7 +64,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             (_gameSummaryItemBuilder = new GameSummaryItemBuilder(_api, _logger));
 
         private readonly object _refreshLock = new object();
-        private CancellationTokenSource _refreshCts;
+
+        // The latest library state read; an older one is dropped unread or unapplied.
+        private int _libraryReadVersion;
         private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
 
         // A window that edits one game's custom data in bulk -- the Manage Achievements editor --
@@ -493,12 +495,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 list.Dispose();
             }
 
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = null;
-            }
+            Interlocked.Increment(ref _libraryReadVersion);
 
             lock (_updateGate)
             {
@@ -543,14 +540,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     return;
                 }
 
-                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                if (dispatcher != null && !dispatcher.CheckAccess())
-                {
-                    dispatcher.Invoke(new Action(PopulateAllGamesDataSync), DispatcherPriority.Background);
-                    return;
-                }
-
-                PopulateAllGamesDataSync();
+                ReadLibraryState(TimeSpan.Zero);
             }
             catch (Exception ex)
             {
@@ -1107,22 +1097,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void OpenOverviewWindow()
         {
-            // Cancel any pending async refresh to prevent it from overwriting our data
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = null;
-            }
-
             // Mark as initialized to prevent other code paths from triggering refresh
             if (!_fullscreenInitialized)
             {
                 _fullscreenInitialized = true;
             }
 
-            // Immediately populate all-games data on UI thread before opening window
-            PopulateAllGamesDataSync();
+            // Read now, superseding a pending read; the window shows the state when it lands.
+            ReadLibraryState(TimeSpan.Zero);
 
             _windowService.OpenOverviewWindow();
         }
@@ -1699,24 +1681,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         #region Snapshot Building and Refresh
 
-        private void PopulateAllGamesDataSync()
-        {
-            try
-            {
-                var state = BuildLibraryState(CancellationToken.None);
-                _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
-
-                _hasLoadedLibraryState = true;
-                ApplyLibraryState(state);
-
-                _logger?.Info($"PopulateAllGamesDataSync: Applied snapshot. AllGamesWithAchievements count={_settings.LegacyTheme.AllGamesWithAchievements?.Count ?? 0}");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to populate all-games data synchronously.");
-            }
-        }
-
         /// <summary>
         /// Synchronously populates single-game achievement data for the specified game.
         /// Uses existing cached data without triggering a refresh.
@@ -1838,64 +1802,67 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     // An in-flight rebuild from just before the suspension is abandoned: it would
                     // publish state built from data the burst is still changing.
-                    try { _refreshCts?.Cancel(); } catch { }
+                    Interlocked.Increment(ref _libraryReadVersion);
                     return;
                 }
             }
 
-            CancellationToken token;
-            lock (_refreshLock)
-            {
-                try { _refreshCts?.Cancel(); } catch { }
-                try { _refreshCts?.Dispose(); } catch { }
-                _refreshCts = new CancellationTokenSource();
-                token = _refreshCts.Token;
-            }
+            ReadLibraryState(LibraryRefreshDelay);
+        }
 
-            _ = Task.Run(async () =>
+        /// <summary>
+        /// Reads the library state off the UI thread after <paramref name="delay"/> and applies it
+        /// on the UI thread, unless a later request has superseded it by then.
+        /// </summary>
+        private void ReadLibraryState(TimeSpan delay)
+        {
+            var version = Interlocked.Increment(ref _libraryReadVersion);
+            Action read = () => ReadScheduler.Run(() =>
             {
+                if (version != _libraryReadVersion)
+                {
+                    return;
+                }
+
+                LibraryRuntimeState state;
                 try
                 {
-                    await Task.Delay(LibraryRefreshDelay, token).ConfigureAwait(false);
-
-                    var state = BuildLibraryState(token);
-
-                    Action applyState = () =>
-                    {
-                        _hasLoadedLibraryState = true;
-                        ApplyLibraryState(state);
-                    };
-
-                    var uiDispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                    if (uiDispatcher == null)
-                    {
-                        applyState();
-                    }
-                    else
-                    {
-                        uiDispatcher.InvokeIfNeeded(applyState, DispatcherPriority.Background);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
+                    state = BuildLibraryState();
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "Failed to refresh theme integration snapshot.");
+                    return;
                 }
-            }, token);
+
+                ReadScheduler.Post(() =>
+                {
+                    if (version == _libraryReadVersion)
+                    {
+                        _hasLoadedLibraryState = true;
+                        ApplyLibraryState(state);
+                    }
+                });
+            });
+            if (delay > TimeSpan.Zero)
+            {
+                ReadScheduler.PostAfter(delay, read);
+            }
+            else
+            {
+                read();
+            }
         }
 
         // The library's summary, its ten newest unlocks and its ten rarest of the last 180 days.
-        private LibraryRuntimeState BuildLibraryState(CancellationToken token)
+        private LibraryRuntimeState BuildLibraryState()
         {
-            token.ThrowIfCancellationRequested();
             var rarest = _achievementDataService.ReadRows(RarestRecentQuery(_achievementDataService.SummaryQuery()).Page(ThemeRecentUnlockSummaryLimit));
             return LibraryRuntimeStateBuilder.BuildFromCachedSummary(
                 _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit),
                 rarest,
                 _api,
-                token);
+                CancellationToken.None);
         }
 
         private void ApplyLibraryState(LibraryRuntimeState state)
