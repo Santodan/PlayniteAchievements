@@ -46,18 +46,12 @@
                     <Border Style="{StaticResource SettingGroupCardStyle}"
                             Visibility="{Binding Persisted.EnableAchievementCompactUnlockedListControl, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <modern:AchievementCompactUnlockedListControl
                                 Style="{StaticResource PreviewThemeControlStyle}"
                                 ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 SettingsOverride="{Binding}"
                                 IconSize="48"
                                 Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
-                                       Style="{StaticResource SubSectionHeaderStyle}"
-                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
                                       IsChecked="{Binding Persisted.ShowCompactUnlockedListRarityBar}"
                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
