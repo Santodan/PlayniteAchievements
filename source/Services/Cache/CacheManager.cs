@@ -1285,13 +1285,21 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>Drops the capture index rows of every game not in <paramref name="keep"/>. Never throws.</summary>
         internal void RemoveAchievementCapturesExcept(ISet<Guid> keep)
         {
+            List<Guid> removed;
             try
             {
-                _store.RemoveAchievementCapturesExcept(keep);
+                removed = _store.RemoveAchievementCapturesExcept(keep);
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Failed to prune the capture index.");
+                return;
+            }
+
+            // The resolved rows carry the capture paths.
+            if (removed.Count > 0)
+            {
+                _feed.Publish(AchievementDataChange.ForGames(removed));
             }
         }
 
