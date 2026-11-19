@@ -246,11 +246,17 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendIsFavorite, value);
         }
 
+        private bool _isPlaceholder;
+
         /// <summary>
-        /// Stands in for a row a paged list has not loaded yet; the row style draws it as an empty
-        /// row of the usual height.
+        /// Stands in for a row a paged list has not loaded yet; the cell style draws a shape in
+        /// each cell. Cleared when the row's read fills it in place.
         /// </summary>
-        public bool IsPlaceholder { get; set; }
+        public bool IsPlaceholder
+        {
+            get => _isPlaceholder;
+            set => SetValue(ref _isPlaceholder, value);
+        }
 
         // --- Friend comparison (session-only; set by the hosting view model when a
         //     compare friend is selected, cleared when the selection changes) ---
@@ -1540,6 +1546,7 @@ namespace PlayniteAchievements.ViewModels.Items
             NotificationCapturePath = sourceItem.NotificationCapturePath;
             FramedCapturePath = sourceItem.FramedCapturePath;
             VideoCapturePath = sourceItem.VideoCapturePath;
+            IsPlaceholder = sourceItem.IsPlaceholder;
         }
 
         /// <summary>
