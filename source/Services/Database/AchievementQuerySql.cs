@@ -299,12 +299,11 @@ namespace PlayniteAchievements.Services.Database
             "printf('%d%011d%d%011d%d%015d', r.CustomOrder IS NULL, COALESCE(r.CustomOrder, 0), r.MetadataOrder IS NULL, " +
             "COALESCE(r.MetadataOrder, 0), r.IsAuthored, COALESCE(r.Id, 0))";
 
-        /// <summary>The number of matching rows; the query's page is ignored.</summary>
-        public static Command Count(AchievementQuery query)
+        /// <summary>A query's identity: its rows SQL and arguments, which hold every part of it.</summary>
+        public static string KeyOf(AchievementQuery query)
         {
-            var args = new List<object>();
-            var sql = "SELECT COUNT(*)" + From(query, args) + Where(query, args) + ";";
-            return new Command(sql, args.ToArray());
+            var command = Rows(query);
+            return command.Sql + "\u001e" + string.Join("\u001f", command.Args.Select(arg => Convert.ToString(arg, CultureInfo.InvariantCulture)));
         }
 
         /// <summary>The distinct group keys of the matching rows. Tag lists stored tag texts; the reader splits them.</summary>
