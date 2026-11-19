@@ -160,6 +160,7 @@
     <sys:Double x:Key="PlayAch.Opacity.Secondary">0.8</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Emphasis">0.95</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Placeholder">0.5</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Skeleton">0.12</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Full">1</sys:Double>
 
     <sys:Double x:Key="PlayAch.FontSize.SectionHeader">16</sys:Double>
