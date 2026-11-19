@@ -1013,13 +1013,18 @@
         <Setter Property="ProviderKey" Value="{Binding ProviderKey, Mode=OneWay}"/>
     </Style>
 
-    <!-- Achievement Info Template with Hidden Styling -->
+    <!-- Achievement Info Template with Hidden Styling. The name and description share the row's
+         height: a DockPanel hands each the height left, so either wraps and is trimmed only where it
+         reaches the bottom of the cell. The cell's tooltip carries the full text. -->
     <DataTemplate x:Key="AchievementInfoTemplate">
-        <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                    Background="Transparent">
-            <TextBlock FontWeight="SemiBold"
+        <DockPanel LastChildFill="True"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   Background="Transparent">
+            <TextBlock DockPanel.Dock="Top"
+                       FontWeight="SemiBold"
                        TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
                        Style="{StaticResource AchievementNameTextStyle}"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
                 <InlineUIContainer BaselineAlignment="Center">
@@ -1042,7 +1047,6 @@
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Margin" Value="0,3,0,0"/>
-                        <Setter Property="MaxHeight" Value="44"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
@@ -1058,7 +1062,7 @@
                 </InlineUIContainer><Run Text="{Binding DescriptionResolved, Mode=OneWay}"
                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}, Converter={StaticResource BrushOpacity}, ConverterParameter={StaticResource PlayAch.Opacity.Subtle}}"/>
             </TextBlock>
-        </StackPanel>
+        </DockPanel>
     </DataTemplate>
 
     <!-- The stand-in drawn in a Compare avatar circle whose side has no avatar image (a
