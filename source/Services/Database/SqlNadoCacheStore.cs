@@ -936,7 +936,8 @@ namespace PlayniteAchievements.Services.Database
         public CachedSummaryData LoadCachedSummaryData(
             int limit,
             IEnumerable<Guid> excludedGameIds,
-            Func<Guid, CachedGameSummaryData> authoredGame)
+            Func<Guid, CachedGameSummaryData> authoredGame,
+            bool days = true)
         {
             PrimeFileCache();
             var identities = LoadAllCurrentUserGameHeadersByCacheKey().Select(header => new CachedGameSummaryData
@@ -952,12 +953,12 @@ namespace PlayniteAchievements.Services.Database
                 HasAchievements = header.Value.HasAchievements,
                 LastUpdatedUtc = header.Value.LastUpdatedUtc
             }).ToList();
-            return WithReadDb(db => SummaryCacheReader.Load(db, identities, authoredGame, limit, excludedGameIds, MakeAbsolutePath));
+            return WithReadDb(db => SummaryCacheReader.Load(db, identities, authoredGame, limit, excludedGameIds, MakeAbsolutePath, days));
         }
 
-        /// <summary>The current user's rows of <paramref name="keys"/>, in their order, as the summary maps them.</summary>
+        /// <summary>The current user's rows of <paramref name="keys"/> in their order, or of every row the query reads, as the summary maps them.</summary>
         public List<CachedRecentUnlockData> LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
-            WithReadDb(db => AchievementReadService.Rows(db, query, keys)
+            WithReadDb(db => (keys == null ? AchievementReadService.Rows(db, query) : AchievementReadService.Rows(db, query, keys))
                 .Select(row => SummaryCacheReader.MapRow(row, null, MakeAbsolutePath))
                 .ToList());
 
