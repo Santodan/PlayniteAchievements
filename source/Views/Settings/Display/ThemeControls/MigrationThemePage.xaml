@@ -76,7 +76,7 @@
                         </Button>
                     </StackPanel>
 
-                    <Border Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                    <Border Background="Transparent"
                             x:Name="ThemeMigrationCustomContainer"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
