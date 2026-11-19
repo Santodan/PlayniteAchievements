@@ -620,15 +620,15 @@ namespace PlayniteAchievements.SqlNado.Tests
 
             StringAssert.Contains(
                 write,
-                "DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ?;",
-                "Rows are removed and rewritten one ApiName at a time.");
+                "DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ? AND IsAuthored = ?;",
+                "Rows are removed and rewritten one row at a time.");
 
             // An unchanged row is skipped, which keeps a no-op save out of the WAL.
-            StringAssert.Contains(write, "string.Equals(signature, row.Signature(), StringComparison.Ordinal)");
+            StringAssert.Contains(write, "string.Equals(stored.Signature(), row.Signature(), StringComparison.Ordinal)");
 
             // The insert is a plain INSERT under a UNIQUE key, so a changed row must lose its
             // stored version first.
-            var deleteChanged = write.IndexOf("WHERE PlayniteGameId = ? AND ApiName = ?;\", idText, row.ApiName", StringComparison.Ordinal);
+            var deleteChanged = write.LastIndexOf("db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);", StringComparison.Ordinal);
             var insert = write.IndexOf("db.ExecuteNonQuery(insertSql", StringComparison.Ordinal);
             Assert.IsTrue(
                 deleteChanged >= 0 && insert > deleteChanged,
