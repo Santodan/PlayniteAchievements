@@ -396,6 +396,18 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             using var perf = PerfScope.Start(Logger, "Showcase.BuildDashboard", thresholdMs: 20);
+            // Every change of parent walks the moved subtree to re-resolve its styles and
+            // resources, and a widget body is most of the dashboard's elements. Hosts leave their
+            // containers before those are cleared and join the new ones only once they are in the
+            // window, so a cached host is walked once on the way out and once on the way in.
+            foreach (var state in _blockVisuals.Values)
+            {
+                if (state.Host != null)
+                {
+                    LayersOf(state.Container)?.Children.Remove(state.Host);
+                }
+            }
+
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
             // Every visible block re-enqueues through CreateWidgetHost below; anything still
@@ -432,12 +444,16 @@ namespace PlayniteAchievements.Views.Showcase
             AddGridLayers(rowCount, columnCount);
             foreach (var block in ContainerBlocks())
             {
-                var container = CreateBlockContainer(block);
+                var container = CreateBlockContainer(block, out var widgetHost);
                 Grid.SetRow(container, block.Row);
                 Grid.SetColumn(container, block.Column);
                 Grid.SetRowSpan(container, block.RowSpan);
                 Grid.SetColumnSpan(container, block.ColumnSpan);
                 DashboardGrid.Children.Add(container);
+                if (widgetHost != null)
+                {
+                    LayersOf(container).Children.Insert(0, widgetHost);
+                }
             }
 
             // Grippers and rulers are edit-mode chrome: 4x(N-1) thumbs and 2N text boxes that a
@@ -1932,7 +1948,9 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block)
+        // The block's widget host, when it has one, is returned rather than placed: the caller
+        // inserts it as the first layer once the container is in the dashboard (see BuildDashboard).
+        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block, out ShowcaseWidgetControl widgetHost)
         {
             // The container never changes BorderThickness or Padding: edit-mode chrome is drawn
             // by an overlay layer so toggling edit mode cannot shift the widget layout.
@@ -1956,23 +1974,20 @@ namespace PlayniteAchievements.Views.Showcase
             border.PreviewMouseMove += Block_PreviewMouseMove;
             border.GotKeyboardFocus += Block_GotKeyboardFocus;
 
-            UIElement content;
-            ShowcaseWidgetControl widgetHost = null;
+            widgetHost = null;
             Button addButton = null;
             var widget = FindWidget(block.WidgetInstanceId);
+            var layers = new Grid();
             if (widget == null)
             {
                 addButton = CreateAddWidgetButton(block);
-                content = addButton;
+                layers.Children.Add(addButton);
             }
             else
             {
                 widgetHost = CreateWidgetHost(block, widget);
-                content = widgetHost;
             }
 
-            var layers = new Grid();
-            layers.Children.Add(content);
             var editChrome = new Border
             {
                 Visibility = Visibility.Collapsed,
@@ -3141,7 +3156,8 @@ namespace PlayniteAchievements.Views.Showcase
                             Column = block.Column,
                             RowSpan = block.RowSpan,
                             ColumnSpan = block.ColumnSpan
-                        });
+                        },
+                        out _);
                     created.Tag = block;
                     _blockVisuals[block.BlockId].Block = block;
                     // Below the ZIndex'd overlays either way; first keeps child order stable.
