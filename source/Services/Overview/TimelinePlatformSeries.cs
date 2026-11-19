@@ -43,124 +43,62 @@ namespace PlayniteAchievements.Services.Overview
         /// <summary>
         /// One count per completed game, on the day it was first completed by any of: its last
         /// capstone unlocking (every capstone unlocked), its last achievement unlocking (100%), or
-        /// a platinum unlocking. No completion date is stored, so the day is read from the
-        /// unlocks: a game at 100% whose rows the snapshot lacks uses its last unlock.
+        /// a platinum unlocking. No completion date is stored, so the day is read from the unlocks.
         /// </summary>
         public static Dictionary<Guid, Dictionary<DateTime, int>> CompletionCountsByGame(OverviewDataSnapshot snapshot) =>
             CompletionFinishes(snapshot).ToDictionary(
                 pair => pair.Key,
-                pair => new Dictionary<DateTime, int> { [UnlockDayCounts.DayOf(pair.Value.Utc)] = 1 });
+                pair => new Dictionary<DateTime, int> { [UnlockDayCounts.DayOf(pair.Value)] = 1 });
 
-        /// <summary>
-        /// <paramref name="snapshot"/> seen as completions: each completed game's finishing
-        /// unlock (the last capstone, the platinum, or the unlock that reached 100%) as its only
-        /// row, counted on the day it finished. Games whose finishing row the snapshot lacks are
-        /// counted without a row.
-        /// </summary>
+        /// <summary><paramref name="snapshot"/> seen as completions: each completed game counted on the day it finished.</summary>
         public static OverviewDataSnapshot CompletionSnapshot(OverviewDataSnapshot snapshot)
         {
-            var finishes = CompletionFinishes(snapshot);
-            var byGame = new Dictionary<Guid, Dictionary<DateTime, int>>();
-            var global = new Dictionary<DateTime, int>();
-            var rows = new List<AchievementDisplayItem>();
-            foreach (var pair in finishes)
-            {
-                var day = UnlockDayCounts.DayOf(pair.Value.Utc);
-                byGame[pair.Key] = new Dictionary<DateTime, int> { [day] = 1 };
-                global[day] = global.TryGetValue(day, out var count) ? count + 1 : 1;
-                if (pair.Value.Row != null)
-                {
-                    rows.Add(pair.Value.Row);
-                }
-            }
-
+            var byGame = CompletionCountsByGame(snapshot);
             return new OverviewDataSnapshot
             {
                 GameSummaries = snapshot?.GameSummaries ?? new List<GameSummaryItem>(),
-                Achievements = rows,
-                RecentAchievements = rows,
-                GlobalUnlockCountsByDate = global,
+                GlobalUnlockCountsByDate = Sum(byGame),
                 UnlockCountsByDateByGame = byGame,
                 CurrentUserIdentities = snapshot?.CurrentUserIdentities
             };
         }
 
-        // Each completed game's earliest finish, and the unlock that made it when the snapshot
-        // holds that row.
-        private static Dictionary<Guid, (DateTime Utc, AchievementDisplayItem Row)> CompletionFinishes(
-            OverviewDataSnapshot snapshot)
+        /// <summary>Each completed game's earliest finish: the unlock time of the last capstone, the platinum, or the unlock that reached 100%.</summary>
+        public static Dictionary<Guid, DateTime> CompletionFinishes(OverviewDataSnapshot snapshot)
         {
-            var lastCapstone = new Dictionary<Guid, AchievementDisplayItem>();
-            var firstPlatinum = new Dictionary<Guid, AchievementDisplayItem>();
-            var lastUnlock = new Dictionary<Guid, AchievementDisplayItem>();
-            var rows = snapshot?.Achievements;
-            for (var i = 0; i < (rows?.Count ?? 0); i++)
+            var result = new Dictionary<Guid, DateTime>();
+            foreach (var game in snapshot?.GameSummaries ?? new List<GameSummaryItem>())
             {
-                var row = rows[i];
-                if (row?.Unlocked != true || !row.UnlockTimeUtc.HasValue || !(row.PlayniteGameId is Guid rowGame))
-                {
-                    continue;
-                }
-
-                var unlockedUtc = row.UnlockTimeUtc.Value;
-                if (!lastUnlock.TryGetValue(rowGame, out var latestRow) || unlockedUtc > latestRow.UnlockTimeUtc.Value)
-                {
-                    lastUnlock[rowGame] = row;
-                }
-
-                if (row.IsCapstone &&
-                    (!lastCapstone.TryGetValue(rowGame, out var capstoneRow) || unlockedUtc > capstoneRow.UnlockTimeUtc.Value))
-                {
-                    lastCapstone[rowGame] = row;
-                }
-
-                if (string.Equals(row.TrophyType?.Trim(), "platinum", StringComparison.OrdinalIgnoreCase) &&
-                    (!firstPlatinum.TryGetValue(rowGame, out var platinumRow) || unlockedUtc < platinumRow.UnlockTimeUtc.Value))
-                {
-                    firstPlatinum[rowGame] = row;
-                }
-            }
-
-            var result = new Dictionary<Guid, (DateTime Utc, AchievementDisplayItem Row)>();
-            var games = snapshot?.GameSummaries;
-            for (var i = 0; i < (games?.Count ?? 0); i++)
-            {
-                var game = games[i];
                 if (game == null || !(game.PlayniteGameId is Guid gameId))
                 {
                     continue;
                 }
 
-                (DateTime Utc, AchievementDisplayItem Row)? finish = null;
-                void Consider(DateTime? utc, AchievementDisplayItem row)
+                DateTime? finish = null;
+                void Consider(DateTime? utc)
                 {
-                    if (utc.HasValue && (!finish.HasValue || utc.Value < finish.Value.Utc))
+                    if (utc.HasValue && (!finish.HasValue || utc.Value < finish.Value))
                     {
-                        finish = (utc.Value, row);
+                        finish = utc;
                     }
                 }
 
-                if (game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal &&
-                    lastCapstone.TryGetValue(gameId, out var capstone))
+                if (game.CapstoneTotal > 0 && game.CapstoneUnlocked >= game.CapstoneTotal)
                 {
-                    Consider(capstone.UnlockTimeUtc, capstone);
+                    Consider(game.LastCapstoneUnlockUtc);
                 }
 
-                lastUnlock.TryGetValue(gameId, out var last);
                 if (game.TotalAchievements > 0 && game.UnlockedAchievements >= game.TotalAchievements)
                 {
-                    Consider(last?.UnlockTimeUtc ?? game.LastUnlockUtc, last);
+                    Consider(game.LastUnlockUtc);
                 }
 
-                if (firstPlatinum.TryGetValue(gameId, out var platinum))
-                {
-                    Consider(platinum.UnlockTimeUtc, platinum);
-                }
+                Consider(game.FirstPlatinumUnlockUtc);
 
-                // Finished by its capstones, but their rows are missing: the last unlock stands in.
+                // Finished by its capstones, but none has a time: the last unlock stands in.
                 if (!finish.HasValue && game.IsCompleted)
                 {
-                    Consider(last?.UnlockTimeUtc ?? game.LastUnlockUtc, last);
+                    Consider(game.LastUnlockUtc);
                 }
 
                 if (finish.HasValue)
@@ -171,7 +109,6 @@ namespace PlayniteAchievements.Services.Overview
 
             return result;
         }
-
         /// <summary>
         /// <paramref name="byGame"/>'s day counts stacked one series per platform, the platforms
         /// read from the snapshot's games; days no listed game accounts for are left out.
