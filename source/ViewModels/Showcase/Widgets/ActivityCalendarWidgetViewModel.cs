@@ -383,11 +383,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             bool completions,
             ActivityCalendarControlBarAdapter adapter)
         {
-            var games = ShowcaseRows.ById(snapshot.GameSummaries);
             var query = adapter.ApplyAchievementFilters(snapshot.UnlockQuery()).OrderBy(Services.Database.AchievementSort.UnlockTime);
             if (!completions)
             {
-                return day => ShowcaseRows.Load(query.WhereUnlockedBetween(day, day), games);
+                return day => ShowcaseRows.Load(query.WhereUnlockedBetween(day, day));
             }
 
             var finishes = TimelinePlatformSeries.CompletionFinishes(snapshot);
@@ -396,7 +395,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 var finished = finishes.Where(pair => UnlockDayCounts.DayOf(pair.Value) == day).ToDictionary(pair => pair.Key, pair => pair.Value);
                 return finished.Count == 0
                     ? Array.Empty<AchievementDisplayItem>()
-                    : ShowcaseRows.Load(query.ForGames(finished.Keys).WhereUnlockedBetween(day, day), games)
+                    : ShowcaseRows.Load(query.ForGames(finished.Keys).WhereUnlockedBetween(day, day))
                         .Where(row => row.PlayniteGameId is Guid id && finished.TryGetValue(id, out var utc) && row.UnlockTimeUtc == utc)
                         .GroupBy(row => row.PlayniteGameId)
                         .Select(group => group.First())
