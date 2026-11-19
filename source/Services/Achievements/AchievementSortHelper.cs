@@ -578,7 +578,7 @@ namespace PlayniteAchievements.Services.Achievements
         /// <summary>
         /// A header click on a grid of a theme list its query sorts: the list's next sort key and
         /// direction, cycling as the other achievement grids do back to the list's default,
-        /// newest unlock first. Null when the column has no theme sort key.
+        /// newest unlock first. Null when the query cannot sort by the column.
         /// </summary>
         internal static (string Key, string Direction)? ResolveDynamicAchievementHeaderSort(
             string clickedSortMemberPath,
@@ -609,11 +609,15 @@ namespace PlayniteAchievements.Services.Achievements
                 : (key, action.Direction == ListSortDirection.Ascending ? DynamicThemeViewKeys.Ascending : DynamicThemeViewKeys.Descending);
         }
 
-        /// <summary>The theme sort key that orders a list as the column does; null when none does.</summary>
+        /// <summary>
+        /// The theme sort key that orders a list as the column does; for a column no theme sort key
+        /// names, the column itself, a key only the list's query reads. Null when the query cannot
+        /// sort by the column.
+        /// </summary>
         internal static string GetDynamicAchievementSortKey(string sortMemberPath) =>
             AchievementQuery.SortOfColumn(sortMemberPath) is AchievementSort sort
                 ? DynamicThemeOptionGroups.LibraryAchievementSortKeys.FirstOrDefault(key =>
-                    AchievementQuery.SortOfColumn(GetDynamicAchievementSortMemberPath(key)) == sort)
+                    AchievementQuery.SortOfColumn(GetDynamicAchievementSortMemberPath(key)) == sort) ?? sortMemberPath
                 : null;
 
         internal static string GetDynamicAchievementSortMemberPath(string sortKey)
@@ -654,7 +658,8 @@ namespace PlayniteAchievements.Services.Achievements
                 case DynamicThemeViewKeys.Capstone:
                     return nameof(AchievementDisplayItem.IsCapstone);
                 default:
-                    return null;
+                    // A column as a sort key, as a header click on a column no key names sets it.
+                    return AchievementQuery.SortOfColumn(sortKey) != null ? sortKey : null;
             }
         }
 
