@@ -44,6 +44,13 @@ namespace PlayniteAchievements.Services.Friends
                 }
             }
 
+            var stored = identities.GroupBy(friend => FriendAccountRef.BuildKey(friend.ProviderKey, friend.ExternalUserId) ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().DisplayName, StringComparer.OrdinalIgnoreCase);
+            FriendNames = projection.Friends.Where(friend => friend != null)
+                .SelectMany(friend => AccountsOf(friend).Select(account => new KeyValuePair<FriendAccountRef, string>(account, friend.DisplayName)))
+                .Where(name => name.Value != null && !(stored.TryGetValue(name.Key.Key, out var storedName) && string.Equals(storedName, name.Value, StringComparison.Ordinal)))
+                .ToList();
+
             _gamesByKey = new Dictionary<string, FriendGameSummaryItem>(StringComparer.OrdinalIgnoreCase);
             foreach (var game in projection.AggregateGames)
             {
@@ -63,6 +70,35 @@ namespace PlayniteAchievements.Services.Friends
         public IReadOnlyList<FriendGameSummaryItem> Games => Projection.AggregateGames;
 
         public bool HasData => Friends.Count > 0 || Games.Count > 0;
+
+        /// <summary>
+        /// The name each account's rows show where it is not the stored one: a nickname, or a
+        /// merged friend's name, for <see cref="AchievementQuery.WithFriendNames"/>.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<FriendAccountRef, string>> FriendNames { get; }
+
+        /// <summary>
+        /// The lists of every friend, or with a Playnite game of the friends of that game and
+        /// their counts and scores in it.
+        /// </summary>
+        public static FriendsOverviewLists Load(IFriendsOverviewReads reads, PersistedSettings settings, Guid? playniteGameId = null)
+        {
+            var unlocked = AchievementQuery.AllFriends.WhereUnlocked(true);
+            if (playniteGameId.HasValue)
+            {
+                unlocked = unlocked.ForGames(new[] { playniteGameId.Value });
+            }
+
+            return Build(reads.LoadLists(playniteGameId), reads.Totals(unlocked, AchievementGroup.FriendGame), settings);
+        }
+
+        public FriendSummaryItem FindFriend(string friendScopeKey) => Projection.FindFriend(friendScopeKey);
+
+        public FriendGameSummaryItem FindGame(string gameScopeKey) => Projection.FindGame(gameScopeKey);
+
+        /// <summary>Whether the friend has unlocks in the game or owns it.</summary>
+        public bool HasPairData(FriendSummaryItem friend, FriendGameSummaryItem game) =>
+            game != null && GamesOf(friend).Any(candidate => FriendOverviewProjection.IsSameGame(candidate, game));
 
         /// <summary>
         /// The lists with each friend's scores, rarity and trophy counts from
