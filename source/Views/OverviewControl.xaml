@@ -299,6 +299,10 @@
                         <Setter Property="Width" Value="NaN"/>
                         <Setter Property="BadgeOnly" Value="True"/>
                     </DataTrigger>
+                    <!-- Holds its place under the skeleton block until the first snapshot lands. -->
+                    <DataTrigger Binding="{Binding IsSnapshotPending}" Value="True">
+                        <Setter Property="Visibility" Value="Hidden"/>
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -504,12 +508,15 @@
                     </StackPanel.Style>
 
                     <!-- Right-click opens the card's settings, the same dialog as a showcase Score Card. -->
-                    <controls:ScoreCardControl x:Name="ScoreCard1Control"
-                                               Style="{StaticResource OverviewScoreCardStyle}"
-                                               ScoreCard="{Binding ScoreCard1}"
-                                               BadgePosition="{Binding ScoreCard1BadgePosition}"
-                                               MouseRightButtonUp="ScoreCard_MouseRightButtonUp"
-                                               Visibility="{Binding ShowOverviewScoreCard1, Converter={StaticResource BoolToVis}}"/>
+                    <Grid Visibility="{Binding ShowOverviewScoreCard1, Converter={StaticResource BoolToVis}}">
+                        <controls:ScoreCardControl x:Name="ScoreCard1Control"
+                                                   Style="{StaticResource OverviewScoreCardStyle}"
+                                                   ScoreCard="{Binding ScoreCard1}"
+                                                   BadgePosition="{Binding ScoreCard1BadgePosition}"
+                                                   MouseRightButtonUp="ScoreCard_MouseRightButtonUp"/>
+                        <Border Style="{DynamicResource PlayAch.Skeleton.Block}"
+                                Visibility="{Binding IsSnapshotPending, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
 
                     <Border x:Name="ScoreCardsDivider"
                             Background="{DynamicResource PlayAch.Brush.Separator}"
@@ -520,12 +527,15 @@
                             Margin="12,2"
                             Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <controls:ScoreCardControl x:Name="ScoreCard2Control"
-                                               Style="{StaticResource OverviewScoreCardStyle}"
-                                               ScoreCard="{Binding ScoreCard2}"
-                                               BadgePosition="{Binding ScoreCard2BadgePosition}"
-                                               MouseRightButtonUp="ScoreCard_MouseRightButtonUp"
-                                               Visibility="{Binding ShowOverviewScoreCard2, Converter={StaticResource BoolToVis}}"/>
+                    <Grid Visibility="{Binding ShowOverviewScoreCard2, Converter={StaticResource BoolToVis}}">
+                        <controls:ScoreCardControl x:Name="ScoreCard2Control"
+                                                   Style="{StaticResource OverviewScoreCardStyle}"
+                                                   ScoreCard="{Binding ScoreCard2}"
+                                                   BadgePosition="{Binding ScoreCard2BadgePosition}"
+                                                   MouseRightButtonUp="ScoreCard_MouseRightButtonUp"/>
+                        <Border Style="{DynamicResource PlayAch.Skeleton.Block}"
+                                Visibility="{Binding IsSnapshotPending, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
                 </StackPanel>
 
                 <!-- Right: showcase page/edit controls, re-hosted from ShowcaseControl so the
