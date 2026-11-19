@@ -1082,10 +1082,11 @@ namespace PlayniteAchievements
                             InvalidateStartPageData();
                         }
 
-                        // Deliberately unconditional: scoped invalidations also come from the
-                        // refresh pipeline's end-of-run raise, which includes friend-mode runs,
-                        // and this is two cheap Invalidate() calls.
-                        InvalidateFriendDataCoordinators();
+                        // Friend rows carry the user's own unlock state, so the user's changed
+                        // games reach the friends overview as SelfGame scopes it can patch; a
+                        // full invalidation stays full.
+                        InvalidateFriendDataCoordinators(
+                            FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(args));
                         ScheduleRetentionDiagnostics();
                     };
                     // Bitmap eviction is scoped instead of wholesale: normal refreshes never
