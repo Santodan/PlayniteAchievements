@@ -6,6 +6,7 @@ using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.ThemeMigration;
 
 namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
@@ -23,12 +24,15 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         private readonly ThemeDiscoveryService _themeDiscovery;
         private readonly ThemeMigrationService _themeMigration;
         private bool _themesLoaded;
+        private bool _themesLoading;
         private string _selectedThemePath = string.Empty;
         private string _selectedRevertThemePath = string.Empty;
         private bool _hasThemesToMigrate;
         private bool _hasRevertableThemes;
-        private bool _showNoThemesMessage = true;
-        private bool _showNoRevertableThemesMessage = true;
+
+        // Hidden until discovery finishes, so the "no themes" notes do not flash while loading.
+        private bool _showNoThemesMessage;
+        private bool _showNoRevertableThemesMessage;
 
         public ThemeMigrationController(
             PlayniteAchievementsSettings settings,
@@ -99,54 +103,76 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
         /// </summary>
         public void EnsureThemesLoaded()
         {
-            if (_themesLoaded)
+            if (_themesLoaded || _themesLoading)
             {
                 return;
             }
 
-            LoadThemes();
+            _ = LoadThemesAsync();
         }
 
-        private void LoadThemes()
+        /// <summary>
+        /// Discovers themes on a worker thread, since discovery reads every installed theme's
+        /// files, and fills the lists on the calling (UI) thread.
+        /// </summary>
+        private async Task LoadThemesAsync()
         {
+            if (_themesLoading)
+            {
+                return;
+            }
+
+            _themesLoading = true;
             try
             {
-                AvailableThemes.Clear();
-                RevertableThemes.Clear();
-
                 var themesPath = _themeDiscovery.GetDefaultThemesPath();
                 if (string.IsNullOrEmpty(themesPath))
                 {
                     _logger?.Info("No themes path found for theme migration.");
-                    _themesLoaded = true;
-                    UpdateThemeMigrationState();
+                    ApplyThemes(new System.Collections.Generic.List<ThemeDiscoveryService.ThemeInfo>());
                     return;
                 }
 
-                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
+                // Copied here so the worker never reads the live settings dictionary.
+                var source = _settings?.Persisted?.ThemeMigrationVersionCache;
+                var cache = source != null
+                    ? new System.Collections.Generic.Dictionary<string, ThemeMigrationCacheEntry>(source, StringComparer.OrdinalIgnoreCase)
+                    : null;
+                var themes = await Task.Run(() => _themeDiscovery.DiscoverThemes(themesPath, cache));
 
-                // Themes that need migration (no backup, has SuccessStory)
-                foreach (var theme in themes.Where(t => t.NeedsMigration))
-                {
-                    AvailableThemes.Add(theme);
-                }
-
-                // Themes that can be reverted (has backup)
-                foreach (var theme in themes.Where(t => t.HasBackup))
-                {
-                    RevertableThemes.Add(theme);
-                }
-
-                UpdateThemeMigrationState();
-                _themesLoaded = true;
-
+                ApplyThemes(themes);
                 _logger?.Info($"Loaded {AvailableThemes.Count} themes to migrate, {RevertableThemes.Count} themes to revert.");
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to load themes for migration.");
+                UpdateThemeMigrationState();
             }
+            finally
+            {
+                _themesLoading = false;
+            }
+        }
+
+        private void ApplyThemes(System.Collections.Generic.IReadOnlyCollection<ThemeDiscoveryService.ThemeInfo> themes)
+        {
+            AvailableThemes.Clear();
+            RevertableThemes.Clear();
+
+            // Themes that need migration (no backup, has SuccessStory)
+            foreach (var theme in themes.Where(t => t.NeedsMigration))
+            {
+                AvailableThemes.Add(theme);
+            }
+
+            // Themes that can be reverted (has backup)
+            foreach (var theme in themes.Where(t => t.HasBackup))
+            {
+                RevertableThemes.Add(theme);
+            }
+
+            _themesLoaded = true;
+            UpdateThemeMigrationState();
         }
 
         private void UpdateThemeMigrationState()
@@ -203,7 +229,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                     }
 
                     // Reload themes to update the lists
-                    LoadThemes();
+                    await LoadThemesAsync();
                 }
                 else
                 {
@@ -250,7 +276,7 @@ namespace PlayniteAchievements.Views.Settings.Display.ThemeControls
                         MessageBoxImage.Information);
 
                     // Reload themes to update the lists
-                    LoadThemes();
+                    await LoadThemesAsync();
                 }
                 else
                 {
