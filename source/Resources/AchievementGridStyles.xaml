@@ -290,6 +290,59 @@
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
     </Style>
 
+    <!-- A cell of a row a paged list has not loaded yet (AchievementDisplayItem.IsPlaceholder): a
+         shape where the column's content goes, picked by the column's PlaceholderCell.Shape. The
+         cell's content is not built until the row loads, so a placeholder row costs little. -->
+    <ControlTemplate x:Key="PlayAch.PlaceholderCellTemplate" TargetType="DataGridCell">
+        <Border Background="{TemplateBinding Background}"
+                Padding="{TemplateBinding Padding}"
+                SnapsToDevicePixels="True">
+            <Grid VerticalAlignment="Center" Opacity="{StaticResource PlayAch.Opacity.Skeleton}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*"/>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Border x:Name="Bar" Grid.ColumnSpan="2" Height="10" CornerRadius="5"
+                        Background="{DynamicResource PlayAch.Brush.Text}"/>
+                <Border x:Name="Line" Grid.Row="1" Grid.ColumnSpan="3" Height="8" CornerRadius="4" Margin="0,10,0,0"
+                        Background="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+                <Border x:Name="ShortLine" Grid.Row="2" Grid.ColumnSpan="2" Height="8" CornerRadius="4" Margin="0,6,0,0"
+                        Background="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+                <Viewbox x:Name="Block" Grid.ColumnSpan="3" Grid.RowSpan="3" MaxWidth="56" MaxHeight="56" Visibility="Collapsed">
+                    <Border Width="10" Height="10" CornerRadius="1.5" Background="{DynamicResource PlayAch.Brush.Text}"/>
+                </Viewbox>
+                <Ellipse x:Name="Dot" Grid.ColumnSpan="3" Grid.RowSpan="3" Width="16" Height="16"
+                         Fill="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+            </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Lines">
+                <Setter TargetName="Bar" Property="Grid.ColumnSpan" Value="1"/>
+                <Setter TargetName="Bar" Property="Height" Value="12"/>
+                <Setter TargetName="Bar" Property="CornerRadius" Value="6"/>
+                <Setter TargetName="Line" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="ShortLine" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Block">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Block" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Dot">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="None">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
     <!-- DataGrid Cell Style -->
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent"/>
@@ -312,6 +365,14 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="helpers:PlaceholderCell.Shape"
+                Value="{Binding Column.(helpers:PlaceholderCell.Shape), RelativeSource={RelativeSource Self}}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                <Setter Property="Template" Value="{StaticResource PlayAch.PlaceholderCellTemplate}"/>
+                <Setter Property="ToolTip" Value="{x:Null}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ManageAchievementsDataGridCellStyle"
@@ -611,24 +672,6 @@
             </Setter.Value>
         </Setter>
     </Style>
-
-    <!-- A row a paged list has not loaded yet (AchievementDisplayItem.IsPlaceholder): the row's
-         background and separator over cells laid out but not drawn, so it keeps the height of an
-         empty row and shows nothing that changes when the row loads. -->
-    <ControlTemplate x:Key="AchievementPlaceholderRowTemplate" TargetType="{x:Type DataGridRow}">
-        <Border Background="{TemplateBinding Background}"
-                SnapsToDevicePixels="True">
-            <Grid>
-                <Rectangle Height="1"
-                           VerticalAlignment="Bottom"
-                           Fill="{TemplateBinding BorderBrush}"
-                           SnapsToDevicePixels="True"/>
-                <DataGridCellsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"
-                                        Visibility="Hidden"
-                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
-            </Grid>
-        </Border>
-    </ControlTemplate>
 
     <Style x:Key="ManageAchievementsDataGridRowStyle"
            TargetType="DataGridRow"
