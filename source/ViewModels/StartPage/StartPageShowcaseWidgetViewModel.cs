@@ -35,11 +35,29 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         protected override void ApplySnapshot(OverviewDataSnapshot snapshot)
         {
-            _latestSnapshot = snapshot ?? new OverviewDataSnapshot();
+            var current = snapshot ?? new OverviewDataSnapshot();
+            _latestSnapshot = current;
+            var instance = _resolveInstance();
+
+            // An Unlock Next widget waits for its pool, read once per snapshot when a shown
+            // widget first asks; until then it keeps what it shows.
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(instance);
+            if (current.NeedsUnlockNextRead(maxPerGame))
+            {
+                current.RequestUnlockNextPool(maxPerGame, () =>
+                {
+                    if (ReferenceEquals(current, _latestSnapshot))
+                    {
+                        ApplySnapshot(current);
+                    }
+                });
+                return;
+            }
+
             Projection = ShowcaseWidgetProjectionService.Build(
-                _latestSnapshot,
+                current,
                 PersistedSettings?.Showcase,
-                _resolveInstance(),
+                instance,
                 gridOptions: PersistedSettings?.GridOptions);
         }
 
