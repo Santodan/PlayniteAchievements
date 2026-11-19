@@ -1602,7 +1602,8 @@ namespace PlayniteAchievements.ViewModels
                     _scheduler,
                     cap ?? 0,
                     ReadWindow,
-                    ex => OnReadFailed(ex, "Failed to load friend achievement rows."));
+                    ex => OnReadFailed(ex, "Failed to load friend achievement rows."),
+                    (kept, fresh) => kept.RefreshFrom(fresh));
                 OnPropertyChanged(nameof(DisplayedAchievements));
                 return;
             }
