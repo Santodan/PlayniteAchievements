@@ -29,6 +29,7 @@ namespace PlayniteAchievements
         private Services.Widgets.WidgetDataCoordinator _startPageDataCoordinator;
         private readonly object _startPageInvalidateSync = new object();
         private System.Threading.Timer _startPageInvalidateTimer;
+        private volatile string _startPageInvalidateReason;
         private const int StartPageInvalidateDelayMs = 2000;
 
         private readonly object _retentionDiagnosticsSync = new object();
@@ -249,9 +250,9 @@ namespace PlayniteAchievements
             return _startPageDataCoordinator;
         }
 
-        private void InvalidateStartPageData()
+        private void InvalidateStartPageData(string reason = null)
         {
-            _startPageDataCoordinator?.Invalidate();
+            _startPageDataCoordinator?.Invalidate(reason);
         }
 
         // Reports what the process-lifetime caches still hold once a refresh has settled, so
@@ -428,7 +429,7 @@ namespace PlayniteAchievements
         // library snapshot, so bursts must collapse into one. Invalidate() is thread-safe;
         // no dispatcher marshaling is needed. Low-frequency user-driven changes keep calling
         // InvalidateStartPageData() directly.
-        private void ScheduleStartPageInvalidate()
+        private void ScheduleStartPageInvalidate(string reason = null)
         {
             lock (_startPageInvalidateSync)
             {
@@ -438,11 +439,12 @@ namespace PlayniteAchievements
                 }
 
                 // Stale now, so an Overview opened before the coalesced invalidate does not adopt it.
-                _startPageDataCoordinator.MarkStale();
+                _startPageDataCoordinator.MarkStale(reason);
+                _startPageInvalidateReason = reason;
                 if (_startPageInvalidateTimer == null)
                 {
                     _startPageInvalidateTimer = new System.Threading.Timer(
-                        _ => InvalidateStartPageData(),
+                        _ => InvalidateStartPageData("coalesced " + _startPageInvalidateReason),
                         null,
                         StartPageInvalidateDelayMs,
                         System.Threading.Timeout.Infinite);
@@ -454,9 +456,9 @@ namespace PlayniteAchievements
             }
         }
 
-        internal void InvalidateStartPageDataForUi()
+        internal void InvalidateStartPageDataForUi(string reason = null)
         {
-            InvalidateStartPageData();
+            InvalidateStartPageData(reason);
         }
 
         private void DisposeStartPageViews()
