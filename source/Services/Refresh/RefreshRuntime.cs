@@ -257,24 +257,6 @@ namespace PlayniteAchievements.Services.Refresh
             remove => _cacheService.CacheInvalidated -= value;
         }
 
-        public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated
-        {
-            add
-            {
-                if (_cacheService is IFriendCacheManager friendCache)
-                {
-                    friendCache.FriendCacheInvalidated += value;
-                }
-            }
-            remove
-            {
-                if (_cacheService is IFriendCacheManager friendCache)
-                {
-                    friendCache.FriendCacheInvalidated -= value;
-                }
-            }
-        }
-
         public RefreshRuntime(
             IPlayniteAPI api,
             PlayniteAchievementsSettings settings,
