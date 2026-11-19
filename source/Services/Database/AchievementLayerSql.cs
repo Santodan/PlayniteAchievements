@@ -1,13 +1,14 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using SqlNado;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
 {
     /// <summary>
-    /// The metadata layer table and the views that resolve the custom layer mirror
-    /// (<c>AchievementOverrides</c>) and the metadata layer over the platform's
+    /// The metadata and custom layer tables and the views that resolve the custom layer
+    /// (<see cref="AchievementsTable"/>) and the metadata layer over the platform's
     /// <c>PlatformDefinitions</c>, with the same precedence as <see cref="LayerResolver"/>.
     /// </summary>
     /// <remarks>
@@ -74,21 +75,74 @@ namespace PlayniteAchievements.Services.Database
                     DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = OLD.Id;
                 END;";
 
-        /// <summary>Game-level custom state the views need, mirrored from the custom-data store.</summary>
-        public const string CreateGameStateTableSql = @"CREATE TABLE IF NOT EXISTS GameCustomState (
+        /// <summary>The user's custom data per achievement: overrides, flags, positions and authored achievements.</summary>
+        public const string AchievementsTable = "CustomLayerAchievements";
+
+        /// <summary>The user's custom data per game: its flags and every setting no query reads (SettingsJson).</summary>
+        public const string GamesTable = "CustomLayerGames";
+
+        /// <summary>The user's settings per category: its kind, position and art.</summary>
+        public const string CategoriesTable = "CustomLayerCategories";
+
+        /// <summary>
+        /// The custom layer tables earlier versions rebuilt from <c>GameCustomData</c> on every
+        /// change. Those versions still rebuild them when run on this database, so the custom layer
+        /// lives under its own names, which they never touch.
+        /// </summary>
+        public static readonly IReadOnlyList<string> RetiredMirrorTables = new[] { "AchievementOverrides", "GameCustomState", "AchievementCategories", "AchievementCategoryKinds", "AchievementFilters" };
+
+        /// <summary>CacheMetadata key set when the <c>GameCustomData</c> payloads moved into the custom layer tables.</summary>
+        public const string CustomLayerMigratedKey = "custom_layer_migrated";
+
+        private static readonly string CreateAchievementsTableSql = @"CREATE TABLE IF NOT EXISTS " + AchievementsTable + @" (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                ApiName TEXT NOT NULL COLLATE NOCASE,
+                DisplayName TEXT NULL,
+                Description TEXT NULL,
+                Points INTEGER NULL,
+                TrophyType TEXT NULL COLLATE NOCASE,
+                Category TEXT NULL,
+                Tags TEXT NULL,
+                Hidden INTEGER NULL,
+                Cleared INTEGER NOT NULL DEFAULT 0,
+                Note TEXT NULL,
+                GoalOrder INTEGER NULL,
+                CustomOrder INTEGER NULL,
+                UnlockedIconPath TEXT NULL,
+                LockedIconPath TEXT NULL,
+                UnlockTimeUtc TEXT NULL,
+                CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
+                IsAuthored INTEGER NOT NULL DEFAULT 0,
+                Unlocked INTEGER NOT NULL DEFAULT 0,
+                ProgressNum INTEGER NULL,
+                ProgressDenom INTEGER NULL,
+                ScaledPoints INTEGER NULL,
+                CategoryKind TEXT NULL,
+                GlobalPercentUnlocked REAL NULL,
+                Rarity TEXT NULL,
+                IsCapstone INTEGER NOT NULL DEFAULT 0,
+                IsFiltered INTEGER NOT NULL DEFAULT 0,
+                IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
+                UpdatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName)
+            );";
+
+        private static readonly string CreateGamesTableSql = @"CREATE TABLE IF NOT EXISTS " + GamesTable + @" (
                 PlayniteGameId TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
                 CapstonesMaterialized INTEGER NOT NULL DEFAULT 0,
                 HasManualLink INTEGER NOT NULL DEFAULT 0,
                 ExcludedFromSummaries INTEGER NOT NULL DEFAULT 0,
                 ExcludedFromRefreshes INTEGER NOT NULL DEFAULT 0,
-                UseSeparateLockedIcons INTEGER NOT NULL DEFAULT 0
+                UseSeparateLockedIcons INTEGER NOT NULL DEFAULT 0,
+                SettingsJson TEXT NOT NULL DEFAULT '{}'
             );";
 
         /// <summary>
         /// The user's settings per category path: its kind ("None" says it has none), its position in
         /// the custom category order and its custom art.
         /// </summary>
-        public const string CreateCategoriesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCategories (
+        private static readonly string CreateCategoriesTableSql = @"CREATE TABLE IF NOT EXISTS " + CategoriesTable + @" (
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 Category TEXT NOT NULL COLLATE NOCASE,
                 Kind TEXT NULL,
@@ -96,6 +150,14 @@ namespace PlayniteAchievements.Services.Database
                 ImagePath TEXT NULL,
                 PRIMARY KEY (PlayniteGameId, Category)
             );";
+
+        /// <summary>Creates the custom layer tables. Both the cache and the custom-data store call it.</summary>
+        public static void EnsureCustomLayerTables(SQLiteDatabase db)
+        {
+            db.ExecuteNonQuery(CreateAchievementsTableSql);
+            db.ExecuteNonQuery(CreateGamesTableSql);
+            db.ExecuteNonQuery(CreateCategoriesTableSql);
+        }
 
         /// <summary>Each achievement's capture files, as the plugin matches them to it.</summary>
         public const string CreateCapturesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCaptures (
@@ -171,9 +233,9 @@ namespace PlayniteAchievements.Services.Database
               FROM PlatformDefinitions ad
               LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
               LEFT JOIN Games g ON g.Id = ad.GameId
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
-              LEFT JOIN AchievementCategories k ON k.PlayniteGameId = g.PlayniteGameId AND k.Category = " + ResolvedCategory;
+              LEFT JOIN " + AchievementsTable + @" c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN " + CategoriesTable + @" k ON k.PlayniteGameId = g.PlayniteGameId AND k.Category = " + ResolvedCategory;
 
         private const string CaptureColumns =
             "cap.CleanPath AS CleanCapturePath, cap.NotificationPath AS NotificationCapturePath, " +
@@ -186,7 +248,7 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>A column of the user's settings for the given game and category.</summary>
         private static string CategoryValue(string column, string gameId, string category) =>
-            "(SELECT k." + column + " FROM AchievementCategories k WHERE k.PlayniteGameId = " + gameId + " AND k.Category = " + category + ")";
+            "(SELECT k." + column + " FROM " + CategoriesTable + " k WHERE k.PlayniteGameId = " + gameId + " AND k.Category = " + category + ")";
 
         /// <summary>The public view's columns, in order; the user view's two halves list them alike.</summary>
         private static readonly string[] PublicColumnNames =
@@ -253,8 +315,8 @@ namespace PlayniteAchievements.Services.Database
                 " + CaptureColumns + @",
                 NULL AS UserId,
                 1 AS IsCurrentUser
-              FROM AchievementOverrides a
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
+              FROM " + AchievementsTable + @" a
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = a.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
               WHERE a.IsAuthored = 1;";
         }
@@ -296,8 +358,8 @@ namespace PlayniteAchievements.Services.Database
               INNER JOIN Users usr ON usr.Id = ugp.UserId
               INNER JOIN Games g ON g.Id = ugp.GameId
               " + achievements + @"
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN " + AchievementsTable + @" c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = g.PlayniteGameId
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName" +
               (unlocked ? string.Empty : @"
               WHERE ua.Unlocked IS NOT 1");
