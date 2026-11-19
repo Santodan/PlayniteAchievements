@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Tests.Services
                 new GameCustomDataStore(dir).Save(gameId, rich);
                 var loaded = new GameCustomDataStore(dir).LoadOrDefault(gameId);
 
-                Assert.AreEqual(GameCustomLayer.Canonical(expected), GameCustomLayer.Canonical(loaded));
+                Assert.AreEqual(Canonical(expected), Canonical(loaded));
 
                 // Every group the record carries survived normalization, so the comparison covers it.
                 foreach (var name in new[]
@@ -65,6 +65,28 @@ namespace PlayniteAchievements.Tests.Services
                 Assert.IsTrue(loaded.CapstonesMaterialized);
                 Assert.IsTrue(loaded.AutoCapstoneGenerated);
                 Assert.AreEqual(4, loaded.AchievementOverrides.Count);
+                CollectionAssert.AreEqual(new[] { "mine", "earlier" }, loaded.CustomAchievements.Select(definition => definition.Id).ToList());
+                CollectionAssert.AreEqual(new[] { "a5", "a4" }, loaded.SummaryFilteredAchievementApiNames);
+                CollectionAssert.AreEqual(new[] { "a2", "custom:mine" }, loaded.Capstones.Select(capstone => capstone.ApiName).ToList());
+            });
+        }
+
+        [TestMethod]
+        public void AnUnmaterializedCapstoneList_RoundTrips()
+        {
+            WithDirectory(dir =>
+            {
+                var gameId = Guid.NewGuid();
+                var record = new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    AchievementOrder = new List<string> { "a" },
+                    Capstones = new List<CapstoneAssignment> { new CapstoneAssignment { ApiName = "b" }, new CapstoneAssignment { ApiName = "a" } }
+                };
+
+                new GameCustomDataStore(dir).Save(gameId, record);
+
+                Assert.AreEqual(Canonical(GameCustomDataNormalizer.NormalizeInternal(record, gameId)), Canonical(new GameCustomDataStore(dir).LoadOrDefault(gameId)));
             });
         }
 
@@ -80,26 +102,28 @@ namespace PlayniteAchievements.Tests.Services
                 {
                     var settings = JObject.Parse(db.ExecuteScalar<string>(
                         "SELECT SettingsJson FROM CustomLayerGames WHERE PlayniteGameId = ?;", new object[] { gameId.ToString("D") }));
-                    Assert.IsNull(settings["StoredWhole"], "the record split into its columns");
                     foreach (var columnField in new[]
                     {
                         "AchievementOrder", "GoalAchievementApiNames", "AchievementCategoryKinds", "AchievementCategoryOrder",
-                        "ExcludedFromRefreshes", "ExcludedFromSummaries", "UseSeparateLockedIconsOverride", "CapstonesMaterialized"
+                        "AchievementCategoryImageOverrides", "ExcludedFromRefreshes", "ExcludedFromSummaries", "UseSeparateLockedIconsOverride",
+                        "CapstonesMaterialized", "Capstones", "FilteredAchievementApiNames", "SummaryFilteredAchievementApiNames",
+                        "AchievementOverrides", "CustomAchievements"
                     })
                     {
                         Assert.IsNull(settings[columnField], columnField + " lives in a column");
                     }
 
-                    // a1's override lives in its row but for its icons; the authored achievement's
-                    // override stays in SettingsJson, as its row shows it applied.
-                    var a1 = (JObject)settings["AchievementOverrides"]["a1"];
-                    CollectionAssert.AreEquivalent(new[] { "UnlockedIconPath", "LockedIconPath" }, a1.Properties().Select(p => p.Name).ToList());
-                    Assert.IsNull(settings["AchievementOverrides"]["a2"], "a2's clears are all columns");
-                    Assert.AreEqual("Renamed", (string)settings["AchievementOverrides"]["custom:mine"]["DisplayName"]);
+                    // The authored achievement's row holds it as defined; the override has its own row.
                     Assert.AreEqual("First", db.ExecuteScalar<string>(
                         "SELECT DisplayName FROM CustomLayerAchievements WHERE ApiName = 'a1';", Array.Empty<object>()));
-                    Assert.AreEqual("Renamed", db.ExecuteScalar<string>(
+                    Assert.AreEqual("C:/icons/a1.png", db.ExecuteScalar<string>(
+                        "SELECT UnlockedIconPath FROM CustomLayerAchievements WHERE ApiName = 'a1';", Array.Empty<object>()));
+                    Assert.AreEqual("Mine", db.ExecuteScalar<string>(
                         "SELECT DisplayName FROM CustomLayerAchievements WHERE ApiName = 'custom:mine' AND IsAuthored = 1;", Array.Empty<object>()));
+                    Assert.AreEqual("Renamed", db.ExecuteScalar<string>(
+                        "SELECT DisplayName FROM CustomLayerAchievements WHERE ApiName = 'custom:mine' AND IsAuthored = 0;", Array.Empty<object>()));
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>(
+                        "SELECT CapstoneOrder FROM CustomLayerAchievements WHERE ApiName = 'custom:mine' AND IsAuthored = 0;", Array.Empty<object>()));
                     Assert.AreEqual((long)(AchievementField.Description | AchievementField.TrophyType | AchievementField.Tags | AchievementField.UnlockTime),
                         db.ExecuteScalar<long>("SELECT Cleared FROM CustomLayerAchievements WHERE ApiName = 'a2';", Array.Empty<object>()));
                 }
@@ -107,13 +131,12 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
-        public void ARecordWhoseColumnsWouldNotReadItBack_IsStoredWhole()
+        public void AnApiNameSpelledTwoWays_ReadsBackInItsFirstSpelling()
         {
             WithDirectory(dir =>
             {
                 var gameId = Guid.NewGuid();
-                // One row per achievement ignoring case keeps the first spelling, so the order's own
-                // spelling would read back as the filter's.
+                // One row per achievement ignoring case, as every reader compares them.
                 var record = new GameCustomDataFile
                 {
                     PlayniteGameId = gameId,
@@ -124,18 +147,94 @@ namespace PlayniteAchievements.Tests.Services
                 new GameCustomDataStore(dir).Save(gameId, record);
                 var loaded = new GameCustomDataStore(dir).LoadOrDefault(gameId);
 
-                Assert.AreEqual(
-                    GameCustomLayer.Canonical(GameCustomDataNormalizer.NormalizeInternal(record, gameId)),
-                    GameCustomLayer.Canonical(loaded));
-                CollectionAssert.AreEqual(new[] { "A1", "b2" }, loaded.AchievementOrder);
-                using (var db = new SQLiteDatabase(Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName)))
+                CollectionAssert.AreEqual(new[] { "a1" }, loaded.FilteredAchievementApiNames);
+                CollectionAssert.AreEqual(new[] { "a1", "b2" }, loaded.AchievementOrder);
+            });
+        }
+
+        [TestMethod]
+        public void StoredPaths_ReadBackAsAbsolutePaths_AndStoreAsTheyWere()
+        {
+            var pluginRoot = Path.Combine(Path.GetTempPath(), "PlayniteAchievementsTests", "plugin");
+            var cacheRoot = IconCacheLocation.DefaultRoot(pluginRoot);
+            string ToStored(string path) => StoredPathMapping.ToStored(path, pluginRoot, cacheRoot);
+            string FromStored(string path) => StoredPathMapping.FromStored(path, pluginRoot, cacheRoot);
+
+            // Every form the database stores comes back from an absolute path unchanged.
+            foreach (var stored in new[]
+            {
+                @"icon_cache\0182fb32-b892-4e15-bcb1-0a9899a8d397\custom\custom_auto-capstone.png",
+                @"metadata\Exophase\icon.png",
+                @"D:\Pictures\art.png",
+                "https://example.com/icon.png",
+                null
+            })
+            {
+                Assert.AreEqual(stored, ToStored(FromStored(stored)), stored);
+            }
+
+            // Each form a record holds reads back as the absolute path of the same file.
+            var underCache = Path.Combine(cacheRoot, "game", "custom", "a.png");
+            foreach (var pair in new Dictionary<string, string>
+            {
+                [underCache] = underCache,
+                [@"icon_cache\game\custom\a.png"] = underCache,
+                [underCache.Replace('\\', '/')] = underCache,
+                [Path.Combine(pluginRoot, "metadata", "icon.png")] = Path.Combine(pluginRoot, "metadata", "icon.png"),
+                [@"D:\Pictures\art.png"] = @"D:\Pictures\art.png",
+                ["C:/icons/a1.png"] = "C:/icons/a1.png",
+                ["https://example.com/icon.png"] = "https://example.com/icon.png"
+            })
+            {
+                Assert.AreEqual(pair.Value, FromStored(ToStored(pair.Key)), pair.Key);
+            }
+        }
+
+        [TestMethod]
+        public void Save_ReturnsTheRecordWithPathsAsALoadReadsThem()
+        {
+            WithDirectory(dir =>
+            {
+                var gameId = Guid.NewGuid();
+                var store = new GameCustomDataStore(dir);
+                var expected = Path.Combine(IconCacheLocation.CurrentRootOrDefault(dir), gameId.ToString("D"), "custom", "a.png");
+                store.Save(gameId, new GameCustomDataFile
                 {
-                    StringAssert.Contains(
-                        db.ExecuteScalar<string>("SELECT SettingsJson FROM CustomLayerGames;", Array.Empty<object>()),
-                        "\"StoredWhole\":true");
-                    Assert.AreEqual(1L, db.ExecuteScalar<long>(
-                        "SELECT COUNT(*) FROM CustomLayerAchievements WHERE IsFiltered = 1;", Array.Empty<object>()), "the views still see the filter");
+                    PlayniteGameId = gameId,
+                    AchievementOverrides = new Dictionary<string, AchievementOverride>
+                    {
+                        ["a"] = new AchievementOverride { UnlockedIconPath = @"icon_cache\" + gameId.ToString("D") + @"\custom\a.png" }
+                    }
+                });
+
+                Assert.AreEqual(expected, store.LoadOrDefault(gameId).AchievementOverrides["a"].UnlockedIconPath, "the saved record");
+                Assert.AreEqual(expected, new GameCustomDataStore(dir).LoadOrDefault(gameId).AchievementOverrides["a"].UnlockedIconPath, "a load");
+            });
+        }
+
+        [TestMethod]
+        public void TheFirstLayoutsTables_AreDropped_AndTheCustomDataMovesInAgain()
+        {
+            WithDirectory(dir =>
+            {
+                var gameId = Guid.NewGuid();
+                var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+                using (var db = new SQLiteDatabase(path))
+                {
+                    db.ExecuteNonQuery("CREATE TABLE CacheMetadata (Key TEXT PRIMARY KEY NOT NULL, Value TEXT NOT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO CacheMetadata VALUES (?, '2025-02-01T00:00:00.0000000Z');", AchievementLayerSql.CustomLayerMigratedKey);
+                    db.ExecuteNonQuery("CREATE TABLE CustomLayerAchievements (Id INTEGER PRIMARY KEY, PlayniteGameId TEXT, ApiName TEXT, IsFiltered INTEGER, UpdatedUtc TEXT);");
+                    db.ExecuteNonQuery("CREATE TABLE CustomLayerGames (PlayniteGameId TEXT PRIMARY KEY, SettingsJson TEXT);");
+                    db.ExecuteNonQuery("CREATE TABLE CustomLayerCategories (PlayniteGameId TEXT, Category TEXT);");
+                    db.ExecuteNonQuery("INSERT INTO CustomLayerGames VALUES (?, '{}');", gameId.ToString("D"));
+                    db.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
+                    db.ExecuteNonQuery("INSERT INTO GameCustomData VALUES (?, ?, '2025-01-01T00:00:00.0000000Z');",
+                        gameId.ToString("D"), JsonConvert.SerializeObject(new GameCustomDataFile { PlayniteGameId = gameId, FilteredAchievementApiNames = new List<string> { "a" } }));
                 }
+
+                CollectionAssert.AreEqual(new[] { "a" }, new GameCustomDataStore(dir).LoadOrDefault(gameId).FilteredAchievementApiNames);
+                Assert.AreEqual(1, Directory.GetDirectories(dir, "customdata-layer-*", SearchOption.AllDirectories).Length, "backed up before moving in");
+                CollectionAssert.AreEqual(new[] { "a" }, new GameCustomDataStore(dir).LoadOrDefault(gameId).FilteredAchievementApiNames, "once");
             });
         }
 
@@ -158,8 +257,8 @@ namespace PlayniteAchievements.Tests.Services
                 var store = new GameCustomDataStore(dir);
                 Assert.AreEqual(1, store.LoadAll().Count, "the unreadable payload is left behind");
                 Assert.AreEqual(
-                    GameCustomLayer.Canonical(GameCustomDataNormalizer.NormalizeInternal(JsonConvert.DeserializeObject<GameCustomDataFile>(payload), rich)),
-                    GameCustomLayer.Canonical(new GameCustomDataStore(dir).LoadOrDefault(rich)));
+                    Canonical(GameCustomDataNormalizer.NormalizeInternal(JsonConvert.DeserializeObject<GameCustomDataFile>(payload), rich)),
+                    Canonical(new GameCustomDataStore(dir).LoadOrDefault(rich)));
                 Assert.AreEqual(1, Directory.GetDirectories(dir, "customdata-layer-*", SearchOption.AllDirectories).Length);
 
                 using (var db = new SQLiteDatabase(path))
@@ -297,6 +396,25 @@ namespace PlayniteAchievements.Tests.Services
             });
         }
 
+        /// <summary>The record as JSON with every object's properties in name order.</summary>
+        private static string Canonical(GameCustomDataFile data) =>
+            data == null ? string.Empty : Sorted(JToken.FromObject(data, JsonSerializer.Create(GameCustomLayer.JsonSettings))).ToString(Formatting.None);
+
+        private static JToken Sorted(JToken token)
+        {
+            switch (token)
+            {
+                case JObject obj:
+                    return new JObject(obj.Properties()
+                        .OrderBy(property => property.Name, StringComparer.Ordinal)
+                        .Select(property => new JProperty(property.Name, Sorted(property.Value))));
+                case JArray array:
+                    return new JArray(array.Select(Sorted));
+                default:
+                    return token;
+            }
+        }
+
         private static string Manifest(string packagePath)
         {
             using (var zip = ZipFile.OpenRead(packagePath))
@@ -358,7 +476,8 @@ namespace PlayniteAchievements.Tests.Services
                     Id = "mine", DisplayName = "Mine", Description = "Mine to do", Unlocked = true, UnlockTimeUtc = Unlocked, Points = 3,
                     Category = "Extra/Part", Tags = "Missable", TrophyType = "bronze", Rarity = "Rare", GlobalPercentUnlocked = 4.5,
                     ProgressNum = 1, ProgressDenom = 2, UnlockedIconPath = "C:/icons/mine.png"
-                }
+                },
+                new CustomAchievementDefinition { Id = "earlier", DisplayName = "Earlier", Hidden = true, IsCapstone = true, CategoryKind = "Base" }
             },
             CustomProviderId = "my-provider",
             LinkedFile = new LinkedFileLink { FilePath = "C:/saves/progress.json", Schema = new LinkedFileSchema { Name = "Progress", MatchColumn = "id" }, LastReadUtc = Unlocked, LastReadStatus = "Read" },
