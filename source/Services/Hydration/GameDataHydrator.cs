@@ -135,11 +135,5 @@ namespace PlayniteAchievements.Services.Hydration
                 source,
                 gameId,
                 PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService);
-
-        private static string NormalizeText(string value)
-        {
-            var normalized = (value ?? string.Empty).Trim();
-            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-        }
     }
 }
