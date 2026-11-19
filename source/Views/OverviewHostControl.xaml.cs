@@ -68,8 +68,8 @@ namespace PlayniteAchievements.Views
             RecreateContent();
         }
 
-        // Hidden, the overview stays built but reads nothing and holds no rows; Activate on the
-        // next visit reads them again. The landing page is rebuilt on each visit.
+        // Hidden, the overview stays built with the rows it read and starts no reads; Activate on
+        // the next visit reads again only after a change. The landing page is rebuilt each visit.
         private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
             _logger.Debug("OverviewHostControl_Unloaded called");
