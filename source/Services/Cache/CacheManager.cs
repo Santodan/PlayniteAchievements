@@ -190,84 +190,39 @@ namespace PlayniteAchievements.Services.Cache
             return result;
         }
 
-        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
+        AchievementReadService ICacheReadOptimizations.Reads => Reads;
+
+        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
+            int limit,
+            IEnumerable<Guid> excludedGameIds,
+            Func<Guid, CachedGameSummaryData> authoredGame)
         {
-            return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
-        }
-
-        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataForGameFast(Guid playniteGameId)
-        {
-            return LoadCachedSummaryDataForGameFast(playniteGameId);
-        }
-
-        Dictionary<Guid, HashSet<string>> ICacheReadOptimizations.LoadUnlockedApiNamesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted)
-        {
-            try
+            using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
             {
-                lock (_sync)
+                var scopeChanged = false;
+                try
                 {
-                    EnsureReady_Locked("LoadUnlockedApiNamesFast");
-                }
+                    lock (_sync)
+                    {
+                        EnsureReady_Locked("LoadCachedSummaryDataFast");
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                    }
 
-                using (var scope = PerfScope.Start(_logger, "Cache.LoadUnlockedApiNamesFast", thresholdMs: 25))
+                    // On the store's read connection, off _sync.
+                    return _store.LoadCachedSummaryData(limit, excludedGameIds, authoredGame) ?? new CachedSummaryData();
+                }
+                catch (Exception ex)
                 {
-                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
-
-                    // Read off _sync, on the store's read connection, like the summary it corrects.
-                    return _store.LoadUnlockedApiNames(wanted) ?? new Dictionary<Guid, HashSet<string>>();
+                    _logger?.Error(ex, "Failed loading cached summary data from cache.");
+                    return null;
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed reading unlocked capstone ApiNames.");
-                return null;
-            }
-        }
-
-        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> ICacheReadOptimizations.LoadAchievementTallyStatesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
-            ISet<Guid> providerCapstoneGames)
-        {
-            try
-            {
-                lock (_sync)
+                finally
                 {
-                    EnsureReady_Locked("LoadAchievementTallyStatesFast");
+                    if (scopeChanged)
+                    {
+                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+                    }
                 }
-
-                using (var scope = PerfScope.Start(_logger, "Cache.LoadAchievementTallyStatesFast", thresholdMs: 25))
-                {
-                    scope?.SetContext("games=" + (wanted?.Count ?? 0));
-                    return _store.LoadAchievementTallyStates(wanted, providerCapstoneGames) ??
-                        new Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>>();
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed reading tagged achievement states.");
-                return null;
-            }
-        }
-
-        Models.Achievements.AchievementTally[] ICacheReadOptimizations.LoadTalliesForGameFast(Guid playniteGameId)
-        {
-            try
-            {
-                lock (_sync)
-                {
-                    EnsureReady_Locked("LoadTalliesForGameFast");
-                }
-
-                using (PerfScope.Start(_logger, "Cache.LoadTalliesForGameFast", thresholdMs: 25))
-                {
-                    return _store.LoadTalliesForGame(playniteGameId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Failed reading tallies for game {playniteGameId}.");
-                return null;
             }
         }
 
@@ -986,76 +941,6 @@ namespace PlayniteAchievements.Services.Cache
                 {
                     _logger?.Error(ex, "Failed loading all game data from cache.");
                     return new List<GameAchievementData>();
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
-
-        internal CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0)
-        {
-            using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
-            {
-                var scopeChanged = false;
-
-                try
-                {
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadCachedSummaryDataFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                    }
-
-                    // Read off _sync (on the store's read connection) so a concurrent grid read
-                    // is not blocked while this summary query runs.
-                    return _store.LoadCachedSummaryData(recentAchievementDetailLimit) ?? new CachedSummaryData();
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed loading cached summary data from cache.");
-                    return null;
-                }
-                finally
-                {
-                    if (scopeChanged)
-                    {
-                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
-                    }
-                }
-            }
-        }
-
-        internal CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId)
-        {
-            using (var scope = PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataForGameFast", thresholdMs: 25))
-            {
-                scope?.SetContext(playniteGameId.ToString());
-                var scopeChanged = false;
-
-                try
-                {
-                    lock (_sync)
-                    {
-                        EnsureReady_Locked("LoadCachedSummaryDataForGameFast");
-                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
-                    }
-
-                    // Read off _sync, on the store's read connection, exactly as the
-                    // whole-library read does.
-                    return _store.LoadCachedSummaryDataForGame(playniteGameId);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed loading cached summary data for game {playniteGameId}.");
-
-                    // null, not an empty result: the caller must fall back to a full rebuild
-                    // rather than conclude the game now contributes nothing.
-                    return null;
                 }
                 finally
                 {
