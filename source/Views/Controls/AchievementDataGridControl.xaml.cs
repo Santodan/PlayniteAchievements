@@ -893,6 +893,7 @@ namespace PlayniteAchievements.Views.Controls
         private GridMultiSelectFilter _connectedCategoryFilter;
         private GridControlBarViewModel _controlBarWithToggle;
         private INotifyCollectionChanged _observedItemsSource;
+        private INotifyPropertyChanged _observedPartialRows;
         private INotifyCollectionChanged _observedCategorySummarySource;
         private BulkObservableCollection<AchievementDisplayItem> _drillItems;
         private List<GameSummaryItem> _allCategorySummaries;
@@ -2270,17 +2271,39 @@ namespace PlayniteAchievements.Views.Controls
 
         private void ObserveItemsSourceCollection()
         {
+            StopObservingItemsSource();
+            if (ItemsSource is INotifyCollectionChanged incc)
+            {
+                _observedItemsSource = incc;
+                incc.CollectionChanged += OnItemsSourceCollectionChanged;
+            }
+
+            // A paged list fills its placeholders in place as rows load, announced as an Item[] change.
+            if (ItemsSource is IPartiallyLoadedRows && ItemsSource is INotifyPropertyChanged inpc)
+            {
+                _observedPartialRows = inpc;
+                inpc.PropertyChanged += OnPartialRowsChanged;
+            }
+        }
+
+        private void StopObservingItemsSource()
+        {
             if (_observedItemsSource != null)
             {
                 _observedItemsSource.CollectionChanged -= OnItemsSourceCollectionChanged;
                 _observedItemsSource = null;
             }
 
-            if (ItemsSource is INotifyCollectionChanged incc)
+            if (_observedPartialRows != null)
             {
-                _observedItemsSource = incc;
-                incc.CollectionChanged += OnItemsSourceCollectionChanged;
+                _observedPartialRows.PropertyChanged -= OnPartialRowsChanged;
+                _observedPartialRows = null;
             }
+        }
+
+        private void OnPartialRowsChanged(object sender, PropertyChangedEventArgs e)
+        {
+            RequestItemsSourceContentRefresh();
         }
 
         private void OnItemsSourceCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -4494,11 +4517,7 @@ namespace PlayniteAchievements.Views.Controls
             _persistedSubscription?.Dispose();
             _persistedSubscription = null;
 
-            if (_observedItemsSource != null)
-            {
-                _observedItemsSource.CollectionChanged -= OnItemsSourceCollectionChanged;
-                _observedItemsSource = null;
-            }
+            StopObservingItemsSource();
 
             if (_observedCategorySummarySource != null)
             {
