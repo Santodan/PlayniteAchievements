@@ -123,10 +123,7 @@
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataPortablePackage.cs" Link="Source\Services\GameCustomData\GameCustomDataPortablePackage.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\PortablePersonalState.cs" Link="Source\Services\GameCustomData\PortablePersonalState.cs" />
     <Compile Include="..\..\source\Services\CustomAchievementCsvFormat.cs" Link="Source\Services\CustomAchievementCsvFormat.cs" />
-    <Compile Include="..\..\source\Services\Achievements\CustomAchievementSummaryMerger.cs" Link="Source\Services\Achievements\CustomAchievementSummaryMerger.cs" />
-    <Compile Include="..\..\source\Services\Achievements\RecentUnlockOrder.cs" Link="Source\Services\Achievements\RecentUnlockOrder.cs" />
     <Compile Include="..\..\source\Common\ObservableStateCopier.cs" Link="Source\Common\ObservableStateCopier.cs" />
-    <Compile Include="..\..\source\Services\Achievements\OverviewSummaryPatcher.cs" Link="Source\Services\Achievements\OverviewSummaryPatcher.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
     <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
     <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
@@ -243,6 +240,7 @@
     <Compile Include="..\..\source\Services\Database\AchievementQuery.cs" Link="Source\Services\Database\AchievementQuery.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementQuerySql.cs" Link="Source\Services\Database\AchievementQuerySql.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementReadService.cs" Link="Source\Services\Database\AchievementReadService.cs" />
+    <Compile Include="..\..\source\Services\Database\SummaryCacheReader.cs" Link="Source\Services\Database\SummaryCacheReader.cs" />
     <Compile Include="..\..\source\Services\Database\AchievementDataChange.cs" Link="Source\Services\Database\AchievementDataChange.cs" />
     <Compile Include="..\..\source\Services\Database\LiveQuery.cs" Link="Source\Services\Database\LiveQuery.cs" />
     <Compile Include="..\..\source\Services\Database\PagedRows.cs" Link="Source\Services\Database\PagedRows.cs" />
