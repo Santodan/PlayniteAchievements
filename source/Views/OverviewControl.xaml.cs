@@ -226,6 +226,7 @@ namespace PlayniteAchievements.Views
             using (Common.PerfScope.Start(logger, "OverviewControl.ApplyActiveSubView", thresholdMs: 30, context: ActiveSubView.ToString()))
             {
                 ApplyActiveSubView();
+                DetachHiddenSubViews();
             }
 
             using (Common.PerfScope.Start(logger, "OverviewControl.CreateMiniShowcase", thresholdMs: 30))
@@ -310,12 +311,25 @@ namespace PlayniteAchievements.Views
                 ActiveRefreshHeader = _viewModel;
             }
 
-            // Only the shown subview is in the tree. A collapsed one would still be walked,
-            // restyled and re-read on every tree change, and Playnite makes one each time the
-            // sidebar view is left or shown again.
-            OverviewContentHost.Child = ActiveSubView == OverviewSubView.Overview ? OverviewContent : null;
-            FriendsOverviewContentHost.Content = ActiveSubView == OverviewSubView.Friends ? _friendsOverview : null;
-            ShowcaseContentHost.Content = ActiveSubView == OverviewSubView.Showcase ? _showcase : null;
+            // A subview shown during a visit stays in the tree, collapsed while another one shows,
+            // so switching back to it only changes visibility. DetachHiddenSubViews takes the
+            // hidden ones out once the sidebar view is hidden.
+            if (ActiveSubView == OverviewSubView.Overview)
+            {
+                OverviewContentHost.Child = OverviewContent;
+            }
+            else if (ActiveSubView == OverviewSubView.Friends)
+            {
+                FriendsOverviewContentHost.Content = _friendsOverview;
+            }
+            else
+            {
+                ShowcaseContentHost.Content = _showcase;
+            }
+
+            OverviewContentHost.Visibility = VisibleWhenActive(OverviewSubView.Overview);
+            FriendsOverviewContentHost.Visibility = VisibleWhenActive(OverviewSubView.Friends);
+            ShowcaseContentHost.Visibility = VisibleWhenActive(OverviewSubView.Showcase);
 
             UpdateFriendsClearSelectionState();
         }
@@ -507,11 +521,37 @@ namespace PlayniteAchievements.Views
             FocusActiveSubViewControllerTarget();
         }
 
+        private Visibility VisibleWhenActive(OverviewSubView subView) =>
+            ActiveSubView == subView ? Visibility.Visible : Visibility.Collapsed;
+
+        // Every subview in the tree is walked, restyled and re-read on each tree change, and
+        // Playnite makes one each time the sidebar view is left or shown. Out of the window, the
+        // hidden ones leave the tree until they are shown again, so the next visit carries only
+        // the shown one.
+        private void DetachHiddenSubViews()
+        {
+            if (ActiveSubView != OverviewSubView.Overview)
+            {
+                OverviewContentHost.Child = null;
+            }
+
+            if (ActiveSubView != OverviewSubView.Friends)
+            {
+                FriendsOverviewContentHost.Content = null;
+            }
+
+            if (ActiveSubView != OverviewSubView.Showcase)
+            {
+                ShowcaseContentHost.Content = null;
+            }
+        }
+
         public void Deactivate()
         {
             if (!_isActive) return;
             _isActive = false;
             _viewModel?.SetActive(false);
+            DetachHiddenSubViews();
         }
 
         public void RefreshView()
