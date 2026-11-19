@@ -127,7 +127,7 @@ namespace PlayniteAchievements.Services.Tests
             var subscription = _feed.Subscribe(
                 () => AchievementQuery.CurrentUser.ForGames(new[] { GameA }),
                 scheduler,
-                TimeSpan.FromMilliseconds(300),
+                () => TimeSpan.FromMilliseconds(300),
                 () => reruns++);
 
             _feed.Publish(AchievementDataChange.ForGames(new[] { Guid.NewGuid() }));
