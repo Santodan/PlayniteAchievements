@@ -53,10 +53,16 @@ namespace PlayniteAchievements.Tests.ViewModels
         public void AuthoredRows_ShowTheirGamesProvider()
         {
             var load = Between(Read("OverviewViewModel.cs"), "private IReadOnlyList<AchievementDisplayItem> LoadRecentRows(", "private List<AchievementDisplayItem> LoadedRecentRows()");
+            StringAssert.Contains(load, "_dataBuilder.LoadRows(_settings, query, keys, _gamesById)");
 
-            StringAssert.Contains(load, "row.ProviderKey == null && row.PlayniteGameId.HasValue");
-            StringAssert.Contains(load, "row.ProviderKey = game.ProviderKey;");
-            StringAssert.Contains(load, "_dataBuilder.BuildRows(_settings, rows)");
+            // The one row loader every grid and widget reads through.
+            var rows = Between(
+                File.ReadAllText(FindRepoFile("source", "Services", "Overview", "OverviewDataBuilder.cs")),
+                "internal List<AchievementDisplayItem> LoadRows(",
+                "internal List<AchievementDisplayItem> BuildRows(");
+            StringAssert.Contains(rows, "row.ProviderKey == null && games != null && games.TryGetValue(gameId, out var game)");
+            StringAssert.Contains(rows, "row.ProviderKey = game.ProviderKey;");
+            StringAssert.Contains(rows, "return BuildRows(settings, rows);");
         }
 
         [TestMethod]
