@@ -90,19 +90,46 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        // Unloaded fires while the view that replaces this one is being built, so the teardown
+        // (stopping reads, releasing rows, detaching the tree) waits until that view has painted.
+        // Pending control bar saves flush on the overview's own Unloaded, not here.
         private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
             _logger.Debug("OverviewHostControl_Unloaded called");
+            var overview = _overview;
+            var landingPage = _landingPage;
+            _overview = null;
+            _landingPage = null;
+
+            // Unsubscribe from settings saved event
+            if (_settingsSavedHooked)
+            {
+                PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                _settingsSavedHooked = false;
+            }
+
+            if (overview == null && landingPage == null)
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(
+                new Action(() => TearDown(overview, landingPage)),
+                DispatcherPriority.Background);
+        }
+
+        private void TearDown(OverviewControl overview, FirstTimeLandingPage landingPage)
+        {
             using var perf = PerfScope.Start(
                 _logger,
                 "OverviewHost.Unloaded",
                 thresholdMs: 30,
-                context: $"overview={_overview != null} landing={_landingPage != null}");
+                context: $"overview={overview != null} landing={landingPage != null}");
             try
             {
-                _overview?.Deactivate();
-                _overview?.Dispose();
-                _landingPage?.Dispose();
+                overview?.Deactivate();
+                overview?.Dispose();
+                landingPage?.Dispose();
             }
             catch
             {
@@ -110,16 +137,12 @@ namespace PlayniteAchievements.Views
             }
             finally
             {
-                _overview = null;
-                _landingPage = null;
-                // Clear content to allow recreation on next load
-                PART_Content.Content = null;
-
-                // Unsubscribe from settings saved event
-                if (_settingsSavedHooked)
+                // Clear content to allow recreation on next load. A Loaded that ran before this
+                // has already replaced it.
+                var shown = PART_Content.Content;
+                if (shown != null && (ReferenceEquals(shown, overview) || ReferenceEquals(shown, landingPage)))
                 {
-                    PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                    _settingsSavedHooked = false;
+                    PART_Content.Content = null;
                 }
             }
         }
