@@ -200,10 +200,14 @@ namespace PlayniteAchievements.Services.Database
                     }
                     else
                     {
+                        // The pages around the anchor in one read: each read sorts the whole result.
                         anchor = Math.Min(anchor, last);
-                        for (var page = Math.Max(0, anchor - 1); page <= Math.Min(last, anchor + 1) && page * PageSize < count; page++)
+                        var first = Math.Max(0, anchor - 1);
+                        var end = Math.Min(count, (Math.Min(last, anchor + 1) + 1) * PageSize);
+                        var rows = _loadRows(query.Page(end - first * PageSize, first * PageSize));
+                        for (var page = first; page * PageSize < end; page++)
                         {
-                            pages[page] = _loadRows(PageOf(query, page, count));
+                            pages[page] = rows.Skip((page - first) * PageSize).Take(PageSize).ToList();
                         }
                     }
                 }
