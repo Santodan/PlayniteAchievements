@@ -612,6 +612,24 @@
         </Setter>
     </Style>
 
+    <!-- A row a paged list has not loaded yet (AchievementDisplayItem.IsPlaceholder): the row's
+         background and separator over cells laid out but not drawn, so it keeps the height of an
+         empty row and shows nothing that changes when the row loads. -->
+    <ControlTemplate x:Key="AchievementPlaceholderRowTemplate" TargetType="{x:Type DataGridRow}">
+        <Border Background="{TemplateBinding Background}"
+                SnapsToDevicePixels="True">
+            <Grid>
+                <Rectangle Height="1"
+                           VerticalAlignment="Bottom"
+                           Fill="{TemplateBinding BorderBrush}"
+                           SnapsToDevicePixels="True"/>
+                <DataGridCellsPresenter ItemsPanel="{TemplateBinding ItemsPanel}"
+                                        Visibility="Hidden"
+                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+            </Grid>
+        </Border>
+    </ControlTemplate>
+
     <Style x:Key="ManageAchievementsDataGridRowStyle"
            TargetType="DataGridRow"
            BasedOn="{StaticResource AchievementRowStyle}">
