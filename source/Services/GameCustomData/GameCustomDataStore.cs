@@ -764,12 +764,13 @@ namespace PlayniteAchievements.Services.GameCustomData
 
         public HashSet<Guid> GetExcludedRefreshGameIds()
         {
-            return GetExcludedGameIds(data => data?.ExcludedFromRefreshes == true);
-        }
-
-        public HashSet<Guid> GetExcludedSummaryGameIds()
-        {
-            return GetExcludedGameIds(data => data?.ExcludedFromSummaries == true);
+            EnsureCacheLoaded();
+            lock (_cacheSync)
+            {
+                return new HashSet<Guid>(_cacheByGameId
+                    .Where(pair => pair.Value?.ExcludedFromRefreshes == true)
+                    .Select(pair => pair.Key));
+            }
         }
 
         public void ExportPortablePackage(Guid playniteGameId, string destinationPath)
@@ -2491,35 +2492,6 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// <see cref="InvalidateCache"/> clears the flag.
         /// </remarks>
         private bool _cacheHoldsEveryStoredRow;
-
-        private HashSet<Guid> GetExcludedGameIds(Func<GameCustomDataFile, bool> selector)
-        {
-            if (selector == null)
-            {
-                throw new ArgumentNullException(nameof(selector));
-            }
-
-            EnsureCacheLoaded();
-
-            lock (_cacheSync)
-            {
-                var result = new HashSet<Guid>();
-
-                foreach (var pair in _cacheByGameId)
-                {
-                    if (selector(pair.Value))
-                    {
-                        result.Add(pair.Key);
-                    }
-                    else
-                    {
-                        result.Remove(pair.Key);
-                    }
-                }
-
-                return result;
-            }
-        }
 
         /// <summary>
         /// Populates the in-memory cache from the repository when it has not been read yet.
