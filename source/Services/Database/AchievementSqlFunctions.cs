@@ -1,0 +1,77 @@
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
+using PlayniteAchievements.Services.Overview;
+using SqlNado;
+using System;
+using System.Globalization;
+
+namespace PlayniteAchievements.Services.Database
+{
+    /// <summary>
+    /// SQL functions that run the plugin's C# rules inside SQLite, so plugin queries can score and
+    /// bucket rows without loading them: <c>pa_prestige(percent, rarity)</c>,
+    /// <c>pa_collection(rarity)</c> and <c>pa_localday(unlockTimeUtc)</c>.
+    /// </summary>
+    /// <remarks>
+    /// They exist only on the plugin's own connections. No view may call them: other add-ons read
+    /// the views on connections that lack them.
+    /// </remarks>
+    internal static class AchievementSqlFunctions
+    {
+        public static void Register(SQLiteDatabase db)
+        {
+            db.SetScalarFunction("pa_prestige", 2, true, context => context.SetResult(
+                AchievementScoreCalculator.GetPrestigeValue(Double(context.Values[0]), ParseStoredRarity(Text(context.Values[1])))));
+            db.SetScalarFunction("pa_collection", 1, true, context => context.SetResult(
+                AchievementScoreCalculator.GetCollectionValue(ParseStoredRarity(Text(context.Values[0])))));
+            db.SetScalarFunction("pa_localday", 1, true, context =>
+            {
+                var unlockUtc = ParseUtc(Text(context.Values[0]));
+                context.SetResult(unlockUtc.HasValue
+                    ? UnlockDayCounts.DayOf(unlockUtc.Value).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    : null);
+            });
+        }
+
+        /// <summary>A stored rarity name as a tier; Common when missing or unknown.</summary>
+        internal static RarityTier ParseStoredRarity(string value)
+        {
+            return RarityTierExtensions.TryParse(value, out var rarity)
+                ? rarity
+                : RarityTier.Common;
+        }
+
+        /// <summary>A stored timestamp as a UTC instant; null when missing or unparseable.</summary>
+        internal static DateTime? ParseUtc(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+            {
+                return DateTimeUtilities.AsUtcKind(parsed);
+            }
+
+            return null;
+        }
+
+        private static double? Double(SQLiteValue value)
+        {
+            switch (value.Type)
+            {
+                case SQLiteColumnType.REAL:
+                    return value.DoubleValue;
+                case SQLiteColumnType.INTEGER:
+                    return value.Int64Value;
+                default:
+                    return null;
+            }
+        }
+
+        private static string Text(SQLiteValue value) =>
+            value.Type == SQLiteColumnType.NULL ? null : value.StringValue;
+    }
+}
