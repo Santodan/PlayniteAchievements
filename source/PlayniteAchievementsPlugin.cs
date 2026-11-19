@@ -1408,17 +1408,6 @@ namespace PlayniteAchievements
                         target => _achievementMarkerToggle.ToggleGoal(target),
                         _captureLibraryService);
 
-                    // A friend-consuming theme is a plugin-lifetime consumer: it keeps the
-                    // friends snapshot alive when the last friends view closes.
-                    _friendsOverviewDataCoordinator?.SetExternalConsumerProbe(
-                        () => _themeIntegrationService?.HasFriendThemeConsumers == true);
-                    if (_friendsOverviewDataCoordinator != null)
-                    {
-                        _friendsOverviewDataCoordinator.SnapshotReleased += FriendsOverviewDataCoordinator_SnapshotReleased;
-                        _eventSubscriptions.Add(() =>
-                            _friendsOverviewDataCoordinator.SnapshotReleased -= FriendsOverviewDataCoordinator_SnapshotReleased);
-                    }
-
                     SubscribeDatabaseEventHandlers();
 
                     AddSettingsSupport(new AddSettingsSupportArgs
@@ -2400,14 +2389,6 @@ namespace PlayniteAchievements
         private void FriendCacheManager_FriendCacheInvalidated(object sender, FriendCacheInvalidatedEventArgs e)
         {
             InvalidateFriendDataCoordinators(e);
-        }
-
-        // The derived coordinators cache slices whose Projection references the released
-        // snapshot's projection; invalidating them lets the full friend row set become
-        // collectable. Their next builds fall back to the cheap scoped DB loads.
-        private void FriendsOverviewDataCoordinator_SnapshotReleased(object sender, EventArgs e)
-        {
-            _friendGameAchievementsDataCoordinator?.Invalidate();
         }
 
         // Settings-driven callers pass no args (projection-affecting settings need a full
