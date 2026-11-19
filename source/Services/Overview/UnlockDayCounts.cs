@@ -6,7 +6,7 @@ namespace PlayniteAchievements.Services.Overview
 {
     /// <summary>
     /// The one place that turns an unlock instant into the day key used by every
-    /// <c>*UnlockCountsByDate</c> dictionary, and the shared increment/decrement for the global
+    /// <c>*UnlockCountsByDate</c> dictionary, and the shared increment for the global
     /// and per-game maps. Keys are local calendar days (00:00, Kind Unspecified); compare by value.
     /// A runtime time-zone change takes effect on the next full rebuild.
     /// </summary>
@@ -54,37 +54,6 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             Increment(gameCounts, key, amount);
-        }
-
-        /// <summary>
-        /// Removes <paramref name="amount"/> from a day key in both maps, deleting keys that reach zero.
-        /// Returns false when the global map held nothing for that day.
-        /// </summary>
-        public static bool RemoveDay(
-            IDictionary<DateTime, int> global,
-            IDictionary<Guid, Dictionary<DateTime, int>> byGame,
-            Guid? gameId,
-            DateTime day,
-            int amount = 1)
-        {
-            if (amount <= 0)
-            {
-                return false;
-            }
-
-            var key = day.Date;
-            var removed = Decrement(global, key, amount);
-
-            if (byGame != null && gameId.HasValue && byGame.TryGetValue(gameId.Value, out var gameCounts) && gameCounts != null)
-            {
-                Decrement(gameCounts, key, amount);
-                if (gameCounts.Count == 0)
-                {
-                    byGame.Remove(gameId.Value);
-                }
-            }
-
-            return removed;
         }
 
         /// <summary>Earliest day with a positive count, or null.</summary>
@@ -193,26 +162,6 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             counts[key] = counts.TryGetValue(key, out var existing) ? existing + amount : amount;
-        }
-
-        private static bool Decrement(IDictionary<DateTime, int> counts, DateTime key, int amount)
-        {
-            if (counts == null || !counts.TryGetValue(key, out var existing))
-            {
-                return false;
-            }
-
-            var next = existing - amount;
-            if (next <= 0)
-            {
-                counts.Remove(key);
-            }
-            else
-            {
-                counts[key] = next;
-            }
-
-            return true;
         }
     }
 }
