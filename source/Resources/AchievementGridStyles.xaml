@@ -343,6 +343,15 @@
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
+    <!-- A region whose data has not landed (a score card, a Showcase widget): one block the size
+         of its content, in the placeholder cells' tint. -->
+    <Style x:Key="PlayAch.Skeleton.Block" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Skeleton}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+
     <!-- DataGrid Cell Style -->
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent"/>
