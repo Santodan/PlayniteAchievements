@@ -177,6 +177,9 @@ namespace PlayniteAchievements.Services.Database
 
         /// <summary>The lowest custom category order index of the group's rows; null when none has one.</summary>
         public long? MinCategoryOrder { get; set; }
+
+        /// <summary>Category groups: a text that sorts the groups by their first row in definition order.</summary>
+        public string FirstDisplayOrder { get; set; }
     }
 
     /// <summary>
@@ -205,43 +208,46 @@ namespace PlayniteAchievements.Services.Database
         public IReadOnlyList<string> Keys(AchievementQuery query, AchievementGroup group) =>
             (IReadOnlyList<string>)_withReadDb(db => Keys(db, query, group));
 
+        /// <summary>The identities of the rows <paramref name="query"/> matches, in its order.</summary>
+        public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query) =>
+            (IReadOnlyList<AchievementQuerySql.RowKey>)_withReadDb(db => SortedKeys(db, query));
+
+        /// <summary>The rows of <paramref name="keys"/>, in their order; a key whose row no longer matches is left out.</summary>
+        public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            (IReadOnlyList<AchievementRowRecord>)_withReadDb(db => Rows(db, query, keys));
+
         internal static IReadOnlyList<AchievementRowRecord> Rows(SQLiteDatabase db, AchievementQuery query)
         {
-            if (query.Friends && (query.Limit > 0 || query.Offset > 0))
-            {
-                return FriendPage(db, query);
-            }
-
             var command = AchievementQuerySql.Rows(query);
             return db.Load<AchievementRowRecord>(command.Sql, command.Args).ToList();
         }
 
-        // A page of friend rows in two reads: the sorted keys of the page, which skips building the
-        // display columns of every row the sort passes over, then the columns of those rows.
-        private static IReadOnlyList<AchievementRowRecord> FriendPage(SQLiteDatabase db, AchievementQuery query)
+        internal static IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(SQLiteDatabase db, AchievementQuery query)
         {
-            var keysCommand = AchievementQuerySql.PageKeys(query);
-            var keys = db.Load<AchievementQuerySql.PageKey>(keysCommand.Sql, keysCommand.Args).ToList();
-            if (keys.Count == 0)
+            var command = AchievementQuerySql.SortedKeys(query);
+            return db.Load<AchievementQuerySql.RowKey>(command.Sql, command.Args).ToList();
+        }
+
+        // The columns of the keyed rows only, which skips building them for every row the sort
+        // passed over.
+        internal static IReadOnlyList<AchievementRowRecord> Rows(SQLiteDatabase db, AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            if (keys == null || keys.Count == 0)
             {
                 return Array.Empty<AchievementRowRecord>();
             }
 
             var command = AchievementQuerySql.Rows(query, keys);
-            var byKey = new Dictionary<string, AchievementRowRecord>(StringComparer.Ordinal);
+            var byKey = new Dictionary<(long, long, long), AchievementRowRecord>();
             foreach (var row in db.Load<AchievementRowRecord>(command.Sql, command.Args))
             {
-                byKey[PageKeyOf(row.UserId ?? 0, row.GameId, row.ApiName)] = row;
+                byKey[(row.UserId ?? 0, row.GameId ?? 0, row.DefinitionId ?? 0)] = row;
             }
 
-            // A row written between the two reads drops out; the page reads short and reloads.
-            return keys.Select(key => byKey.TryGetValue(PageKeyOf(key.UserId, key.GameId, key.ApiName), out var row) ? row : null)
+            return keys.Select(key => byKey.TryGetValue((key.UserId, key.GameId, key.DefinitionId), out var row) ? row : null)
                 .Where(row => row != null)
                 .ToList();
         }
-
-        private static string PageKeyOf(long userId, long? gameId, string apiName) =>
-            userId + "\u001f" + gameId + "\u001f" + apiName;
 
         internal static IReadOnlyList<AchievementTotalsRecord> Totals(SQLiteDatabase db, AchievementQuery query, AchievementGroup group)
         {
@@ -342,6 +348,7 @@ namespace PlayniteAchievements.Services.Database
             total.LastUnlockUtc = Max(total.LastUnlockUtc, row.LastUnlockUtc);
             total.LastCapstoneUnlockUtc = Max(total.LastCapstoneUnlockUtc, row.LastCapstoneUnlockUtc);
             total.FirstPlatinumUnlockUtc = Min(total.FirstPlatinumUnlockUtc, row.FirstPlatinumUnlockUtc);
+            total.FirstDisplayOrder = Min(total.FirstDisplayOrder, row.FirstDisplayOrder);
             total.PercentSum += row.PercentSum;
             total.PercentCount += row.PercentCount;
             total.HiddenLockedCount += row.HiddenLockedCount;
