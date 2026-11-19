@@ -1609,6 +1609,41 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void DynamicRunningGameCommands_BeforeTheLibraryStateIsRead_ApplyOnceItLands()
+        {
+            var gogGameId = Guid.NewGuid();
+            using var context = CreateServiceContext(
+                resolveRunningGameTarget: () => AchievementHotkeyTargetResolution.ForGame(gogGameId));
+            UseLibraryData(context, new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = gogGameId,
+                    ProviderKey = "GOG",
+                    Game = new Game { Id = gogGameId, Name = "GOG Running Game" },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail> { Achievement("GOG Unlocked", 75.0, unlocked: true) }
+                }
+            });
+            context.Scheduler.Immediate = false;
+            context.Settings.FilterDynamicLibraryAchievementsByProviderCommand.Execute("Steam");
+            context.Settings.FilterDynamicGameSummariesByProviderCommand.Execute("Steam");
+
+            // The running game's provider comes from the library state, read first.
+            context.Settings.FilterDynamicLibraryAchievementsByRunningGameCommand.Execute(null);
+            context.Settings.FilterDynamicGameSummariesByRunningGameCommand.Execute(null);
+            Assert.AreEqual(0, context.AchievementDataService.CachedSummaryDataForThemeCalls, "nothing is read on the UI thread");
+
+            context.Settle();
+
+            Assert.AreEqual(1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            Assert.AreEqual(gogGameId.ToString("D"), context.Settings.DynamicLibraryAchievementsGameKey);
+            Assert.AreEqual("GOG", context.Settings.DynamicLibraryAchievementsProviderKey);
+            Assert.AreEqual(gogGameId.ToString("D"), context.Settings.DynamicGameSummariesGameKey);
+            Assert.AreEqual("GOG", context.Settings.DynamicGameSummariesProviderKey);
+        }
+
+        [TestMethod]
         public void DynamicRunningGameCommands_NoRunningGameNoOpForAllLists()
         {
             PercentRarityHelper.Configure(5, 10, 50);
