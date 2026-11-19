@@ -27,7 +27,8 @@ namespace PlayniteAchievements.Services.Cache
         CachedSummaryData LoadCachedSummaryDataFast(
             int limit,
             IEnumerable<Guid> excludedGameIds,
-            Func<Guid, CachedGameSummaryData> authoredGame);
+            Func<Guid, CachedGameSummaryData> authoredGame,
+            bool days = true);
 
         /// <summary>Reads resolved achievement rows, totals and keys.</summary>
         Database.AchievementReadService Reads { get; }
@@ -35,7 +36,7 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>One change event per write batch, for read models.</summary>
         AchievementDataFeed Feed { get; }
 
-        /// <summary>The current user's rows of <paramref name="keys"/>, in their order, as the summary maps them.</summary>
+        /// <summary>The current user's rows of <paramref name="keys"/> in their order, or of every row the query reads (null keys), as the summary maps them.</summary>
         List<CachedRecentUnlockData> LoadRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
 
         /// <summary>
