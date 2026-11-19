@@ -262,6 +262,22 @@ namespace PlayniteAchievements.SqlNado.Tests
             });
         }
 
+        [TestMethod]
+        public void ProgressKeys_SplitTheLockedRows_EvenANumeratorWithoutADenominator()
+        {
+            WithFixture(db =>
+            {
+                db.ExecuteNonQuery("UPDATE UserAchievements SET ProgressNum = 3, ProgressDenom = NULL WHERE UserGameProgressId = 1 AND AchievementDefinitionId = 3;");
+                var locked = AchievementQuery.CurrentUser.WhereUnlocked(false);
+                List<string> Names(AchievementQuery query) => AchievementReadService.Rows(db, query).Select(row => row.ApiName).ToList();
+
+                CollectionAssert.Contains(Names(locked.WhereAnyKey(new[] { "NoProgress" })), "a3");
+                CollectionAssert.AreEquivalent(
+                    Names(locked),
+                    Names(locked.WhereAnyKey(new[] { "NoProgress" })).Concat(Names(locked.WhereAnyKey(new[] { "InProgress" }))).ToList());
+            });
+        }
+
         private static string Key(AchievementRowRecord row) => row.UserId + "/" + row.PlayniteGameId + "/" + row.ApiName;
 
         /// <summary>
