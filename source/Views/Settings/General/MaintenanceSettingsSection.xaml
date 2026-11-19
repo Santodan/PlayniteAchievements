@@ -16,15 +16,16 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
             <!-- ================== MAINTENANCE ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementData_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -75,7 +76,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -127,7 +128,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompressImages_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
@@ -173,7 +174,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource SettingGroupCardStyle}" Grid.IsSharedSizeScope="True">
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
                         <StackPanel>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
