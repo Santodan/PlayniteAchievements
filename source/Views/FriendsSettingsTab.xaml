@@ -188,6 +188,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                        </Grid>
                         <Button DockPanel.Dock="Right"
                                 Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
                                 Command="{Binding MergeSelectedCommand}"
