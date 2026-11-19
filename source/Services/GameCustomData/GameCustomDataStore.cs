@@ -165,7 +165,6 @@ namespace PlayniteAchievements.Services.GameCustomData
         public void AttachManagedCustomIconService(ManagedCustomIconService managedCustomIconService)
         {
             _managedCustomIconService = managedCustomIconService;
-            _repository.Icons = managedCustomIconService;
         }
 
         /// <summary>
