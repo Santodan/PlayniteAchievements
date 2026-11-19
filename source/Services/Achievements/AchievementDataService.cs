@@ -1645,10 +1645,7 @@ namespace PlayniteAchievements.Services.Achievements
             _gameCustomDataStore.TryLoad(playniteGameId, out var customData);
             var entries = BuildOverrideMirrorEntries(customData);
             scope?.SetContext("entries=" + (entries?.Count ?? 0));
-            _overrideMirror.ReplaceAchievementOverrides(playniteGameId, entries);
-            _overrideMirror.ReplaceGameCustomStates(
-                new Dictionary<Guid, GameCustomStateEntry> { [playniteGameId] = BuildGameCustomState(customData) },
-                playniteGameId);
+            _overrideMirror.ReplaceGameCustomLayer(playniteGameId, entries, BuildGameCustomState(customData));
         }
 
         /// <summary>
