@@ -823,6 +823,7 @@
     <Compile Include="..\..\source\Services\ThemeMigration\ControlMappings.cs" Link="Source\Services\ThemeMigration\ControlMappings.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
+    <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryCache.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryCache.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
