@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
@@ -20,20 +21,32 @@ namespace PlayniteAchievements.Services.Database
 
     /// <summary>
     /// The rows of one query as a list whose <see cref="Count"/> is the full row count from the
-    /// first load, for a virtualizing grid. A load reads the sorted keys of every matching row
-    /// and keeps them; a page is then the columns of a slice of those keys. Reading an index that
-    /// is not loaded returns a placeholder and loads its page and the pages on either side; when
-    /// the page arrives, each placeholder handed out is replaced in place. A query change or a
-    /// touching feed change reads the keys again with the pages around the last read index
-    /// and applies them in place, keeping the other loaded pages until they are read again. All
-    /// state is changed on the UI thread.
+    /// first load. A load reads the sorted keys of every matching row and keeps them; a page is
+    /// then the columns of a slice of those keys. Reading an index that is not loaded hands out a
+    /// placeholder kept for that index and loads its page; when the page arrives, each
+    /// placeholder handed out is replaced in place.
+    /// <para>
+    /// How reads load: a read moves the anchor, and pages more than one page from the anchor are
+    /// neither loaded nor kept past <see cref="MaxLoadedPages"/>, so a scrolled grid loads only
+    /// where it stops. Pages a consumer holds every row of are kept instead: those of a sweep
+    /// (more than <see cref="WholeLoadRows"/> consecutive indices read before any result is
+    /// applied, as a list that does not virtualize reads), those enumeration hands placeholders
+    /// out for, and those a binding reads again when the list announces a change. Kept pages
+    /// load from the anchor onward and are never dropped.
+    /// </para>
+    /// <para>
+    /// A query change or a touching feed change reads the keys again with the pages around the
+    /// anchor and every loaded page, and applies them in place: a row whose key is unchanged
+    /// keeps its object, brought up to date, and any other row handed out is replaced. All state
+    /// is changed on the UI thread.
+    /// </para>
     /// </summary>
-    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, IPartiallyLoadedRows, IDisposable
+    internal sealed class PagedRows<T> : IList, IReadOnlyList<T>, INotifyCollectionChanged, INotifyPropertyChanged, IPartiallyLoadedRows, IDisposable
         where T : class
     {
         public const int PageSize = 100;
 
-        /// <summary>Pages kept loaded; past it, the page farthest from the last read index is dropped.</summary>
+        /// <summary>Pages kept loaded for reads near the anchor; past it, the farthest is dropped.</summary>
         internal const int MaxLoadedPages = 10;
 
         /// <summary>
@@ -45,6 +58,7 @@ namespace PlayniteAchievements.Services.Database
         private readonly Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>> _loadKeys;
         private readonly Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>, IReadOnlyList<T>> _loadRows;
         private readonly Func<T> _newPlaceholder;
+        private readonly Action<T, T> _update;
         private readonly IReadScheduler _scheduler;
         private readonly Action<Exception> _onError;
         private readonly IDisposable _subscription;
@@ -52,21 +66,29 @@ namespace PlayniteAchievements.Services.Database
         private readonly Dictionary<int, T[]> _pages = new Dictionary<int, T[]>();
         private readonly HashSet<int> _stalePages = new HashSet<int>();
         private readonly HashSet<int> _wantedPages = new HashSet<int>();
+        private readonly HashSet<int> _keptPages = new HashSet<int>();
         private readonly Dictionary<int, T> _placeholders = new Dictionary<int, T>();
         private AchievementQuery _query;
         private IReadOnlyList<AchievementQuerySql.RowKey> _keys = Array.Empty<AchievementQuerySql.RowKey>();
         private int _count;
-        private int _lastIndex;
+        private int _anchor;
+        private int _lastIndex = -1;
+        private int _runStart;
+        private int _runApplies;
+        private int _applies;
         private int _version;
         private bool _pageLoading;
         private bool _resetting;
         private bool _resetAgain;
+        private bool _notifying;
+        private bool _changed;
         private bool _disposed;
 
         /// <param name="loadKeys">Runs off the UI thread; the keys of the query's rows in its order.</param>
         /// <param name="loadRows">Runs off the UI thread; the rows of the keys, in their order.</param>
         /// <param name="newPlaceholder">A row standing in for one not loaded yet.</param>
         /// <param name="maxRows">The most rows the list holds; 0 for no cap.</param>
+        /// <param name="update">Brings a row handed out up to date from a new read of its key; without it the row is replaced.</param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
@@ -76,7 +98,8 @@ namespace PlayniteAchievements.Services.Database
             IReadScheduler scheduler,
             int maxRows = 0,
             Func<TimeSpan> window = null,
-            Action<Exception> onError = null)
+            Action<Exception> onError = null,
+            Action<T, T> update = null)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
@@ -85,32 +108,38 @@ namespace PlayniteAchievements.Services.Database
             _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
             _maxRows = Math.Max(0, maxRows);
             _onError = onError;
+            _update = update;
             _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset);
             Reset();
         }
 
         public event NotifyCollectionChangedEventHandler CollectionChanged;
 
+        public event PropertyChangedEventHandler PropertyChanged;
+
         public AchievementQuery Query => _query;
 
         public int Count => _count;
 
         /// <summary>
-        /// Replaces the query and reloads. With
-        /// <paramref name="fromStart"/> the rows around the first index load first, for a list
-        /// the grid shows from its top; otherwise those around the last read index. UI thread.
+        /// Replaces the query and reloads. With <paramref name="fromStart"/> the rows around the
+        /// first index load first, for a list the grid shows from its top; otherwise those around
+        /// the anchor. UI thread.
         /// </summary>
         public void SetQuery(AchievementQuery query, bool fromStart = false)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             if (fromStart)
             {
-                _lastIndex = 0;
+                _anchor = 0;
             }
 
             _version++;
             Reset();
         }
+
+        /// <summary>Reads the same query again, for a list with no feed whose data changed. UI thread.</summary>
+        public void Refresh() => Reset();
 
         public object this[int index]
         {
@@ -121,8 +150,34 @@ namespace PlayniteAchievements.Services.Database
                     throw new ArgumentOutOfRangeException(nameof(index));
                 }
 
-                _lastIndex = index;
                 var page = index / PageSize;
+                if (_notifying)
+                {
+                    // A binding reading again because the list announced a change: the index is bound.
+                    _keptPages.Add(page);
+                }
+                else
+                {
+                    if (index != _lastIndex + 1 || _runApplies != _applies)
+                    {
+                        _runStart = index;
+                        _runApplies = _applies;
+                    }
+
+                    _lastIndex = index;
+                    _anchor = index;
+                    if (index - _runStart >= WholeLoadRows)
+                    {
+                        // A sweep: the consumer holds every row it read, from the first.
+                        for (var swept = index - _runStart == WholeLoadRows ? _runStart / PageSize : page; swept <= page; swept++)
+                        {
+                            _keptPages.Add(swept);
+                        }
+
+                        _anchor = _runStart;
+                    }
+                }
+
                 Want(page - 1);
                 Want(page);
                 Want(page + 1);
@@ -139,6 +194,7 @@ namespace PlayniteAchievements.Services.Database
             _pages.Clear();
             _placeholders.Clear();
             _wantedPages.Clear();
+            _keptPages.Clear();
         }
 
         private void Reset()
@@ -157,7 +213,9 @@ namespace PlayniteAchievements.Services.Database
             _resetting = true;
             var query = _query;
             var version = _version;
-            var anchor = _lastIndex / PageSize;
+            var anchor = _anchor / PageSize;
+            var count = _count;
+            var loaded = _pages.Keys.ToList();
             _scheduler.Run(() =>
             {
                 IReadOnlyList<AchievementQuerySql.RowKey> keys = null;
@@ -165,19 +223,15 @@ namespace PlayniteAchievements.Services.Database
                 try
                 {
                     keys = _loadKeys(_maxRows > 0 ? query.Page(_maxRows) : query) ?? Array.Empty<AchievementQuerySql.RowKey>();
-                    pages = new Dictionary<int, IReadOnlyList<T>>();
                     var last = Math.Max(0, (keys.Count - 1) / PageSize);
-
-                    // Small enough to keep: every row is loaded from the start. Otherwise the
-                    // pages around the anchor.
                     anchor = Math.Min(anchor, last);
-                    var first = keys.Count <= WholeLoadRows ? 0 : Math.Max(0, anchor - 1);
-                    var end = keys.Count <= WholeLoadRows ? keys.Count : Math.Min(keys.Count, (Math.Min(last, anchor + 1) + 1) * PageSize);
-                    var rows = end == 0 ? Array.Empty<T>() : _loadRows(query, Slice(keys, first * PageSize, end));
-                    for (var page = first; page * PageSize < end; page++)
-                    {
-                        pages[page] = rows.Skip((page - first) * PageSize).Take(PageSize).ToList();
-                    }
+
+                    // Small enough to keep: every row. Otherwise the pages around the anchor, and
+                    // unless the list resets, every page loaded now so none shows old rows.
+                    var read = keys.Count <= WholeLoadRows
+                        ? Enumerable.Range(0, last + 1)
+                        : Enumerable.Range(anchor - 1, 3).Concat(Math.Abs(keys.Count - count) > PageSize ? Enumerable.Empty<int>() : loaded);
+                    pages = ReadPages(query, keys, read);
                 }
                 catch (Exception ex)
                 {
@@ -187,6 +241,30 @@ namespace PlayniteAchievements.Services.Database
 
                 _scheduler.Post(() => ResetLoaded(version, keys, pages));
             });
+        }
+
+        // The rows of the pages, a read for each run of consecutive pages.
+        private Dictionary<int, IReadOnlyList<T>> ReadPages(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys, IEnumerable<int> read)
+        {
+            var pages = new Dictionary<int, IReadOnlyList<T>>();
+            var wanted = read.Where(page => page >= 0 && page * PageSize < keys.Count).Distinct().OrderBy(page => page).ToList();
+            for (var at = 0; at < wanted.Count;)
+            {
+                var first = wanted[at];
+                var last = first;
+                while (++at < wanted.Count && wanted[at] == last + 1)
+                {
+                    last = wanted[at];
+                }
+
+                var rows = _loadRows(query, Slice(keys, first * PageSize, (last + 1) * PageSize)) ?? Array.Empty<T>();
+                for (var page = first; page <= last; page++)
+                {
+                    pages[page] = rows.Skip((page - first) * PageSize).Take(PageSize).ToList();
+                }
+            }
+
+            return pages;
         }
 
         private void ResetLoaded(int version, IReadOnlyList<AchievementQuerySql.RowKey> keys, Dictionary<int, IReadOnlyList<T>> pages)
@@ -199,11 +277,11 @@ namespace PlayniteAchievements.Services.Database
             // Rows read by the grid while the result is applied wait for the flag to clear.
             if (pages != null && version == _version)
             {
-                _keys = keys;
-                Apply(keys.Count, pages);
+                Apply(keys, pages);
             }
 
             _resetting = false;
+            _applies++;
 
             if (_resetAgain)
             {
@@ -217,14 +295,19 @@ namespace PlayniteAchievements.Services.Database
 
         // A count change of more than a page resets the list; a smaller one removes or adds rows
         // at the end, so the grid keeps its scroll position.
-        private void Apply(int count, Dictionary<int, IReadOnlyList<T>> pages)
+        private void Apply(IReadOnlyList<AchievementQuerySql.RowKey> keys, Dictionary<int, IReadOnlyList<T>> pages)
         {
+            var oldKeys = _keys;
+            var count = keys.Count;
+            var oldCount = _count;
+            _keys = keys;
             _version++;
-            _wantedPages.Clear();
             if (Math.Abs(count - _count) > PageSize)
             {
                 _pages.Clear();
                 _stalePages.Clear();
+                _wantedPages.Clear();
+                _keptPages.Clear();
                 _placeholders.Clear();
                 _count = count;
                 foreach (var page in pages)
@@ -233,17 +316,21 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                Notify(oldCount);
                 return;
             }
 
             while (_count > count)
             {
                 var index = --_count;
+
+                // Never handed out, the row is in no consumer; the placeholder the index reads stands in.
                 var removed = Peek(index) ?? _newPlaceholder();
                 Forget(index);
                 Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, index));
             }
 
+            _keptPages.RemoveWhere(page => page * PageSize >= count);
             foreach (var page in _pages.Keys.ToList())
             {
                 if (page * PageSize >= count)
@@ -253,13 +340,16 @@ namespace PlayniteAchievements.Services.Database
                 }
                 else if (!pages.ContainsKey(page))
                 {
+                    // Loaded while the keys were read: read again.
                     _stalePages.Add(page);
+                    _wantedPages.Add(page);
                 }
             }
 
             foreach (var page in pages)
             {
-                Swap(page.Key, page.Value, count);
+                Put(page.Key, page.Value, index =>
+                    index < oldKeys.Count && SameKey(oldKeys[index], keys[index]));
             }
 
             while (_count < count)
@@ -267,19 +357,27 @@ namespace PlayniteAchievements.Services.Database
                 var index = _count++;
                 Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, Peek(index) ?? NewPlaceholder(index), index));
             }
+
+            Notify(oldCount);
         }
+
+        private static bool SameKey(AchievementQuerySql.RowKey a, AchievementQuerySql.RowKey b) =>
+            a.UserId == b.UserId && a.GameId == b.GameId && a.DefinitionId == b.DefinitionId &&
+            a.PlayniteGameId == b.PlayniteGameId && a.ApiName == b.ApiName;
 
         private void Want(int page)
         {
-            if (page >= 0 && page * PageSize < _count && (!_pages.ContainsKey(page) || _stalePages.Contains(page)))
+            if (page >= 0 && page * PageSize < _count && !IsLoaded(page))
             {
                 _wantedPages.Add(page);
             }
         }
 
-        // Loads the wanted page nearest the last read index; pages more than one away from it
-        // are dropped, so a fast scroll loads only where it stops, and so are pages loaded
-        // since they were wanted.
+        private bool IsLoaded(int page) => _pages.ContainsKey(page) && !_stalePages.Contains(page);
+
+        // Loads the page nearest the anchor among those wanted near it and the kept pages not
+        // loaded yet, then the kept pages in order; other wanted pages are dropped, so a fast
+        // scroll loads only where it stops.
         private void LoadNextPage()
         {
             if (_pageLoading || _resetting || _disposed)
@@ -287,22 +385,28 @@ namespace PlayniteAchievements.Services.Database
                 return;
             }
 
-            var current = _lastIndex / PageSize;
+            var anchor = _anchor / PageSize;
             _wantedPages.RemoveWhere(page =>
-                Math.Abs(page - current) > 1 ||
                 page * PageSize >= _count ||
-                (_pages.ContainsKey(page) && !_stalePages.Contains(page)));
-            if (_wantedPages.Count == 0)
+                IsLoaded(page) ||
+                (Math.Abs(page - anchor) > 1 && !_keptPages.Contains(page)));
+            var next = _wantedPages
+                .Concat(_keptPages.Where(page => !_pages.ContainsKey(page) && page * PageSize < _count))
+                .OrderBy(page => Math.Min(Math.Abs(page - anchor), 2))
+                .ThenBy(page => page)
+                .Select(page => (int?)page)
+                .FirstOrDefault();
+            if (next == null)
             {
                 return;
             }
 
-            var next = _wantedPages.OrderBy(page => Math.Abs(page - current)).First();
-            _wantedPages.Remove(next);
+            var load = next.Value;
+            _wantedPages.Remove(load);
             _pageLoading = true;
             var query = _query;
             var version = _version;
-            var keys = Slice(_keys, next * PageSize, Math.Min(_count, (next + 1) * PageSize));
+            var keys = Slice(_keys, load * PageSize, (load + 1) * PageSize);
             _scheduler.Run(() =>
             {
                 IReadOnlyList<T> rows = null;
@@ -315,7 +419,7 @@ namespace PlayniteAchievements.Services.Database
                     _onError?.Invoke(ex);
                 }
 
-                _scheduler.Post(() => PageLoaded(version, next, rows));
+                _scheduler.Post(() => PageLoaded(version, load, rows));
             });
         }
 
@@ -328,25 +432,26 @@ namespace PlayniteAchievements.Services.Database
 
             if (rows != null && version == _version)
             {
-                Swap(page, rows, _count);
+                Put(page, rows, null);
                 DropFarPages();
+                Notify(_count);
             }
 
             _pageLoading = false;
-
+            _applies++;
             LoadNextPage();
         }
 
-        // Puts a loaded page in place, replacing what was handed out for each of its rows.
-        // count is the row count the page was read for.
-        private void Swap(int page, IReadOnlyList<T> rows, int count)
+        // Puts a read page in place. A row handed out whose key is unchanged is brought up to
+        // date; any other row handed out is replaced.
+        private void Put(int page, IReadOnlyList<T> rows, Func<int, bool> sameKey)
         {
             _pages.TryGetValue(page, out var old);
-            var items = Fill(old == null ? new T[PageSize] : (T[])old.Clone(), rows);
+            var items = old == null ? new T[PageSize] : (T[])old.Clone();
             _pages[page] = items;
-            if (rows.Count < Math.Min(PageSize, count - page * PageSize))
+            if (rows.Count < Math.Min(PageSize, _keys.Count - page * PageSize))
             {
-                // The rows moved between the count and the page read; the page reloads when read.
+                // The rows moved between the keys and the page read; the page reloads when read.
                 _stalePages.Add(page);
             }
             else
@@ -354,46 +459,44 @@ namespace PlayniteAchievements.Services.Database
                 _stalePages.Remove(page);
             }
 
-            for (var offset = 0; offset < rows.Count; offset++)
+            for (var offset = 0; offset < rows.Count && offset < PageSize; offset++)
             {
                 var index = page * PageSize + offset;
-                if (index >= _count)
-                {
-                    break;
-                }
-
-                var before = old?[offset];
+                var kept = old?[offset];
+                var before = kept;
                 if (before == null && _placeholders.TryGetValue(index, out var placeholder))
                 {
                     before = placeholder;
-                    _placeholders.Remove(index);
                 }
 
-                if (before != null && !ReferenceEquals(before, items[offset]))
+                _placeholders.Remove(index);
+                if (kept != null && _update != null && sameKey?.Invoke(index) == true)
                 {
-                    Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, items[offset], before, index));
+                    _update(kept, rows[offset]);
+                    continue;
+                }
+
+                items[offset] = rows[offset];
+                if (before != null && index < _count && !ReferenceEquals(before, rows[offset]))
+                {
+                    Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, rows[offset], before, index));
                 }
             }
         }
 
+        // Far pages go back to unloaded without an event: no virtualizing consumer holds rows
+        // that far from the anchor, and a kept page is never dropped.
         private void DropFarPages()
         {
-            var current = _lastIndex / PageSize;
-            while (_pages.Count > MaxLoadedPages)
+            var anchor = _anchor / PageSize;
+            foreach (var far in _pages.Keys
+                .Where(page => !_keptPages.Contains(page))
+                .OrderBy(page => Math.Abs(page - anchor))
+                .Skip(MaxLoadedPages)
+                .ToList())
             {
-                var far = _pages.Keys.OrderByDescending(page => Math.Abs(page - current)).First();
-                var items = _pages[far];
                 _pages.Remove(far);
                 _stalePages.Remove(far);
-                for (var offset = 0; offset < PageSize; offset++)
-                {
-                    var index = far * PageSize + offset;
-                    if (items[offset] != null && index < _count)
-                    {
-                        Raise(new NotifyCollectionChangedEventArgs(
-                            NotifyCollectionChangedAction.Replace, NewPlaceholder(index), items[offset], index));
-                    }
-                }
             }
         }
 
@@ -408,7 +511,7 @@ namespace PlayniteAchievements.Services.Database
         }
 
         private static IReadOnlyList<AchievementQuerySql.RowKey> Slice(IReadOnlyList<AchievementQuerySql.RowKey> keys, int from, int to) =>
-            keys.Skip(from).Take(Math.Max(0, to - from)).ToList();
+            keys.Skip(from).Take(Math.Max(0, Math.Min(keys.Count, to) - from)).ToList();
 
         private T Peek(int index)
         {
@@ -436,7 +539,45 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
-        private void Raise(NotifyCollectionChangedEventArgs args) => CollectionChanged?.Invoke(this, args);
+        // Bindings that read the list again while it announces a change mark what they read as bound.
+        private void Raise(NotifyCollectionChangedEventArgs args)
+        {
+            _changed = true;
+            _notifying = true;
+            try
+            {
+                CollectionChanged?.Invoke(this, args);
+            }
+            finally
+            {
+                _notifying = false;
+            }
+        }
+
+        // Count and indexer bindings, after a change of what the indices hold.
+        private void Notify(int oldCount)
+        {
+            if (!_changed)
+            {
+                return;
+            }
+
+            _changed = false;
+            _notifying = true;
+            try
+            {
+                if (oldCount != _count)
+                {
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Count)));
+                }
+
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
+            }
+            finally
+            {
+                _notifying = false;
+            }
+        }
 
         T IReadOnlyList<T>.this[int index] => (T)this[index];
 
@@ -444,7 +585,7 @@ namespace PlayniteAchievements.Services.Database
         {
             get
             {
-                foreach (var page in _pages.OrderBy(pair => pair.Key))
+                foreach (var page in _pages.Where(pair => !_stalePages.Contains(pair.Key)).OrderBy(pair => pair.Key))
                 {
                     for (var offset = 0; offset < PageSize && page.Key * PageSize + offset < _count; offset++)
                     {
@@ -457,9 +598,7 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
-        // IList for WPF: read-only, indexed access; enumeration hands out what is loaded and, for
-        // every other index, one shared placeholder that is neither kept nor loaded for. Only
-        // reading an index, as a virtualizing grid does for the rows it shows, loads.
+        // IList for WPF: read-only, indexed access.
         public bool IsReadOnly => true;
 
         public bool IsFixedSize => true;
@@ -495,19 +634,27 @@ namespace PlayniteAchievements.Services.Database
 
         public bool Contains(object value) => IndexOf(value) >= 0;
 
+        // Enumeration hands out what the indexer would and keeps the pages of the placeholders
+        // it hands out, as a consumer that copies the list holds every row.
         public IEnumerator<T> GetEnumerator()
         {
             for (var index = 0; index < _count; index++)
             {
-                yield return Peek(index) ?? SharedPlaceholder;
+                var item = Peek(index);
+                if (item == null)
+                {
+                    item = NewPlaceholder(index);
+                    if (_keptPages.Add(index / PageSize))
+                    {
+                        LoadNextPage();
+                    }
+                }
+
+                yield return item;
             }
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        private T _sharedPlaceholder;
-
-        private T SharedPlaceholder => _sharedPlaceholder ?? (_sharedPlaceholder = _newPlaceholder());
 
         public void CopyTo(Array array, int index)
         {
