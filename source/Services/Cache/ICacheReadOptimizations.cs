@@ -32,6 +32,12 @@ namespace PlayniteAchievements.Services.Cache
         /// <summary>Reads resolved achievement rows, totals and keys.</summary>
         Database.AchievementReadService Reads { get; }
 
+        /// <summary>One change event per write batch, for read models.</summary>
+        AchievementDataFeed Feed { get; }
+
+        /// <summary>The current user's rows of <paramref name="keys"/>, in their order, as the summary maps them.</summary>
+        List<CachedRecentUnlockData> LoadRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
+
         /// <summary>
         /// Games the current user's cache records as having no achievements at all.
         /// </summary>
