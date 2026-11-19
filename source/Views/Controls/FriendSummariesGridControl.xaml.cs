@@ -29,6 +29,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private static readonly ILogger Logger = LogManager.GetLogger();
         private bool _isAttached;
+
+        // Read at Loaded: by Unloaded the inherited value has left with the tree.
+        private bool _ownerDisposes;
         private PersistedSettingsSubscription _persistedSubscription;
 
         private static readonly IReadOnlyDictionary<string, bool> DefaultVisibility =
@@ -154,6 +157,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            _ownerDisposes = GridLifetime.GetOwnerDisposes(this);
             UpdateControlBarOptions();
             if (_isAttached)
             {
@@ -359,7 +363,10 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            Dispose();
+            if (!_ownerDisposes)
+            {
+                Dispose();
+            }
         }
 
         private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
