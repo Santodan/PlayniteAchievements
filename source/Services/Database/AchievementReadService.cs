@@ -1,3 +1,4 @@
+using Playnite.SDK;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Friends;
 using SqlNado;
@@ -196,33 +197,56 @@ namespace PlayniteAchievements.Services.Database
     internal sealed class AchievementReadService
     {
         private readonly Func<Func<SQLiteDatabase, object>, object> _withReadDb;
+        private readonly ILogger _logger;
+        private readonly HashSet<string> _loggedFailures = new HashSet<string>(StringComparer.Ordinal);
 
-        /// <param name="withReadDb">Runs a read on the read connection, as <c>SqlNadoCacheStore.WithReadDb</c> does.</param>
-        public AchievementReadService(Func<Func<SQLiteDatabase, object>, object> withReadDb)
+        /// <param name="withReadDb">Runs a read on the read connection and throws its failure, as <c>SqlNadoCacheStore.ReadOrThrow</c> does.</param>
+        public AchievementReadService(Func<Func<SQLiteDatabase, object>, object> withReadDb, ILogger logger = null)
         {
             _withReadDb = withReadDb ?? throw new ArgumentNullException(nameof(withReadDb));
+            _logger = logger;
         }
 
-        public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query) =>
-            (IReadOnlyList<AchievementRowRecord>)_withReadDb(db => Rows(db, query));
+        /// <summary>
+        /// Runs <paramref name="read"/> on the read connection. A failure is thrown, so a
+        /// <see cref="LiveQuery{T}"/> or <see cref="PagedRows{T}"/> keeps its last result, and is
+        /// logged as a warning the first time its kind is seen.
+        /// </summary>
+        public T Read<T>(Func<SQLiteDatabase, T> read)
+        {
+            try
+            {
+                return (T)_withReadDb(db => read(db));
+            }
+            catch (Exception ex)
+            {
+                lock (_loggedFailures)
+                {
+                    if (_loggedFailures.Add(ex.GetType().FullName + ": " + ex.Message))
+                    {
+                        _logger?.Warn(ex, "An achievement read failed; what it shows keeps its last result.");
+                    }
+                }
 
-        public IReadOnlyList<AchievementTotalsRecord> Totals(AchievementQuery query, AchievementGroup group) =>
-            (IReadOnlyList<AchievementTotalsRecord>)_withReadDb(db => Totals(db, query, group));
+                throw;
+            }
+        }
 
-        public IReadOnlyList<string> Keys(AchievementQuery query, AchievementGroup group) =>
-            (IReadOnlyList<string>)_withReadDb(db => Keys(db, query, group));
+        public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query) => Read(db => Rows(db, query));
+
+        public IReadOnlyList<AchievementTotalsRecord> Totals(AchievementQuery query, AchievementGroup group) => Read(db => Totals(db, query, group));
+
+        public IReadOnlyList<string> Keys(AchievementQuery query, AchievementGroup group) => Read(db => Keys(db, query, group));
 
         /// <summary>The identities of the rows <paramref name="query"/> matches, in its order.</summary>
-        public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query) =>
-            (IReadOnlyList<AchievementQuerySql.RowKey>)_withReadDb(db => SortedKeys(db, query));
+        public IReadOnlyList<AchievementQuerySql.RowKey> SortedKeys(AchievementQuery query) => Read(db => SortedKeys(db, query));
 
         /// <summary>The rows of <paramref name="keys"/>, in their order; a key whose row no longer matches is left out.</summary>
         public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
-            (IReadOnlyList<AchievementRowRecord>)_withReadDb(db => Rows(db, query, keys));
+            Read(db => Rows(db, query, keys));
 
         /// <summary>The library games of the provider games <paramref name="changes"/> name.</summary>
-        public IReadOnlyList<Guid> LibraryGamesOf(IEnumerable<FriendCacheChange> changes) =>
-            (IReadOnlyList<Guid>)_withReadDb(db => LibraryGamesOf(db, changes));
+        public IReadOnlyList<Guid> LibraryGamesOf(IEnumerable<FriendCacheChange> changes) => Read(db => LibraryGamesOf(db, changes));
 
         internal static IReadOnlyList<Guid> LibraryGamesOf(SQLiteDatabase db, IEnumerable<FriendCacheChange> changes) =>
             changes
