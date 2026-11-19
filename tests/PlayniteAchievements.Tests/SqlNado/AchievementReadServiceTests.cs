@@ -373,9 +373,9 @@ namespace PlayniteAchievements.SqlNado.Tests
             // The user's edits: a1's points and unlock time, a2's cleared time and capstone, a4
             // filtered, a5 filtered from summaries, and two authored achievements on Alpha and one
             // on a game with nothing else.
-            Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Points, UnlockTimeUtc, Cleared, CapstoneAssigned, IsFiltered, IsSummaryFiltered, UpdatedUtc) VALUES
-                (?1, 'a1', 99, ?2, 0, 0, 0, 0, ?4), (?1, 'a2', NULL, NULL, ?3, 1, 0, 0, ?4),
-                (?1, 'a4', NULL, NULL, 0, 0, 1, 0, ?4), (?1, 'a5', NULL, NULL, 0, 0, 0, 1, ?4);",
+            Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Points, UnlockTimeUtc, Cleared, CapstoneOrder, FilterOrder, SummaryFilterOrder, UpdatedUtc) VALUES
+                (?1, 'a1', 99, ?2, 0, NULL, NULL, NULL, ?4), (?1, 'a2', NULL, NULL, ?3, 0, NULL, NULL, ?4),
+                (?1, 'a4', NULL, NULL, 0, NULL, 0, NULL, ?4), (?1, 'a5', NULL, NULL, 0, NULL, NULL, 0, ?4);",
                 Alpha, A1Override, (long)AchievementField.UnlockTime, Stamp);
             Exec(@"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, Rarity, GlobalPercentUnlocked, Points, TrophyType, UpdatedUtc) VALUES
                 (?1, 'custom:one', 'Épilogue', 1, 1, '2025-03-06T10:00:00.0000000Z', 'UltraRare', 2.0, 15, 'platinum', ?3),
