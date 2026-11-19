@@ -61,14 +61,11 @@ namespace PlayniteAchievements.Tests.Views
             var xaml = File.ReadAllText(FindRepoFile("source", "Views", "FriendsOverviewControl.xaml"));
             var code = File.ReadAllText(FindRepoFile("source", "ViewModels", "FriendsOverviewViewModel.cs"));
 
+            // FriendsOverviewViewModelTests checks the source keeps definition order under a sort.
             AssertContainsAll(xaml, "CategorySummarySource=\"{Binding SelectedFriendGameAllAchievements}\"");
             AssertContainsAll(
                 code,
-                "public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }",
-                "CollectionHelper.Replace(SelectedFriendGameAllAchievements, HasFriendGameSelection");
-            Assert.IsFalse(
-                code.Contains("CollectionHelper.Replace(SelectedFriendGameAllAchievements, _filteredAchievementsList"),
-                "Friends overview category-summary source must not follow the filtered/sorted achievement list.");
+                "public BulkObservableCollection<FriendAchievementDisplayItem> SelectedFriendGameAllAchievements { get; }");
         }
 
         [TestMethod]
