@@ -173,9 +173,9 @@
                                     CellTemplate="{StaticResource AchievementIconTemplate}" helpers:DataGridColumnLayoutService.IsHeaderTextHidden="True">
             </DataGridTemplateColumn>
 
-            <!-- Achievement Info -->
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement" helpers:PlaceholderCell.Shape="Lines"
-                                    CellTemplate="{StaticResource AchievementInfoTemplate}">
+            <!-- Achievement Info. The template follows the grid's detail spots; see RefreshInlineDetails. -->
+            <DataGridTemplateColumn x:Name="AchievementInfoColumn" Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement" helpers:PlaceholderCell.Shape="Lines"
+                                    CellTemplate="{StaticResource AchievementInfoPlainTemplate}">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
                         <Setter Property="helpers:CellToolTipHelper.HeaderText" Value="{Binding DisplayNameResolved}"/>
