@@ -955,6 +955,12 @@ namespace PlayniteAchievements.Services.Database
             return WithReadDb(db => SummaryCacheReader.Load(db, identities, authoredGame, limit, excludedGameIds, MakeAbsolutePath));
         }
 
+        /// <summary>The current user's rows of <paramref name="keys"/>, in their order, as the summary maps them.</summary>
+        public List<CachedRecentUnlockData> LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            WithReadDb(db => AchievementReadService.Rows(db, query, keys)
+                .Select(row => SummaryCacheReader.MapRow(row, null, MakeAbsolutePath))
+                .ToList());
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);
