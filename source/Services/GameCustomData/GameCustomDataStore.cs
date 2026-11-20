@@ -2499,7 +2499,7 @@ namespace PlayniteAchievements.Services.GameCustomData
         private int _cacheGeneration;
 
         // Runs between a full read and its install; tests invalidate the cache there.
-        internal Action AfterFullRead;
+        internal Action AfterFullRead { get; set; }
 
         /// <summary>
         /// Reads every stored row into the cache unless it holds them all already. One read runs at
