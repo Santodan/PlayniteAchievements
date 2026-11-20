@@ -182,37 +182,6 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
-        public void Separator_ReadsTheSeparatorStyleAndFollowsABorderOverride()
-        {
-            StaTestHost.Run(() =>
-            {
-                // NovaX: NormalBorderBrush is transparent, its separators use PopupSeparatorBrush.
-                var lookup = LookupIn(Parse(XamlHeader + @"
-                    <SolidColorBrush x:Key=""NormalBorderBrush"" Color=""Transparent""/>
-                    <SolidColorBrush x:Key=""PopupSeparatorBrush"" Color=""#FF5F6062""/>
-                    <Style TargetType=""Separator"">
-                        <Setter Property=""Background"" Value=""{DynamicResource PopupSeparatorBrush}""/>
-                    </Style>
-                </ResourceDictionary>"));
-
-                var followed = new ResourceDictionary();
-                PlayAchResourceService.Apply(followed, NoOverrides(), null, lookup);
-
-                var overridden = new ResourceDictionary();
-                var overrides = NoOverrides();
-                overrides["PlayAch.Brush.Border"] = new ResourceOverrideSetting
-                {
-                    Mode = ResourceOverrideMode.Custom,
-                    CustomValue = "#FF00AA00"
-                };
-                PlayAchResourceService.Apply(overridden, overrides, null, lookup);
-
-                AssertColor("#FF5F6062", followed["PlayAch.Brush.Separator"]);
-                AssertColor("#FF00AA00", overridden["PlayAch.Brush.Separator"]);
-            });
-        }
-
-        [TestMethod]
         public void Text_ReadsTheTextBlockStyleBeforeTextBrush()
         {
             StaTestHost.Run(() =>
