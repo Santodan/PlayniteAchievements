@@ -2460,6 +2460,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 _cacheByGameId = null;
                 _missingGameIds = null;
                 _cacheHoldsEveryStoredRow = false;
+                _cacheGeneration++;
             }
         }
 
@@ -2492,43 +2493,69 @@ namespace PlayniteAchievements.Services.GameCustomData
         /// </remarks>
         private bool _cacheHoldsEveryStoredRow;
 
+        private readonly object _loadSync = new object();
+
+        // Bumped by InvalidateCache, so a full read it overlapped is read again.
+        private int _cacheGeneration;
+
+        // Runs between a full read and its install; tests invalidate the cache there.
+        internal Action AfterFullRead;
+
         /// <summary>
-        /// Populates the in-memory cache from the repository when it has not been read yet.
+        /// Reads every stored row into the cache unless it holds them all already. One read runs at
+        /// a time, and a caller arriving during it waits for it.
         /// </summary>
         /// <remarks>
-        /// The repository read runs outside the cache lock, because it opens the database. A
-        /// second caller that wins the race re-checks before installing, so the work is repeated
-        /// at worst once and the cache is never replaced after it exists.
-        ///
-        /// This used to warm by calling <see cref="LoadAll"/> and discarding the result, which
-        /// deep-cloned every stored record twice - once into the cache, once into the copy that
-        /// was thrown away.
+        /// The repository read runs outside the cache lock, because it opens the database. Rows a
+        /// single-game read or a write cached meanwhile are at least as new as the read and stay
+        /// over it, and games they found missing stay missing. A read the cache was invalidated
+        /// during is read again.
         /// </remarks>
-        private void EnsureCacheLoaded()
+        public void EnsureCacheLoaded()
         {
-            lock (_cacheSync)
+            lock (_loadSync)
             {
-                if (_cacheByGameId != null && _missingGameIds != null)
+                while (true)
                 {
-                    return;
-                }
-            }
+                    int generation;
+                    lock (_cacheSync)
+                    {
+                        if (_cacheHoldsEveryStoredRow)
+                        {
+                            return;
+                        }
 
-            var rows = _repository.EnumerateAllNormalized().ToList();
-            lock (_cacheSync)
-            {
-                if (_cacheByGameId != null && _missingGameIds != null)
-                {
-                    return;
-                }
+                        generation = _cacheGeneration;
+                    }
 
-                _cacheByGameId = rows
-                    .Where(data => data?.PlayniteGameId != Guid.Empty)
-                    .ToDictionary(
-                        data => data.PlayniteGameId,
-                        data => data);
-                _missingGameIds = new HashSet<Guid>();
-                _cacheHoldsEveryStoredRow = true;
+                    var rows = _repository.EnumerateAllNormalized().ToList();
+                    AfterFullRead?.Invoke();
+                    lock (_cacheSync)
+                    {
+                        if (generation != _cacheGeneration)
+                        {
+                            continue;
+                        }
+
+                        var cache = rows
+                            .Where(data => data?.PlayniteGameId != Guid.Empty)
+                            .ToDictionary(data => data.PlayniteGameId, data => data);
+                        foreach (var cached in _cacheByGameId ?? new Dictionary<Guid, GameCustomDataFile>())
+                        {
+                            cache[cached.Key] = cached.Value;
+                        }
+
+                        foreach (var missing in _missingGameIds ?? new HashSet<Guid>())
+                        {
+                            cache.Remove(missing);
+                        }
+
+                        _cacheByGameId = cache;
+                        _missingGameIds = new HashSet<Guid>();
+                        _cacheHoldsEveryStoredRow = true;
+                        return;
+                    }
+                }
             }
         }
 
