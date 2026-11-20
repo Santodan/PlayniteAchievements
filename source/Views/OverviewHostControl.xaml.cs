@@ -2,6 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -94,6 +96,7 @@ namespace PlayniteAchievements.Views
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
             LogViewSwitch("shown");
+            HoldInheritedTextProperties();
             // The kept overview is shown again and reads what changed while it was hidden, unless
             // the landing page applies now (the cache was cleared meanwhile).
             if (_overview != null && !ShowLandingPage(_plugin.Settings))
@@ -103,6 +106,33 @@ namespace PlayniteAchievements.Views
             }
 
             RecreateContent();
+        }
+
+        private static readonly DependencyProperty[] InheritedTextProperties =
+        {
+            TextElement.FontFamilyProperty,
+            TextElement.FontSizeProperty,
+            TextElement.FontStyleProperty,
+            TextElement.FontWeightProperty,
+            TextElement.FontStretchProperty,
+            TextElement.ForegroundProperty,
+            TextOptions.TextFormattingModeProperty,
+            TextOptions.TextRenderingModeProperty,
+            TextOptions.TextHintingModeProperty,
+            LanguageProperty,
+            FlowDirectionProperty
+        };
+
+        // The window's text properties, copied from this host onto the content it holds. Leaving
+        // the window would otherwise reset them for every element in the view and joining it set
+        // them back, which re-measures and redraws all text on each return. Copied again on every
+        // visit, so a change made while the view was hidden still arrives.
+        private void HoldInheritedTextProperties()
+        {
+            foreach (var property in InheritedTextProperties)
+            {
+                PART_Content.SetValue(property, GetValue(property));
+            }
         }
 
         // Hidden, the overview stays built with the rows it read and starts no reads; Activate on
