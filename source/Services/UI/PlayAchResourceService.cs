@@ -147,9 +147,6 @@ namespace PlayniteAchievements.Services.UI
             Alias("PlayAch.Brush.Dialog.Background", "PlayAch.Brush.PopupSurface"),
             Alias("PlayAch.Brush.Dialog.Border", "PlayAch.Brush.PopupBorder"),
             Alias("PlayAch.Brush.Chart.Separator", "PlayAch.Brush.ControlBorder"),
-            // Divider lines: menu separators and the hairlines between sections.
-            Alias("PlayAch.Brush.Separator", "PlayAch.Brush.Border")
-                .FromStyle(typeof(System.Windows.Controls.Separator), System.Windows.Controls.Control.BackgroundProperty),
             Alias("PlayAch.Brush.Progress.Track", "PlayAch.Brush.Surface"),
             Alias("PlayAch.Brush.Progress.Fill", "PlayAch.Brush.Accent"),
             Alias("PlayAch.Brush.Progress.Border", "PlayAch.Brush.Accent"),
