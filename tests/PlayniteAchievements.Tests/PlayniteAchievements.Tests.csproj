@@ -326,6 +326,7 @@
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4ProgressReader.cs" Link="Source\Providers\ShadPS4\ShadPS4ProgressReader.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" Link="Source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Scanner.cs" Link="Source\Providers\ShadPS4\ShadPS4Scanner.cs" />
+    <Compile Include="..\..\source\Providers\ShadPS4\ZArchiveReader.cs" Link="Source\Providers\ShadPS4\ZArchiveReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Settings.cs" Link="Source\Providers\RPCS3\Rpcs3Settings.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3DataProvider.cs" Link="Source\Providers\RPCS3\Rpcs3DataProvider.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3InstallationContext.cs" Link="Source\Providers\RPCS3\Rpcs3InstallationContext.cs" />
