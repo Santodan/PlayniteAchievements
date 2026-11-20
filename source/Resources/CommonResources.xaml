@@ -625,18 +625,25 @@
         </Setter>
     </Style>
 
-    <Style x:Key="PlayAch.TextBox.BaseStyle" TargetType="TextBox">
+    <!-- The shared box of text inputs and dropdown-style selector buttons (search bars and the
+         Showcase and grid control bar dropdowns), so both draw from one set of values. Their
+         templates draw this box with PlayAch.Radius.Small, an Accent outline on hover and a
+         Selection outline on focus. -->
+    <Style x:Key="PlayAch.InputChrome.BaseStyle" TargetType="Control">
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
-        <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}"/>
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-        <Setter Property="CaretBrush" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    </Style>
+
+    <Style x:Key="PlayAch.TextBox.BaseStyle" TargetType="TextBox" BasedOn="{StaticResource PlayAch.InputChrome.BaseStyle}">
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="CaretBrush" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
