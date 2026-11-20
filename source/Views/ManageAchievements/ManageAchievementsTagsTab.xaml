@@ -85,7 +85,7 @@
                     Grid.Column="1"
                     Width="1"
                     Margin="16,0"
-                    Background="{DynamicResource PlayAch.Brush.Separator}"/>
+                    Background="{DynamicResource PlayAch.Brush.Border}"/>
 
             <DataGrid Grid.Row="1"
                       Grid.Column="0"
