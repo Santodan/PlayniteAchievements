@@ -67,7 +67,6 @@
     <SolidColorBrush x:Key="PlayAch.Brush.Dialog.Background" Color="#232933"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Dialog.Border" Color="#343B46"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Chart.Separator" Color="#414955"/>
-    <SolidColorBrush x:Key="PlayAch.Brush.Separator" Color="#343B46"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Progress.Track" Color="#1E232B"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Progress.Fill" Color="#4CC9F0"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Progress.Border" Color="#4CC9F0"/>
