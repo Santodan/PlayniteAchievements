@@ -97,14 +97,6 @@ namespace PlayniteAchievements.Services.Refresh
             _cacheService?.NotifyCacheInvalidated();
         }
 
-        public void RaiseFriendCacheInvalidated()
-        {
-            if (_cacheService is TestRuntimeCache cache)
-            {
-                cache.NotifyFriendCacheInvalidated();
-            }
-        }
-
         public void RaiseRebuildProgress(ProgressReport report)
         {
             _progressReportingService.Report(this, RebuildProgress, report, prioritizePending: true);
@@ -139,7 +131,7 @@ namespace PlayniteAchievements.Services.Refresh
             public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
             public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
             public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
-            public event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
+            public IFriendsOverviewReads FriendReads { get; set; }
 #pragma warning restore CS0067
 
             public void EnsureDiskCacheOrClearMemory() { }
@@ -155,8 +147,6 @@ namespace PlayniteAchievements.Services.Refresh
                 CacheInvalidated?.Invoke(this, CacheInvalidatedEventArgs.FullInvalidation);
             public void NotifyCacheInvalidated(IReadOnlyList<Guid> changedGameIds) =>
                 CacheInvalidated?.Invoke(this, CacheInvalidatedEventArgs.Scoped(changedGameIds));
-            public void NotifyFriendCacheInvalidated() =>
-                FriendCacheInvalidated?.Invoke(this, FriendCacheInvalidatedEventArgs.FullInvalidation);
             public IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch() => NullFriendCacheInvalidationBatch.Instance;
             public void ClearCache() { }
             public string ExportDatabaseToCsv(string exportDirectory) => null;
@@ -240,11 +230,6 @@ namespace PlayniteAchievements.Services.Refresh
             public IReadOnlyDictionary<string, FriendOwnershipRecency> LoadFriendOwnershipRecency(string providerKey, string externalUserId) =>
                 new Dictionary<string, FriendOwnershipRecency>();
 
-            public FriendsOverviewData LoadFriendsOverviewData(int recentLimit) => new FriendsOverviewData();
-            public FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes) => new FriendsOverviewData();
-            public FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId) => new FriendsOverviewData();
-            public IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds() => Array.Empty<Guid>();
-            public FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope) => new FriendsOverviewData();
             public IReadOnlyList<CurrentUserGameLabel> LoadCurrentUserGameLabels() => new List<CurrentUserGameLabel>();
         }
     }

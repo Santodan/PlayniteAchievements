@@ -15,23 +15,6 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid>
-        <ContentPresenter x:Name="PART_Content" />
-
-        <!-- Lightweight placeholder shown until the real overview is created -->
-        <Border x:Name="PART_Loading"
-                Background="Transparent"
-                Padding="{StaticResource PlayAch.Thickness.CardPadding}">
-            <StackPanel>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}" />
-                <ProgressBar Height="4"
-                             IsIndeterminate="True"
-                             Style="{StaticResource PlayAch.ProgressBar.BaseStyle}" />
-            </StackPanel>
-        </Border>
-    </Grid>
+    <ContentPresenter x:Name="PART_Content" />
 </UserControl>
 

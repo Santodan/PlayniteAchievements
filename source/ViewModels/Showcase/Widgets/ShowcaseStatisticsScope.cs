@@ -99,7 +99,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 {
                     _narrowed = OverviewLinkedSnapshots.FilterAchievements(
                         _narrowed,
-                        adapter.MatchesAchievement,
                         adapter.MatchesTally,
                         adapter.KeepsCompletions);
                 }

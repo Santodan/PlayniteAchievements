@@ -82,12 +82,12 @@ namespace PlayniteAchievements.Views.Showcase
         private DockPanel _mediaPair;
         private Border _mediaFrame;
         private ScreenshotInfoPanel _infoPanel;
-        private IReadOnlyList<AchievementDisplayItem> _rowsSource;
+        private Services.Overview.OverviewDataSnapshot _snapshot;
         private Dictionary<string, AchievementDisplayItem> _rowsByKey;
         private int _indexVersion;
         private int _indexedVersion = -1;
+        private string _indexedGames;
         private bool _indexBuildInFlight;
-        private object _rowsVersion;
 
         public ScreenshotSlideshowControl(ShowcaseWidgetInstanceSettings settings)
         {
@@ -207,28 +207,20 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         /// <summary>
-        /// Achievement rows the info panel resolves captures against. <paramref name="rowsVersion"/>
-        /// is the snapshot that owns them: the Overview's delta updates that snapshot's row list in
-        /// place and hands out a new snapshot object, so the list reference alone never changed and
-        /// the index kept pointing at replaced rows. The previous index keeps serving until the
+        /// The snapshot whose unlocks the info panel and the bar's filters resolve captures
+        /// against, and whose games the bar lists. The previous index keeps serving until the
         /// rebuilt one lands, so an update never blanks the panel.
         /// </summary>
-        public void SetAchievementRows(IReadOnlyList<AchievementDisplayItem> rows, object rowsVersion)
+        public void SetSnapshot(Services.Overview.OverviewDataSnapshot snapshot)
         {
-            if (ReferenceEquals(_rowsVersion, rowsVersion) && ReferenceEquals(_rowsSource, rows))
+            if (ReferenceEquals(_snapshot, snapshot))
             {
                 return;
             }
 
-            _rowsSource = rows;
-            _rowsVersion = rowsVersion;
+            _snapshot = snapshot;
             _indexVersion++;
-            // The bar's platform and game choices list the library's games.
-            if (rowsVersion is Services.Overview.OverviewDataSnapshot snapshot)
-            {
-                _controlBarSlot.Adapter.UpdateGames(snapshot.GameSummaries);
-            }
-
+            _controlBarSlot.Adapter.UpdateGames(snapshot?.GameSummaries);
             EnsureInfoPanelIndex();
         }
 
@@ -656,6 +648,7 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _loadedItems = items;
+            EnsureInfoPanelIndex();
             items = ApplyBarFilters(items);
             var shuffle = ShowcaseWidgetOptions.GetShuffle(_settings);
             if (_items.Count > 0 &&
@@ -904,33 +897,40 @@ namespace PlayniteAchievements.Views.Showcase
                 Math.Min(InfoPanelMaxHeight, ActualHeight * InfoPanelHeightRatio));
 
         /// <summary>
-        /// Builds the capture-to-achievement index off the UI thread, and only while the info panel
-        /// is showing or a bar filter needs it, so an Off panel with no filter costs nothing.
+        /// Builds the capture-to-achievement index off the UI thread from the unlocks of the games
+        /// with loaded captures, and only while the info panel is showing or a bar filter needs
+        /// it, so an Off panel with no filter costs nothing.
         /// </summary>
         private void EnsureInfoPanelIndex()
         {
+            var snapshot = _snapshot;
             if ((ShowcaseWidgetOptions.GetInfoPanelPosition(_settings) == ShowcaseInfoPanelPosition.Off &&
                  !_controlBarSlot.Adapter.HasActiveFilters) ||
-                (_rowsByKey != null && _indexedVersion == _indexVersion) ||
-                // One build at a time: a burst of delta updates would otherwise index the whole
-                // library once per update in parallel. The finishing build starts the latest one.
+                snapshot == null ||
+                // One build at a time; the finishing build starts the latest one.
                 _indexBuildInFlight)
             {
                 return;
             }
 
-            // Copied here, on the UI thread that mutates the live list, so the background build
-            // never enumerates it mid-update.
-            var rows = _rowsSource?.ToArray();
-            if (rows == null || rows.Length == 0)
+            // A capture's folder is its game's name as the capture writer sanitizes it.
+            var folders = new HashSet<string>(
+                _loadedItems.Select(item => CaptureAchievementIndex.GetCaptureFolderName(item.FilePath)),
+                StringComparer.OrdinalIgnoreCase);
+            var games = (snapshot.GameSummaries ?? new List<GameSummaryItem>())
+                .Where(game => game?.PlayniteGameId != null && folders.Contains(UnlockScreenshotService.SanitizeCaptureGameName(game.GameName)))
+                .ToList();
+            var gamesKey = string.Join(",", games.Select(game => game.PlayniteGameId.Value.ToString("N")));
+            if (_rowsByKey != null && _indexedVersion == _indexVersion && gamesKey == _indexedGames)
             {
                 return;
             }
 
             var version = _indexVersion;
+            var query = snapshot.UnlockQuery().ForGames(games.Select(game => game.PlayniteGameId.Value));
             _indexBuildInFlight = true;
             Task.Run(() => CaptureAchievementIndex.Build(
-                    rows,
+                    ShowcaseRows.Load(query),
                     row => row.GameName,
                     row => row.DisplayName))
                 .ContinueWith(
@@ -951,11 +951,15 @@ namespace PlayniteAchievements.Views.Showcase
 
                         _rowsByKey = task.Result;
                         _indexedVersion = version;
+                        _indexedGames = gamesKey;
                         UpdateInfoPanelContent();
                         if (_controlBarSlot.Adapter.HasActiveFilters)
                         {
                             Refilter();
                         }
+
+                        // Captures loaded while this one built may add games.
+                        EnsureInfoPanelIndex();
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.None,

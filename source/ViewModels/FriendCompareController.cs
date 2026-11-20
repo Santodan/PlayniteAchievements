@@ -8,6 +8,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -50,8 +51,6 @@ namespace PlayniteAchievements.ViewModels
         private Option _selected;
         private IReadOnlyList<AchievementDisplayItem> _targetItems;
         private bool _availabilityPending;
-        // Every friend, loaded with the first game and kept: the list does not depend on the game.
-        private List<FriendSummaryItem> _allFriends;
 
         internal FriendCompareController(
             IFriendCacheManager friendCache,
@@ -214,26 +213,22 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var targetGameId = gameId.Value;
-            var knownFriends = _allFriends;
             Task.Run(() =>
             {
-                List<FriendAchievementDisplayItem> rows = null;
+                // Every friend, and every friend's rows of the game, locked included.
+                var rows = new List<FriendAchievementDisplayItem>();
+                var friends = new List<FriendSummaryItem>();
                 try
                 {
-                    rows = FriendOverviewProjection.ApplyMergeIdentity(
-                        _friendCache.LoadFriendGameAchievementData(targetGameId),
-                        _settings?.Persisted);
+                    var reads = _friendCache.FriendReads;
+                    var lists = FriendsOverviewLists.Build(reads.LoadLists(), null, _settings?.Persisted);
+                    friends = lists.Friends.Where(friend => friend != null).ToList();
+                    rows = reads.Rows(AchievementQuery.AllFriends.ForGames(new[] { targetGameId })).ToList();
+                    lists.StampIdentity(rows, _settings?.Persisted);
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, $"Failed to load friend rows for compare, game {targetGameId}.");
-                }
-
-                rows = rows ?? new List<FriendAchievementDisplayItem>();
-                var friends = knownFriends;
-                if (friends == null || HasUnlistedFriend(rows, friends))
-                {
-                    friends = LoadAllFriends();
                 }
 
                 var currentUsers = LoadCurrentUsersByProvider();
@@ -247,7 +242,6 @@ namespace PlayniteAchievements.ViewModels
                     }
 
                     _friendRows = rows;
-                    _allFriends = friends;
                     _currentUsersByProvider = currentUsers;
                     _options = options;
                     _availabilityPending = false;
@@ -275,41 +269,10 @@ namespace PlayniteAchievements.ViewModels
 
         private bool CanLoad(Guid? gameId)
         {
-            return _friendCache != null &&
+            return _friendCache?.FriendReads != null &&
                    gameId.HasValue &&
                    gameId.Value != Guid.Empty &&
                    _settings?.Persisted?.EnableFriendsFeatures == true;
-        }
-
-        // The friend list alone, without achievement rows. A failed load is logged and yields an
-        // empty list, so the options fall back to the friends found in the game's rows.
-        private List<FriendSummaryItem> LoadAllFriends()
-        {
-            try
-            {
-                return new FriendOverviewProjection(
-                        _friendCache.LoadFriendsOverviewPatchData(null),
-                        _settings?.Persisted)
-                    .Friends
-                    .Where(friend => friend != null)
-                    .ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "Failed to load the friend list for compare.");
-                return new List<FriendSummaryItem>();
-            }
-        }
-
-        // A friend added since the list was loaded shows up in a game's rows first.
-        private static bool HasUnlistedFriend(
-            List<FriendAchievementDisplayItem> rows,
-            List<FriendSummaryItem> friends)
-        {
-            var listed = new HashSet<string>(
-                friends.Select(FriendOverviewProjection.GetFriendScopeKey),
-                StringComparer.OrdinalIgnoreCase);
-            return rows.Any(row => row != null && !listed.Contains(FriendOverviewProjection.GetFriendScopeKey(row)));
         }
 
         // Every friend: favorites first, then those with data for the game, then by name. A friend

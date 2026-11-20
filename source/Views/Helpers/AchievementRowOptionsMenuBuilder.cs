@@ -738,7 +738,7 @@ namespace PlayniteAchievements.Views.Helpers
         // Category, category-type and note writes stay out of the store's summary flag, which would
         // undo the projection's deferred warm (see ManageCustomDataInvalidationDefinitionTests), so
         // they repaint only the clicked row. The Manage editor raises this same scoped invalidation
-        // for its edits; without it the summary memo, the Overview's per-game delta, the Showcase
+        // for its edits; without it the Overview's per-game delta, the Showcase
         // and the start page all kept showing the old value.
         internal static void NotifySummaryRowsChanged(Guid gameId)
         {

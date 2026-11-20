@@ -76,35 +76,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildSelectedGameFilterOptions_UsesCanonicalCategoryOrder_AndPrunesInvalidSelections()
-        {
-            var selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "DLC 1: Revenge",
-                "Missing"
-            };
-
-            var options = OverviewAchievementFilters.BuildSelectedGameFilterOptions(
-                new[]
-                {
-                    new AchievementDisplayItem { Tags = null, CategoryLabel = "Original Game" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 1: Revenge" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "DLC 2: Redemption" },
-                    new AchievementDisplayItem { CategoryKind = "DLC", CategoryLabel = "Original Game" }
-                },
-                selectedTypeFilters: new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                selectedCategoryFilters: selectedCategoryFilters);
-
-            CollectionAssert.AreEqual(
-                new[] { "Original Game", "DLC 1: Revenge", "DLC 2: Redemption" },
-                options.CategoryOptions);
-            Assert.IsTrue(options.CategorySelectionPruned);
-            CollectionAssert.AreEquivalent(
-                new[] { "DLC 1: Revenge" },
-                selectedCategoryFilters.ToList());
-        }
-
-        [TestMethod]
         public void BuildOrderedCategoryTree_LeavesFlatLabelsInTheirExistingOrder()
         {
             var flat = new[] { "Multiplayer", "DLC", "Story" };

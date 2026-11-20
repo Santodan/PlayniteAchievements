@@ -280,8 +280,12 @@ namespace PlayniteAchievements.ViewModels
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
 
+            // Provider settings (colors, names) are baked into the Overview snapshot and change
+            // without a persisted-settings property event, so a settings window save re-reads it.
+            _plugin.InvalidateStartPageDataForUi("settings window saved");
+
             // Notify listeners that settings have been saved (e.g., to refresh provider status in landing page)
-            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            PlayniteAchievementsPlugin.NotifySettingsSaved(settingsWindow: true);
         }
 
         public bool VerifySettings(out List<string> errors)

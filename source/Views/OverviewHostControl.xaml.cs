@@ -1,6 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -17,9 +20,9 @@ using Playnite.SDK;
 namespace PlayniteAchievements.Views
 {
     /// <summary>
-    /// Lightweight host that returns immediately from the overview Opened callback and defers
-    /// creation of the heavy OverviewControl until after Playnite has a chance to paint.
-    /// Also handles showing the first-time landing page when appropriate.
+    /// Hosts the overview in Playnite's sidebar view, or the first-time landing page when
+    /// appropriate. The plugin keeps one host for the session, and the overview stays built
+    /// while another view is shown.
     /// </summary>
     public partial class OverviewHostControl : UserControl
     {
@@ -31,17 +34,26 @@ namespace PlayniteAchievements.Views
 
         private OverviewControl _overview;
         private FirstTimeLandingPage _landingPage;
-        private bool _createScheduled;
-        private DispatcherTimer _createTimer;
-        private bool _settingsSavedHooked;
 
-        // Each open builds the heavy OverviewControl on a short settle timer rather than
-        // synchronously. Flicking through the sidebar without landing on the view leaves before
-        // the timer fires, so the build is cancelled (OverviewHostControl_Unloaded / RecreateContent
-        // stop the timer) and nothing is allocated. A genuine open lets the timer fire and builds
-        // once. Retained memory across successive opens is bounded by OverviewViewModel.Dispose
-        // releasing its collections eagerly, so no wall-clock cooldown between builds is needed.
-        private static readonly TimeSpan CreateSettleDelay = TimeSpan.FromMilliseconds(150);
+        // When the tree change that starts a switch to or from this view began. A tree change
+        // re-reads every resource reference it walks, starting with this host's own, and the
+        // reference's coercion records the time.
+        private long _treeChangeTimestamp;
+
+        private static readonly DependencyProperty TreeChangeProbeProperty = DependencyProperty.Register(
+            "TreeChangeProbe",
+            typeof(object),
+            typeof(OverviewHostControl),
+            new PropertyMetadata(null, null, (d, value) =>
+            {
+                var host = (OverviewHostControl)d;
+                if (host._treeChangeTimestamp == 0)
+                {
+                    host._treeChangeTimestamp = Stopwatch.GetTimestamp();
+                }
+
+                return value;
+            }));
 
         public OverviewHostControl(
             Func<UserControl> createView,
@@ -59,83 +71,85 @@ namespace PlayniteAchievements.Views
             InitializeComponent();
             FormattingCulture.Apply(this);
 
+            // The host lives for the session, so the static event roots nothing extra.
+            PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;
+            SetResourceReference(TreeChangeProbeProperty, TreeChangeProbeProperty);
         }
+
+        // Logs a switch of Playnite's main view to or from this one: from the tree change to this
+        // event (toEvent) and to the end of the first frame drawn after it (ms).
+        private void LogViewSwitch(string direction)
+        {
+            var start = _treeChangeTimestamp != 0 ? _treeChangeTimestamp : Stopwatch.GetTimestamp();
+            _treeChangeTimestamp = 0;
+            var toEventMs = ElapsedMs(start);
+            Dispatcher.BeginInvoke(
+                new Action(() => _logger.Info($"[SidebarView] {direction} ms={ElapsedMs(start)} toEvent={toEventMs}")),
+                DispatcherPriority.Render);
+        }
+
+        private static long ElapsedMs(long start) =>
+            (Stopwatch.GetTimestamp() - start) * 1000 / Stopwatch.Frequency;
 
         private void OverviewHostControl_Loaded(object sender, RoutedEventArgs e)
         {
-            _logger.Info("OverviewHostControl_Loaded called");
-            // Subscribe to the static settings-saved event here rather than in the constructor so
-            // the subscription tracks the visual-tree lifecycle. WPF does not guarantee Unloaded
-            // fires; hooking in the constructor and unhooking only in Unloaded would permanently
-            // root this host (and its overview tree) via the static event whenever Unloaded is
-            // skipped. The guard makes a second Loaded without an intervening Unloaded idempotent.
-            if (!_settingsSavedHooked)
+            LogViewSwitch("shown");
+            HoldInheritedTextProperties();
+            // The kept overview is shown again and reads what changed while it was hidden, unless
+            // the landing page applies now (the cache was cleared meanwhile).
+            if (_overview != null && !ShowLandingPage(_plugin.Settings))
             {
-                PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
-                _settingsSavedHooked = true;
+                _overview.Activate();
+                return;
             }
 
-            // Always recreate content when loaded (handles overview reopen)
-            RecreateContent();
-            _overview?.Activate();
-        }
-
-        public void RefreshContent()
-        {
-            _logger.Info("RefreshContent called - forcing content refresh");
             RecreateContent();
         }
 
-        /// <summary>
-        /// Refreshes the provider status on the landing page if it's currently visible.
-        /// Called when settings are saved to update authentication status display.
-        /// </summary>
-        public void RefreshProviderStatus()
+        private static readonly DependencyProperty[] InheritedTextProperties =
         {
-            if (_landingPage != null)
+            TextElement.FontFamilyProperty,
+            TextElement.FontSizeProperty,
+            TextElement.FontStyleProperty,
+            TextElement.FontWeightProperty,
+            TextElement.FontStretchProperty,
+            TextElement.ForegroundProperty,
+            TextOptions.TextFormattingModeProperty,
+            TextOptions.TextRenderingModeProperty,
+            TextOptions.TextHintingModeProperty,
+            LanguageProperty,
+            FlowDirectionProperty
+        };
+
+        // The window's text properties, copied from this host onto the content it holds. Leaving
+        // the window would otherwise reset them for every element in the view and joining it set
+        // them back, which re-measures and redraws all text on each return. Copied again on every
+        // visit, so a change made while the view was hidden still arrives.
+        private void HoldInheritedTextProperties()
+        {
+            foreach (var property in InheritedTextProperties)
             {
-                _logger.Info("RefreshProviderStatus called - updating landing page provider status");
-                _landingPage.RefreshProviderStatuses();
+                PART_Content.SetValue(property, GetValue(property));
             }
         }
 
+        // Hidden, the overview stays built with the rows it read and starts no reads; Activate on
+        // the next visit reads again only after a change. The landing page is rebuilt each visit.
         private void OverviewHostControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            _logger.Debug("OverviewHostControl_Unloaded called");
-            using var perf = PerfScope.Start(
-                _logger,
-                "OverviewHost.Unloaded",
-                thresholdMs: 30,
-                context: $"overview={_overview != null} landing={_landingPage != null}");
-            try
+            LogViewSwitch("hidden");
+            _overview?.Deactivate();
+            if (_landingPage != null)
             {
-                _overview?.Deactivate();
-                _overview?.Dispose();
-                _landingPage?.Dispose();
-            }
-            catch
-            {
-                // no-op
-            }
-            finally
-            {
-                _createTimer?.Stop();
-                _createTimer = null;
-                _overview = null;
+                _landingPage.Dispose();
                 _landingPage = null;
-                _createScheduled = false;
-                // Clear content to allow recreation on next load
                 PART_Content.Content = null;
-
-                // Unsubscribe from settings saved event
-                if (_settingsSavedHooked)
-                {
-                    PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                    _settingsSavedHooked = false;
-                }
             }
+
+            // What the hidden overview holds, once the view that replaced it has settled.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("overview.hidden", delaySeconds: 8);
         }
 
         private void Plugin_SettingsSaved(object sender, EventArgs e)
@@ -169,40 +183,14 @@ namespace PlayniteAchievements.Views
             _overview = null;
             _landingPage = null;
             PART_Content.Content = null;
-            PART_Loading.Visibility = Visibility.Visible;
-
-            // Reset the flag to allow recreation
-            _createScheduled = false;
-
-            // Now recreate content
-            EnsureContentCreated();
+            CreateContent();
         }
 
-        private void EnsureContentCreated()
+        private void CreateContent()
         {
-            if (_createScheduled)
-            {
-                _logger.Info("EnsureContentCreate: already scheduled, skipping");
-                return;
-            }
-
-            _createScheduled = true;
-
-            _createTimer?.Stop();
-            _createTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = CreateSettleDelay };
-            _createTimer.Tick += CreateTimer_Tick;
-            _createTimer.Start();
-        }
-
-        private void CreateTimer_Tick(object sender, EventArgs e)
-        {
-            _createTimer?.Stop();
-            _createTimer = null;
-
             if (!IsLoaded)
             {
-                _createScheduled = false;
-                _logger.Info("EnsureContentCreate: not loaded, canceling");
+                _logger.Info("CreateContent: not loaded, skipping");
                 return;
             }
 
@@ -217,19 +205,7 @@ namespace PlayniteAchievements.Views
                     settings._plugin = _plugin;
                 }
 
-                var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
-                var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
-                var dataService = _plugin?.AchievementDataService;
-                var hasCachedData = dataService?.HasCachedGameData() == true;
-                _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
-
-                // Show landing page if:
-                // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
-                // 2. Haven't seen landing page before (!firstTimeCompleted)
-                // 3. No data in achievements_cache (NO MATTER WHAT)
-                bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
-
-                if (settings != null && showLandingPage)
+                if (ShowLandingPage(settings))
                 {
                     _logger.Info("Creating landing page");
                     CreateLandingPage(settings);
@@ -239,18 +215,25 @@ namespace PlayniteAchievements.Views
                     _logger.Info("Creating overview directly");
                     CreateOverview();
                 }
-
-                PART_Loading.Visibility = Visibility.Collapsed;
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to create overview content.");
-                PART_Loading.Visibility = Visibility.Visible;
             }
-            finally
-            {
-                _createScheduled = false;
-            }
+        }
+
+        // Show landing page if:
+        // 1. Haven't seen the theme migration page yet (!seenThemeMigration)
+        // 2. Haven't seen landing page before (!firstTimeCompleted)
+        // 3. No data in achievements_cache (NO MATTER WHAT)
+        private bool ShowLandingPage(PlayniteAchievementsSettings settings)
+        {
+            var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
+            var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
+            var dataService = _plugin?.AchievementDataService;
+            var hasCachedData = dataService?.HasCachedGameData() == true;
+            _logger.Info($"Overview opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<SteamSettings>().SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<EpicSettings>().AccountId)}, HasRaAuth={!string.IsNullOrEmpty(ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername)}");
+            return settings != null && (!seenThemeMigration || !firstTimeCompleted || !hasCachedData);
         }
 
         private void CreateLandingPage(PlayniteAchievementsSettings settings)
@@ -323,11 +306,3 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
-
-
-
-
-
-
-

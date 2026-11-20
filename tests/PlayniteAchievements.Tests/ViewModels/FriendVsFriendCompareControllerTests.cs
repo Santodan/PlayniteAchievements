@@ -281,17 +281,6 @@ namespace PlayniteAchievements.Tests.ViewModels
             Assert.AreEqual("Friend Two", row.ComparisonFriendName);
             Assert.IsFalse(row.ComparisonApplicable);
             Assert.IsFalse(row.ComparisonUnlocked);
-
-            // The host knows the friend owns the game with nothing unlocked: Locked, not N/A.
-            var owning = new FriendVsFriendCompareController(
-                () => selectedFriend,
-                () => new List<FriendSummaryItem> { candidate },
-                hasGameData: (friend, item) => true);
-            owning.UpdateRows(rows, rows);
-            owning.SelectKey(candidateKey, true);
-
-            Assert.IsTrue(row.ComparisonApplicable);
-            Assert.IsFalse(row.ComparisonUnlocked);
         }
 
         [TestMethod]

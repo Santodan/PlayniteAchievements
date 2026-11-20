@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             // not, and the reason is the flag: the editor's category, category-type, filter and
             // icon writes pass affectsSummaryData false, and OverviewViewModel.OnCustomDataChanged
             // returns early on exactly that. The scoped invalidation is the only thing that routes
-            // those edits to the overview's per-game fragment path.
+            // those edits to the overview's summary reload.
             StringAssert.Contains(
                 core,
                 "NotifyCacheInvalidated(new[] { _gameId })",
@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Tests.ViewModels
             var handler = Between(
                 overview,
                 "private void OnCustomDataChanged(object sender, GameCustomDataChangedEventArgs e)",
-                "private void QueueOverviewDelta(");
+                "private void QueueReload(");
 
             StringAssert.Contains(handler, "!e.AffectsSummaryData");
             StringAssert.Contains(handler, "return;");
@@ -86,36 +86,15 @@ namespace PlayniteAchievements.Tests.ViewModels
             StringAssert.Contains(
                 ReadRepoFile("source", "ViewModels", "OverviewViewModel.cs"),
                 "_gameCustomDataStore.CustomDataChanged += OnCustomDataChanged",
-                "The overview's per-game fragment path is how an edit reaches a visible overview.");
+                "The overview's summary reload is how an edit reaches a visible overview.");
             StringAssert.Contains(
-                ReadRepoFile("source", "Services", "Achievements", "AchievementDataService.cs"),
-                "_gameCustomDataStore.CustomDataChanged += OnCustomDataChangedForOverview",
-                "The summary memo has to drop the rows the edit changed.");
-            StringAssert.Contains(
-                ReadRepoFile("source", "Services", "Library", "LibraryProjectionService.cs"),
-                "_customDataStore.CustomDataChanged += OnCustomDataChangedForProjection",
-                "The library projection still invalidates -- on the filtered path, so a " +
-                "reorder-only edit no longer discards it.");
+                ReadRepoFile("source", "Services", "GameCustomData", "GameCustomDataStore.cs"),
+                "PublishLayerChanged(playniteGameId, layerChanged);",
+                "The resolved reads rerun on the change feed the save raises.");
             StringAssert.Contains(
                 ReadRepoFile("source", "PlayniteAchievementsPlugin.cs"),
                 "_gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged",
                 "Start-page invalidation, tag sync and the theme fan-out hang off this one.");
-        }
-
-        [TestMethod]
-        public void TheProjection_StillFiltersOnWhatCanMoveALibraryRollup()
-        {
-            var source = ReadRepoFile("source", "Services", "Library", "LibraryProjectionService.cs");
-            var handler = Between(
-                source,
-                "private void OnCustomDataChangedForProjection(",
-                "private void OnPersistedSettingsChanged(");
-
-            StringAssert.Contains(
-                handler,
-                "!e.AffectsSummaryData",
-                "This filter is what makes the CustomDataChanged path cheaper than the cache " +
-                "invalidation it replaced: a reorder cannot move anything the projection derives.");
         }
 
         private static string Between(string source, string start, string end)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -38,8 +39,8 @@ namespace PlayniteAchievements.Tests.Models
             CollectionAssert.AreEquivalent(new[] { GameA }, linked.UnlockCountsByDateByGame.Keys.ToList());
             Assert.AreEqual(3, linked.GlobalUnlockCountsByDate[March1]);
             Assert.IsFalse(linked.GlobalUnlockCountsByDate.ContainsKey(March20));
-            Assert.IsTrue(linked.Achievements.All(item => item.PlayniteGameId == GameA));
-            Assert.AreEqual(1, linked.Achievements.Count);
+            Assert.IsTrue(linked.Unlocks.All(fact => fact.GameId == GameA));
+            Assert.AreEqual(1, linked.Unlocks.Count);
         }
 
         [TestMethod]
@@ -59,27 +60,19 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void ClipToSpan_CountsOnlyUnlocksInRangeWithNoLockedRemainder()
+        public void ClipToAchievements_SpanCountsOnlyUnlocksInRangeWithNoLockedRemainder()
         {
             var source = CreateSource();
             var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
             var outOfRange = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            source.Unlocks = new[]
             {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange,
-                    Rarity = PlayniteAchievements.Models.Achievements.RarityTier.Rare, TrophyType = "gold"
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange,
-                    Rarity = PlayniteAchievements.Models.Achievements.RarityTier.Common, TrophyType = "bronze"
-                }
+                Fact(GameA, inRange, RarityTier.Rare, "gold"),
+                Fact(GameA, outOfRange, RarityTier.Common, "bronze")
             };
             var day = UnlockDayCounts.DayOf(inRange);
 
-            var clipped = OverviewLinkedSnapshots.ClipToSpan(source, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)));
+            var clipped = ClipToSpan(source, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)));
 
             Assert.AreEqual(1, clipped.TotalUnlocked);
             Assert.AreEqual(1, clipped.TotalAchievements);
@@ -93,21 +86,15 @@ namespace PlayniteAchievements.Tests.Models
         }
 
         [TestMethod]
-        public void ClipToSpan_CountsProvidersFromTheUnlocksInRange()
+        public void ClipToAchievements_SpanCountsProvidersFromTheUnlocksInRange()
         {
             var source = CreateSource();
             var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
             var outOfRange = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
-            {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameB, Unlocked = true, UnlockTimeUtc = outOfRange }
-            };
+            source.Unlocks = new[] { Fact(GameA, inRange), Fact(GameA, inRange), Fact(GameA, outOfRange), Fact(GameB, outOfRange) };
             var day = UnlockDayCounts.DayOf(inRange);
 
-            var clipped = OverviewLinkedSnapshots.ClipToSpan(source, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)));
+            var clipped = ClipToSpan(source, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)));
 
             CollectionAssert.AreEquivalent(new[] { "Steam" }, clipped.UnlockedByProvider.Keys.ToList());
             Assert.AreEqual(2, clipped.UnlockedByProvider["Steam"]);
@@ -123,22 +110,14 @@ namespace PlayniteAchievements.Tests.Models
             var source = CreateSource();
             var inRange = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
             var outOfRange = new DateTime(2025, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
-            {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = inRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = outOfRange },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameB, Unlocked = true, UnlockTimeUtc = outOfRange }
-            };
+            source.Unlocks = new[] { Fact(GameA, inRange), Fact(GameA, outOfRange), Fact(GameA, outOfRange), Fact(GameB, outOfRange) };
             var day = UnlockDayCounts.DayOf(inRange);
             var span = new UnlockDaySpan(day, day);
-            var keptIds = new HashSet<Guid>(source.Achievements
-                .Where(item => span.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))
-                .Select(item => item.PlayniteGameId.Value));
+            var keptIds = new HashSet<Guid>(source.Unlocks.Where(fact => span.Contains(fact.Day.Value)).Select(fact => fact.GameId));
             var kept = source.GameSummaries.Where(game => keptIds.Contains(game.PlayniteGameId.Value)).ToList();
 
             var whole = OverviewLinkedSnapshots.Build(source, kept, keptIsAll: false);
-            var linked = OverviewLinkedSnapshots.ClipToSpan(whole, span);
+            var linked = ClipToSpan(whole, span);
 
             // The whole-game view counts GameA's four lifetime unlocks; the span view only one.
             Assert.AreEqual(4, whole.UnlockedByProvider["Steam"]);
@@ -151,19 +130,7 @@ namespace PlayniteAchievements.Tests.Models
         {
             var source = CreateSource();
             var when = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
-            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
-            {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = when,
-                    Rarity = PlayniteAchievements.Models.Achievements.RarityTier.Rare
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameB, Unlocked = true, UnlockTimeUtc = when,
-                    Rarity = PlayniteAchievements.Models.Achievements.RarityTier.Common
-                }
-            };
+            source.Unlocks = new[] { Fact(GameA, when, RarityTier.Rare), Fact(GameB, when, RarityTier.Common) };
             var clipped = OverviewLinkedSnapshots.ClipToAchievements(source, _ => true);
             var keptA = clipped.GameSummaries.Where(game => game.PlayniteGameId == GameA).ToList();
 
@@ -214,23 +181,14 @@ namespace PlayniteAchievements.Tests.Models
         {
             var source = CreateSource();
             var when = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
-            source.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            source.Unlocks = new[]
             {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameA, Unlocked = true, UnlockTimeUtc = when, Tags = "Unobtainable"
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameB, Unlocked = true, Tags = "Unobtainable"
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = GameB, Unlocked = false, Tags = "Unobtainable"
-                }
+                Fact(GameA, when, tags: "Unobtainable"),
+                Fact(GameB, null, tags: "Unobtainable"),
+                Fact(GameB, null, tags: "Missable")
             };
 
-            var clipped = OverviewLinkedSnapshots.ClipToAchievements(source, item => item.Tags == "Unobtainable");
+            var clipped = OverviewLinkedSnapshots.ClipToAchievements(source, fact => fact.Tally.Key == "Unobtainable");
 
             Assert.AreEqual(2, clipped.TotalUnlocked);
             Assert.AreEqual(1, clipped.GlobalUnlockCountsByDate.Values.Sum());
@@ -315,42 +273,28 @@ namespace PlayniteAchievements.Tests.Models
                 new GameSummaryItem
                 {
                     PlayniteGameId = capstoneGame, ProviderKey = "Steam", IsCompleted = true,
-                    CapstoneTotal = 2, CapstoneUnlocked = 2, TotalAchievements = 5, UnlockedAchievements = 4
+                    CapstoneTotal = 2, CapstoneUnlocked = 2, TotalAchievements = 5, UnlockedAchievements = 4,
+                    LastUnlockUtc = after, LastCapstoneUnlockUtc = after
                 },
                 new GameSummaryItem
                 {
                     PlayniteGameId = inRangeGame, ProviderKey = "Epic", IsCompleted = true,
-                    TotalAchievements = 2, UnlockedAchievements = 2
+                    TotalAchievements = 2, UnlockedAchievements = 2, LastUnlockUtc = inRange
                 },
                 new GameSummaryItem
                 {
                     PlayniteGameId = outOfRangeGame, ProviderKey = "Epic", IsCompleted = true,
-                    TotalAchievements = 1, UnlockedAchievements = 1
+                    TotalAchievements = 1, UnlockedAchievements = 1, LastUnlockUtc = before
                 }
             };
             var snapshot = OverviewDataSnapshot.FromGameSummaries(games);
-            snapshot.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
+            snapshot.Unlocks = new[]
             {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = capstoneGame, ApiName = "c1", Unlocked = true, IsCapstone = true, UnlockTimeUtc = inRange
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = capstoneGame, ApiName = "c2", Unlocked = true, IsCapstone = true, UnlockTimeUtc = after
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = inRangeGame, ApiName = "a", Unlocked = true, UnlockTimeUtc = before
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = inRangeGame, ApiName = "b", Unlocked = true, UnlockTimeUtc = inRange
-                },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem
-                {
-                    PlayniteGameId = outOfRangeGame, ApiName = "a", Unlocked = true, UnlockTimeUtc = before
-                }
+                Fact(capstoneGame, inRange, capstone: true),
+                Fact(capstoneGame, after, capstone: true),
+                Fact(inRangeGame, before),
+                Fact(inRangeGame, inRange),
+                Fact(outOfRangeGame, before)
             };
             var day = UnlockDayCounts.DayOf(inRange);
             return (snapshot, new UnlockDaySpan(day.AddDays(-1), day.AddDays(1)), capstoneGame, inRangeGame, outOfRangeGame);
@@ -370,12 +314,26 @@ namespace PlayniteAchievements.Tests.Models
                 [GameB] = new Dictionary<DateTime, int> { [March20] = 2 }
             };
             snapshot.GlobalUnlockCountsByDate = new Dictionary<DateTime, int> { [March1] = 3, [March20] = 2 };
-            snapshot.Achievements = new List<PlayniteAchievements.ViewModels.AchievementDisplayItem>
-            {
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameA },
-                new PlayniteAchievements.ViewModels.AchievementDisplayItem { PlayniteGameId = GameB }
-            };
+            snapshot.Unlocks = new[] { Fact(GameA, null), Fact(GameB, null) };
             return snapshot;
         }
+
+        // The unlocks whose local day falls in the span, as the overview's range filter keeps them.
+        private static OverviewDataSnapshot ClipToSpan(OverviewDataSnapshot snapshot, UnlockDaySpan span) =>
+            OverviewLinkedSnapshots.ClipToAchievements(snapshot, fact => fact.Day.HasValue && span.Contains(fact.Day.Value));
+
+        private static UnlockFact Fact(
+            Guid game,
+            DateTime? utc,
+            RarityTier rarity = RarityTier.Common,
+            string trophy = null,
+            bool capstone = false,
+            string tags = null) =>
+            new UnlockFact
+            {
+                GameId = game,
+                Day = utc.HasValue ? UnlockDayCounts.DayOf(utc.Value) : (DateTime?)null,
+                Tally = new AchievementTally(tags, rarity, trophy, capstone, 1, 1)
+            };
     }
 }

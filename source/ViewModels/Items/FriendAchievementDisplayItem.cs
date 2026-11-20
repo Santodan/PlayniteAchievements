@@ -71,5 +71,36 @@ namespace PlayniteAchievements.ViewModels.Items
         public override bool ShowUnlockDate => FriendUnlockTimeUtc.HasValue;
 
         public override bool ShowLockedProgress => !ShowUnlockDate;
+
+        /// <summary>A friend row's read carries its friend, self and comparison columns too.</summary>
+        public override void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            if (fresh is FriendAchievementDisplayItem row)
+            {
+                // Set before the base update, whose notifications cover what these change.
+                AppId = row.AppId;
+                ProviderGameKey = row.ProviderGameKey;
+                FriendGroupId = row.FriendGroupId;
+                UnlockedBySelf = row.UnlockedBySelf;
+                SelfUnlockTimeUtc = row.SelfUnlockTimeUtc;
+                SelfHasGameData = row.SelfHasGameData;
+                FriendOwnsGame = row.FriendOwnsGame;
+                FriendName = row.FriendName;
+                FriendExternalUserId = row.FriendExternalUserId;
+                FriendAvatarPath = row.FriendAvatarPath;
+                FriendIsFavorite = row.FriendIsFavorite;
+                if (row.HasComparison)
+                {
+                    ApplyComparison(row.ComparisonFriendName, row.ComparisonFriendAvatarPath, row.ComparisonUnlockTimeUtc,
+                        row.ComparisonUnlocked, row.ComparisonOwnerName, row.ComparisonOwnerAvatarPath, row.ComparisonApplicable);
+                }
+                else
+                {
+                    ClearComparison();
+                }
+            }
+
+            base.RefreshFrom(fresh);
+        }
     }
 }

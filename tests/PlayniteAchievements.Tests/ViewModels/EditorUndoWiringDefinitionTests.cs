@@ -84,7 +84,6 @@ namespace PlayniteAchievements.Tests.ViewModels
                 apply,
                 "entry.AffectsSummaryData",
                 "A reversal has to report what the original write reported.");
-            StringAssert.Contains(apply, "entry.AffectsOverrideMirror");
         }
 
         [TestMethod]

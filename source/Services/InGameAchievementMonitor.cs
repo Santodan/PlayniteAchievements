@@ -2097,16 +2097,15 @@ namespace PlayniteAchievements.Services
                 string preferredApiName = null;
                 if (gameId == Guid.Empty)
                 {
-                    var recent = (_cacheManager as ICacheReadOptimizations)?
-                        .LoadCachedSummaryDataFast(1)?.RecentUnlocks;
-                    var mostRecent = recent != null && recent.Count > 0 ? recent[0] : null;
-                    if (mostRecent?.PlayniteGameId == null || mostRecent.PlayniteGameId == Guid.Empty)
+                    var mostRecent = (_cacheManager as ICacheReadOptimizations)?.Reads?.Rows(
+                        Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlockTimeKnown()
+                            .OrderBy(Database.AchievementSort.UnlockTime, descending: true).Page(1))?.FirstOrDefault();
+                    if (!Guid.TryParse(mostRecent?.PlayniteGameId, out gameId) || gameId == Guid.Empty)
                     {
                         _logger?.Debug("[InGameMonitor] Test notification skipped: no recent unlock in the library.");
                         return;
                     }
 
-                    gameId = mostRecent.PlayniteGameId.Value;
                     preferredApiName = mostRecent.ApiName;
                 }
 

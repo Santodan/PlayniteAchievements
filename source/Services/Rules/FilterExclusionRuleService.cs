@@ -154,8 +154,7 @@ namespace PlayniteAchievements.Services.Rules
                             RuleReconciler.SetPinned(data, RuleFields.ExcludedFromRefreshes, false);
                             RuleReconciler.SetPinned(data, RuleFields.ExcludedFromSummaries, false);
                         },
-                        affectsSummaryData: false,
-                        affectsOverrideMirror: false);
+                        affectsSummaryData: false);
                 }
             }
 
@@ -269,8 +268,7 @@ namespace PlayniteAchievements.Services.Rules
                     ApplyDecision(data, RuleFields.ExcludedFromRefreshes, refreshMatch);
                     ApplyDecision(data, RuleFields.ExcludedFromSummaries, summaryMatch);
                 },
-                affectsSummaryData: true,
-                affectsOverrideMirror: false);
+                affectsSummaryData: true);
             return true;
         }
 

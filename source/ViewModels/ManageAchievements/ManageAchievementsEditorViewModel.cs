@@ -583,7 +583,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 e.Previous,
                 e.Persisted,
                 e.AffectsSummaryData,
-                e.AffectsOverrideMirror,
                 _currentUndoIntent,
                 _currentUndoApiNames);
 
@@ -709,8 +708,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                             }
                         }
                     },
-                    entry.AffectsSummaryData,
-                    entry.AffectsOverrideMirror);
+                    entry.AffectsSummaryData);
                 }
             }
             catch (Exception ex)
@@ -769,7 +767,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (entry.ArtRestores.Count > 0)
             {
                 ApplyRowValueStep(
-                    new EditorUndoEntry(entry.LabelKey, null, false, false, null, entry.ArtRestores),
+                    new EditorUndoEntry(entry.LabelKey, null, false, null, entry.ArtRestores),
                     reverse);
             }
 

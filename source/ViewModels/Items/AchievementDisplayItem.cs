@@ -246,6 +246,18 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendIsFavorite, value);
         }
 
+        private bool _isPlaceholder;
+
+        /// <summary>
+        /// Stands in for a row a paged list has not loaded yet; the cell style draws a shape in
+        /// each cell. Cleared when the row's read fills it in place.
+        /// </summary>
+        public bool IsPlaceholder
+        {
+            get => _isPlaceholder;
+            set => SetValue(ref _isPlaceholder, value);
+        }
+
         // --- Friend comparison (session-only; set by the hosting view model when a
         //     compare friend is selected, cleared when the selection changes) ---
 
@@ -1534,6 +1546,20 @@ namespace PlayniteAchievements.ViewModels.Items
             NotificationCapturePath = sourceItem.NotificationCapturePath;
             FramedCapturePath = sourceItem.FramedCapturePath;
             VideoCapturePath = sourceItem.VideoCapturePath;
+            IsPlaceholder = sourceItem.IsPlaceholder;
+        }
+
+        /// <summary>
+        /// Brings this row up to date from a new read of the same achievement, keeping what the
+        /// read does not carry: the reveal, and the capture marks and comparison stamped later.
+        /// </summary>
+        public virtual void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            var revealed = IsRevealed;
+            var captures = (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath);
+            UpdateFrom(fresh);
+            IsRevealed = revealed;
+            (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath) = captures;
         }
 
         public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
@@ -1869,43 +1895,6 @@ namespace PlayniteAchievements.ViewModels.Items
                 gameId,
                 gameData?.UseSeparateLockedIconsWhenAvailable);
             item.IsRevealed = ShouldRestoreRevealedState(gameData, achievement, settings, revealedKeys, gameId);
-            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
-            return item;
-        }
-
-        public static AchievementDisplayItem CreateRecent(
-            GameAchievementData gameData,
-            AchievementDetail achievement,
-            PlayniteAchievementsSettings settings,
-            string gameIconPath,
-            string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null,
-            CategoryPresentationMemo categoryMemo = null)
-        {
-            if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
-            {
-                return null;
-            }
-
-            var item = CreateBaseItem(
-                gameData,
-                achievement,
-                gameData?.PlayniteGameId,
-                ResolvePoints(achievement, gameData),
-                categoryMemo);
-            item.GameIconPath = gameIconPath;
-            item.GameCoverPath = gameCoverPath;
-            ApplyCategoryPresentation(
-                item,
-                gameData,
-                item.CategoryLabel,
-                achievement.ProviderCategory,
-                gameData?.PlayniteGameId,
-                categoryMemo);
-            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
-                settings,
-                gameData?.PlayniteGameId,
-                gameData?.UseSeparateLockedIconsWhenAvailable);
             item.ApplyAppearanceSettings(resolvedAppearanceSettings);
             return item;
         }

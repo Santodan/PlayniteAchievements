@@ -246,11 +246,7 @@ namespace PlayniteAchievements.Tests.Services
 
         private static void Hydrate(List<AchievementDetail> details, ResolvedGameCustomData customData)
         {
-            new AchievementDetailHydrator(new PlayniteAchievementsSettings()).HydrateAllWithCapstoneOverride(
-                details,
-                Guid.Empty,
-                "steam",
-                customData);
+            AchievementDetailHydrator.ApplyOverlays(details, "steam", customData);
         }
 
         private static List<AchievementDetail> Details(params string[] apiNames)

@@ -155,7 +155,6 @@ namespace PlayniteAchievements.Views
         private readonly RefreshRuntime _refreshRuntime;
         private readonly IFriendCacheManager _friendCache;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
         private readonly Guid? _selectedGameId;
         private readonly string _selectedGameName;
         private FriendRefreshScope _selectedScope = FriendRefreshScope.Recent;
@@ -270,7 +269,6 @@ namespace PlayniteAchievements.Views
             RefreshRuntime refreshRuntime,
             IFriendCacheManager friendCache,
             PlayniteAchievementsSettings settings,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator,
             Guid? selectedGameId,
             string selectedGameName)
         {
@@ -278,7 +276,6 @@ namespace PlayniteAchievements.Views
             _refreshRuntime = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _friendCache = friendCache;
             _settings = settings;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
             _selectedGameId = selectedGameId.HasValue && selectedGameId.Value != Guid.Empty ? selectedGameId : null;
             _selectedGameName = selectedGameName;
 
@@ -306,7 +303,6 @@ namespace PlayniteAchievements.Views
             ILogger logger,
             Guid? selectedGameId,
             string selectedGameName,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator,
             out FriendCustomRefreshOptions options)
         {
             options = null;
@@ -315,7 +311,6 @@ namespace PlayniteAchievements.Views
                 refreshRuntime,
                 friendCache,
                 settings,
-                friendsOverviewDataCoordinator,
                 selectedGameId,
                 selectedGameName);
             var window = PlayniteUiProvider.CreateExtensionWindow(
@@ -458,7 +453,9 @@ namespace PlayniteAchievements.Views
         {
             try
             {
-                var snapshot = LoadSelectionSnapshot();
+                // The friend and game lists alone, merged and named as the settings say.
+                var reads = _friendCache?.FriendReads;
+                var snapshot = reads == null ? null : FriendsOverviewLists.Build(reads.LoadLists(), null, _settings?.Persisted);
                 if (snapshot != null)
                 {
                     foreach (var friend in snapshot.Friends ?? Enumerable.Empty<FriendSummaryItem>())
@@ -503,17 +500,6 @@ namespace PlayniteAchievements.Views
             {
                 Logger?.Warn(ex, "Failed to load friend custom refresh selection data.");
             }
-        }
-
-        private FriendsOverviewSnapshot LoadSelectionSnapshot()
-        {
-            if (_friendsOverviewDataCoordinator?.TryGetCurrentSnapshot(out var snapshot) == true)
-            {
-                return snapshot;
-            }
-
-            var data = _friendCache?.LoadFriendsOverviewData(0);
-            return FriendsOverviewDataCoordinator.CreateSnapshot(data, _settings?.Persisted);
         }
 
         internal static SelectionItem CreateFriendSelectionItem(FriendSummaryItem friend)

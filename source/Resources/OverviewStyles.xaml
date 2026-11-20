@@ -48,16 +48,31 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="Stretch"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="helpers:PlaceholderCell.Shape"
+                Value="{Binding Column.(helpers:PlaceholderCell.Shape), RelativeSource={RelativeSource Self}}"/>
+        <!-- A row standing in until the grid's first read lands, drawn as the achievement grids
+             draw their unloaded rows. -->
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                <Setter Property="Template" Value="{StaticResource PlayAch.PlaceholderCellTemplate}"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="ToolTip" Value="{x:Null}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="GameSummariesImageCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
         <Setter Property="Padding" Value="0"/>
+        <Setter Property="helpers:PlaceholderCell.Shape" Value="Block"/>
     </Style>
 
     <Style x:Key="GameSummariesGridRowBaseStyle" TargetType="DataGridRow">
@@ -75,6 +90,9 @@
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                       <Grid>
                         <!-- The separator is drawn behind the cells rather than as the border of
                              this Border. As a border it would inset the content by its own
@@ -98,7 +116,7 @@
                                 <RowDefinition Height="Auto"/>
                             </SelectiveScrollingGrid.RowDefinitions>
 
-                            <DataGridCellsPresenter Grid.Column="1"
+                            <controls:StylePinnedDataGridCellsPresenter Grid.Column="1"
                                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                                     SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
 

@@ -115,10 +115,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     }
 
     /// <summary>
-    /// One undoable step: the facets a gesture moved, and the flags to report when it is reversed.
+    /// One undoable step: the facets a gesture moved, and the flag to report when it is reversed.
     /// </summary>
     /// <remarks>
-    /// Holds plain data only - a localization key, two booleans, deep-copied facet values and a
+    /// Holds plain data only - a localization key, a boolean, deep-copied facet values and a
     /// set of ApiNames. No delegates and no reference to a row or a view model, which is what lets
     /// a history outlive a grid without keeping the grid alive. A command-object history could not
     /// make that promise, because its undo closures would capture the rows they were built from.
@@ -129,7 +129,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string labelKey,
             IReadOnlyList<GameCustomDataFacetPatch> facets,
             bool affectsSummaryData,
-            bool affectsOverrideMirror,
             IReadOnlyList<string> affectedApiNames,
             IReadOnlyList<EditorRowValueChange> rowValues = null,
             IReadOnlyList<EditorRowValueChange> artRestores = null)
@@ -137,7 +136,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             LabelKey = labelKey;
             Facets = facets ?? new List<GameCustomDataFacetPatch>();
             AffectsSummaryData = affectsSummaryData;
-            AffectsOverrideMirror = affectsOverrideMirror;
             AffectedApiNames = affectedApiNames ?? new List<string>();
             RowValues = rowValues ?? new List<EditorRowValueChange>();
             ArtRestores = artRestores ?? new List<EditorRowValueChange>();
@@ -168,13 +166,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public IReadOnlyList<GameCustomDataFacetPatch> Facets { get; }
 
         /// <summary>
-        /// The flags to repeat when this step is reversed. Folded across the writes in the step,
+        /// The flag to repeat when this step is reversed. Folded across the writes in the step,
         /// so a reversal reports a change at least as significant as the original - never less,
-        /// which would leave a mirror stale.
+        /// which would leave a summary stale.
         /// </summary>
         public bool AffectsSummaryData { get; }
-
-        public bool AffectsOverrideMirror { get; }
 
         /// <summary>
         /// The achievements this step touched, for reselecting them after it is reversed. Names
@@ -240,7 +236,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private GameCustomDataFile _openBefore;
         private GameCustomDataFile _openAfter;
         private bool _openAffectsSummaryData;
-        private bool _openAffectsOverrideMirror;
         private readonly List<string> _openApiNames = new List<string>();
 
         public bool CanUndo => _undo.Count > 0;
@@ -266,7 +261,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             GameCustomDataFile previous,
             GameCustomDataFile persisted,
             bool affectsSummaryData,
-            bool affectsOverrideMirror,
             EditorEditIntent intent,
             IEnumerable<string> affectedApiNames = null)
         {
@@ -292,10 +286,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             EnsureOpenStep(intent);
 
             // Folded, never narrowed: a reversal has to resync everything the gesture did.
-            // Unconditional because ClearOpenStep resets both to false, so the first write's OR
+            // Unconditional because ClearOpenStep resets it to false, so the first write's OR
             // is the same as the assignment this used to make.
             _openAffectsSummaryData |= affectsSummaryData;
-            _openAffectsOverrideMirror |= affectsOverrideMirror;
 
             // Only for a step that is not already held as row values. The record pair exists
             // solely to feed the facet diff in CommitOpenStep, and a step carrying row values
@@ -430,7 +423,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var labelKey = _openIntent.LabelKey;
             var summary = _openAffectsSummaryData;
-            var mirror = _openAffectsOverrideMirror;
             var apiNames = new List<string>(_openApiNames);
 
             // A field edit is held as the fields it moved. Reversing those is an edit, where
@@ -470,8 +462,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             _undo.Add(rowValues.Count > 0
-                ? new EditorUndoEntry(labelKey, null, summary, mirror, apiNames, rowValues)
-                : new EditorUndoEntry(labelKey, facets, summary, mirror, apiNames, artRestores: artRestores));
+                ? new EditorUndoEntry(labelKey, null, summary, apiNames, rowValues)
+                : new EditorUndoEntry(labelKey, facets, summary, apiNames, artRestores: artRestores));
 
             // A new step makes the forward history unreachable, as it does in any editor.
             _redo.Clear();
@@ -558,7 +550,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _openBefore = null;
             _openAfter = null;
             _openAffectsSummaryData = false;
-            _openAffectsOverrideMirror = false;
             _openApiNames.Clear();
             _openRowValues.Clear();
             _openArtRestores.Clear();

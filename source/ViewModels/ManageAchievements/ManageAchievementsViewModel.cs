@@ -203,7 +203,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public string EffectiveProviderKey =>
             _gameDataSnapshotProvider?.GetHydratedGameData()?.EffectiveProviderKey ??
-            _plugin?.AchievementDataService?.GetGameAchievementData(_gameId)?.EffectiveProviderKey ??
+            _plugin?.AchievementDataService?.GetGameHeader(_gameId)?.EffectiveProviderKey ??
             _cachedProviderKey;
 
         public ManageAchievementsTab SelectedTab
@@ -1999,7 +1999,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 string.IsNullOrWhiteSpace(GameName) ? _gameId.ToString("D") : GameName);
             var providerStub = SanitizePortableFileNamePart(
                 _gameDataSnapshotProvider?.GetHydratedGameData()?.EffectiveProviderKey ??
-                _plugin?.AchievementDataService?.GetGameAchievementData(_gameId)?.EffectiveProviderKey ??
+                _plugin?.AchievementDataService?.GetGameHeader(_gameId)?.EffectiveProviderKey ??
                 _cachedProviderKey);
 
             var parts = new List<string>();

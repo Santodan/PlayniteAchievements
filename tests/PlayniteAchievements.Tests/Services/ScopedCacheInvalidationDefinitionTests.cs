@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Tests.Services
         {
             var body = Between(
                 ReadPlugin(),
-                "_cacheManager.CacheInvalidated +=",
+                "Feed.AchievementDataChanged += (_, change) =>",
                 "_cacheManager.CacheDeltaUpdated +=");
 
             Assert.IsFalse(
@@ -55,23 +55,17 @@ namespace PlayniteAchievements.Tests.Services
 
             StringAssert.Contains(
                 body,
-                "args?.IsFull == false",
+                "!change.IsFull",
                 "Scope is what decides between the coalescer and the immediate path.");
             StringAssert.Contains(
                 body,
-                "ScheduleStartPageInvalidate()",
+                "ScheduleStartPageInvalidate(\"",
                 "A burst of per-game edits must collapse; each start-page invalidation makes " +
                 "every live widget rebuild a full library snapshot.");
             StringAssert.Contains(
                 body,
-                "InvalidateStartPageData()",
+                "InvalidateStartPageData(\"",
                 "A full invalidation is a bulk event, not a burst, and still lands immediately.");
-
-            // Friend rows carry the user's own unlock state, so every raise reaches the friend
-            // coordinators, scoped to the changed games so the overview can patch them.
-            StringAssert.Contains(
-                body,
-                "FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(args)");
         }
 
         [TestMethod]
@@ -87,7 +81,7 @@ namespace PlayniteAchievements.Tests.Services
             var body = Between(
                 source,
                 "private void RefreshService_CacheInvalidated(",
-                "private void FriendCache_FriendCacheInvalidated(");
+                "private Guid? ResolveSelectedGameIdForThemeUpdate(");
 
             StringAssert.Contains(body, "e?.IsFull == false");
             StringAssert.Contains(
@@ -95,11 +89,6 @@ namespace PlayniteAchievements.Tests.Services
                 "e.ChangedGameIds.Contains(selectedGameId.Value)",
                 "A scoped change may only repaint the selected-game surface when it actually " +
                 "touched that game.");
-            StringAssert.Contains(
-                body,
-                "FriendCacheInvalidatedEventArgs.FromSelfCacheInvalidation(e)",
-                "Friend rows carry the user's own unlock state, so a scoped change patches " +
-                "those games' friend rows and a full one rebuilds.");
         }
 
         [TestMethod]
@@ -108,7 +97,7 @@ namespace PlayniteAchievements.Tests.Services
             var body = Between(
                 ReadThemeService(),
                 "private void RefreshService_CacheInvalidated(",
-                "private void FriendCache_FriendCacheInvalidated(");
+                "private Guid? ResolveSelectedGameIdForThemeUpdate(");
 
             // !isScoped short-circuits the scope test, so a full invalidation keeps every
             // behaviour it had before the scope was honoured. Losing this turns a bulk refresh

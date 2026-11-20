@@ -19,7 +19,6 @@ using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Captures;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.GameCustomData;
-using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
@@ -60,10 +59,7 @@ namespace PlayniteAchievements.Services.UI
         private readonly Action _persistSettingsForUi;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementDataService _achievementDataService;
-        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly GameCustomDataStore _gameCustomDataStore;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
-        private readonly FriendGameAchievementsDataCoordinator _friendGameAchievementsDataCoordinator;
         private readonly Func<Widgets.WidgetDataCoordinator> _widgetCoordinatorAccessor;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ManualSourceRegistry _manualSourceRegistry;
@@ -83,14 +79,11 @@ namespace PlayniteAchievements.Services.UI
             Action persistSettingsForUi,
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
             GameCustomDataStore gameCustomDataStore,
             PlayniteAchievementsSettings settings,
             ManualSourceRegistry manualSourceRegistry,
             Action ensureAchievementResourcesLoaded,
             FullscreenControllerNavigationService fullscreenControllerNavigationService,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
-            FriendGameAchievementsDataCoordinator friendGameAchievementsDataCoordinator = null,
             Func<Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
             _api = api;
@@ -101,10 +94,7 @@ namespace PlayniteAchievements.Services.UI
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementOverridesService = achievementOverridesService;
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-            _libraryProjectionService = libraryProjectionService;
             _gameCustomDataStore = gameCustomDataStore;
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
-            _friendGameAchievementsDataCoordinator = friendGameAchievementsDataCoordinator;
             _widgetCoordinatorAccessor = widgetCoordinatorAccessor;
             _settings = settings;
             _manualSourceRegistry = manualSourceRegistry ?? throw new ArgumentNullException(nameof(manualSourceRegistry));
@@ -1340,12 +1330,10 @@ namespace PlayniteAchievements.Services.UI
                     _persistSettingsForUi,
                     _achievementOverridesService,
                     _achievementDataService,
-                    _libraryProjectionService,
                     _gameCustomDataStore,
                     _refreshCoordinator,
                     _settings,
                     OverviewLaunchContext.Popout,
-                    _friendsOverviewDataCoordinator,
                     _widgetCoordinatorAccessor);
                 if (!string.IsNullOrWhiteSpace(showcasePageId))
                 {
@@ -1506,7 +1494,7 @@ namespace PlayniteAchievements.Services.UI
                 var isFullscreen = DetectFullscreenMode();
                 var view = new ViewFriendsAchievementsControl(
                     gameId,
-                    _friendGameAchievementsDataCoordinator,
+                    _cacheManager as IFriendCacheManager,
                     _refreshService,
                     _refreshCoordinator,
                     _api,

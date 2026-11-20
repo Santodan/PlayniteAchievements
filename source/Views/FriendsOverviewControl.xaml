@@ -16,7 +16,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/OverviewScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="FriendsOverviewGridRowStyle"
@@ -446,7 +446,7 @@
                                                      Margin="8,8,8,0"
                                                      ControlBar="{Binding AchievementsControlBar}"
                                                      ShowControlBar="{Binding Settings.Persisted.ShowFriendsOverviewAchievementsGridControlBar}"
-                                                     ItemsSource="{Binding DisplayedAchievements}"
+                                                     ItemsSource="{Binding AchievementRows}"
                                                      CategorySummarySource="{Binding SelectedFriendGameAllAchievements}"
                                                      ColumnSettingsKey="{Binding AchievementColumnSettingsKey}"
                                                      EnableCategoryMode="{Binding HasFriendGameSelection}"
@@ -485,26 +485,6 @@
             </Grid>
         </Grid>
 
-        <!-- Initial-load overlay: mirrors the main overview's loading indicator while the first
-             friends snapshot builds. -->
-        <Border Grid.Row="0"
-                Grid.RowSpan="3"
-                Background="{DynamicResource PlayAch.Brush.Window.Background}"
-                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        MaxWidth="360">
-                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
-                           Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
-                           Foreground="{DynamicResource PlayAch.Brush.Text}"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"
-                           Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
-                <ProgressBar Height="6"
-                             Width="240"
-                             IsIndeterminate="True"/>
-            </StackPanel>
-        </Border>
     </Grid>
     </Border>
 </UserControl>

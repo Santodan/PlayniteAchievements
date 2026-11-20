@@ -9,7 +9,8 @@
                        xmlns:sys="clr-namespace:System;assembly=mscorlib"
                        mc:Ignorable="d"
                        d:DesignHeight="300" d:DesignWidth="700">
-    <controls:AchievementDataGridControl ItemsSource="{Binding DisplayItems, RelativeSource={RelativeSource AncestorType=modern:AchievementFriendAchievementsGridControl}}"
+    <controls:AchievementDataGridControl x:Name="RowsGrid"
+                                         ItemsSource="{Binding DisplayItems, RelativeSource={RelativeSource AncestorType=modern:AchievementFriendAchievementsGridControl}}"
                                          ColumnSettingsKey="FriendsOverviewRecentAchievements"
                                          ShowGameColumn="True"
                                          ShowFriendColumn="True"
@@ -20,5 +21,7 @@
                                          ShowColumnHeaders="{Binding DataContext.Persisted.ShowFriendsOverviewAchievementsGridColumnHeaders, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                          FixedRowHeight="{Binding DataContext.Persisted.FriendsOverviewAchievementsGridRowHeight, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                          DataGridMaxHeight="{x:Static sys:Double.NaN}"
-                                         DelayInitialRenderUntilNormalized="True"/>
+                                         DelayInitialRenderUntilNormalized="True"
+                                         UseExternalSorting="True"
+                                         Sorting="RowsGrid_Sorting"/>
 </base:ThemeControlBase>

@@ -50,8 +50,9 @@ namespace PlayniteAchievements.Common
             {
                 _sampleRow = row == null ? null : new WeakReference<DataGridRow>(row);
                 _span.Restart();
-                // Background runs after the render pass that prepares the rows.
-                dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(Flush));
+                // Loaded runs after the render pass that prepares the rows. Background would wait
+                // until no input is pending, so a scrollbar drag merged many passes into one burst.
+                dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(Flush));
             }
 
             var now = _span.ElapsedMilliseconds;

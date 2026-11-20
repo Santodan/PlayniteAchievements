@@ -75,33 +75,6 @@ namespace PlayniteAchievements.Models.Achievements
     }
 
     /// <summary>
-    /// One achievement as the tallies count it before the user's edits: its provider tags, tier,
-    /// trophy grade (with the user's trophy edit, which the store applies), capstone flag and
-    /// unlock state.
-    /// </summary>
-    public readonly struct AchievementTallyState
-    {
-        public AchievementTallyState(string tags, RarityTier? rarity, string trophy, bool isCapstone, bool unlocked)
-        {
-            Tags = tags;
-            Rarity = rarity;
-            Trophy = trophy;
-            IsCapstone = isCapstone;
-            Unlocked = unlocked;
-        }
-
-        public string Tags { get; }
-
-        public RarityTier? Rarity { get; }
-
-        public string Trophy { get; }
-
-        public bool IsCapstone { get; }
-
-        public bool Unlocked { get; }
-    }
-
-    /// <summary>
     /// Which tags a tag filter or the Tag pie offers for the games in view: the global tags with no
     /// game picked; a picked game's tags (the global ones, its own, and the implicit ones its
     /// achievements carry); with several picked, the tags every one of them has.
@@ -156,54 +129,6 @@ namespace PlayniteAchievements.Models.Achievements
                 HasTagEdit(entry) ? (entry.ClearTags ? string.Empty : entry.Tags) : null);
 
         /// <summary>
-        /// <paramref name="providerTotals"/> with the user's edits applied: each achievement in
-        /// <paramref name="states"/> (as the store counted it) moves to its effective tags from
-        /// <paramref name="tagEdits"/>, and, when <paramref name="capstones"/> is given (a game
-        /// whose capstones the user edited), to whether that set holds it.
-        /// </summary>
-        public static AchievementTally[] ApplyEdits(
-            AchievementTally[] providerTotals,
-            IReadOnlyDictionary<string, AchievementTallyState> states,
-            IReadOnlyDictionary<string, AchievementOverride> tagEdits,
-            ISet<string> capstones = null)
-        {
-            if (states == null || states.Count == 0)
-            {
-                return providerTotals;
-            }
-
-            var builder = From(providerTotals);
-            var changed = false;
-            foreach (var pair in states)
-            {
-                var state = pair.Value;
-                AchievementOverride entry = null;
-                tagEdits?.TryGetValue(pair.Key, out entry);
-                var tags = HasTagEdit(entry) ? EffectiveTags(state.Tags, entry) : state.Tags;
-                var isCapstone = capstones != null ? capstones.Contains(pair.Key) : state.IsCapstone;
-                if (!HasTagEdit(entry) && isCapstone == state.IsCapstone)
-                {
-                    continue;
-                }
-
-                builder.Remove(state.Tags, state.Rarity, state.Trophy, state.IsCapstone, state.Unlocked);
-                builder.Add(tags, state.Rarity, state.Trophy, isCapstone, state.Unlocked);
-                changed = true;
-            }
-
-            return changed ? builder.Build() : providerTotals;
-        }
-
-        public static AchievementTallyBuilder From(IEnumerable<AchievementTally> tallies)
-        {
-            var builder = new AchievementTallyBuilder();
-            builder.AddAll(tallies);
-            return builder;
-        }
-
-        public bool IsEmpty => _counts.Count == 0;
-
-        /// <summary>
         /// Counts <paramref name="total"/> achievements carrying <paramref name="tags"/> of this tier,
         /// grade and capstone flag, <paramref name="unlocked"/> of them unlocked.
         /// </summary>
@@ -218,12 +143,6 @@ namespace PlayniteAchievements.Models.Achievements
             Add(tags, RarityTier.Common, null, false, unlocked, total);
 
         public void Add(string tags, bool unlocked) => Add(tags, unlocked ? 1 : 0, 1);
-
-        /// <summary>Takes back one achievement counted under these values.</summary>
-        public void Remove(string tags, RarityTier? rarity, string trophy, bool isCapstone, bool unlocked) =>
-            Shift(new Facet(SetKey(tags), rarity, AchievementTally.NormalizeTrophy(trophy), isCapstone), unlocked ? -1 : 0, -1);
-
-        public void Remove(string tags, bool unlocked) => Remove(tags, RarityTier.Common, null, false, unlocked);
 
         /// <summary>
         /// Counts over <paramref name="tallies"/> for the tags in <paramref name="shown"/>: each

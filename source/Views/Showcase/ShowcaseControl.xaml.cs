@@ -93,6 +93,10 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly Dictionary<string, ShowcaseWidgetControl> _hostCache =
             new Dictionary<string, ShowcaseWidgetControl>(StringComparer.OrdinalIgnoreCase);
 
+        // Each host's pending Unlock Next pool read; disposed with the control so a kept snapshot holds no host.
+        private readonly Dictionary<ShowcaseWidgetControl, IDisposable> _unlockNextRequests =
+            new Dictionary<ShowcaseWidgetControl, IDisposable>();
+
         // Throttles SnapshotChanged-driven re-projections: the overview's delta pipeline
         // raises the event every few hundred milliseconds during a refresh, and each
         // re-projection walks the full snapshot per widget. The first event of a burst
@@ -125,8 +129,14 @@ namespace PlayniteAchievements.Views.Showcase
         private readonly Queue<WidgetApplyRequest> _applyQueue = new Queue<WidgetApplyRequest>();
         private readonly HashSet<ShowcaseWidgetControl> _applyQueued = new HashSet<ShowcaseWidgetControl>();
         private bool _applyDrainScheduled;
+
+        // Whether any widget has received a projection, so a strip's first data waits for the
+        // grids' render (see QueueSnapshotRefresh).
+        private bool _projectedOnce;
         private int _applyDrainApplied;
         private long _applyDrainStartedTicks;
+        private long _applyDrainFirstPassTicks;
+        private long _applyDrainPassTicks;
         private long _applyPassEndedTicks;
 
         // Edit-mode size labels: each column's width along the top edge, each row's height along
@@ -290,6 +300,12 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             _hostCache.Clear();
+            foreach (var request in _unlockNextRequests.Values)
+            {
+                request?.Dispose();
+            }
+
+            _unlockNextRequests.Clear();
             _host.DataChanged -= Host_DataChanged;
             ShowcaseConfigurationEvents.Changed -= ShowcaseConfigurationEvents_Changed;
             Common.LocalDayRollover.Unsubscribe(LocalDayRollover_DayChanged);
@@ -382,6 +398,18 @@ namespace PlayniteAchievements.Views.Showcase
             }
 
             using var perf = PerfScope.Start(Logger, "Showcase.BuildDashboard", thresholdMs: 20);
+            // Every change of parent walks the moved subtree to re-resolve its styles and
+            // resources, and a widget body is most of the dashboard's elements. Hosts leave their
+            // containers before those are cleared and join the new ones only once they are in the
+            // window, so a cached host is walked once on the way out and once on the way in.
+            foreach (var state in _blockVisuals.Values)
+            {
+                if (state.Host != null)
+                {
+                    LayersOf(state.Container)?.Children.Remove(state.Host);
+                }
+            }
+
             DashboardGrid.Children.Clear();
             _blockVisuals.Clear();
             // Every visible block re-enqueues through CreateWidgetHost below; anything still
@@ -418,12 +446,16 @@ namespace PlayniteAchievements.Views.Showcase
             AddGridLayers(rowCount, columnCount);
             foreach (var block in ContainerBlocks())
             {
-                var container = CreateBlockContainer(block);
+                var container = CreateBlockContainer(block, out var widgetHost);
                 Grid.SetRow(container, block.Row);
                 Grid.SetColumn(container, block.Column);
                 Grid.SetRowSpan(container, block.RowSpan);
                 Grid.SetColumnSpan(container, block.ColumnSpan);
                 DashboardGrid.Children.Add(container);
+                if (widgetHost != null)
+                {
+                    LayersOf(container).Children.Insert(0, widgetHost);
+                }
             }
 
             // Grippers and rulers are edit-mode chrome: 4x(N-1) thumbs and 2N text boxes that a
@@ -1918,7 +1950,9 @@ namespace PlayniteAchievements.Views.Showcase
             }
         }
 
-        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block)
+        // The block's widget host, when it has one, is returned rather than placed: the caller
+        // inserts it as the first layer once the container is in the dashboard (see BuildDashboard).
+        private FrameworkElement CreateBlockContainer(ShowcaseBlockSettings block, out ShowcaseWidgetControl widgetHost)
         {
             // The container never changes BorderThickness or Padding: edit-mode chrome is drawn
             // by an overlay layer so toggling edit mode cannot shift the widget layout.
@@ -1942,23 +1976,20 @@ namespace PlayniteAchievements.Views.Showcase
             border.PreviewMouseMove += Block_PreviewMouseMove;
             border.GotKeyboardFocus += Block_GotKeyboardFocus;
 
-            UIElement content;
-            ShowcaseWidgetControl widgetHost = null;
+            widgetHost = null;
             Button addButton = null;
             var widget = FindWidget(block.WidgetInstanceId);
+            var layers = new Grid();
             if (widget == null)
             {
                 addButton = CreateAddWidgetButton(block);
-                content = addButton;
+                layers.Children.Add(addButton);
             }
             else
             {
                 widgetHost = CreateWidgetHost(block, widget);
-                content = widgetHost;
             }
 
-            var layers = new Grid();
-            layers.Children.Add(content);
             var editChrome = new Border
             {
                 Visibility = Visibility.Collapsed,
@@ -2186,6 +2217,8 @@ namespace PlayniteAchievements.Views.Showcase
             if (_applyQueue.Count == 0)
             {
                 _applyDrainStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+                _applyDrainFirstPassTicks = 0;
+                _applyDrainPassTicks = 0;
                 _applyDrainApplied = 0;
                 // Tracing only: name the dispatcher operations that run between the widget
                 // passes (layout and render ticks, Loaded broadcasts, image completions).
@@ -2227,6 +2260,12 @@ namespace PlayniteAchievements.Views.Showcase
                 return;
             }
 
+            var passStartedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_applyDrainFirstPassTicks == 0)
+            {
+                _applyDrainFirstPassTicks = passStartedTicks;
+            }
+
             try
             {
                 while (_applyQueue.Count > 0)
@@ -2244,6 +2283,14 @@ namespace PlayniteAchievements.Views.Showcase
                         continue;
                     }
 
+                    // No snapshot yet: the host keeps its skeleton, which costs no layout, so it
+                    // neither takes a pass of its own nor counts as an applied widget.
+                    if (snapshot == null)
+                    {
+                        request.Host.ShowLoadingPlaceholder();
+                        continue;
+                    }
+
                     if (PerfScope.PerfTracingEnabled && _applyDrainApplied > 0)
                     {
                         // Wall time between the previous pass ending and this one starting:
@@ -2257,7 +2304,7 @@ namespace PlayniteAchievements.Views.Showcase
                         }
                     }
 
-                    ApplyWidgetProjection(request.Host, request.Widget, snapshot);
+                    ApplyWidgetProjection(request.Host, request.Widget, request.BlockId, snapshot);
                     _applyPassEndedTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                     _applyDrainApplied++;
                     // A strip holds a few light charts that change together (one filter click
@@ -2271,15 +2318,21 @@ namespace PlayniteAchievements.Views.Showcase
             }
             finally
             {
+                _applyDrainPassTicks += System.Diagnostics.Stopwatch.GetTimestamp() - passStartedTicks;
                 if (_applyQueue.Count > 0)
                 {
                     ScheduleApplyDrain();
                 }
                 else if (_applyDrainApplied > 0 && PerfScope.PerfTracingEnabled)
                 {
-                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L /
-                                    System.Diagnostics.Stopwatch.Frequency;
-                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs}");
+                    // ms is wall time from the first request to the last pass, so it holds every
+                    // layout and render the drain yielded to (on an open, the whole overview's);
+                    // waitMs is the part before the first pass ran, passMs the drain's own passes.
+                    var frequency = System.Diagnostics.Stopwatch.Frequency;
+                    var elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - _applyDrainStartedTicks) * 1000L / frequency;
+                    var waitMs = (_applyDrainFirstPassTicks - _applyDrainStartedTicks) * 1000L / frequency;
+                    var passMs = _applyDrainPassTicks * 1000L / frequency;
+                    Logger.Debug($"[Showcase] apply drain done widgets={_applyDrainApplied} ms={elapsedMs} waitMs={waitMs} passMs={passMs}");
                     _applyDrainApplied = 0;
                 }
             }
@@ -2320,16 +2373,36 @@ namespace PlayniteAchievements.Views.Showcase
         // A null snapshot means the overview has not produced one yet (a fresh open, before
         // RefreshViewAsync lands). Projecting against an empty stand-in would build a "No data"
         // body per widget only for SnapshotChanged to rebuild every one of them moments later,
-        // so the host shows a loading caption instead and the snapshot pass does the first
+        // so the host keeps its skeleton block instead and the snapshot pass does the first
         // real projection.
         private void ApplyWidgetProjection(
             ShowcaseWidgetControl host,
             ShowcaseWidgetInstanceSettings widget,
+            string blockId,
             OverviewDataSnapshot snapshot)
         {
             if (snapshot == null)
             {
                 host.ShowLoadingPlaceholder();
+                return;
+            }
+
+            // An Unlock Next widget waits for its pool, read once per snapshot when a shown
+            // widget first asks; until then it keeps what it shows.
+            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(widget);
+            if (snapshot.NeedsUnlockNextRead(maxPerGame))
+            {
+                host.ShowLoadingPlaceholder();
+                if (_unlockNextRequests.TryGetValue(host, out var prior))
+                {
+                    prior?.Dispose();
+                }
+
+                _unlockNextRequests[host] = snapshot.RequestUnlockNextPool(maxPerGame, () =>
+                {
+                    _unlockNextRequests.Remove(host);
+                    QueueWidgetApply(host, widget, blockId, snapshotOnly: false);
+                });
                 return;
             }
 
@@ -2353,40 +2426,7 @@ namespace PlayniteAchievements.Views.Showcase
                 host.Apply(projection);
             }
 
-            if (PerfScope.PerfTracingEnabled)
-            {
-                using (var layout = PerfScope.Start(Logger, "Showcase.Widget.Layout", thresholdMs: 10, context: context))
-                {
-                    host.UpdateLayout();
-                    layout?.SetContext(context + " " + DescribeRealizedRows(host));
-                }
-            }
-        }
-
-        // Tracing only: how many DataGrid rows the layout pass realized inside the host, so a
-        // slow grid widget can be read as per-row cost versus a virtualization failure.
-        private static string DescribeRealizedRows(ShowcaseWidgetControl host)
-        {
-            // The achievement grid control hosts several DataGrids (category list, drill, rows);
-            // the populated one is the one whose rows were realized.
-            var grid = Views.Helpers.VisualTreeHelpers.FindVisualChildren<DataGrid>(host)
-                .OrderByDescending(candidate => candidate.Items.Count)
-                .FirstOrDefault();
-            if (grid == null)
-            {
-                return string.Empty;
-            }
-
-            var realized = 0;
-            for (var index = 0; index < grid.Items.Count; index++)
-            {
-                if (grid.ItemContainerGenerator.ContainerFromIndex(index) != null)
-                {
-                    realized++;
-                }
-            }
-
-            return $"items={grid.Items.Count} realized={realized} gridHeight={grid.ActualHeight:0}";
+            _projectedOnce = true;
         }
 
         private static string DescribeProjection(ShowcaseWidgetProjection projection)
@@ -2395,8 +2435,7 @@ namespace PlayniteAchievements.Views.Showcase
                 $"rows={projection?.AchievementRows?.Count ?? 0} " +
                 $"mosaic={projection?.MosaicAchievements?.Count ?? 0} " +
                 $"games={projection?.Games?.Count ?? 0} " +
-                $"chart={projection?.ChartEntries?.Count ?? 0} " +
-                $"snapshot={projection?.Snapshot?.Achievements?.Count ?? 0}";
+                $"chart={projection?.ChartEntries?.Count ?? 0}";
         }
 
         private Button CreateAddWidgetButton(ShowcaseBlockSettings block)
@@ -3106,7 +3145,8 @@ namespace PlayniteAchievements.Views.Showcase
                             Column = block.Column,
                             RowSpan = block.RowSpan,
                             ColumnSpan = block.ColumnSpan
-                        });
+                        },
+                        out _);
                     created.Tag = block;
                     _blockVisuals[block.BlockId].Block = block;
                     // Below the ZIndex'd overlays either way; first keeps child order stable.
@@ -3367,11 +3407,13 @@ namespace PlayniteAchievements.Views.Showcase
             // click for up to a second. A widget whose view did not change is skipped cheaply.
             // The queued widgets apply in this pass too, which runs at Normal priority ahead of
             // the next render, so the strip changes in the same frame as the grids and the
-            // dropdown that set the filter rather than a render later.
+            // dropdown that set the filter rather than a render later. The first data of a
+            // fresh strip is the exception: the grids render first, and the strip fills from its
+            // placeholders in the Background pass right after.
             if (_host.IsStrip)
             {
                 RefreshWidgetData(includeCachedHosts: true);
-                if (_applyQueue.Count > 0)
+                if (_applyQueue.Count > 0 && _projectedOnce)
                 {
                     DrainApplyQueue();
                 }
@@ -3510,24 +3552,12 @@ namespace PlayniteAchievements.Views.Showcase
             Rebuild();
         }
 
-        // Every other widget option re-projects from the snapshot already in hand. Unlock Next is
-        // the exception: its locked achievements are not in the snapshot at all, and the overview
-        // builder only hydrates them when a widget asks. Switching a mosaic to that source is
-        // therefore an option edit that needs the snapshot rebuilt, as is raising Max per game
-        // past the depth the pool was built to.
-        //
-        // A new achievement pin is the same case: the snapshot only holds unlocked rows plus the
-        // locked pinned rows hydrated at build time, so a pin the build never saw would render as
-        // a bare placeholder until the next rebuild.
+        // Every widget option re-projects from the snapshot already in hand (an Unlock Next
+        // widget reads its pool when projected). A pin the build never read needs the snapshot
+        // rebuilt.
         private void EnsureSnapshotCoversLayout()
         {
-            var snapshot = _overview.LatestSnapshot;
-            var maxPerGame = ShowcaseWidgetOptions.GetUnlockNextMaxPerGame(Layout);
-            var needsUnlockNextPool = maxPerGame > 0 &&
-                                      (snapshot?.UnlockNextPoolBuilt != true ||
-                                       snapshot.UnlockNextPoolSlice < UnlockNextCandidateSelector.SliceFor(maxPerGame));
-            var needsPinHydration = snapshot != null && !snapshot.HasSeenAchievementPins(Layout);
-            if (!needsUnlockNextPool && !needsPinHydration)
+            if (_overview.LatestSnapshot?.HasSeenAchievementPins(Layout) != false)
             {
                 return;
             }

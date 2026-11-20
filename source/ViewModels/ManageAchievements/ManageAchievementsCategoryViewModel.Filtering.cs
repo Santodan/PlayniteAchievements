@@ -66,7 +66,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // Filtering moves counts, so this write keeps the store's default library-wide pass -
-            // the mirror sync and the overview delta both hang off it. Only the sibling tabs in
+            // the change feed and the overview delta both hang off it. Only the sibling tabs in
             // this window need telling, and that is what the metadata-persisted signal does.
             RaiseCategoryMetadataPersisted();
             RefreshCategoryFilterScopes();

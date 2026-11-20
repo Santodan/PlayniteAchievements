@@ -17,7 +17,6 @@ using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Cache;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.GameCustomData;
-using PlayniteAchievements.Services.Library;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Settings;
 using PlayniteAchievements.Services.UI;
@@ -71,10 +70,8 @@ namespace PlayniteAchievements.Views
         private readonly Action _persistSettingsForUi;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementDataService _achievementDataService;
-        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly RefreshEntryPoint _refreshEntryPoint;
-        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
         private readonly OverviewLaunchContext _launchContext;
         private const double OverviewColumnRatioChangeThreshold = 0.001d;
         private bool _isActive;
@@ -150,12 +147,10 @@ namespace PlayniteAchievements.Views
             Action persistSettingsForUi,
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
-            LibraryProjectionService libraryProjectionService,
             GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
-            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null,
             Func<Services.Widgets.WidgetDataCoordinator> widgetCoordinatorAccessor = null)
         {
             using (Common.PerfScope.Start(logger, "OverviewControl.InitializeComponent", thresholdMs: 30))
@@ -175,10 +170,8 @@ namespace PlayniteAchievements.Views
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
-            _libraryProjectionService = libraryProjectionService;
             _playniteApi = api ?? throw new ArgumentNullException(nameof(api));
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
-            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
             _launchContext = launchContext;
             Loaded += AttachKeySequenceWindow;
             Unloaded += DetachKeySequenceWindow;
@@ -202,7 +195,6 @@ namespace PlayniteAchievements.Views
                     refreshRuntime,
                     _persistSettingsForUi,
                     _achievementDataService,
-                    _libraryProjectionService,
                     gameCustomDataStore,
                     _refreshEntryPoint,
                     api,
@@ -214,8 +206,20 @@ namespace PlayniteAchievements.Views
             }
 
             DataContext = _viewModel;
+            // The sidebar overview outlives Unloaded (Playnite unloads it whenever another view
+            // is shown) and Dispose releases every grid in it.
+            if (launchContext == OverviewLaunchContext.Sidebar)
+            {
+                GridLifetime.SetOwnerDisposes(this, true);
+            }
+
+            // The overview content leaves the tree while another subview is shown, and keeps its
+            // bindings meanwhile rather than inheriting nothing.
+            OverviewContent.DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
-            _viewModel.SetActive(false);
+            // Active from construction, so the summary read starts before the sub-view and the
+            // mini-showcase are built and runs alongside them; the host's Activate is then a no-op.
+            Activate();
             ActiveRefreshHeader = _viewModel;
             // Never restore the Friends subview when the feature is disabled; the subview
             // switch is hidden in that state, which would trap the user in the friends view.
@@ -229,6 +233,7 @@ namespace PlayniteAchievements.Views
             using (Common.PerfScope.Start(logger, "OverviewControl.ApplyActiveSubView", thresholdMs: 30, context: ActiveSubView.ToString()))
             {
                 ApplyActiveSubView();
+                DetachHiddenSubViews();
             }
 
             using (Common.PerfScope.Start(logger, "OverviewControl.CreateMiniShowcase", thresholdMs: 30))
@@ -313,8 +318,33 @@ namespace PlayniteAchievements.Views
                 ActiveRefreshHeader = _viewModel;
             }
 
+            // A subview shown during a visit stays in the tree, collapsed while another one shows,
+            // so switching back to it only changes visibility. DetachHiddenSubViews takes the
+            // hidden ones out once the sidebar view is hidden.
+            if (ActiveSubView == OverviewSubView.Overview)
+            {
+                OverviewContentHost.Child = OverviewContent;
+            }
+            else if (ActiveSubView == OverviewSubView.Friends)
+            {
+                FriendsOverviewContentHost.Content = _friendsOverview;
+            }
+            else
+            {
+                ShowcaseContentHost.Content = _showcase;
+            }
+
+            OverviewContentHost.Visibility = VisibleWhenActive(OverviewSubView.Overview);
+            FriendsOverviewContentHost.Visibility = VisibleWhenActive(OverviewSubView.Friends);
+            ShowcaseContentHost.Visibility = VisibleWhenActive(OverviewSubView.Showcase);
+
             UpdateFriendsClearSelectionState();
+            UpdateFriendsActive();
         }
+
+        // The friends reads follow data changes only while it is the shown subview of an active overview.
+        private void UpdateFriendsActive() =>
+            _friendsOverview?.ViewModel?.SetActive(_isActive && ActiveSubView == OverviewSubView.Friends);
 
         /// <summary>
         /// Switches to the Showcase on the given page. Before the Showcase exists the page is
@@ -346,7 +376,6 @@ namespace PlayniteAchievements.Views
                 _persistSettingsForUi,
                 _playniteApi);
             ShowcaseHeaderHost.Content = _showcase.DetachHeaderBar();
-            ShowcaseContentHost.Content = _showcase;
         }
 
         private void EnsureFriendsOverviewCreated()
@@ -366,8 +395,7 @@ namespace PlayniteAchievements.Views
                 _launchContext,
                 _playniteApi,
                 _cacheManager,
-                _achievementOverridesService,
-                _friendsOverviewDataCoordinator)
+                _achievementOverridesService)
             {
                 IsEmbedded = true
             };
@@ -377,7 +405,8 @@ namespace PlayniteAchievements.Views
                 _friendsOverview.ViewModel.PropertyChanged += FriendsViewModel_PropertyChanged;
             }
 
-            FriendsOverviewContentHost.Content = _friendsOverview;
+            // What opening the friends view costs, once its first reads have landed.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("friends.opened", delaySeconds: 8);
         }
 
         private void FriendsViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -437,6 +466,7 @@ namespace PlayniteAchievements.Views
             if (_isActive) return;
             _isActive = true;
             _viewModel?.SetActive(true);
+            UpdateFriendsActive();
             FocusInitialFullscreenControllerTarget();
         }
 
@@ -504,16 +534,51 @@ namespace PlayniteAchievements.Views
             FocusActiveSubViewControllerTarget();
         }
 
+        private Visibility VisibleWhenActive(OverviewSubView subView) =>
+            ActiveSubView == subView ? Visibility.Visible : Visibility.Collapsed;
+
+        // Every subview in the tree is walked, restyled and re-read on each tree change, and
+        // Playnite makes one each time the sidebar view is left or shown. Out of the window, the
+        // hidden ones leave the tree until they are shown again, so the next visit carries only
+        // the shown one.
+        private void DetachHiddenSubViews()
+        {
+            if (ActiveSubView != OverviewSubView.Overview)
+            {
+                OverviewContentHost.Child = null;
+            }
+
+            if (ActiveSubView != OverviewSubView.Friends)
+            {
+                FriendsOverviewContentHost.Content = null;
+            }
+
+            if (ActiveSubView != OverviewSubView.Showcase)
+            {
+                ShowcaseContentHost.Content = null;
+            }
+        }
+
         public void Deactivate()
         {
             if (!_isActive) return;
             _isActive = false;
             _viewModel?.SetActive(false);
+            UpdateFriendsActive();
+            // Once the frame showing the other view is drawn, so it does not wait for this; a
+            // return before then keeps them for that visit.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_isActive && !_isDisposed)
+                {
+                    DetachHiddenSubViews();
+                }
+            }), DispatcherPriority.ContextIdle);
         }
 
         public void RefreshView()
         {
-            _ = _viewModel?.RefreshViewAsync();
+            _ = _viewModel?.RefreshAfterSettingsSavedAsync();
         }
 
         public void Dispose()
@@ -528,8 +593,8 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                // The host disposes this control before its Unloaded fires, and Dispose alone
-                // drops a pending save, so flush the last control bar toggle here.
+                // Dispose alone drops a pending save, and a host may dispose this control before
+                // its Unloaded fires, so flush the last control bar toggle here.
                 _controlBarPersist?.Flush();
                 _controlBarPersist?.Dispose();
                 _controlBarPersist = null;
@@ -575,6 +640,8 @@ namespace PlayniteAchievements.Views
             ApplyOverviewColumnRatio();
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+            // What opening the overview costs, once its first reads have landed.
+            PlayniteAchievementsPlugin.Instance?.ScheduleRetentionDiagnostics("overview.opened", delaySeconds: 8);
         }
 
         private void Plugin_SettingsSaved(object sender, EventArgs e)

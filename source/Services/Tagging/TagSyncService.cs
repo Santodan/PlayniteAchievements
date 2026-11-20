@@ -925,8 +925,7 @@ namespace PlayniteAchievements.Services.Tagging
                 store.Update(
                     game.Id,
                     record => RuleReconciler.ApplyState(record, field, decision),
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
             }
 
             if (!decision.Write)

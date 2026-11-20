@@ -1,7 +1,8 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Showcase;
-using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Tests.Services
 {
@@ -82,19 +83,23 @@ namespace PlayniteAchievements.Tests.Services
             Assert.AreEqual(0, GameCapstoneRarityResolver.Index(null).Count);
         }
 
-        private static AchievementDisplayItem Item(
+        // One unlock as the summary read groups it: a locked achievement is no unlock, and only a
+        // positive percent counts, among the base-game capstones too.
+        private static UnlockFact Item(
             double? percent,
             bool capstone = false,
             string categoryType = null,
             bool unlocked = true) =>
-            new AchievementDisplayItem
+            !unlocked ? null : new UnlockFact
             {
-                PlayniteGameId = Game,
-                GlobalPercentUnlocked = percent,
-                IsCapstone = capstone,
-                CategoryKind = PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType),
-                Tags = PlayniteAchievements.Services.Achievements.AchievementTagHelper.Normalize(categoryType),
-                Unlocked = unlocked
+                GameId = Game,
+                Tally = new AchievementTally(null, RarityTier.Common, null, capstone, 1, 1),
+                MinPercent = percent > 0 ? percent : null,
+                MinBasePercent = capstone && percent > 0 &&
+                    PlayniteAchievements.Services.Achievements.CategoryKindHelper.IsBase(
+                        PlayniteAchievements.Services.Achievements.LegacyCategoryTypes.SplitKind(categoryType))
+                    ? percent
+                    : null
             };
     }
 }
