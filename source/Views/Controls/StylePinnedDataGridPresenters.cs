@@ -58,6 +58,13 @@ namespace PlayniteAchievements.Views.Controls
             {
                 var grid = ItemsControl.ItemsControlFromItemContainer(TemplatedParent) as DataGrid;
                 DataGridStylePin.Apply(cell, cell.Column?.CellStyle ?? grid?.CellStyle);
+
+                // A template column's cell content is a presenter of the column's CellTemplate;
+                // its template children end their implicit style lookups there.
+                if (cell.Content is ContentPresenter generated && !(generated.Resources is Helpers.ImplicitStyleMirror))
+                {
+                    generated.Resources = new Helpers.ImplicitStyleMirror();
+                }
             }
         }
     }
