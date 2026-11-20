@@ -297,6 +297,9 @@
         <Border Background="{TemplateBinding Background}"
                 Padding="{TemplateBinding Padding}"
                 SnapsToDevicePixels="True">
+            <Border.Resources>
+                <helpers:ImplicitStyleMirror/>
+            </Border.Resources>
             <Grid VerticalAlignment="Center" Opacity="{StaticResource PlayAch.Opacity.Skeleton}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="5*"/>
@@ -368,6 +371,9 @@
                     <Border Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
@@ -403,6 +409,9 @@
                 <ControlTemplate TargetType="DataGridCell">
                     <Border Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="Stretch"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
@@ -427,6 +436,9 @@
                             Padding="{TemplateBinding Padding}"
                             ClipToBounds="{TemplateBinding ClipToBounds}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                     </Border>
@@ -613,6 +625,9 @@
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                       <Grid>
                         <!-- Separator behind the cells rather than as this Border's own border: a
                              border insets the content by its thickness, leaving a one-pixel break
