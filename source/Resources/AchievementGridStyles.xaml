@@ -1071,7 +1071,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Separator">
                     <Border Height="1"
-                            Background="{DynamicResource PlayAch.Brush.Separator}"
+                            Background="{DynamicResource PlayAch.Brush.Border}"
                             Opacity="0.75"/>
                 </ControlTemplate>
             </Setter.Value>
