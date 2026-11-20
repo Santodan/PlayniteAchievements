@@ -524,7 +524,7 @@
                     </Grid>
 
                     <Border x:Name="ScoreCardsDivider"
-                            Background="{DynamicResource PlayAch.Brush.Separator}"
+                            Background="{DynamicResource PlayAch.Brush.ControlBorder}"
                             Opacity="{StaticResource PlayAch.Opacity.Disabled}"
                             VerticalAlignment="Center"
                             Width="1"
