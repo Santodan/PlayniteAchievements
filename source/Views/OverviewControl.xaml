@@ -483,7 +483,9 @@
                         IsHitTestVisible="False"
                         SizeChanged="ScoreCardsSlot_SizeChanged"/>
 
-                <!-- Right: the two score card slots, Overview subview only. -->
+                <!-- Right: the two score card slots, Overview subview only. The right-side parts of
+                     the other subviews are Hidden rather than Collapsed, so the header keeps the
+                     height of the tallest one and every subview's content starts at the same line. -->
                 <StackPanel x:Name="ScoreCardsPanel"
                             Grid.Row="1"
                             Grid.Column="1"
@@ -494,8 +496,11 @@
                             Margin="18,0,0,0">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Visibility" Value="Hidden"/>
                             <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowOverviewScoreCards}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding ShowOverviewScoreCards}" Value="True"/>
@@ -548,7 +553,7 @@
                                 Focusable="False">
                     <ContentControl.Style>
                         <Style TargetType="ContentControl">
-                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Visibility" Value="Hidden"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ActiveSubView, ElementName=OverviewControlRoot}" Value="{x:Static rootModels:OverviewSubView.Showcase}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -568,7 +573,7 @@
                         VerticalAlignment="Center">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource ClearGameSelectionButtonStyle}">
-                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Visibility" Value="Hidden"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowFriendsClearSelection, ElementName=OverviewControlRoot}" Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
