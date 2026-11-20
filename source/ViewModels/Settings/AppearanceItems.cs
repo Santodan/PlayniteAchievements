@@ -314,10 +314,24 @@ namespace PlayniteAchievements.ViewModels.Settings
             }
         }
 
-        // The same resolution the plugin applies, so the shown default matches what is drawn.
         private static object FindPlayniteResourceValue(ResourceOverrideDescriptor descriptor)
         {
-            return PlayAchResourceService.ResolveThemeValue(descriptor.ResourceKey);
+            var value = Application.Current?.TryFindResource(descriptor.PlayniteResourceKey);
+            if (value != null)
+            {
+                return value;
+            }
+
+            foreach (var fallbackKey in descriptor.FallbackPlayniteResourceKeys)
+            {
+                value = Application.Current?.TryFindResource(fallbackKey);
+                if (value != null)
+                {
+                    return value;
+                }
+            }
+
+            return null;
         }
 
         private static string BrushToText(Brush brush)
