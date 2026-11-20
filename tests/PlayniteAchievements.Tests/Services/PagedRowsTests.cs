@@ -278,7 +278,7 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void RealizedRows_ALandedPageFillsOnePlaceholderPerIdleTurn_NearestTheAnchorFirst()
+        public void RealizedRows_ALandedPageFillsOnePlaceholderPerIdleTurn_TopDown()
         {
             var rows = Create(5000, update: true);
             _scheduler.Drain();
@@ -301,9 +301,14 @@ namespace PlayniteAchievements.Services.Tests
 
             _scheduler.RunIdle();
 
-            Assert.IsFalse(shown[9].IsPlaceholder, "the row the grid realized last fills first");
-            Assert.AreEqual(2509, shown[9].Index);
-            Assert.IsTrue(shown.Take(9).All(row => row.IsPlaceholder), "one row per idle turn");
+            Assert.IsFalse(shown[0].IsPlaceholder, "the top row of the realized run fills first");
+            Assert.AreEqual(2500, shown[0].Index);
+            Assert.IsTrue(shown.Skip(1).All(row => row.IsPlaceholder), "one row per idle turn");
+
+            _scheduler.RunIdle();
+
+            Assert.IsFalse(shown[1].IsPlaceholder, "then the row below it");
+            Assert.IsTrue(shown.Skip(2).All(row => row.IsPlaceholder));
 
             _scheduler.Drain();
 
