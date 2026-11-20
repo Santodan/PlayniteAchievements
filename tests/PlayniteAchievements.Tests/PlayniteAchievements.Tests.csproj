@@ -8,6 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\source\Providers\Local\Santodan\LocalSettings.NativeSources.cs" Link="Source\Providers\Local\LocalSettings.NativeSources.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceConfiguration.cs" Link="Source\Providers\Local\NativeSourceConfiguration.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceReader.cs" Link="Source\Providers\Local\NativeSourceReader.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeQuiverDiscovery.cs" Link="Source\Providers\Local\NativeQuiverDiscovery.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceIdentity.cs" Link="Source\Providers\Local\NativeSourceIdentity.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceIconSettings.cs" Link="Source\Providers\Local\NativeSourceIconSettings.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceIconService.cs" Link="Source\Providers\Local\NativeSourceIconService.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeSourceLocations.cs" Link="Source\Providers\Local\NativeSourceLocations.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeLocationDiscovery.cs" Link="Source\Providers\Local\NativeLocationDiscovery.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeLocationFiles.cs" Link="Source\Providers\Local\NativeLocationFiles.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeKytySettings.cs" Link="Source\Providers\Local\NativeKytySettings.cs" />
+    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeTrophyReader.cs" Link="Source\Providers\Local\NativeTrophyReader.cs" />
+    <EmbeddedResource Include="..\..\source\Providers\Local\Santodan\NativeSources\NativePortDefinitions.json" LogicalName="PlayniteAchievements.NativePortDefinitions.json" />
     <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
     <Compile Include="..\..\source\Services\Logging\CefDebugTrace.cs" Link="Source\Services\Logging\CefDebugTrace.cs" />
     <Compile Include="..\..\source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" Link="Source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" />

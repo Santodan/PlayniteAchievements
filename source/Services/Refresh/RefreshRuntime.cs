@@ -1677,6 +1677,9 @@ namespace PlayniteAchievements.Services.Refresh
                 customData.PreserveCachedUnlocksOnRefreshOverride.HasValue)
                 preserveCachedUnlocks = customData.PreserveCachedUnlocksOnRefreshOverride.Value;
 
+            if (PlayniteAchievements.Providers.Local.NativeSourceIdentity.IsNewSelection(data.ProviderKey, data.ProviderGameKey, previous?.ProviderGameKey))
+                preserveCachedUnlocks = false;
+
             if (AchievementWriteGuard.ShouldRejectWrite(previous, data, out var rejectionReason, preserveCachedUnlocks))
             {
                 var incomingTotal = data.Achievements?.Count ?? 0;

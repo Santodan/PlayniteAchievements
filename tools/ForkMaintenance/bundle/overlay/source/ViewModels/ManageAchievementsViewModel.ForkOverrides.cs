@@ -382,6 +382,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         : LocalFolderAutoPath);
             }
 
+            var nativeSettings = ProviderRegistry.Settings<LocalSettings>();
+            if (nativeSettings?.NativeSourceOverrides?.TryGetValue(_gameId, out var nativeOverride) == true)
+                Add("Native source", (NativeSourceCatalog.Find(nativeOverride.Source)?.Name ?? nativeOverride.Source) +
+                    (string.IsNullOrWhiteSpace(nativeOverride.SavePath) ? "" : " — " + nativeOverride.SavePath));
+
             if (HasLocalSteamAppIdOverride)
             {
                 Add(
@@ -450,6 +455,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RefreshLocalOverrides(Playnite.SDK.Models.Game game)
         {
+            LoadNativeOverride();
             if (LocalSavesProvider.TryGetAppIdOverride(_gameId, out var appId)) { HasLocalSteamAppIdOverride = true; LocalSteamAppIdOverrideValue = appId.ToString(); LocalSteamAppIdOverrideInput = LocalSteamAppIdOverrideValue; }
             else { HasLocalSteamAppIdOverride = false; LocalSteamAppIdOverrideValue = string.Empty; LocalSteamAppIdOverrideInput = string.Empty; }
             var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();

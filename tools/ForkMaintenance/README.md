@@ -1,5 +1,38 @@
 # Fork maintenance bundle
 
+## Native emulator and PC-port sources, locations and icons - 2026-11-20
+
+Preserve the fork's native Local readers for KytyPS5, PS3/PS4/Xbox 360
+recompilations, MarkerPatch, MadnessPatch and the supported Nintendo PC ports.
+The refresh includes per-source settings menus under Emulators and PC ports &
+community patches, shared native/Quiver folders, Kyty.ini and user selection,
+per-game Local Overrides and inspection, profile/trophy-set isolation, native
+definition/icon extraction, optional cached Xbox definitions, and original
+console/custom/borrowed menu icons. Retain managed-image Save/Cancel behavior,
+the scoped navigation/converter hooks, regression coverage, setup guide and all
+definition/icon attribution and license files. Supported formats and remaining
+limitations are documented in `NATIVE_SOURCES_GUIDE.md`; this is not full AW Next
+format parity. The feature checklist records the integration boundaries.
+
+Refreshed the complete working tree against the unchanged v4.3.0 baseline
+(`804cf50d641d7b68dd5c23dbbe6b104114deb8a0`). No upstream fetch or integration was
+performed. Clean preflight and actual replay passed in a unique temporary local
+clone at that exact commit: 262 overlays, three localization recipes, component
+hash checks and replay protected-file checks passed. All 426 compared captured
+implementation/overlay paths matched the working tree byte for byte, including
+binary console icons; all 39 localization dictionaries matched by keyed entry.
+Working README, add-on identity, extension and installer manifest hashes stayed
+unchanged. The real Git index and merge state were unchanged; nothing was staged,
+committed or pushed, and historical validation snapshots were not modified.
+
+Implementation checks earlier in this session: the required Release rebuild
+passed with zero errors and the two existing compiler warnings (four emissions),
+and 70 focused native-source/icon/polling checks passed after the custom-icon
+changes. This maintenance refresh validated export and replay; it did not rerun
+the production build or install the package. Real-game/Playnite checks remain
+pending for launcher layouts, settings, profiles, unlock notifications and icon
+appearance/persistence.
+
 ## v4.3.0 integration - 2026-11-17
 
 Integrated upstream v4.3.0 (`804cf50d641d7b68dd5c23dbbe6b104114deb8a0`)

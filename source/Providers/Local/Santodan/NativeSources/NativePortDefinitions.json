@@ -1,0 +1,2818 @@
+{
+    "dusklight":  {
+                      "repository":  "TwilitRealm/dusklight",
+                      "license":  "CC0-1.0",
+                      "achievements":  [
+                                           {
+                                               "name":  "hero_of_twilight",
+                                               "displayName":  "Hero of Twilight",
+                                               "description":  "Deliver the finishing blow to Ganondorf."
+                                           },
+                                           {
+                                               "name":  "three_heart_clear",
+                                               "displayName":  "Hero Mode",
+                                               "description":  "Defeat Ganondorf with only 3 heart containers."
+                                           },
+                                           {
+                                               "name":  "completionist",
+                                               "displayName":  "Completionist",
+                                               "description":  "Complete the game after collecting all equipment, heart containers, portals, bugs, poes, and hidden skills."
+                                           },
+                                           {
+                                               "name":  "princess_of_bugs",
+                                               "displayName":  "The Princess of Bugs",
+                                               "description":  "Deliver all 24 golden bugs to Agitha.",
+                                               "goal":  24
+                                           },
+                                           {
+                                               "name":  "all_poes",
+                                               "displayName":  "Poe Collector",
+                                               "description":  "Collect all 60 Poe Souls.",
+                                               "goal":  60
+                                           },
+                                           {
+                                               "name":  "hylian_loach",
+                                               "displayName":  "Legendary Catch",
+                                               "description":  "Obtain the Hylian Loach in your fishing journal."
+                                           },
+                                           {
+                                               "name":  "all_fish",
+                                               "displayName":  "Gone Fishin\u0027",
+                                               "description":  "Obtain all 6 species of fish in your fishing journal.",
+                                               "goal":  6
+                                           },
+                                           {
+                                               "name":  "a_big_heart",
+                                               "displayName":  "A Big Heart",
+                                               "description":  "Reach maximum health with all 20 heart containers.",
+                                               "goal":  20
+                                           },
+                                           {
+                                               "name":  "all_bottles",
+                                               "displayName":  "Glassware Guardian",
+                                               "description":  "Obtain all 4 bottles.",
+                                               "goal":  4
+                                           },
+                                           {
+                                               "name":  "all_hidden_skills",
+                                               "displayName":  "Master of Secrets",
+                                               "description":  "Learn all 7 Hidden Skills.",
+                                               "goal":  7
+                                           },
+                                           {
+                                               "name":  "all_letters",
+                                               "displayName":  "We Deliver!",
+                                               "description":  "Collect all 16 postman letters.",
+                                               "goal":  16
+                                           },
+                                           {
+                                               "name":  "cave_of_ordeals",
+                                               "displayName":  "Conqueror of Ordeals",
+                                               "description":  "Clear all 50 floors of the Cave of Ordeals."
+                                           },
+                                           {
+                                               "name":  "cave_of_ordeals_heartless",
+                                               "displayName":  "Indomitable",
+                                               "description":  "Clear all 50 floors of the Cave of Ordeals with only 3 heart containers."
+                                           },
+                                           {
+                                               "name":  "speedrun_12h",
+                                               "displayName":  "Been There Done That",
+                                               "description":  "Defeat Ganondorf with a total save file play time under 12 hours."
+                                           },
+                                           {
+                                               "name":  "speedrun_8h",
+                                               "displayName":  "Swift Blade",
+                                               "description":  "Defeat Ganondorf with a total save file play time under 6 hours."
+                                           },
+                                           {
+                                               "name":  "dark_hammer_one_hit",
+                                               "displayName":  "Mortal Edge",
+                                               "description":  "Defeat Darkhammer in a single hit."
+                                           },
+                                           {
+                                               "name":  "no_deaths_clear",
+                                               "displayName":  "Deathless",
+                                               "description":  "Defeat Ganondorf with 0 deaths on your save file."
+                                           },
+                                           {
+                                               "name":  "untouchable",
+                                               "displayName":  "Untouchable",
+                                               "description":  "Kill 25 enemies in a row without taking damage.",
+                                               "goal":  25
+                                           },
+                                           {
+                                               "name":  "bow_100m_hit",
+                                               "displayName":  "Long Shot",
+                                               "description":  "Hit an enemy from over 100 meters away with the bow."
+                                           },
+                                           {
+                                               "name":  "rollstab_triple",
+                                               "displayName":  "Surgical Skewer",
+                                               "description":  "Kill 3 enemies with a single rollstab."
+                                           },
+                                           {
+                                               "name":  "plumm_max",
+                                               "displayName":  "Thank You Berry Much",
+                                               "description":  "Score 61,454 points in the Plumm minigame."
+                                           },
+                                           {
+                                               "name":  "rollgoal_8",
+                                               "displayName":  "Rollgoal Novice",
+                                               "description":  "Complete the first 8 rollgoal stages.",
+                                               "goal":  8
+                                           },
+                                           {
+                                               "name":  "rollgoal_all",
+                                               "displayName":  "Lost Your Marbles",
+                                               "description":  "Complete all rollgoal stages.",
+                                               "goal":  64
+                                           },
+                                           {
+                                               "name":  "goat_30s",
+                                               "displayName":  "Ranch Hand",
+                                               "description":  "Herd all 20 goats into the pen in under 30 seconds."
+                                           },
+                                           {
+                                               "name":  "goat_20s",
+                                               "displayName":  "Bane of Howard",
+                                               "description":  "Herd all 20 goats into the pen in under 20 seconds."
+                                           },
+                                           {
+                                               "name":  "goat_18s",
+                                               "displayName":  "King of the Ranch",
+                                               "description":  "Herd all 20 goats into the pen in under 18 seconds."
+                                           },
+                                           {
+                                               "name":  "snowboard_70s",
+                                               "displayName":  "Downhill Dash",
+                                               "description":  "Finish the snowboarding minigame in under 70 seconds."
+                                           },
+                                           {
+                                               "name":  "canoe_perfect",
+                                               "displayName":  "River Raider",
+                                               "description":  "Achieve a perfect score in the canoe minigame."
+                                           },
+                                           {
+                                               "name":  "star_2_under_40s",
+                                               "displayName":  "Rising Star",
+                                               "description":  "Complete the STAR Prize 2 minigame in under 40 seconds."
+                                           },
+                                           {
+                                               "name":  "star_2_under_30s",
+                                               "displayName":  "Shooting Star",
+                                               "description":  "Complete the STAR Prize 2 minigame in under 30 seconds."
+                                           },
+                                           {
+                                               "name":  "friendly_fire",
+                                               "displayName":  "Friendly Fire",
+                                               "description":  "Get hit by your own cannonball."
+                                           },
+                                           {
+                                               "name":  "long_jump_attack",
+                                               "displayName":  "Long Jump Attack",
+                                               "description":  "Travel more than 15 meters in a single jump attack before landing."
+                                           },
+                                           {
+                                               "name":  "email_me",
+                                               "displayName":  "Email Me",
+                                               "description":  "Read a letter during the Dark Beast Ganon fight."
+                                           },
+                                           {
+                                               "name":  "heavy_hitter",
+                                               "displayName":  "Heavy Hitter",
+                                               "description":  "Wear the Iron Boots during the end credits."
+                                           },
+                                           {
+                                               "name":  "fishing_rod_ganondorf",
+                                               "displayName":  "Here Fishy Fishy",
+                                               "description":  "Confuse Ganondorf with the fishing rod."
+                                           },
+                                           {
+                                               "name":  "steal_from_trill",
+                                               "displayName":  "Petty Theft",
+                                               "description":  "Steal from Trill."
+                                           },
+                                           {
+                                               "name":  "cucco_control",
+                                               "displayName":  "Cucco Whisperer",
+                                               "description":  "Take control of a cucco."
+                                           },
+                                           {
+                                               "name":  "ganondorf_3hit",
+                                               "displayName":  "Autospin Annihilation",
+                                               "description":  "Finish off Ganondorf in the final duel after only 3 attacks."
+                                           },
+                                           {
+                                               "name":  "back_in_time",
+                                               "displayName":  "Back in Time",
+                                               "description":  "Perform the Back in Time glitch to play on the title screen."
+                                           },
+                                           {
+                                               "name":  "early_master_sword",
+                                               "displayName":  "Early Master Sword",
+                                               "description":  "Obtain the Master Sword before completing Midna\u0027s Desperate Hour."
+                                           },
+                                           {
+                                               "name":  "earliest_master_sword",
+                                               "displayName":  "Earliest Master Sword",
+                                               "description":  "Obtain the Master Sword before meeting Midna."
+                                           },
+                                           {
+                                               "name":  "speedrun_4h",
+                                               "displayName":  "Hero of Time",
+                                               "description":  "Defeat Ganondorf with a total save file play time under 4 hours."
+                                           },
+                                           {
+                                               "name":  "no_fish_suit",
+                                               "displayName":  "No Fish Suit No Problem",
+                                               "description":  "Defeat Morpheel without equipping Zora Armor."
+                                           },
+                                           {
+                                               "name":  "null_item",
+                                               "displayName":  "Null Item",
+                                               "description":  "Obtain the mysterious black rupee in the item wheel."
+                                           },
+                                           {
+                                               "name":  "stallord_skip",
+                                               "displayName":  "Stallord Skip",
+                                               "description":  "Leave Stallord\u0027s arena through the exit without defeating Stallord."
+                                           },
+                                           {
+                                               "name":  "lakebed_before_lanayru",
+                                               "displayName":  "White Midna Glitch",
+                                               "description":  "Clear the Lakebed Temple before clearing Lanayru\u0027s Twilight."
+                                           },
+                                           {
+                                               "name":  "early_hidden_village",
+                                               "displayName":  "Quick Detour",
+                                               "description":  "Rescue the Hidden Village before clearing Goron Mines."
+                                           },
+                                           {
+                                               "name":  "forest_temple_no_boomerang",
+                                               "displayName":  "Must Have Been The Wind",
+                                               "description":  "Complete the Forest Temple without obtaining the Gale Boomerang."
+                                           },
+                                           {
+                                               "name":  "early_city",
+                                               "displayName":  "Early City",
+                                               "description":  "Obtain the Double Clawshots without obtaining the Dominion Rod."
+                                           },
+                                           {
+                                               "name":  "early_kakariko",
+                                               "displayName":  "Gorge Skip",
+                                               "description":  "Collect the Kakariko warp portal without warping the gorge bridge."
+                                           }
+                                       ]
+                  },
+    "ghostship":  {
+                      "repository":  "HarbourMasters/Ghostship",
+                      "license":  "MIT",
+                      "achievements":  [
+                                           {
+                                               "icon":  "stars.1",
+                                               "name":  "Get1Star",
+                                               "displayName":  "Your Journey Begins",
+                                               "description":  "Get a Star"
+                                           },
+                                           {
+                                               "icon":  "extras.talker",
+                                               "name":  "Talk25Times",
+                                               "displayName":  "Olympic Talker",
+                                               "description":  "Talk to NPCs 25 Times",
+                                               "goal":  25
+                                           },
+                                           {
+                                               "icon":  "extras.jumper",
+                                               "name":  "Jump1000Times",
+                                               "displayName":  "Olympic Jumper",
+                                               "description":  "Jump 1000 Times",
+                                               "goal":  1000
+                                           },
+                                           {
+                                               "icon":  "extras.carpet-burn",
+                                               "name":  "Slide20Times",
+                                               "displayName":  "Burned Ass",
+                                               "description":  "Go Down The Slide 20 Times",
+                                               "goal":  20
+                                           },
+                                           {
+                                               "icon":  "deaths.standard",
+                                               "name":  "DeathByEnemy",
+                                               "displayName":  "Watch Your Step",
+                                               "description":  "Die by an Enemy"
+                                           },
+                                           {
+                                               "icon":  "deaths.falling",
+                                               "name":  "DeathByFalling",
+                                               "displayName":  "Gravity Is A Myth",
+                                               "description":  "Die by Falling"
+                                           },
+                                           {
+                                               "icon":  "deaths.crushed",
+                                               "name":  "DeathByCrushing",
+                                               "displayName":  "Space Jam",
+                                               "description":  "Die by Being Crushed"
+                                           },
+                                           {
+                                               "icon":  "deaths.drowning",
+                                               "name":  "DeathByDrowning",
+                                               "displayName":  "Under The Sea",
+                                               "description":  "Die by Drowning"
+                                           },
+                                           {
+                                               "icon":  "deaths.fire",
+                                               "name":  "DeathByFire",
+                                               "displayName":  "Roasted Mario",
+                                               "description":  "Die by Fire or Lava"
+                                           },
+                                           {
+                                               "icon":  "deaths.quicksand",
+                                               "name":  "DeathByQuickSand",
+                                               "displayName":  "Sink Or Swim",
+                                               "description":  "Die in Quick Sand"
+                                           },
+                                           {
+                                               "icon":  "deaths.boss",
+                                               "name":  "DeathByBoss",
+                                               "displayName":  "Git Gud",
+                                               "description":  "Get Defeated by a Boss"
+                                           },
+                                           {
+                                               "icon":  "deaths.bowser",
+                                               "name":  "DeathByBowser",
+                                               "displayName":  "Bad Ending",
+                                               "description":  "Get Defeated by Bowser"
+                                           },
+                                           {
+                                               "icon":  "bosses.big-bob",
+                                               "name":  "DefeatKingBobomb",
+                                               "displayName":  "Explosive Test",
+                                               "description":  "Defeat King Bob-omb"
+                                           },
+                                           {
+                                               "icon":  "extras.chain-chomp",
+                                               "name":  "ReleaseChainChomp",
+                                               "displayName":  "Chomp-Chomp!",
+                                               "description":  "Release the Chain Chomp"
+                                           },
+                                           {
+                                               "icon":  "bosses.king-whomp",
+                                               "name":  "DefeatKingWhomp",
+                                               "displayName":  "Come On And Slam",
+                                               "description":  "Defeat King Whomp"
+                                           },
+                                           {
+                                               "icon":  "ranks.f",
+                                               "name":  "Get6MainStars",
+                                               "displayName":  "F Rank",
+                                               "description":  "Get all 6 Main Stars in One Level"
+                                           },
+                                           {
+                                               "icon":  "ranks.e",
+                                               "name":  "Get100CoinStar",
+                                               "displayName":  "E Rank",
+                                               "description":  "Get a 100-Coin Star"
+                                           },
+                                           {
+                                               "icon":  "stars.8",
+                                               "name":  "Get8Stars",
+                                               "displayName":  "You feel a strong power",
+                                               "description":  "Get 8 Stars",
+                                               "goal":  8
+                                           },
+                                           {
+                                               "icon":  "bosses.bowser-1",
+                                               "name":  "DefeatBowser1",
+                                               "displayName":  "Bowser Trapped In The Dark",
+                                               "description":  "Defeat Bowser in the Dark World"
+                                           },
+                                           {
+                                               "icon":  "cap.wing",
+                                               "name":  "UnlockWingCap",
+                                               "displayName":  "Super Man-rio",
+                                               "description":  "Unlock the Wing Cap"
+                                           },
+                                           {
+                                               "icon":  "bosses.big-boo",
+                                               "name":  "DefeatAllBooses",
+                                               "displayName":  "Boo Who?",
+                                               "description":  "Defeat All Boos in the Haunted House"
+                                           },
+                                           {
+                                               "icon":  "bosses.mr-i",
+                                               "name":  "DefeatMrI",
+                                               "displayName":  "I vs Eye",
+                                               "description":  "Defeat Mr. I"
+                                           },
+                                           {
+                                               "icon":  "cap.metal",
+                                               "name":  "UnlockMetalCap",
+                                               "displayName":  "Heavy-Headed",
+                                               "description":  "Unlock the Metal Cap"
+                                           },
+                                           {
+                                               "icon":  "cap.vanish",
+                                               "name":  "UnlockVanishCap",
+                                               "displayName":  "Wait, Where Is He?",
+                                               "description":  "Unlock the Vanish Cap"
+                                           },
+                                           {
+                                               "icon":  "bosses.big-bully",
+                                               "name":  "DefeatAllBigBullies",
+                                               "displayName":  "The Real Bully",
+                                               "description":  "Defeat All Big Bullies From LLL"
+                                           },
+                                           {
+                                               "icon":  "bosses.eyerok",
+                                               "name":  "DefeatEyerok",
+                                               "displayName":  "Welcome To The Jam",
+                                               "description":  "Defeat Eyerok"
+                                           },
+                                           {
+                                               "icon":  "stars.30",
+                                               "name":  "Get30Stars",
+                                               "displayName":  "Earning a Quarter",
+                                               "description":  "Get 30 Stars",
+                                               "goal":  30
+                                           },
+                                           {
+                                               "icon":  "stars.31",
+                                               "name":  "Get31Stars",
+                                               "displayName":  "Extra Cent",
+                                               "description":  "Get 31 Stars",
+                                               "goal":  31
+                                           },
+                                           {
+                                               "icon":  "bosses.bowser-2",
+                                               "name":  "DefeatBowser2",
+                                               "displayName":  "Bowser Burned By The Lava",
+                                               "description":  "Defeat Bowser in the Fire Sea"
+                                           },
+                                           {
+                                               "icon":  "stars.50",
+                                               "name":  "Get50Stars",
+                                               "displayName":  "Lucky Eight",
+                                               "description":  "Get 50 Stars",
+                                               "goal":  50
+                                           },
+                                           {
+                                               "icon":  "bosses.wiggler",
+                                               "name":  "DefeatWiggler",
+                                               "displayName":  "Insecticide",
+                                               "description":  "Defeat Wiggler"
+                                           },
+                                           {
+                                               "icon":  "stars.70",
+                                               "name":  "Get70Stars",
+                                               "displayName":  "Halfway There",
+                                               "description":  "Get 70 Stars",
+                                               "goal":  70
+                                           },
+                                           {
+                                               "icon":  "bosses.bowser-3",
+                                               "name":  "DefeatBowser3",
+                                               "displayName":  "Final Showdown",
+                                               "description":  "Defeat Bowser in the Sky"
+                                           },
+                                           {
+                                               "icon":  "extras.cake",
+                                               "name":  "WatchEnding",
+                                               "displayName":  "The Cake Is A Lie?!",
+                                               "description":  "Watch the game ending"
+                                           },
+                                           {
+                                               "icon":  "extras.runner",
+                                               "name":  "BeatEveryRace",
+                                               "displayName":  "Olympic Runner",
+                                               "description":  "Beat Every Racing Challenge"
+                                           },
+                                           {
+                                               "icon":  "extras.swimmer",
+                                               "name":  "GrabSwimmingStars",
+                                               "displayName":  "Olympic Swimmer",
+                                               "description":  "Grab every star that needs Metal Cap underwater without it"
+                                           },
+                                           {
+                                               "icon":  "ranks.d",
+                                               "name":  "GetAllCoinsOneLevel",
+                                               "displayName":  "D Rank",
+                                               "description":  "Get all Coins in One Level"
+                                           },
+                                           {
+                                               "icon":  "ranks.c",
+                                               "name":  "GetAllStarsInBasement",
+                                               "displayName":  "C Rank",
+                                               "description":  "Get all Main Stars in the Basement"
+                                           },
+                                           {
+                                               "icon":  "ranks.b",
+                                               "name":  "GetAllStarsInFloor1",
+                                               "displayName":  "B Rank",
+                                               "description":  "Get all Main Stars on Floor 1"
+                                           },
+                                           {
+                                               "icon":  "ranks.a",
+                                               "name":  "GetAllStarsInFloor2",
+                                               "displayName":  "A Rank",
+                                               "description":  "Get all Main Stars on Floor 2"
+                                           },
+                                           {
+                                               "icon":  "ranks.s",
+                                               "name":  "GetAllCourseStars",
+                                               "displayName":  "S Rank",
+                                               "description":  "Get all Castle Course Stars"
+                                           },
+                                           {
+                                               "icon":  "ranks.splus",
+                                               "name":  "GetAllCastleStars",
+                                               "displayName":  "S+ Rank",
+                                               "description":  "Get all Secret Castle Stars"
+                                           },
+                                           {
+                                               "icon":  "stars.120",
+                                               "name":  "Get120Stars",
+                                               "displayName":  "The Completionist",
+                                               "description":  "Get 120 Stars",
+                                               "goal":  120
+                                           },
+                                           {
+                                               "icon":  "extras.yoshi",
+                                               "name":  "TalkWithYoshi",
+                                               "displayName":  "Is That You?",
+                                               "description":  "Talk with Yoshi on the Roof"
+                                           },
+                                           {
+                                               "icon":  "bosses.bowser-3-with-120-stars",
+                                               "name":  "DefeatBowser3WithAllStars",
+                                               "displayName":  "True Ending",
+                                               "description":  "Defeat Bowser in the Sky with 120 Stars"
+                                           }
+                                       ]
+                  },
+    "dkrr":  {
+                 "repository":  "ThatGuyMcd/DKR-R",
+                 "license":  "MIT",
+                 "achievements":  [
+                                      {
+                                          "name":  "first-balloon",
+                                          "index":  0,
+                                          "displayName":  "First Balloon",
+                                          "description":  "Earn your first adventure balloon."
+                                      },
+                                      {
+                                          "name":  "banana-ten",
+                                          "index":  1,
+                                          "displayName":  "Banana Bunch",
+                                          "description":  "Hold 10 bananas at once during a race.",
+                                          "goal":  10
+                                      },
+                                      {
+                                          "name":  "tt-amulet",
+                                          "index":  2,
+                                          "displayName":  "Four Challenges",
+                                          "description":  "Complete all four adventure battle challenges.",
+                                          "goal":  4
+                                      },
+                                      {
+                                          "name":  "wizpig-amulet",
+                                          "index":  3,
+                                          "displayName":  "Ready for Wizpig",
+                                          "description":  "Collect all four Wizpig amulet pieces.",
+                                          "goal":  4
+                                      },
+                                      {
+                                          "name":  "key-0",
+                                          "index":  4,
+                                          "displayName":  "Ancient Lake Key",
+                                          "description":  "Find the hidden key in Ancient Lake."
+                                      },
+                                      {
+                                          "name":  "key-1",
+                                          "index":  5,
+                                          "displayName":  "Crescent Island Key",
+                                          "description":  "Find the hidden key in Crescent Island."
+                                      },
+                                      {
+                                          "name":  "key-2",
+                                          "index":  6,
+                                          "displayName":  "Snowball Valley Key",
+                                          "description":  "Find the hidden key in Snowball Valley."
+                                      },
+                                      {
+                                          "name":  "key-3",
+                                          "index":  7,
+                                          "displayName":  "Boulder Canyon Key",
+                                          "description":  "Find the hidden key in Boulder Canyon."
+                                      },
+                                      {
+                                          "name":  "balloons-39",
+                                          "index":  8,
+                                          "displayName":  "Beyond the Island",
+                                          "description":  "Collect 39 balloons in one adventure.",
+                                          "goal":  39
+                                      },
+                                      {
+                                          "name":  "balloons-47",
+                                          "index":  9,
+                                          "displayName":  "Across the Galaxy",
+                                          "description":  "Collect all 47 balloons in one adventure.",
+                                          "goal":  47
+                                      },
+                                      {
+                                          "name":  "trophy-0",
+                                          "index":  10,
+                                          "displayName":  "Dino Domain Champion",
+                                          "description":  "Win the original Dino Domain trophy competition."
+                                      },
+                                      {
+                                          "name":  "trophy-1",
+                                          "index":  11,
+                                          "displayName":  "Sherbet Island Champion",
+                                          "description":  "Win the original Sherbet Island trophy competition."
+                                      },
+                                      {
+                                          "name":  "trophy-2",
+                                          "index":  12,
+                                          "displayName":  "Snowflake Mountain Champion",
+                                          "description":  "Win the original Snowflake Mountain trophy competition."
+                                      },
+                                      {
+                                          "name":  "trophy-3",
+                                          "index":  13,
+                                          "displayName":  "Dragon Forest Champion",
+                                          "description":  "Win the original Dragon Forest trophy competition."
+                                      },
+                                      {
+                                          "name":  "trophy-4",
+                                          "index":  14,
+                                          "displayName":  "Future Fun Land Champion",
+                                          "description":  "Win the original Future Fun Land trophy competition."
+                                      },
+                                      {
+                                          "name":  "wizpig-one",
+                                          "index":  15,
+                                          "displayName":  "Wizpig Defeated",
+                                          "description":  "Win the first Wizpig race."
+                                      },
+                                      {
+                                          "name":  "wizpig-two",
+                                          "index":  16,
+                                          "displayName":  "One More for the Road",
+                                          "description":  "Win the second Wizpig race."
+                                      },
+                                      {
+                                          "name":  "mirrored-wizpig",
+                                          "index":  17,
+                                          "displayName":  "Wizpig Strikes Twice",
+                                          "description":  "Win the second Wizpig race in Adventure Two."
+                                      },
+                                      {
+                                          "name":  "mirrored-47",
+                                          "index":  18,
+                                          "displayName":  "Mirror Master",
+                                          "description":  "Collect all 47 balloons in Adventure Two.",
+                                          "goal":  47
+                                      },
+                                      {
+                                          "name":  "tt-5",
+                                          "index":  19,
+                                          "displayName":  "Ancient Lake: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Ancient Lake using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-5",
+                                          "index":  20,
+                                          "displayName":  "Ancient Lake: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Ancient Lake using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-5",
+                                          "index":  21,
+                                          "displayName":  "Ancient Lake: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Ancient Lake."
+                                      },
+                                      {
+                                          "name":  "tt-3",
+                                          "index":  22,
+                                          "displayName":  "Fossil Canyon: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Fossil Canyon using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-3",
+                                          "index":  23,
+                                          "displayName":  "Fossil Canyon: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Fossil Canyon using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-3",
+                                          "index":  24,
+                                          "displayName":  "Fossil Canyon: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Fossil Canyon."
+                                      },
+                                      {
+                                          "name":  "tt-29",
+                                          "index":  25,
+                                          "displayName":  "Jungle Falls: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Jungle Falls using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-29",
+                                          "index":  26,
+                                          "displayName":  "Jungle Falls: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Jungle Falls using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-29",
+                                          "index":  27,
+                                          "displayName":  "Jungle Falls: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Jungle Falls."
+                                      },
+                                      {
+                                          "name":  "tt-7",
+                                          "index":  28,
+                                          "displayName":  "Hot Top Volcano: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Hot Top Volcano using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-7",
+                                          "index":  29,
+                                          "displayName":  "Hot Top Volcano: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Hot Top Volcano using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-7",
+                                          "index":  30,
+                                          "displayName":  "Hot Top Volcano: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Hot Top Volcano."
+                                      },
+                                      {
+                                          "name":  "tt-13",
+                                          "index":  31,
+                                          "displayName":  "Everfrost Peak: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Everfrost Peak using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-13",
+                                          "index":  32,
+                                          "displayName":  "Everfrost Peak: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Everfrost Peak using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-13",
+                                          "index":  33,
+                                          "displayName":  "Everfrost Peak: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Everfrost Peak."
+                                      },
+                                      {
+                                          "name":  "tt-6",
+                                          "index":  34,
+                                          "displayName":  "Walrus Cove: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Walrus Cove using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-6",
+                                          "index":  35,
+                                          "displayName":  "Walrus Cove: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Walrus Cove using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-6",
+                                          "index":  36,
+                                          "displayName":  "Walrus Cove: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Walrus Cove."
+                                      },
+                                      {
+                                          "name":  "tt-9",
+                                          "index":  37,
+                                          "displayName":  "Snowball Valley: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Snowball Valley using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-9",
+                                          "index":  38,
+                                          "displayName":  "Snowball Valley: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Snowball Valley using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-9",
+                                          "index":  39,
+                                          "displayName":  "Snowball Valley: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Snowball Valley."
+                                      },
+                                      {
+                                          "name":  "tt-28",
+                                          "index":  40,
+                                          "displayName":  "Frosty Village: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Frosty Village using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-28",
+                                          "index":  41,
+                                          "displayName":  "Frosty Village: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Frosty Village using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-28",
+                                          "index":  42,
+                                          "displayName":  "Frosty Village: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Frosty Village."
+                                      },
+                                      {
+                                          "name":  "tt-8",
+                                          "index":  43,
+                                          "displayName":  "Whale Bay: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Whale Bay using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-8",
+                                          "index":  44,
+                                          "displayName":  "Whale Bay: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Whale Bay using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-8",
+                                          "index":  45,
+                                          "displayName":  "Whale Bay: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Whale Bay."
+                                      },
+                                      {
+                                          "name":  "tt-10",
+                                          "index":  46,
+                                          "displayName":  "Crescent Island: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Crescent Island using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-10",
+                                          "index":  47,
+                                          "displayName":  "Crescent Island: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Crescent Island using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-10",
+                                          "index":  48,
+                                          "displayName":  "Crescent Island: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Crescent Island."
+                                      },
+                                      {
+                                          "name":  "tt-4",
+                                          "index":  49,
+                                          "displayName":  "Pirate Lagoon: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Pirate Lagoon using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-4",
+                                          "index":  50,
+                                          "displayName":  "Pirate Lagoon: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Pirate Lagoon using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-4",
+                                          "index":  51,
+                                          "displayName":  "Pirate Lagoon: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Pirate Lagoon."
+                                      },
+                                      {
+                                          "name":  "tt-30",
+                                          "index":  52,
+                                          "displayName":  "Treasure Caves: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Treasure Caves using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-30",
+                                          "index":  53,
+                                          "displayName":  "Treasure Caves: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Treasure Caves using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-30",
+                                          "index":  54,
+                                          "displayName":  "Treasure Caves: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Treasure Caves."
+                                      },
+                                      {
+                                          "name":  "tt-20",
+                                          "index":  55,
+                                          "displayName":  "Windmill Plains: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Windmill Plains using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-20",
+                                          "index":  56,
+                                          "displayName":  "Windmill Plains: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Windmill Plains using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-20",
+                                          "index":  57,
+                                          "displayName":  "Windmill Plains: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Windmill Plains."
+                                      },
+                                      {
+                                          "name":  "tt-18",
+                                          "index":  58,
+                                          "displayName":  "Greenwood Village: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Greenwood Village using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-18",
+                                          "index":  59,
+                                          "displayName":  "Greenwood Village: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Greenwood Village using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-18",
+                                          "index":  60,
+                                          "displayName":  "Greenwood Village: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Greenwood Village."
+                                      },
+                                      {
+                                          "name":  "tt-19",
+                                          "index":  61,
+                                          "displayName":  "Boulder Canyon: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Boulder Canyon using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-19",
+                                          "index":  62,
+                                          "displayName":  "Boulder Canyon: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Boulder Canyon using the hovercraft in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-19",
+                                          "index":  63,
+                                          "displayName":  "Boulder Canyon: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Boulder Canyon."
+                                      },
+                                      {
+                                          "name":  "tt-31",
+                                          "index":  64,
+                                          "displayName":  "Haunted Woods: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Haunted Woods using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-31",
+                                          "index":  65,
+                                          "displayName":  "Haunted Woods: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Haunted Woods using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-31",
+                                          "index":  66,
+                                          "displayName":  "Haunted Woods: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Haunted Woods."
+                                      },
+                                      {
+                                          "name":  "tt-17",
+                                          "index":  67,
+                                          "displayName":  "Spacedust Alley: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Spacedust Alley using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-17",
+                                          "index":  68,
+                                          "displayName":  "Spacedust Alley: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Spacedust Alley using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-17",
+                                          "index":  69,
+                                          "displayName":  "Spacedust Alley: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Spacedust Alley."
+                                      },
+                                      {
+                                          "name":  "tt-32",
+                                          "index":  70,
+                                          "displayName":  "Darkmoon Caverns: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Darkmoon Caverns using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-32",
+                                          "index":  71,
+                                          "displayName":  "Darkmoon Caverns: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Darkmoon Caverns using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-32",
+                                          "index":  72,
+                                          "displayName":  "Darkmoon Caverns: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Darkmoon Caverns."
+                                      },
+                                      {
+                                          "name":  "tt-15",
+                                          "index":  73,
+                                          "displayName":  "Spaceport Alpha: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Spaceport Alpha using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-15",
+                                          "index":  74,
+                                          "displayName":  "Spaceport Alpha: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Spaceport Alpha using the plane in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-15",
+                                          "index":  75,
+                                          "displayName":  "Spaceport Alpha: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Spaceport Alpha."
+                                      },
+                                      {
+                                          "name":  "tt-33",
+                                          "index":  76,
+                                          "displayName":  "Star City: T.T. Challenge",
+                                          "description":  "Beat T.T.\u0027s full-race time on Star City using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "rare-33",
+                                          "index":  77,
+                                          "displayName":  "Star City: Developer Challenge",
+                                          "description":  "Beat the developer\u0027s full-race time on Star City using the car in Time Trial mode."
+                                      },
+                                      {
+                                          "name":  "silver-33",
+                                          "index":  78,
+                                          "displayName":  "Star City: Mirror Coins",
+                                          "description":  "Collect all eight silver coins and finish first in the same Adventure Two race on Star City."
+                                      },
+                                      {
+                                          "name":  "power-0",
+                                          "index":  79,
+                                          "displayName":  "Boost Expert",
+                                          "description":  "Obtain the highest-level Boost power-up."
+                                      },
+                                      {
+                                          "name":  "power-1",
+                                          "index":  80,
+                                          "displayName":  "Rocket Expert",
+                                          "description":  "Obtain the highest-level Rocket power-up."
+                                      },
+                                      {
+                                          "name":  "power-2",
+                                          "index":  81,
+                                          "displayName":  "Trap Expert",
+                                          "description":  "Obtain the highest-level Trap power-up."
+                                      },
+                                      {
+                                          "name":  "power-3",
+                                          "index":  82,
+                                          "displayName":  "Shield Expert",
+                                          "description":  "Obtain the highest-level Shield power-up."
+                                      },
+                                      {
+                                          "name":  "power-4",
+                                          "index":  83,
+                                          "displayName":  "Magnet Expert",
+                                          "description":  "Obtain the highest-level Magnet power-up."
+                                      },
+                                      {
+                                          "name":  "driver-0",
+                                          "index":  84,
+                                          "displayName":  "Krunch: Five More",
+                                          "description":  "Earn five new balloons as Krunch without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-1",
+                                          "index":  85,
+                                          "displayName":  "Bumper: Five More",
+                                          "description":  "Earn five new balloons as Bumper without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-2",
+                                          "index":  86,
+                                          "displayName":  "Tiptup: Five More",
+                                          "description":  "Earn five new balloons as Tiptup without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-3",
+                                          "index":  87,
+                                          "displayName":  "Conker: Five More",
+                                          "description":  "Earn five new balloons as Conker without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-4",
+                                          "index":  88,
+                                          "displayName":  "Timber: Five More",
+                                          "description":  "Earn five new balloons as Timber without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-5",
+                                          "index":  89,
+                                          "displayName":  "Banjo: Five More",
+                                          "description":  "Earn five new balloons as Banjo without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-6",
+                                          "index":  90,
+                                          "displayName":  "Drumstick: Five More",
+                                          "description":  "Earn five new balloons as Drumstick without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-7",
+                                          "index":  91,
+                                          "displayName":  "Pipsy: Five More",
+                                          "description":  "Earn five new balloons as Pipsy without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-8",
+                                          "index":  92,
+                                          "displayName":  "T.T.: Five More",
+                                          "description":  "Earn five new balloons as T.T. without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      },
+                                      {
+                                          "name":  "driver-9",
+                                          "index":  93,
+                                          "displayName":  "Diddy Kong: Five More",
+                                          "description":  "Earn five new balloons as Diddy Kong without leaving Adventure mode, in one session.",
+                                          "goal":  5
+                                      }
+                                  ]
+             },
+    "smb1r":  {
+                  "repository":  "JHDev2006/Super-Mario-Bros.-Remastered-Public",
+                  "license":  "GPL-3.0",
+                  "achievements":  [
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        0
+                                                    ],
+                                           "name":  "SMB1_CLEAR",
+                                           "index":  0,
+                                           "displayName":  "Your princess is in this castle!",
+                                           "description":  "Finish Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        0
+                                                    ],
+                                           "name":  "SMBLL_CLEAR",
+                                           "index":  1,
+                                           "displayName":  "Peace is paved!",
+                                           "description":  "Finish Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        0
+                                                    ],
+                                           "name":  "SMBS_CLEAR",
+                                           "index":  2,
+                                           "displayName":  "A special questâ€¦",
+                                           "description":  "Finish Super Mario Bros. Special"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        3,
+                                                        0
+                                                    ],
+                                           "name":  "SMBANN_CLEAR",
+                                           "index":  3,
+                                           "displayName":  "Viva Kingdom saved!",
+                                           "description":  "Finish All Night Nippon: Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        1
+                                                    ],
+                                           "name":  "SMB1_CHALLENGE",
+                                           "index":  4,
+                                           "displayName":  "Scavenger Hunt!",
+                                           "description":  "Fully complete Challenge Hunt for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        1
+                                                    ],
+                                           "name":  "SMBLL_CHALLENGE",
+                                           "index":  5,
+                                           "displayName":  "Lost and Found!",
+                                           "description":  "Fully complete Challenge Hunt for Super Mario Bros. The Lost Levels"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        1
+                                                    ],
+                                           "name":  "SMBS_CHALLENGE",
+                                           "index":  6,
+                                           "displayName":  "A special hiding spotâ€¦",
+                                           "description":  "Fully complete Challenge Hunt for Super Mario Bros. Special."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        2
+                                                    ],
+                                           "name":  "SMB1_BOO",
+                                           "index":  7,
+                                           "displayName":  "Boo-yah!",
+                                           "description":  "Complete every level in You VS. Boo for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        2
+                                                    ],
+                                           "name":  "SMBLL_BOO",
+                                           "index":  8,
+                                           "displayName":  "BOO-M!",
+                                           "description":  "Complete every level in You VS. Boo for Super Mario Bros. The Lost Levels"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        2
+                                                    ],
+                                           "name":  "SMBS_BOO",
+                                           "index":  9,
+                                           "displayName":  "Boo-who?",
+                                           "description":  "Complete every level in You VS. Boo for Super Mario Bros. Special."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        3
+                                                    ],
+                                           "name":  "SMB1_GOLD_BOO",
+                                           "index":  10,
+                                           "displayName":  "Tur-Boo!!",
+                                           "description":  "Beat every Golden Boo in You VS Boo. for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        3
+                                                    ],
+                                           "name":  "SMBLL_GOLD_BOO",
+                                           "index":  11,
+                                           "displayName":  "Boo-donkulous!!",
+                                           "description":  "Beat every Golden Boo in You VS Boo. for Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        3
+                                                    ],
+                                           "name":  "SMBS_GOLD_BOO",
+                                           "index":  12,
+                                           "displayName":  "Jam-Boo-ree!!",
+                                           "description":  "Beat every Golden Boo in You VS Boo. for Super Mario Bros. Special."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        4
+                                                    ],
+                                           "name":  "SMB1_BRONZE",
+                                           "index":  13,
+                                           "displayName":  "A good warm-upâ€¦",
+                                           "description":  "Collect every Bronze Medal in Marathon Mode for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        4
+                                                    ],
+                                           "name":  "SMBLL_BRONZE",
+                                           "index":  14,
+                                           "displayName":  "Ambitiousâ€¦ But rubbishâ€¦",
+                                           "description":  "Collect every Bronze Medal in Marathon Mode for Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        4
+                                                    ],
+                                           "name":  "SMBS_BRONZE",
+                                           "index":  15,
+                                           "displayName":  "It\u0027s on!",
+                                           "description":  "Collect every Bronze Medal in Marathon Mode for Super Mario Bros. Special"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        5
+                                                    ],
+                                           "name":  "SMB1_SILVER",
+                                           "index":  16,
+                                           "displayName":  "Now you\u0027re playing with Power!",
+                                           "description":  "Collect every Silver Medal in Marathon Mode for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        5
+                                                    ],
+                                           "name":  "SMBLL_SILVER",
+                                           "index":  17,
+                                           "displayName":  "It\u0027s no use!",
+                                           "description":  "Collect every Silver Medal in Marathon Mode for Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        5
+                                                    ],
+                                           "name":  "SMBS_SILVER",
+                                           "index":  18,
+                                           "displayName":  "Sharp reflexesâ€¦",
+                                           "description":  "Collect every Silver Medal in Marathon Mode for Super Mario Bros. Special"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        6
+                                                    ],
+                                           "name":  "SMB1_GOLD",
+                                           "index":  19,
+                                           "displayName":  "Imagine a busâ€¦",
+                                           "description":  "Collect every Gold Medal in Marathon Mode for Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        6
+                                                    ],
+                                           "name":  "SMBLL_GOLD",
+                                           "index":  20,
+                                           "displayName":  "Kosmic Speed!",
+                                           "description":  "Collect every Gold Medal in Marathon Mode for Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        6
+                                                    ],
+                                           "name":  "SMBS_GOLD",
+                                           "index":  21,
+                                           "displayName":  "Special sorta personâ€¦",
+                                           "description":  "Collect every Gold Medal in Marathon Mode for Super Mario Bros. Special"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        0,
+                                                        7
+                                                    ],
+                                           "name":  "SMB1_RUN",
+                                           "index":  22,
+                                           "displayName":  "Super Speed Bros.",
+                                           "description":  "Complete a full game marathon for Super Mario Bros. (Either Warpless or Any%)"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        1,
+                                                        7
+                                                    ],
+                                           "name":  "SMBLL_RUN",
+                                           "index":  23,
+                                           "displayName":  "You cannot beat us.",
+                                           "description":  "Complete a full game marathon for Super Mario Bros. The Lost Levels (Either Warpless or Any%)"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        2,
+                                                        7
+                                                    ],
+                                           "name":  "SMBS_RUN",
+                                           "index":  24,
+                                           "displayName":  "In it for the long haulâ€¦",
+                                           "description":  "Complete a full game marathon for Super Mario Bros. Special (Either Warpless or Any%)"
+                                       },
+                                       {
+                                           "icon":  [
+                                                        3,
+                                                        1
+                                                    ],
+                                           "name":  "ANN_PRANK",
+                                           "index":  25,
+                                           "displayName":  "The party never stops!",
+                                           "description":  "Get a P Rank in every level for All Night Nippon: Super Mario Bros."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        3,
+                                                        2
+                                                    ],
+                                           "name":  "SMBLL_WORLD9",
+                                           "index":  26,
+                                           "displayName":  "Fantasy World Conquered!",
+                                           "description":  "Complete Worlds 9 through D in Super Mario Bros. The Lost Levels."
+                                       },
+                                       {
+                                           "icon":  [
+                                                        3,
+                                                        4
+                                                    ],
+                                           "name":  "COMPLETIONIST",
+                                           "index":  27,
+                                           "displayName":  "Completionist",
+                                           "description":  "Get every single achievement, Thank you for playing!",
+                                           "hidden":  true
+                                       }
+                                   ]
+              },
+    "sms":  {
+                "repository":  "chasem-dev/sms-launcher",
+                "license":  "MIT",
+                "achievements":  [
+                                     {
+                                         "name":  "1",
+                                         "displayName":  "Paint Job",
+                                         "description":  "Get the first Shine Sprite at the Delfino Airstrip."
+                                     },
+                                     {
+                                         "name":  "2",
+                                         "displayName":  "Guardian of the Statue",
+                                         "description":  "Clean up the brown goop Piranha Plant blocking the Grand Pianta Statue."
+                                     },
+                                     {
+                                         "name":  "3",
+                                         "displayName":  "Three of a Kind",
+                                         "description":  "Have 3 Shine Sprites."
+                                     },
+                                     {
+                                         "name":  "4",
+                                         "displayName":  "High Five",
+                                         "description":  "Have 5 Shine Sprites."
+                                     },
+                                     {
+                                         "name":  "5",
+                                         "displayName":  "Double Digits",
+                                         "description":  "Have 10 Shine Sprites."
+                                     },
+                                     {
+                                         "name":  "6",
+                                         "displayName":  "Score of Shines",
+                                         "description":  "Have 20 Shine Sprites."
+                                     },
+                                     {
+                                         "name":  "7",
+                                         "displayName":  "Egg-cellent Friend",
+                                         "description":  "Hatch Yoshi in Delfino Plaza."
+                                     },
+                                     {
+                                         "name":  "8",
+                                         "displayName":  "Full Speed Ahead",
+                                         "description":  "Open the Turbo Nozzle box in Delfino Plaza."
+                                     },
+                                     {
+                                         "name":  "9",
+                                         "displayName":  "Liftoff",
+                                         "description":  "Open the Rocket Nozzle box in Delfino Plaza."
+                                     },
+                                     {
+                                         "name":  "10",
+                                         "displayName":  "Shadow Chaser",
+                                         "description":  "Finish Episode 7 in every one of the seven main stages."
+                                     },
+                                     {
+                                         "name":  "11",
+                                         "displayName":  "Family Feud",
+                                         "description":  "Get the last Shine Sprite at the top of Corona Mountain."
+                                     },
+                                     {
+                                         "name":  "12",
+                                         "displayName":  "Hillside Hero",
+                                         "description":  "Finish all 8 episodes of Bianco Hills."
+                                     },
+                                     {
+                                         "name":  "13",
+                                         "displayName":  "Off the Beaten Path",
+                                         "description":  "Get both secret-level Shine Sprites of Bianco Hills."
+                                     },
+                                     {
+                                         "name":  "14",
+                                         "displayName":  "Bianco Bank",
+                                         "description":  "Gather 100 coins in Bianco Hills and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "15",
+                                         "displayName":  "Blue in the Hills",
+                                         "description":  "Find all 30 Blue Coins in Bianco Hills."
+                                     },
+                                     {
+                                         "name":  "16",
+                                         "displayName":  "Harbor Master",
+                                         "description":  "Finish all 8 episodes of Ricco Harbor."
+                                     },
+                                     {
+                                         "name":  "17",
+                                         "displayName":  "Dockside Secrets",
+                                         "description":  "Get both secret-level Shine Sprites of Ricco Harbor."
+                                     },
+                                     {
+                                         "name":  "18",
+                                         "displayName":  "Ricco Riches",
+                                         "description":  "Gather 100 coins in Ricco Harbor and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "19",
+                                         "displayName":  "Blue on the Docks",
+                                         "description":  "Find all 30 Blue Coins in Ricco Harbor."
+                                     },
+                                     {
+                                         "name":  "20",
+                                         "displayName":  "Gelato Getaway",
+                                         "description":  "Finish all 8 episodes of Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "21",
+                                         "displayName":  "Sandcastle Secrets",
+                                         "description":  "Get both secret-level Shine Sprites of Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "22",
+                                         "displayName":  "Gelato Gold",
+                                         "description":  "Gather 100 coins in Gelato Beach and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "23",
+                                         "displayName":  "Blue on the Sand",
+                                         "description":  "Find all 30 Blue Coins in Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "24",
+                                         "displayName":  "Park Regular",
+                                         "description":  "Finish all 8 episodes of Pinna Park."
+                                     },
+                                     {
+                                         "name":  "25",
+                                         "displayName":  "Behind the Rides",
+                                         "description":  "Get both secret-level Shine Sprites of Pinna Park."
+                                     },
+                                     {
+                                         "name":  "26",
+                                         "displayName":  "Ticket Money",
+                                         "description":  "Gather 100 coins in Pinna Park and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "27",
+                                         "displayName":  "Blue at the Fair",
+                                         "description":  "Find all 30 Blue Coins in Pinna Park."
+                                     },
+                                     {
+                                         "name":  "28",
+                                         "displayName":  "Checked In",
+                                         "description":  "Finish all 8 episodes of Sirena Beach."
+                                     },
+                                     {
+                                         "name":  "29",
+                                         "displayName":  "Room Service Secrets",
+                                         "description":  "Get both secret-level Shine Sprites of Sirena Beach."
+                                     },
+                                     {
+                                         "name":  "30",
+                                         "displayName":  "Hotel Tips",
+                                         "description":  "Gather 100 coins in Sirena Beach and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "31",
+                                         "displayName":  "Blue in the Lobby",
+                                         "description":  "Find all 30 Blue Coins in Sirena Beach."
+                                     },
+                                     {
+                                         "name":  "32",
+                                         "displayName":  "Cliffside Climber",
+                                         "description":  "Finish all 8 episodes of Noki Bay."
+                                     },
+                                     {
+                                         "name":  "33",
+                                         "displayName":  "Shell Seeker",
+                                         "description":  "Get both secret-level Shine Sprites of Noki Bay."
+                                     },
+                                     {
+                                         "name":  "34",
+                                         "displayName":  "Noki Nest Egg",
+                                         "description":  "Gather 100 coins in Noki Bay and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "35",
+                                         "displayName":  "Blue Under the Moon",
+                                         "description":  "Find all 30 Blue Coins in Pianta Village."
+                                     },
+                                     {
+                                         "name":  "36",
+                                         "displayName":  "Village Regular",
+                                         "description":  "Finish all 8 episodes of Pianta Village."
+                                     },
+                                     {
+                                         "name":  "37",
+                                         "displayName":  "Under the Village",
+                                         "description":  "Get both secret-level Shine Sprites of Pianta Village."
+                                     },
+                                     {
+                                         "name":  "38",
+                                         "displayName":  "Mushroom Money",
+                                         "description":  "Gather 100 coins in Pianta Village and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "39",
+                                         "displayName":  "Blue by the Bay",
+                                         "description":  "Find all 30 Blue Coins in Noki Bay."
+                                     },
+                                     {
+                                         "name":  "40",
+                                         "displayName":  "Bianco Nozzles",
+                                         "description":  "Open both nozzle boxes in Bianco Hills."
+                                     },
+                                     {
+                                         "name":  "41",
+                                         "displayName":  "Ricco Nozzles",
+                                         "description":  "Open both nozzle boxes in Ricco Harbor."
+                                     },
+                                     {
+                                         "name":  "42",
+                                         "displayName":  "Gelato Nozzles",
+                                         "description":  "Open both nozzle boxes in Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "43",
+                                         "displayName":  "Rocket in the Trees",
+                                         "description":  "Open the Rocket Nozzle box in Pianta Village."
+                                     },
+                                     {
+                                         "name":  "44",
+                                         "displayName":  "Noki Nozzles",
+                                         "description":  "Open both nozzle boxes in Noki Bay."
+                                     },
+                                     {
+                                         "name":  "45",
+                                         "displayName":  "Plaza Sweep",
+                                         "description":  "Get all 10 Shine Sprites found in Delfino Plaza."
+                                     },
+                                     {
+                                         "name":  "46",
+                                         "displayName":  "Down the Slide",
+                                         "description":  "Get the Shine Sprite in the Super Slide."
+                                     },
+                                     {
+                                         "name":  "47",
+                                         "displayName":  "Pins and Needles",
+                                         "description":  "Get the Shine Sprite in the Pachinko Game."
+                                     },
+                                     {
+                                         "name":  "48",
+                                         "displayName":  "Lily Pad Rider",
+                                         "description":  "Get the Shine Sprite in the Lily Pad Ride."
+                                     },
+                                     {
+                                         "name":  "49",
+                                         "displayName":  "Turbo Lap",
+                                         "description":  "Get the Shine Sprite in the Turbo Track."
+                                     },
+                                     {
+                                         "name":  "50",
+                                         "displayName":  "Red Coin Hunt",
+                                         "description":  "Get the Shine Sprite in the Red Coin Field."
+                                     },
+                                     {
+                                         "name":  "51",
+                                         "displayName":  "Tanooki\u0027s Best Customer",
+                                         "description":  "Trade all 240 Blue Coins for 24 Shine Sprites at the boathouse."
+                                     },
+                                     {
+                                         "name":  "52",
+                                         "displayName":  "Plaza Pocket Change",
+                                         "description":  "Gather 100 coins in Delfino Plaza, the Red Coin Field or the Airstrip and get the Shine Sprite."
+                                     },
+                                     {
+                                         "name":  "53",
+                                         "displayName":  "Blue Around Town",
+                                         "description":  "Find all 19 Blue Coins in Delfino Plaza."
+                                     },
+                                     {
+                                         "name":  "54",
+                                         "displayName":  "Blue in the Fire",
+                                         "description":  "Find all 10 Blue Coins in Corona Mountain."
+                                     },
+                                     {
+                                         "name":  "55",
+                                         "displayName":  "Return Flight",
+                                         "description":  "After Corona Mountain, get the Shine Sprite at the Delfino Airstrip."
+                                     },
+                                     {
+                                         "name":  "56",
+                                         "displayName":  "Ice Breaker",
+                                         "description":  "After Corona Mountain, get the Blue Coin at the Delfino Airstrip."
+                                     },
+                                     {
+                                         "name":  "57",
+                                         "displayName":  "All That Glitters",
+                                         "description":  "Have all 120 Shine Sprites."
+                                     },
+                                     {
+                                         "name":  "58",
+                                         "displayName":  "Blue Coin Collector",
+                                         "description":  "Find all 240 Blue Coins."
+                                     },
+                                     {
+                                         "name":  "59",
+                                         "displayName":  "Shady Look",
+                                         "description":  "Get a pair of sunglasses from a Pianta."
+                                     },
+                                     {
+                                         "name":  "60",
+                                         "displayName":  "Island Shirt",
+                                         "description":  "Get a tropical shirt from a Pianta."
+                                     },
+                                     {
+                                         "name":  "61",
+                                         "displayName":  "Postcard Ending",
+                                         "description":  "Beat the game with all 120 Shine Sprites and see the special ending."
+                                     },
+                                     {
+                                         "name":  "62",
+                                         "displayName":  "Flag Day",
+                                         "description":  "Climb to the very top of the flagpole at the Delfino Airstrip."
+                                     },
+                                     {
+                                         "name":  "63",
+                                         "displayName":  "Plaza Lives",
+                                         "description":  "Get all 4 of Delfino Plaza\u0027s 1-Ups in one visit."
+                                     },
+                                     {
+                                         "name":  "64",
+                                         "displayName":  "Lily Pad Life",
+                                         "description":  "Get the 1-Up in the Lily Pad Ride."
+                                     },
+                                     {
+                                         "name":  "65",
+                                         "displayName":  "Bird Watcher",
+                                         "description":  "Beat all 17 green birds in Delfino Plaza in one visit, while it is flooded or after Corona Mountain."
+                                     },
+                                     {
+                                         "name":  "66",
+                                         "displayName":  "Slam Dunk",
+                                         "description":  "Throw a coconut into the orange Pianta\u0027s basket while ground pounding at full speed."
+                                     },
+                                     {
+                                         "name":  "67",
+                                         "displayName":  "Three-Pointer",
+                                         "description":  "Throw a pineapple into the yellow Pianta\u0027s basket from behind the third line."
+                                     },
+                                     {
+                                         "name":  "68",
+                                         "displayName":  "Durian Juggler",
+                                         "description":  "Keep a durian in the air with 10 jumps in a row."
+                                     },
+                                     {
+                                         "name":  "69",
+                                         "displayName":  "Banana Backflip",
+                                         "description":  "Backflip off the roof and throw bananas into the purple Pianta\u0027s basket."
+                                     },
+                                     {
+                                         "name":  "70",
+                                         "displayName":  "Early Bird Gets the Coin",
+                                         "description":  "On your first visit to Delfino Plaza, get the Blue Coin from the Pianta with mushrooms on his back."
+                                     },
+                                     {
+                                         "name":  "71",
+                                         "displayName":  "Hover to the Pins",
+                                         "description":  "Reach the Pachinko Game from the dry plaza using only the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "72",
+                                         "displayName":  "Hover to the Village",
+                                         "description":  "Reach Pianta Village from Delfino Plaza using only the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "73",
+                                         "displayName":  "Hover to the Field",
+                                         "description":  "Reach the Red Coin Field from the dry plaza using only the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "74",
+                                         "displayName":  "Bell Ringer, West",
+                                         "description":  "Get the West Bell Shine Sprite using only the spray nozzle."
+                                     },
+                                     {
+                                         "name":  "75",
+                                         "displayName":  "Bell Ringer, East",
+                                         "description":  "Get the East Bell Shine Sprite with only Yoshi\u0027s help."
+                                     },
+                                     {
+                                         "name":  "76",
+                                         "displayName":  "Yoshi\u0027s Allowance",
+                                         "description":  "Get the plaza\u0027s 100-coin Shine Sprite riding Yoshi, before the flood and without the boats."
+                                     },
+                                     {
+                                         "name":  "77",
+                                         "displayName":  "Golden Bird, Turbo Style",
+                                         "description":  "Get the golden bird\u0027s Shine Sprite in the dry plaza using only the Turbo Nozzle."
+                                     },
+                                     {
+                                         "name":  "78",
+                                         "displayName":  "Never Touch the Ground",
+                                         "description":  "Get the Super Slide\u0027s Shine Sprite without touching the ground after the start."
+                                     },
+                                     {
+                                         "name":  "79",
+                                         "displayName":  "Track Without Turbo",
+                                         "description":  "Get the Turbo Track\u0027s Shine Sprite using only the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "80",
+                                         "displayName":  "Bees and Bonuses",
+                                         "description":  "Get all 3 of the 1-Ups in Episode 8 of Bianco Hills in one visit."
+                                     },
+                                     {
+                                         "name":  "81",
+                                         "displayName":  "Cave Lives",
+                                         "description":  "Get both 1-Ups in the Hillside Cave Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "82",
+                                         "displayName":  "Lake Lives",
+                                         "description":  "Get both 1-Ups in the Secret of the Dirty Lake in one visit."
+                                     },
+                                     {
+                                         "name":  "83",
+                                         "displayName":  "Wash and Wave",
+                                         "description":  "Clean and talk to the brown-hatted Pianta with the Blue Coin in all 6 episodes he\u0027s in, in one session."
+                                     },
+                                     {
+                                         "name":  "84",
+                                         "displayName":  "Ahead of Schedule",
+                                         "description":  "Finish Episode 2 of Bianco Hills while in Episode 1."
+                                     },
+                                     {
+                                         "name":  "85",
+                                         "displayName":  "No Windmill Shortcuts",
+                                         "description":  "Reach Petey Piranha in Episode 1 or 2 of Bianco Hills without the windmill platforms or the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "86",
+                                         "displayName":  "Feet on the Floor",
+                                         "description":  "Get the Hillside Cave Secret\u0027s first Shine Sprite without jumping or using F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "87",
+                                         "displayName":  "Nap Time",
+                                         "description":  "Fall asleep next to Petey Piranha in Episode 5 of Bianco Hills."
+                                     },
+                                     {
+                                         "name":  "88",
+                                         "displayName":  "Dry Run",
+                                         "description":  "Reach the Secret of the Dirty Lake in Episode 6 of Bianco Hills without swimming or using F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "89",
+                                         "displayName":  "Steady Footing",
+                                         "description":  "Get the Dirty Lake Secret\u0027s first Shine Sprite without more than 1 second on moving platforms, and no Rocket tricks."
+                                     },
+                                     {
+                                         "name":  "90",
+                                         "displayName":  "Ring Rescue",
+                                         "description":  "Talk to the 3 duck-ring riders in Episode 8 of Ricco Harbor and collect the 1-Up they give you."
+                                     },
+                                     {
+                                         "name":  "91",
+                                         "displayName":  "Harbor Lives",
+                                         "description":  "Get all 3 of the 1-Ups in Episode 8 of Ricco Harbor in one visit."
+                                     },
+                                     {
+                                         "name":  "92",
+                                         "displayName":  "Tower Lives",
+                                         "description":  "Get both 1-Ups in the Secret of Ricco Tower in one visit."
+                                     },
+                                     {
+                                         "name":  "93",
+                                         "displayName":  "Purple Racer",
+                                         "description":  "Win the Blooper Surfing Safari Shine Sprite riding the purple Blooper."
+                                     },
+                                     {
+                                         "name":  "94",
+                                         "displayName":  "Ground Floor",
+                                         "description":  "Finish Episode 3 of Ricco Harbor without the metal scaffolding or the Rocket Nozzle."
+                                     },
+                                     {
+                                         "name":  "95",
+                                         "displayName":  "No Water Needed",
+                                         "description":  "Reach the Secret of Ricco Tower in Episode 4 of Ricco Harbor without using F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "96",
+                                         "displayName":  "Turbo All the Way",
+                                         "description":  "Get the Ricco Tower Secret\u0027s first Shine Sprite without letting go of the Turbo Nozzle or running dry after the start."
+                                     },
+                                     {
+                                         "name":  "97",
+                                         "displayName":  "Catch and Release",
+                                         "description":  "Beat Gooper Blooper in Episode 5 of Ricco Harbor without tearing off a tentacle."
+                                     },
+                                     {
+                                         "name":  "98",
+                                         "displayName":  "Juice Run",
+                                         "description":  "Finish Episode 8 of Ricco Harbor without Yoshi stepping on grass or metal, and without the Rocket Nozzle."
+                                     },
+                                     {
+                                         "name":  "99",
+                                         "displayName":  "Beach Life",
+                                         "description":  "Get the 1-Up in Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "100",
+                                         "displayName":  "Castle Lives",
+                                         "description":  "Get both 1-Ups in the Sand Castle Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "101",
+                                         "displayName":  "Cloud Life",
+                                         "description":  "Get the 1-Up in The Sand Bird is Born."
+                                     },
+                                     {
+                                         "name":  "102",
+                                         "displayName":  "Palm Tree Blast",
+                                         "description":  "In Episode 1 of Gelato Beach, open the sand castle from a palm tree and go in without touching the sand."
+                                     },
+                                     {
+                                         "name":  "103",
+                                         "displayName":  "Grass Is for Losers",
+                                         "description":  "Beat Il Piantissimo\u0027s 35 seconds in Episode 5 of Gelato Beach without touching grass or using F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "104",
+                                         "displayName":  "Duck Parade",
+                                         "description":  "Have 10 Cataquacks chasing you at once in Episode 8 of Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "105",
+                                         "displayName":  "Duck Pond",
+                                         "description":  "Sink 15 Cataquacks into the sand at once in Episode 8 of Gelato Beach."
+                                     },
+                                     {
+                                         "name":  "106",
+                                         "displayName":  "Beachfront Life",
+                                         "description":  "Get the 1-Up on the Pinna Park beach."
+                                     },
+                                     {
+                                         "name":  "107",
+                                         "displayName":  "Park Life",
+                                         "description":  "Get the 1-Up in Pinna Park."
+                                     },
+                                     {
+                                         "name":  "108",
+                                         "displayName":  "Cannon Lives",
+                                         "description":  "Get both 1-Ups in the Beach Cannon\u0027s Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "109",
+                                         "displayName":  "Go-Round Lives",
+                                         "description":  "Get all 3 of the 1-Ups in the Yoshi-Go-Round\u0027s Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "110",
+                                         "displayName":  "One Lap Wonder",
+                                         "description":  "Beat Mecha-Bowser in Episode 1 of Pinna Park within one lap of the roller coaster."
+                                     },
+                                     {
+                                         "name":  "111",
+                                         "displayName":  "No Bombs Required",
+                                         "description":  "Reach the Beach Cannon\u0027s Secret in Episode 2 of Pinna Park without picking up a Bob-omb."
+                                     },
+                                     {
+                                         "name":  "112",
+                                         "displayName":  "Fence-Free Flowers",
+                                         "description":  "Finish Episode 5 of Pinna Park without climbing a fence."
+                                     },
+                                     {
+                                         "name":  "113",
+                                         "displayName":  "Lifeguard Life",
+                                         "description":  "Get the 1-Up in Sirena Beach."
+                                     },
+                                     {
+                                         "name":  "114",
+                                         "displayName":  "Lucky Life",
+                                         "description":  "Get the 1-Up in Casino Delfino."
+                                     },
+                                     {
+                                         "name":  "115",
+                                         "displayName":  "Lobby Lives",
+                                         "description":  "Get all 3 of the 1-Ups in the Hotel Lobby\u0027s Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "116",
+                                         "displayName":  "Casino Lives",
+                                         "description":  "Get both 1-Ups in the Secret of Casino Delfino in one visit."
+                                     },
+                                     {
+                                         "name":  "117",
+                                         "displayName":  "Stairs Are Overrated",
+                                         "description":  "Reach the Hotel Lobby\u0027s Secret in Episode 2 of Sirena Beach without wall jumping or using F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "118",
+                                         "displayName":  "Fruit Salad",
+                                         "description":  "Turn King Boo all 3 fruit colours in Episode 5 of Sirena Beach."
+                                     },
+                                     {
+                                         "name":  "119",
+                                         "displayName":  "Spotless",
+                                         "description":  "Clean Sirena Beach in Episode 6 with a minute to spare, without refilling F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "120",
+                                         "displayName":  "Bay Lives",
+                                         "description":  "Get all 4 of Noki Bay\u0027s 1-Ups in one visit, in Episode 4, 5, 7 or 8."
+                                     },
+                                     {
+                                         "name":  "121",
+                                         "displayName":  "Bait and Switch",
+                                         "description":  "Get the 1-Up that only appears in Episode 6 of Noki Bay."
+                                     },
+                                     {
+                                         "name":  "122",
+                                         "displayName":  "Shell Lives",
+                                         "description":  "Get all 3 of the 1-Ups in the Shell\u0027s Secret in one visit."
+                                     },
+                                     {
+                                         "name":  "123",
+                                         "displayName":  "Leave No Trace",
+                                         "description":  "Finish Episode 1 of Noki Bay without uncovering a hidden platform or touching goop."
+                                     },
+                                     {
+                                         "name":  "124",
+                                         "displayName":  "The Long Way Round",
+                                         "description":  "Finish Episode 2 of Noki Bay without opening the hidden path or grabbing the springboard."
+                                     },
+                                     {
+                                         "name":  "125",
+                                         "displayName":  "High and Dry",
+                                         "description":  "Beat Il Piantissimo\u0027s 40 seconds in Episode 5 of Noki Bay without swimming or the Hover Nozzle."
+                                     },
+                                     {
+                                         "name":  "126",
+                                         "displayName":  "Ropes Are Optional",
+                                         "description":  "Reach the Shell\u0027s Secret in Episode 6 of Noki Bay without ropes or the Rocket Nozzle."
+                                     },
+                                     {
+                                         "name":  "127",
+                                         "displayName":  "Bare Hands",
+                                         "description":  "Get the Shell\u0027s Secret\u0027s first Shine Sprite in Episode 6 of Noki Bay without the pole, the rope or F.L.U.D.D."
+                                     },
+                                     {
+                                         "name":  "128",
+                                         "displayName":  "Treetop Lives",
+                                         "description":  "Get all 4 of the 1-Ups in Episode 5 of Pianta Village in one visit."
+                                     },
+                                     {
+                                         "name":  "129",
+                                         "displayName":  "Cage Life",
+                                         "description":  "Get the 1-Up that only appears in Episode 3 of Pianta Village."
+                                     },
+                                     {
+                                         "name":  "130",
+                                         "displayName":  "Underground Lives",
+                                         "description":  "Get all 3 of the 1-Ups in the Secret of the Village Underside in one visit."
+                                     },
+                                     {
+                                         "name":  "131",
+                                         "displayName":  "Cannonball",
+                                         "description":  "In daytime, dive from the Shine Sprite platform straight into Pianta Village\u0027s hot spring."
+                                     },
+                                     {
+                                         "name":  "132",
+                                         "displayName":  "Gentle Touch",
+                                         "description":  "Finish Episode 1 of Pianta Village without stunning a Chain Chomplet."
+                                     },
+                                     {
+                                         "name":  "133",
+                                         "displayName":  "Trunk Line",
+                                         "description":  "Reach the flagpole in Episode 2 of Pianta Village touching only tree trunks after the first Pianta."
+                                     },
+                                     {
+                                         "name":  "134",
+                                         "displayName":  "Above It All",
+                                         "description":  "Finish Episode 3 of Pianta Village without going under the village or getting hurt."
+                                     },
+                                     {
+                                         "name":  "135",
+                                         "displayName":  "Bath Time",
+                                         "description":  "Get the Chain Chomp into the hot spring in Episode 4 of Pianta Village while you stand on the dirt path."
+                                     },
+                                     {
+                                         "name":  "136",
+                                         "displayName":  "Keep Your Cool",
+                                         "description":  "Get the Village Underside\u0027s Shine Sprite without angering a Chuckster."
+                                     },
+                                     {
+                                         "name":  "137",
+                                         "displayName":  "Treetop Rescue",
+                                         "description":  "Rescue every Pianta in Episode 6 of Pianta Village touching only treetops and mushrooms after the bridge."
+                                     },
+                                     {
+                                         "name":  "138",
+                                         "displayName":  "Volcano Lives",
+                                         "description":  "Get all 3 of Corona Mountain\u0027s 1-Ups in one visit."
+                                     },
+                                     {
+                                         "name":  "139",
+                                         "displayName":  "Stu Stack",
+                                         "description":  "Stomp 3 flipped Strollin\u0027 Stus at once and collect the 1-Up."
+                                     },
+                                     {
+                                         "name":  "140",
+                                         "displayName":  "Stu Smash",
+                                         "description":  "Ground pound 3 flipped Strollin\u0027 Stus at once and collect the 1-Up."
+                                     },
+                                     {
+                                         "name":  "141",
+                                         "displayName":  "Stu Stampede",
+                                         "description":  "Ground pound a crowd of flipped Strollin\u0027 Stus in Sirena Beach and collect the 1-Up."
+                                     },
+                                     {
+                                         "name":  "142",
+                                         "displayName":  "Hot Stuff",
+                                         "description":  "Stomp 3 flipped Smolderin\u0027 Stus at once in Pinna Park and collect the 1-Up."
+                                     },
+                                     {
+                                         "name":  "143",
+                                         "displayName":  "Cloud Wash",
+                                         "description":  "Spray a Coo Coo and collect the 1-Up it gives."
+                                     },
+                                     {
+                                         "name":  "144",
+                                         "displayName":  "Bill Stomper",
+                                         "description":  "Stomp a Guided Bullet Bill in Corona Mountain and collect the 1-Up."
+                                     },
+                                     {
+                                         "name":  "145",
+                                         "displayName":  "Belly Flop",
+                                         "description":  "Reach top sliding speed on perfectly flat ground."
+                                     },
+                                     {
+                                         "name":  "146",
+                                         "displayName":  "Refill on the Go",
+                                         "description":  "Refill an empty F.L.U.D.D. while sliding."
+                                     },
+                                     {
+                                         "name":  "147",
+                                         "displayName":  "Special Delivery",
+                                         "description":  "Get thrown by a Chuckster while riding Yoshi."
+                                     },
+                                     {
+                                         "name":  "148",
+                                         "displayName":  "Sprinkler Spin",
+                                         "description":  "Spin jump while spraying with the Turbo Nozzle."
+                                     }
+                                 ]
+            },
+    "smseclipse":  {
+                       "repository":  "chasem-dev/sms-launcher",
+                       "license":  "MIT",
+                       "achievements":  [
+                                            {
+                                                "name":  "1",
+                                                "displayName":  "Trials Passed",
+                                                "description":  "Clear every trial and open the temple gate."
+                                            },
+                                            {
+                                                "name":  "2",
+                                                "displayName":  "Seventh Heaven",
+                                                "description":  "Finish Episode 7 in all 11 areas of Isle Delfino."
+                                            },
+                                            {
+                                                "name":  "3",
+                                                "displayName":  "Brother\u0027s Turn",
+                                                "description":  "Get the Shine Sprite at the top of Corona Mountain."
+                                            },
+                                            {
+                                                "name":  "4",
+                                                "displayName":  "Out of Breath",
+                                                "description":  "Beat Il Piantissimo in all 4 of his races."
+                                            },
+                                            {
+                                                "name":  "5",
+                                                "displayName":  "Welcome Back",
+                                                "description":  "Get the first Shine Sprite at the Delfino Airstrip."
+                                            },
+                                            {
+                                                "name":  "6",
+                                                "displayName":  "Bianco Bright",
+                                                "description":  "Get all 11 Shine Sprites in Bianco Hills."
+                                            },
+                                            {
+                                                "name":  "7",
+                                                "displayName":  "Windmill Wallet",
+                                                "description":  "Find all 30 Blue Coins in Bianco Hills."
+                                            },
+                                            {
+                                                "name":  "8",
+                                                "displayName":  "Ricco Regular",
+                                                "description":  "Get all 11 Shine Sprites in Ricco Harbor."
+                                            },
+                                            {
+                                                "name":  "9",
+                                                "displayName":  "Dockside Blues",
+                                                "description":  "Find all 30 Blue Coins in Ricco Harbor."
+                                            },
+                                            {
+                                                "name":  "10",
+                                                "displayName":  "Gelato Grand Tour",
+                                                "description":  "Get all 11 Shine Sprites in Gelato Beach."
+                                            },
+                                            {
+                                                "name":  "11",
+                                                "displayName":  "Sandy Savings",
+                                                "description":  "Find all 30 Blue Coins in Gelato Beach."
+                                            },
+                                            {
+                                                "name":  "12",
+                                                "displayName":  "Park Pass",
+                                                "description":  "Get all 11 Shine Sprites in Pinna Park."
+                                            },
+                                            {
+                                                "name":  "13",
+                                                "displayName":  "Coaster Change",
+                                                "description":  "Find all 30 Blue Coins in Pinna Park."
+                                            },
+                                            {
+                                                "name":  "14",
+                                                "displayName":  "Five-Star Stay",
+                                                "description":  "Get all 11 Shine Sprites in Sirena Beach."
+                                            },
+                                            {
+                                                "name":  "15",
+                                                "displayName":  "Lost and Found",
+                                                "description":  "Find all 30 Blue Coins in Sirena Beach."
+                                            },
+                                            {
+                                                "name":  "16",
+                                                "displayName":  "Village Light",
+                                                "description":  "Get all 11 Shine Sprites in Pianta Village."
+                                            },
+                                            {
+                                                "name":  "17",
+                                                "displayName":  "Under the Mushrooms",
+                                                "description":  "Find all 30 Blue Coins in Pianta Village."
+                                            },
+                                            {
+                                                "name":  "18",
+                                                "displayName":  "Cliffside Shine",
+                                                "description":  "Get all 11 Shine Sprites in Noki Bay."
+                                            },
+                                            {
+                                                "name":  "19",
+                                                "displayName":  "Bay of Blues",
+                                                "description":  "Find all 30 Blue Coins in Noki Bay."
+                                            },
+                                            {
+                                                "name":  "20",
+                                                "displayName":  "Pride of the Plaza",
+                                                "description":  "Get all 60 Shine Sprites in Delfino Plaza and the places it leads to."
+                                            },
+                                            {
+                                                "name":  "21",
+                                                "displayName":  "Plaza Pocket Money",
+                                                "description":  "Find all 20 Blue Coins in Delfino Plaza and the places it leads to."
+                                            },
+                                            {
+                                                "name":  "22",
+                                                "displayName":  "Volcanic Blues",
+                                                "description":  "Find all 10 Blue Coins in Corona Mountain."
+                                            },
+                                            {
+                                                "name":  "23",
+                                                "displayName":  "Top of Erto",
+                                                "description":  "Get all 11 Shine Sprites in Erto Rock."
+                                            },
+                                            {
+                                                "name":  "24",
+                                                "displayName":  "Rock Bottom Blues",
+                                                "description":  "Find all 20 Blue Coins in Erto Rock."
+                                            },
+                                            {
+                                                "name":  "25",
+                                                "displayName":  "Keeper of the Light",
+                                                "description":  "Get all 11 Shine Sprites in Lighthouse Island."
+                                            },
+                                            {
+                                                "name":  "26",
+                                                "displayName":  "Beacon Blues",
+                                                "description":  "Find all 20 Blue Coins in Lighthouse Island."
+                                            },
+                                            {
+                                                "name":  "27",
+                                                "displayName":  "Fleet Admiral",
+                                                "description":  "Get all 11 Shine Sprites in Warship Island."
+                                            },
+                                            {
+                                                "name":  "28",
+                                                "displayName":  "War Chest",
+                                                "description":  "Find all 20 Blue Coins in Warship Island."
+                                            },
+                                            {
+                                                "name":  "29",
+                                                "displayName":  "Suite Success",
+                                                "description":  "Get all 11 Shine Sprites in Hotel Lacrima."
+                                            },
+                                            {
+                                                "name":  "30",
+                                                "displayName":  "Room Service Tips",
+                                                "description":  "Find all 20 Blue Coins in Hotel Lacrima."
+                                            },
+                                            {
+                                                "name":  "31",
+                                                "displayName":  "Pit Stop",
+                                                "description":  "Get all 7 Shine Sprites in Pianta Pit."
+                                            },
+                                            {
+                                                "name":  "32",
+                                                "displayName":  "Pit Fortune",
+                                                "description":  "Find all 20 Blue Coins in Pianta Pit."
+                                            },
+                                            {
+                                                "name":  "33",
+                                                "displayName":  "Captain of the Cruiser",
+                                                "description":  "Get all 6 Shine Sprites in Daisy Cruiser."
+                                            },
+                                            {
+                                                "name":  "34",
+                                                "displayName":  "Deckhand Savings",
+                                                "description":  "Find all 10 Blue Coins in Daisy Cruiser."
+                                            },
+                                            {
+                                                "name":  "35",
+                                                "displayName":  "Sweet Dreams",
+                                                "description":  "Get all 5 Shine Sprites in Mario\u0027s Dream."
+                                            },
+                                            {
+                                                "name":  "36",
+                                                "displayName":  "Dream Money",
+                                                "description":  "Find all 10 Blue Coins in Mario\u0027s Dream."
+                                            },
+                                            {
+                                                "name":  "37",
+                                                "displayName":  "Summit Shine",
+                                                "description":  "Get all 5 Shine Sprites in Lancia Fredda Peaks."
+                                            },
+                                            {
+                                                "name":  "38",
+                                                "displayName":  "Frozen Assets",
+                                                "description":  "Find all 10 Blue Coins in Lancia Fredda Peaks."
+                                            },
+                                            {
+                                                "name":  "39",
+                                                "displayName":  "Aesthetic Achieved",
+                                                "description":  "Get all 5 Shine Sprites in Vaporwave."
+                                            },
+                                            {
+                                                "name":  "40",
+                                                "displayName":  "Retro Revenue",
+                                                "description":  "Find all 10 Blue Coins in Vaporwave."
+                                            },
+                                            {
+                                                "name":  "41",
+                                                "displayName":  "Yoshi\u0027s Hero",
+                                                "description":  "Get all 5 Shine Sprites in Yoshi Village."
+                                            },
+                                            {
+                                                "name":  "42",
+                                                "displayName":  "Egg Money",
+                                                "description":  "Find all 10 Blue Coins in Yoshi Village."
+                                            },
+                                            {
+                                                "name":  "43",
+                                                "displayName":  "Lights of Red Lily",
+                                                "description":  "Get all 5 Shine Sprites in Red Lily City."
+                                            },
+                                            {
+                                                "name":  "44",
+                                                "displayName":  "City Savings",
+                                                "description":  "Find all 10 Blue Coins in Red Lily City."
+                                            },
+                                            {
+                                                "name":  "45",
+                                                "displayName":  "Beach Patrol",
+                                                "description":  "Get all 5 Shine Sprites in Peach Beach."
+                                            },
+                                            {
+                                                "name":  "46",
+                                                "displayName":  "Shoreline Change",
+                                                "description":  "Find all 10 Blue Coins in Peach Beach."
+                                            },
+                                            {
+                                                "name":  "47",
+                                                "displayName":  "The House Shines",
+                                                "description":  "Get all 5 Shine Sprites in Spettro Casino."
+                                            },
+                                            {
+                                                "name":  "48",
+                                                "displayName":  "High Roller",
+                                                "description":  "Find all 10 Blue Coins in Spettro Casino."
+                                            },
+                                            {
+                                                "name":  "49",
+                                                "displayName":  "Trailblazer",
+                                                "description":  "Get all 9 Shine Sprites on the trails that link Isle Delfino."
+                                            },
+                                            {
+                                                "name":  "50",
+                                                "displayName":  "Every Last Shine",
+                                                "description":  "Get all 240 Shine Sprites."
+                                            },
+                                            {
+                                                "name":  "51",
+                                                "displayName":  "Every Last Blue",
+                                                "description":  "Find all 420 Blue Coins."
+                                            },
+                                            {
+                                                "name":  "52",
+                                                "displayName":  "Learner\u0027s Permit",
+                                                "description":  "Get all 4 1-Ups in the Tutorial in one visit."
+                                            },
+                                            {
+                                                "name":  "53",
+                                                "displayName":  "Trial by Fire",
+                                                "description":  "Get both 1-Ups in Corona Mountain\u0027s Fire Shrine in one visit."
+                                            },
+                                            {
+                                                "name":  "54",
+                                                "displayName":  "Rock Steady",
+                                                "description":  "Get both 1-Ups in Erto Rock in one visit."
+                                            },
+                                            {
+                                                "name":  "55",
+                                                "displayName":  "Garden Shed Bounty",
+                                                "description":  "Get both 1-Ups in the Secret of the Shed in one visit."
+                                            },
+                                            {
+                                                "name":  "56",
+                                                "displayName":  "Three Lights",
+                                                "description":  "Get all 3 1-Ups in Lighthouse Island in one visit."
+                                            },
+                                            {
+                                                "name":  "57",
+                                                "displayName":  "Down in the Basement",
+                                                "description":  "Get both 1-Ups in the Secret of the Basement in one visit."
+                                            },
+                                            {
+                                                "name":  "58",
+                                                "displayName":  "Shipshape",
+                                                "description":  "Get all 4 1-Ups in Warship Island in one visit."
+                                            },
+                                            {
+                                                "name":  "59",
+                                                "displayName":  "Periscope Up",
+                                                "description":  "Get both 1-Ups in the (Sub)Marine Biology Secret in one visit."
+                                            },
+                                            {
+                                                "name":  "60",
+                                                "displayName":  "Seaside Stroll",
+                                                "description":  "Get the 1-Up on Lacrima\u0027s beach."
+                                            },
+                                            {
+                                                "name":  "61",
+                                                "displayName":  "Room With a View",
+                                                "description":  "Get the 1-Up inside Hotel Lacrima."
+                                            },
+                                            {
+                                                "name":  "62",
+                                                "displayName":  "Ventilation",
+                                                "description":  "Get all 3 1-Ups in the Secret of the Air Vent in one visit."
+                                            },
+                                            {
+                                                "name":  "63",
+                                                "displayName":  "Deep Pockets",
+                                                "description":  "Get all 6 1-Ups in Pianta Pit in one visit."
+                                            },
+                                            {
+                                                "name":  "64",
+                                                "displayName":  "All Aboard",
+                                                "description":  "Get all 4 1-Ups in Daisy Cruiser in one visit."
+                                            },
+                                            {
+                                                "name":  "65",
+                                                "displayName":  "Cargo Hold",
+                                                "description":  "Get both 1-Ups in Planes and Trains in one visit."
+                                            },
+                                            {
+                                                "name":  "66",
+                                                "displayName":  "Daydreamer",
+                                                "description":  "Get all 4 1-Ups in Mario\u0027s Dream in one visit."
+                                            },
+                                            {
+                                                "name":  "67",
+                                                "displayName":  "Mountain Air",
+                                                "description":  "Get all 4 1-Ups in Lancia Fredda Peaks in one visit."
+                                            },
+                                            {
+                                                "name":  "68",
+                                                "displayName":  "Cold Feet",
+                                                "description":  "Get both 1-Ups in the Secret of the Ice Cave in one visit."
+                                            },
+                                            {
+                                                "name":  "69",
+                                                "displayName":  "Pixel Perfect",
+                                                "description":  "Get the 1-Up in Vaporwave."
+                                            },
+                                            {
+                                                "name":  "70",
+                                                "displayName":  "Memphis Two-Step",
+                                                "description":  "Get both 1-Ups in Memphis Mania in one visit."
+                                            },
+                                            {
+                                                "name":  "71",
+                                                "displayName":  "A Dozen Lives",
+                                                "description":  "Get all 12 1-Ups in Yoshi Village in one visit."
+                                            },
+                                            {
+                                                "name":  "72",
+                                                "displayName":  "Block Party",
+                                                "description":  "Get all 4 1-Ups in Red Lily City in one visit."
+                                            },
+                                            {
+                                                "name":  "73",
+                                                "displayName":  "Beachcomber",
+                                                "description":  "Get all 5 1-Ups in Peach Beach in one visit."
+                                            },
+                                            {
+                                                "name":  "74",
+                                                "displayName":  "Double Down",
+                                                "description":  "Get both 1-Ups in Spettro Casino in one visit."
+                                            },
+                                            {
+                                                "name":  "75",
+                                                "displayName":  "Rook and Roll",
+                                                "description":  "Get both 1-Ups in the Secret of the Haunted Rook in one visit."
+                                            },
+                                            {
+                                                "name":  "76",
+                                                "displayName":  "Haunted Halls",
+                                                "description":  "Get the Power Star on the castle\u0027s second floor."
+                                            },
+                                            {
+                                                "name":  "77",
+                                                "displayName":  "Early Bianco",
+                                                "description":  "Get the Power Star in Beta Bianco Hills."
+                                            },
+                                            {
+                                                "name":  "78",
+                                                "displayName":  "Fishbowl",
+                                                "description":  "Get the Power Star in the Secret Aquarium."
+                                            },
+                                            {
+                                                "name":  "79",
+                                                "displayName":  "Fort Knocks",
+                                                "description":  "Get the Power Star in Battle Fort."
+                                            },
+                                            {
+                                                "name":  "80",
+                                                "displayName":  "Island Hopper",
+                                                "description":  "Get the Power Star in Sunshine Isles."
+                                            },
+                                            {
+                                                "name":  "81",
+                                                "displayName":  "Star-Studded Beach",
+                                                "description":  "Get all 4 Power Stars in Starshine Beach in one visit."
+                                            },
+                                            {
+                                                "name":  "82",
+                                                "displayName":  "Harbor Blueprint",
+                                                "description":  "Get the Power Star in Beta Ricco Harbor."
+                                            },
+                                            {
+                                                "name":  "83",
+                                                "displayName":  "Show Floor Hills",
+                                                "description":  "Get the Power Star in E3 Bianco Hills."
+                                            },
+                                            {
+                                                "name":  "84",
+                                                "displayName":  "Show Floor Town",
+                                                "description":  "Get the Power Star in E3 Dolpic Town."
+                                            },
+                                            {
+                                                "name":  "85",
+                                                "displayName":  "Prototype Town",
+                                                "description":  "Get the Power Star in Spaceworld Dolpic Town."
+                                            },
+                                            {
+                                                "name":  "86",
+                                                "displayName":  "Rolling Along",
+                                                "description":  "Get the Power Star in Super Monkey Ball."
+                                            },
+                                            {
+                                                "name":  "87",
+                                                "displayName":  "Shell Prototype",
+                                                "description":  "Get both Power Stars in Beta Shell Secret in one visit."
+                                            },
+                                            {
+                                                "name":  "88",
+                                                "displayName":  "Egg Hunt",
+                                                "description":  "Get all 3 Power Stars in Easter Egg Island in one visit."
+                                            },
+                                            {
+                                                "name":  "89",
+                                                "displayName":  "Prototype Hills",
+                                                "description":  "Get the Power Star in Spaceworld Bianco Hills."
+                                            },
+                                            {
+                                                "name":  "90",
+                                                "displayName":  "Gravity Check",
+                                                "description":  "Get the Power Star in Super Galaxy."
+                                            },
+                                            {
+                                                "name":  "91",
+                                                "displayName":  "Sail Away",
+                                                "description":  "Get the Power Star in Windfall Island."
+                                            },
+                                            {
+                                                "name":  "92",
+                                                "displayName":  "Old Flame",
+                                                "description":  "Get the Power Star in Old Lighthouse Island."
+                                            },
+                                            {
+                                                "name":  "93",
+                                                "displayName":  "First Draft Peaks",
+                                                "description":  "Get all 3 Power Stars in Lancia Fredda Peaks v1 in one visit."
+                                            },
+                                            {
+                                                "name":  "94",
+                                                "displayName":  "Early Eggs",
+                                                "description":  "Get the Power Star in Beta Yoshi Village."
+                                            },
+                                            {
+                                                "name":  "95",
+                                                "displayName":  "Square One",
+                                                "description":  "Get the Power Star in Beta Delfino Square."
+                                            },
+                                            {
+                                                "name":  "96",
+                                                "displayName":  "Trust Issues",
+                                                "description":  "Get both Power Stars in False Block Nexus in one visit."
+                                            },
+                                            {
+                                                "name":  "97",
+                                                "displayName":  "Raft Party",
+                                                "description":  "Get both Power Stars in Floating Island Floatilla in one visit."
+                                            },
+                                            {
+                                                "name":  "98",
+                                                "displayName":  "Stone Cold",
+                                                "description":  "Get the Power Star in Isle Medusa."
+                                            },
+                                            {
+                                                "name":  "99",
+                                                "displayName":  "Splash Zone",
+                                                "description":  "Get the Power Star in Waterpark."
+                                            },
+                                            {
+                                                "name":  "100",
+                                                "displayName":  "Hop Along",
+                                                "description":  "Get both Power Stars in Lily Pad Obstacle Course in one visit."
+                                            },
+                                            {
+                                                "name":  "101",
+                                                "displayName":  "Jungle Spin",
+                                                "description":  "Get the Power Star in N. Sanity Jungle."
+                                            },
+                                            {
+                                                "name":  "102",
+                                                "displayName":  "Low Poly",
+                                                "description":  "Get both Power Stars in Beta Vaporwave in one visit."
+                                            },
+                                            {
+                                                "name":  "103",
+                                                "displayName":  "Fresh Paint",
+                                                "description":  "Get the Power Star in New Plaza."
+                                            },
+                                            {
+                                                "name":  "104",
+                                                "displayName":  "Clockwork Forest",
+                                                "description":  "Get the Power Star in Click Clock Wood."
+                                            },
+                                            {
+                                                "name":  "105",
+                                                "displayName":  "Memphis Draft",
+                                                "description":  "Get both Power Stars in Beta Memphis in one visit."
+                                            },
+                                            {
+                                                "name":  "106",
+                                                "displayName":  "Cellar Dweller",
+                                                "description":  "Get both 1-Ups in the castle\u0027s basement in one visit."
+                                            },
+                                            {
+                                                "name":  "107",
+                                                "displayName":  "Tank Life",
+                                                "description":  "Get the 1-Up in the Secret Aquarium."
+                                            },
+                                            {
+                                                "name":  "108",
+                                                "displayName":  "Under Siege",
+                                                "description":  "Get both 1-Ups in Battle Fort in one visit."
+                                            },
+                                            {
+                                                "name":  "109",
+                                                "displayName":  "Coconut Life",
+                                                "description":  "Get the 1-Up in Sunshine Isles."
+                                            },
+                                            {
+                                                "name":  "110",
+                                                "displayName":  "Nine Lives",
+                                                "description":  "Get all 9 1-Ups in Starshine Beach in one visit."
+                                            },
+                                            {
+                                                "name":  "111",
+                                                "displayName":  "Hot Shells",
+                                                "description":  "Get all 3 1-Ups in Beta Shell Secret in one visit."
+                                            },
+                                            {
+                                                "name":  "112",
+                                                "displayName":  "Ledge Life",
+                                                "description":  "Get the 1-Up in Easter Egg Island."
+                                            },
+                                            {
+                                                "name":  "113",
+                                                "displayName":  "Space Life",
+                                                "description":  "Get the 1-Up in Super Galaxy."
+                                            },
+                                            {
+                                                "name":  "114",
+                                                "displayName":  "Island Treasure",
+                                                "description":  "Get all 3 1-Ups in Windfall Island in one visit."
+                                            },
+                                            {
+                                                "name":  "115",
+                                                "displayName":  "Castle Climber",
+                                                "description":  "Get all 7 1-Ups in Lancia Fredda Peaks v1 in one visit."
+                                            },
+                                            {
+                                                "name":  "116",
+                                                "displayName":  "Basic Life",
+                                                "description":  "Get the 1-Up in Beta Vaporwave."
+                                            },
+                                            {
+                                                "name":  "117",
+                                                "displayName":  "Pattern Lives",
+                                                "description":  "Get both 1-Ups in Beta Memphis in one visit."
+                                            },
+                                            {
+                                                "name":  "118",
+                                                "displayName":  "Hands-On Approach",
+                                                "description":  "Get the first Shine Sprite at the Delfino Airstrip before meeting F.L.U.D.D."
+                                            },
+                                            {
+                                                "name":  "119",
+                                                "displayName":  "Back Door",
+                                                "description":  "Reach the flooded Delfino Plaza without beating the brown Gatekeeper above the Grand Pianta Statue."
+                                            },
+                                            {
+                                                "name":  "120",
+                                                "displayName":  "Sinking Feeling",
+                                                "description":  "Get caught in the quicksand goop in Episode 7 of Erto Rock."
+                                            },
+                                            {
+                                                "name":  "121",
+                                                "displayName":  "Minefield Mistake",
+                                                "description":  "Lose 8 health at once to a mine in Episode 1 of Warship Island."
+                                            },
+                                            {
+                                                "name":  "122",
+                                                "displayName":  "Hot Delivery",
+                                                "description":  "Finish the pizza delivery in Episode 8 of Hotel Lacrima with 1 second or less to spare."
+                                            },
+                                            {
+                                                "name":  "123",
+                                                "displayName":  "Cleaning House",
+                                                "description":  "Defeat the boss of Hotel Lacrima\u0027s mafia hideout."
+                                            },
+                                            {
+                                                "name":  "124",
+                                                "displayName":  "Too Hot to Handle",
+                                                "description":  "Talk to the Yoshi in the burning house in Episode 1 of Yoshi Village."
+                                            },
+                                            {
+                                                "name":  "125",
+                                                "displayName":  "Banana Dash",
+                                                "description":  "Reach the finish line in under 30 seconds in Episode 2 of Peach Beach, without Shadow Mario."
+                                            },
+                                            {
+                                                "name":  "126",
+                                                "displayName":  "No Fan Club",
+                                                "description":  "Talk to the brown Pianta at Ricco Station."
+                                            },
+                                            {
+                                                "name":  "127",
+                                                "displayName":  "Mirror Match",
+                                                "description":  "Race Il Piantissimo while playing as him."
+                                            },
+                                            {
+                                                "name":  "128",
+                                                "displayName":  "Player Two",
+                                                "description":  "Walk up to the star statue in the castle\u0027s courtyard as Luigi."
+                                            }
+                                        ]
+                   }
+}

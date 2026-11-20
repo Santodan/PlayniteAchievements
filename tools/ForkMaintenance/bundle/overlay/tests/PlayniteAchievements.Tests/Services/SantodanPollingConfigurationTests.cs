@@ -9,6 +9,38 @@ namespace PlayniteAchievements.Tests.Services
     public class SantodanPollingConfigurationTests
     {
         [TestMethod]
+        public void NativeSourceProfileSchemaAndSwitchesInvalidateOnlyRelevantConfiguration()
+        {
+            var id = Guid.NewGuid(); var other = Guid.NewGuid(); var settings = new LocalSettings();
+            string Signature() => SantodanPollingConfiguration.Build(settings, id, "", "", "C:\\game", "Game", true);
+            var before = Signature(); settings.NativeSourceOverrides[other] = new NativeSourceConfiguration { Source = "sms" };
+            Assert.AreEqual(before, Signature());
+            settings.NativeSourceOverrides[id] = new NativeSourceConfiguration { Source = "ghostship", SavePath = "save_0.json" };
+            Assert.AreNotEqual(before, Signature()); before = Signature(); settings.NativeSourceOverrides[id].SavePath = "save_1.json";
+            Assert.AreNotEqual(before, Signature()); before = Signature(); settings.NativeSourcesEnabled = false;
+            Assert.AreNotEqual(before, Signature());
+        }
+        [TestMethod]
+        public void SharedNativeFolderAndUserChangesInvalidateSourceConfiguration()
+        {
+            var id = Guid.NewGuid(); var settings = new LocalSettings();
+            string Signature() => SantodanPollingConfiguration.Build(settings, id, "", "", "C:\\game", "Game", true);
+            var before = Signature(); settings.NativeSourceLocations["kytyps5"] = new NativeSourceLocations { EmulatorFolders = "C:\\Kyty" };
+            Assert.AreNotEqual(before, Signature()); before = Signature(); settings.NativeSourceLocations["kytyps5"].UserId = "2";
+            Assert.AreNotEqual(before, Signature()); before = Signature(); settings.NativeGameLibraryFolders = "D:\\Ports";
+            Assert.AreNotEqual(before, Signature()); before = Signature(); settings.NativeUseQuiver = false;
+            Assert.AreNotEqual(before, Signature());
+        }
+        [TestMethod]
+        public void NativeMenuIconChangesDoNotInvalidateAchievementSourceConfiguration()
+        {
+            var settings = new LocalSettings(); var id = Guid.NewGuid();
+            string Signature() => SantodanPollingConfiguration.Build(settings, id, "", "", "C:\\game", "Game", true);
+            var original = Signature();
+            settings.NativeSourceIcons["ghostship"] = new NativeSourceIconSettings { CustomIconPath = "custom.png", BorrowedProviderIconKey = "PSN" };
+            Assert.AreEqual(original, Signature());
+        }
+        [TestMethod]
         public void LargeNotificationTemplatesAndOtherGamesDoNotChangeTheSourceSignature()
         {
             var gameId = Guid.NewGuid();

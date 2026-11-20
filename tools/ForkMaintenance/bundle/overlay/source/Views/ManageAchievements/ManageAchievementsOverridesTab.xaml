@@ -304,6 +304,9 @@
                             </StackPanel>
                         </RadioButton.Content>
                     </RadioButton>
+                    <RadioButton Content="Native Sources" GroupName="ManageAchievementLocalOverrideTabs"
+                                 Style="{StaticResource SubTabRadioStyle}"
+                                 IsChecked="{Binding SelectedLocalOverrideTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=NativeSources}"/>
                     <RadioButton
                                  GroupName="ManageAchievementLocalOverrideTabs"
                                  Style="{StaticResource SubTabRadioStyle}"
@@ -361,6 +364,18 @@
                 </Border>
                 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="16,0,0,0">
                 <Grid>
+                    <rootViews:GameOptionsNativeSourcesSection>
+                        <rootViews:GameOptionsNativeSourcesSection.Style>
+                            <Style TargetType="rootViews:GameOptionsNativeSourcesSection">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedLocalOverrideTab}" Value="NativeSources">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </rootViews:GameOptionsNativeSourcesSection.Style>
+                    </rootViews:GameOptionsNativeSourcesSection>
                     <Grid>
                         <Grid.Style>
                             <Style TargetType="Grid">

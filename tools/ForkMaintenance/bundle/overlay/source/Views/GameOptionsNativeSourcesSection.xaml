@@ -1,0 +1,39 @@
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsNativeSourcesSection"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls">
+    <StackPanel Margin="0,0,12,12">
+        <TextBlock Text="Native consoles, recompilations and community patches" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
+        <TextBlock Text="Choose the source to see its expected files. Empty paths use this game's install directory and the source's settings under Santodan-Fork → Platforms → Emulators or PC ports &amp; community patches. Shared libraries are in Native source folders. Apply saves these overrides and selects the Local provider. Inspect reads the draft paths without saving them or changing game files." Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+        <ComboBox ItemsSource="{Binding NativeSourceOptions}" DisplayMemberPath="Name" SelectedValuePath="Key" SelectedValue="{Binding NativeSourceKey, Mode=TwoWay}"/>
+        <TextBlock Text="{Binding NativeSourceFileHint}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+        <TextBlock Text="Install folder (optional override)" Foreground="{DynamicResource TextBrush}"/>
+        <DockPanel Margin="0,4,0,8">
+            <Button DockPanel.Dock="Right" Content="Browse folder" Command="{Binding BrowseNativeInstallCommand}" Margin="8,0,0,0" Padding="10,5"/>
+            <TextBox x:Name="NativeInstallBox" Text="{Binding NativeInstallPath, UpdateSourceTrigger=PropertyChanged}"/>
+        </DockPanel>
+        <controls:FolderVariableButtons TargetTextBox="{Binding ElementName=NativeInstallBox}"/>
+        <TextBlock Text="Unlock file (choose an exact profile / slot / trophy set if several exist)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        <DockPanel Margin="0,4,0,8">
+            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSaveCommand}" Margin="8,0,0,0" Padding="10,5"/>
+            <TextBox Text="{Binding NativeSavePath, UpdateSourceTrigger=PropertyChanged}"/>
+        </DockPanel>
+        <TextBlock Text="Definition file (optional: TRP, UCP, extracted TROP.XML, JSON, or source-specific text)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
+        <DockPanel Margin="0,4,0,8">
+            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSchemaCommand}" Margin="8,0,0,0" Padding="10,5"/>
+            <TextBox Text="{Binding NativeSchemaPath, UpdateSourceTrigger=PropertyChanged}"/>
+        </DockPanel>
+        <TextBlock Text="Profile / slot filename or containing folder (optional, without extension)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
+        <TextBox Text="{Binding NativeProfile, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <TextBlock Text="Kyty user ID for this game (optional; blank follows the shared preference / Kyty.ini)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
+        <TextBox Text="{Binding NativeUserId, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <TextBlock Text="PS4 shared collection log only: u1 / u2 / u3 for Uncharted, p1 / p2 for Prototype. Leave blank for other games." Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
+        <TextBox Text="{Binding NativeCollectionGame, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <WrapPanel>
+            <Button Content="Inspect files" Command="{Binding InspectNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
+            <Button Content="Apply" Command="{Binding ApplyNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
+            <Button Content="Clear override" Command="{Binding ClearNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
+        </WrapPanel>
+        <TextBox Text="{Binding NativeInspection, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="140" VerticalScrollBarVisibility="Auto"/>
+    </StackPanel>
+</UserControl>

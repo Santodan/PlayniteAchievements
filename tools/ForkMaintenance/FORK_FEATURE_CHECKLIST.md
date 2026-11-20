@@ -1,5 +1,47 @@
 # Santodan fork feature checklist
 
+## Native emulator, recompilation and PC-port sources - 2026-11-20
+
+- Preserve `Providers/Local/Santodan/NativeSources/`, the Local provider partials,
+  linked regression sources, native definition data, console PNG resources and
+  all bundled attribution/license files. `NATIVE_SOURCES_GUIDE.md` documents the
+  supported formats and limitations; this is not full AW Next format parity.
+- Keep these settings under Santodan-Fork > Platforms. Emulators has individual
+  KytyPS5, PS3 Recomp, PS4 Recomp and Xbox 360 Recomp / ReXGlue menus. Each port
+  and patch has a separate menu under PC ports & community patches; shared
+  native libraries and Quiver discovery are in Local > Native source folders.
+  Do not move or modify upstream emulator tabs to implement this navigation.
+- Preserve per-source install/save/definition folders, portable layouts, default
+  profiles, optional standard AppData/Documents lookup, bounded exact-identity
+  library discovery and Quiver 3/4 custom data folders. Missing configured save
+  roots must not silently select a stale default save or another game's file.
+- Kyty follows configured emulator folders and its sidecar/ProgramData Kyty.ini,
+  including launcher game directories and per-game users before global users.
+  Per-source user overrides and per-game overrides take precedence. Keep title
+  and service-label checks; never combine ambiguous accounts or trophy sets.
+- Local Overrides > Native Sources retains install/save/schema selectors, profile
+  and Kyty-user overrides, collection-game selection and read-only inspection.
+  Explicit file overrides stay authoritative. Failed or incomplete reads preserve
+  cached achievements. A successful profile/source/set switch must not carry
+  the previous selection's unlocks forward through cached-unlock protection.
+- Preserve MarkerPatch/MadnessPatch masks and resource definitions, native port
+  progress goals, PS3 JSON state plus TRP schemas, Kyty UCP extraction, PS4
+  snapshot/flag/log readers and shared-collection context filtering, and Xbox
+  TOML/TSV/JSON state with optional cached dbox.tools definitions. Native sources
+  use existing Local refresh/notifications; unknown fingerprints force refresh
+  rather than skipping newly created saves. Missing historical dates stay unknown.
+- Native menu icons use PlayStation/Xbox/EA and original Nintendo console icons
+  (Game Boy Color, GameCube, N64 and NES). Preserve scoped converter handling and
+  navigation icon resolvers. Each source has preview, Browse, Clear and borrowed
+  platform selection. Unique managed PNG imports and reference-only clearing must
+  keep saved icons intact on Cancel. Location resets do not reset icon selections;
+  icon changes must not invalidate achievement-source polling configuration.
+- Verify settings Save/Cancel, source toggles, moved folders, ambiguous profiles,
+  per-game override priority, shared collection logs and custom-icon persistence
+  in live Playnite when game files are available. Automated fixtures and a build
+  do not establish live-game compatibility. XEX extraction, Kyty .zar archives
+  and automatic patch installation remain outside the implemented scope.
+
 ## Local refresh completion and automatic capstones - 2026-11-07
 
 - With automatic capstones enabled, clear a Local game's achievement data and

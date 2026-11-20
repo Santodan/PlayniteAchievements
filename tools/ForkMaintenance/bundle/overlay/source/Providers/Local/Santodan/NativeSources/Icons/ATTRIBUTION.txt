@@ -1,0 +1,16 @@
+Original console icons from RetroArch Assets, XMB Monochrome theme.
+Copyright: RetroArch Assets / Monochrome theme contributors.
+License: Creative Commons Attribution 4.0 International (LICENSE.txt).
+https://creativecommons.org/licenses/by/4.0/
+
+Source revision: 8c918e2872482139273374ef4cc6c7aff34d7585
+https://github.com/libretro/retroarch-assets/tree/8c918e2872482139273374ef4cc6c7aff34d7585/xmb/monochrome/png
+
+Unmodified source files (renamed locally):
+Nintendo - Game Boy Color.png -> gameboycolor.png
+Nintendo - GameCube.png -> gamecube.png
+Nintendo - Nintendo 64.png -> n64.png
+Nintendo - Nintendo Entertainment System.png -> nes.png
+
+The application tints their monochrome silhouettes at display time.
+README-UPSTREAM.txt retains the theme's original design notes.

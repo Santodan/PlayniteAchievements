@@ -372,7 +372,7 @@ namespace PlayniteAchievements.Providers.Local
         public string CustomBannerImagePath { get; set; } = string.Empty;
     }
 
-    public class LocalSettings : ProviderSettingsBase
+    public partial class LocalSettings : ProviderSettingsBase
     {
         // Runtime-only copy prepared for one notification, never part of a saved style.
         [Newtonsoft.Json.JsonIgnore]

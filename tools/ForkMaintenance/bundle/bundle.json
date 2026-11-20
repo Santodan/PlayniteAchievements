@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-17T14:54:15.8378064Z",
+    "generatedUtc":  "2026-11-20T13:26:47.7264304Z",
     "baselineRef":  "v4.3.0",
     "baselineCommit":  "804cf50d641d7b68dd5c23dbbe6b104114deb8a0",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "CD61F08185DF3F5F8660A32EC09CD98636AE32B969F87C511620F7F6C3D7CEFE"
+                  "sha256":  "EFB532BB0B0E18295C230857B73589B0451CE15864D2B2DE2AA0BD484F0C9797"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -105,6 +105,10 @@
                              "sha256":  "4D7A444D0F0E83DA41A5C42116BA11E460C557577FF02C49B7655BF8DCCAD107"
                          },
                          {
+                             "path":  "NATIVE_SOURCES_GUIDE.md",
+                             "sha256":  "27B5E350805771D9C3BB8121D1AC5C9581CD4FCF353BEDB4462F4351C6B3E9F7"
+                         },
+                         {
                              "path":  "opencode.json",
                              "sha256":  "28DF96D12DA1F8BAC2BB0B28CB8B7D1BA19AEFD811FCE5176962E924A394D279"
                          },
@@ -170,11 +174,11 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "1EB97B5701B79F530E43B7608B8CFD57CCC74DC74BD02B8A476024E2B136E955"
+                             "sha256":  "73F5F20D60DA040554A3C00A8AEDB286221DA008D511D81B26525E7D81F2EB9D"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
-                             "sha256":  "3CAA48C1AE457187474FFABC3D3BB6F0B7DD2EEB81C0566EEFB15CBDE8CBC19D"
+                             "sha256":  "A50AEF44D2AF221F1B97CF3978FA5D5324E5A9C0725B82790252A824118A6743"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml",
@@ -197,6 +201,10 @@
                              "sha256":  "BCB19D7FBCAE1F82B086BAC2B74C0FAF31DC09BC3BF99EE0BC7BD36E384AD799"
                          },
                          {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.NativeSources.cs",
+                             "sha256":  "43FB9F331D6A9B4F077FC17969130B7AF2193FC324FB20251B5B06E0E950FF57"
+                         },
+                         {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanDiscovery.cs",
                              "sha256":  "BD1885CD1853C2AE01A3E594B55A480344A091FC0707673D24ED7F89AB49C515"
                          },
@@ -206,11 +214,111 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanPolling.cs",
-                             "sha256":  "50F75479589ED7D0B16117B65ACD2987920ADA4CE91072579205FEB6724C7A9C"
+                             "sha256":  "6315A67FE8645D142485E0F83E7D038475A5C8DF9171BE0044A313AA6DB958B7"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanStartupBaseline.cs",
                              "sha256":  "4A9C175240450617FE19E82D3EA2AE2F8FF6080C706AC86B9577787E27FCB002"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/LocalSettings.NativeSources.cs",
+                             "sha256":  "2316669AE6B114E63671B8C84752BAC3F16D4E43005C6CFF217C746FAC6C2D73"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/AWN-LICENSE.txt",
+                             "sha256":  "E3A994D82E644B03A792A930F574002658412F62407F5FEE083F2555C5F23118"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/AWN-NOTICE.txt",
+                             "sha256":  "67333C3A0F3318E24148225BB5EDE17974496A7384E2A97B18CAF98FAAFAA622"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/GPL-3.0.txt",
+                             "sha256":  "3972DC9744F6499F0F9B2DBF76696F2AE7AD8AF9B23DDE66D6AF86C9DFB36986"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/ATTRIBUTION.txt",
+                             "sha256":  "DFC33088E1A33C970F6993EB15D82F5B54284E85B044C1E0339EBAF9CAC58476"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/gameboycolor.png",
+                             "sha256":  "FD9EB58470B8AB6BF63285B4C3899D40DEA3FE83F459435CE9B13F883AA21901"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/gamecube.png",
+                             "sha256":  "7840DDADA8909584E73FA67F97CD023B5098BD5BE44AE76C7212709B690CE2C4"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/LICENSE.txt",
+                             "sha256":  "469FAA8457FFED7428F1C150F4D8682CE25F2D991A694EEC544E661F43452F50"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/n64.png",
+                             "sha256":  "D2FB9AB5630CA481300E98AA4A9F121A160F53D00BDAF4E76C79CF59DFF1F851"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/nes.png",
+                             "sha256":  "D9CEBEE17174618D6A756206A33E9F9C84C23AE06D1BF4B643BCA05E3FF1FBB7"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/Icons/README-UPSTREAM.txt",
+                             "sha256":  "C00BF7930933DD2A24634CB18C5E50AAACA4E4614BB3267F0BA76751AED1F6BE"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeKytySettings.cs",
+                             "sha256":  "6328BF031F9330B91F2F63E7433C50DDD8AFF2DC5B7DBC9DA8592DFDD1CB1E53"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeLocationDiscovery.cs",
+                             "sha256":  "7C0476025172D5C7C6BD157D69CE4CE242930DF04A2DCC04BF9D8A1A353C59E5"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeLocationFiles.cs",
+                             "sha256":  "124446A6182EED8D8DA4F65CEF520C4FB3B295FCA7294AC96767B3BCF73183E1"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativePortDefinitions.json",
+                             "sha256":  "AA692B70606819B34C9C257157BB08B2B25349453773FEF1DCBACEDE6AAD25E8"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeQuiverDiscovery.cs",
+                             "sha256":  "A81ADAE54F27F8B5F84FC292C497BA8E4F76588F57F710F965523FBE54BAFDDA"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceConfiguration.cs",
+                             "sha256":  "5D47F74316BBAECA7D677BDCEF96F8313B8591E1E0CF1CF6D723DBA9C021E195"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceIconService.cs",
+                             "sha256":  "7E75CEEBA79C12B5107EC356A39D7CA18C2FC3737881F0CEBB66FE4F1A5746CB"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceIconSettings.cs",
+                             "sha256":  "309A9C53962AEA0D6DEEA7F4163E6E2A18A03C0C913D08CAA432F78C31AD0B13"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceIdentity.cs",
+                             "sha256":  "6E5F88412E212129172A77925BD6F19F8B00C4DF69FD2EB507931B5717EEB272"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceLocations.cs",
+                             "sha256":  "C630FA1FEB952905295B39BFBE8AA5964D51340FB0EDAA71C53499164F75AAAC"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceReader.cs",
+                             "sha256":  "16ED4098C763C7DD688E96B4516761785308706353F81497CE52C3EC83A1862E"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourcesSettingsView.cs",
+                             "sha256":  "D4496DC9EE369DBFA18255424122E9FF11F037FE99138B55610ADD61DF3EAC3F"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeTrophyReader.cs",
+                             "sha256":  "E73E0B208FF8499137AB3E254AF1EE0EC916594D5EB6EA2898874E230D044380"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/THIRD-PARTY.txt",
+                             "sha256":  "AA9A6FA76E9C9AFA3CC81C3094D4A33B15A4FA91DB2C4E16F78EADF2131B94A8"
                          },
                          {
                              "path":  "source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.SantodanSchema.cs",
@@ -350,7 +458,7 @@
                          },
                          {
                              "path":  "source/Services/InGameMonitoring/SantodanPollingConfiguration.cs",
-                             "sha256":  "CA4541D7776F8DA92BE69FC4DBEBA5506D8DAD99E87A1969B1398181FC36D849"
+                             "sha256":  "79742216405F1129D6426EE2DB3042E0F630FB5FDA702CC167183D2BC903BA91"
                          },
                          {
                              "path":  "source/Services/InGameMonitoring/SantodanPollingScope.cs",
@@ -474,7 +582,7 @@
                          },
                          {
                              "path":  "source/ViewModels/GameOptionsLocalOverrideTab.cs",
-                             "sha256":  "51CA3DD81B15EFC26F17EC39C550B39B2EE58B9E1D79428B15AE37090311307E"
+                             "sha256":  "96E3E2B8F33AD9478B0675AD4AD03AA764EE4A5F17F26DF2685D08BE3DD6355B"
                          },
                          {
                              "path":  "source/ViewModels/GameOptionsOverrideTab.cs",
@@ -494,7 +602,11 @@
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.ForkOverrides.cs",
-                             "sha256":  "E355097A59297B30F795B3037CCB3958F041CA0C33C5A3E5358C55DDD7B7E44E"
+                             "sha256":  "1F8387A0E27A91C6D62CA9EBAE0AF458CCF8800E2519516778C53BDA6019946D"
+                         },
+                         {
+                             "path":  "source/ViewModels/ManageAchievementsViewModel.NativeSources.cs",
+                             "sha256":  "B66063E60779F187E7849316015972DE7A64C6934F7A765475BC051B3A953BB1"
                          },
                          {
                              "path":  "source/Views/Controls/FolderVariableButtons.xaml",
@@ -511,6 +623,14 @@
                          {
                              "path":  "source/Views/GameOptionsLocalOverridesSection.xaml.cs",
                              "sha256":  "DF32A96E562C699FAEE45D9FA4B017155B2ADD5F4B82CEF284147FC9582A2106"
+                         },
+                         {
+                             "path":  "source/Views/GameOptionsNativeSourcesSection.xaml",
+                             "sha256":  "41BA619E1C43FA2B172EF10BC3DF877B9ECC9FF4D9F0E1C8B00ACC6603DE9F05"
+                         },
+                         {
+                             "path":  "source/Views/GameOptionsNativeSourcesSection.xaml.cs",
+                             "sha256":  "53FC79B7052F19B91CF1028ADD4BD2BC1EC55D0418E0EFE1CA0D51902AD4ACF8"
                          },
                          {
                              "path":  "source/Views/Helpers/ButtonLabelTemplateSelector.cs",
@@ -550,7 +670,7 @@
                          },
                          {
                              "path":  "source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml",
-                             "sha256":  "419953529E77BD6821C92399E65C60A44C7D00CBC3B85DF4540D355A48DEB052"
+                             "sha256":  "42242564F0D28A0E547E284618AC57416CCF64E74D8B712B97B87FE66AD3CA43"
                          },
                          {
                              "path":  "source/Views/ManageAchievements/ManageAchievementsOverridesTab.xaml.cs",
@@ -603,6 +723,14 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Providers/LocalOfflineSchemaCacheTests.cs",
                              "sha256":  "4341BFEAE80BF5440C0C52C769CF222ACD823F68F2B9DC484BADD74D4656A388"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Providers/NativeSourceIconTests.cs",
+                             "sha256":  "2E9A7E3C7BBECCE476E2633AEBDCBCCD95BB1C8C4F1F3683C6842F20AC9793DC"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Providers/NativeSourceReaderTests.cs",
+                             "sha256":  "DD1505DB62FC6E63A5102E373B4526C955CC2FF484E55B7376B7438C2D828441"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/CefDebugTraceTests.cs",
@@ -666,7 +794,7 @@
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/SantodanPollingConfigurationTests.cs",
-                             "sha256":  "3DCCBDFAADDDC3EFE40DE62843861A0DDDB60B359F3D25BC6669887FBB2FC395"
+                             "sha256":  "9D694D9FBC6A87FAB4E2F04F06A69ACF180EED84FF072BF40E084FE5A713F7A8"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Services/SantodanPollingScopeTests.cs",

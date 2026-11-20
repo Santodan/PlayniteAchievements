@@ -149,6 +149,10 @@ namespace PlayniteAchievements.Views.Converters
                 return null;
             }
 
+            if (iconKey.StartsWith(Providers.Local.NativeSourceIconService.FilePrefix, StringComparison.Ordinal) ||
+                iconKey.StartsWith(Providers.Local.NativeSourceIconService.ConsolePrefix, StringComparison.Ordinal))
+                return Providers.Local.NativeSourceIconService.Build(iconKey, colorHex);
+
             if (iconKey.StartsWith(TagIconPrefix, StringComparison.Ordinal))
             {
                 return BuildGlyphIcon(iconKey.Substring(TagIconPrefix.Length), colorHex);

@@ -392,6 +392,27 @@ namespace PlayniteAchievements.Views
                     redirectProviderKey,
                     subtitle));
 
+                if (string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
+                {
+                    ForkProviderNavigationItems.Add(new ProviderNavigationItem(
+                        "LocalNativeSources", "Native source folders", "Local", iconKey, colorHex,
+                        settings, () => new Providers.Local.NativeSourcesSettingsView()));
+                    foreach (var nativeSource in Providers.Local.NativeSourceCatalog.Sources.Where(source => source.Key != "auto"))
+                    {
+                        var group = nativeSource.Key == "kytyps5" || nativeSource.Key == "ps3recomp" ||
+                            nativeSource.Key == "ps4recomp" || nativeSource.Key == "x360recomp"
+                            ? "Emulators" : "PC ports & community patches";
+                        var nativeSettings = (Providers.Local.LocalSettings)settings;
+                        var nativeIconKey = Providers.Local.NativeSourceIconService.IconKey(nativeSource, nativeSettings);
+                        var nativeColorHex = Providers.Local.NativeSourceIconService.Color(nativeSource, nativeSettings);
+                        ForkProviderNavigationItems.Add(new ProviderNavigationItem(
+                            "LocalNativeSource:" + nativeSource.Key, nativeSource.Name, group, nativeIconKey, nativeColorHex,
+                            settings, () => new Providers.Local.NativeSourcesSettingsView(nativeSource.Key),
+                            iconKeyResolver: () => Providers.Local.NativeSourceIconService.IconKey(nativeSource, nativeSettings),
+                            iconColorResolver: () => Providers.Local.NativeSourceIconService.Color(nativeSource, nativeSettings)));
+                    }
+                }
+
                 if (string.Equals(providerKey, "Steam", StringComparison.OrdinalIgnoreCase))
                 {
                     ForkProviderNavigationItems.Add(new ProviderNavigationItem(

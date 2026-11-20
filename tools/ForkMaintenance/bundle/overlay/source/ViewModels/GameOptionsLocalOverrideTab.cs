@@ -6,6 +6,7 @@ namespace PlayniteAchievements.ViewModels
         Steam,
         Epic,
         LumaPlay,
-        RetroAchievements
+        RetroAchievements,
+        NativeSources
     }
 }

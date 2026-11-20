@@ -12,6 +12,8 @@ namespace PlayniteAchievements.Views.Settings.Navigation
     public sealed class ProviderNavigationItem : SettingsNavigationItem
     {
         private readonly IProviderSettings _settings;
+        private readonly Func<string> _iconKeyResolver;
+        private readonly Func<string> _iconColorResolver;
 
         public ProviderNavigationItem(
             string providerKey,
@@ -22,7 +24,9 @@ namespace PlayniteAchievements.Views.Settings.Navigation
             IProviderSettings settings,
             Func<ProviderSettingsViewBase> settingsViewFactory,
             string redirectProviderKey = null,
-            string subtitle = null)
+            string subtitle = null,
+            Func<string> iconKeyResolver = null,
+            Func<string> iconColorResolver = null)
             : base(
                 providerKey,
                 displayName,
@@ -34,6 +38,8 @@ namespace PlayniteAchievements.Views.Settings.Navigation
                 providerColorHex: providerColorHex)
         {
             _settings = settings;
+            _iconKeyResolver = iconKeyResolver;
+            _iconColorResolver = iconColorResolver;
 
             if (_settings != null)
             {
@@ -42,6 +48,8 @@ namespace PlayniteAchievements.Views.Settings.Navigation
         }
 
         public string ProviderKey => Key;
+        public override string ProviderIconKey => _iconKeyResolver?.Invoke() ?? base.ProviderIconKey;
+        public override string ProviderColorHex => _iconColorResolver?.Invoke() ?? base.ProviderColorHex;
         public override bool IsEnabled => _settings?.IsEnabled ?? true;
 
         private static Func<UserControl> CreateViewFactory(
@@ -63,6 +71,13 @@ namespace PlayniteAchievements.Views.Settings.Navigation
 
         private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
+            if (_iconKeyResolver != null && (string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(Providers.Local.LocalSettings.NativeSourceIcons)))
+            {
+                OnPropertyChanged(nameof(ProviderIconKey));
+                OnPropertyChanged(nameof(ProviderColorHex));
+                OnPropertyChanged(nameof(HasProviderIcon));
+            }
             if (string.IsNullOrEmpty(e.PropertyName) ||
                 string.Equals(e.PropertyName, nameof(IProviderSettings.IsEnabled), StringComparison.Ordinal))
             {

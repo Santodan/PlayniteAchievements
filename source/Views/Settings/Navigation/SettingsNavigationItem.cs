@@ -46,8 +46,8 @@ namespace PlayniteAchievements.Views.Settings.Navigation
         public bool HasIconGlyph => !string.IsNullOrWhiteSpace(IconGlyph);
 
         /// <summary>Resource key for a provider icon, rendered via ProviderIconConverter.</summary>
-        public string ProviderIconKey { get; }
-        public string ProviderColorHex
+        public virtual string ProviderIconKey { get; }
+        public virtual string ProviderColorHex
         {
             get => _providerColorHex;
             private set => SetValue(ref _providerColorHex, value);

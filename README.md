@@ -58,6 +58,8 @@
 
 Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
 
+For KytyPS5, console recompilations, community patches and PC ports, see [Native sources setup and detected files](NATIVE_SOURCES_GUIDE.md).
+
 For idle CPU usage, see [Local polling performance settings](LOCAL_PROVIDER_TROUBLESHOOTING.md#reduce-cpu-usage-while-a-game-is-idle) for recommended settings, explanations of each option, and testing steps.
 
 ## Local Provider Folder List And Browse Flow
@@ -116,6 +118,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - v4.3.0 merge
+- Added native emulator, recompilation and PC port achievement support #93
 
 ## 2026-11-17 - v4.2.1.2
 

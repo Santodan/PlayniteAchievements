@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Providers.Local
             PlayniteAchievements.Services.InGameMonitoring.LocalPollingDirectoryCache directoryCache = null, Action<string> observeAchievementFile = null)
         {
             fingerprint = null;
+            if (HasNativeSource(game)) return false;
             if (game == null || game.Id == Guid.Empty)
             {
                 return false;
