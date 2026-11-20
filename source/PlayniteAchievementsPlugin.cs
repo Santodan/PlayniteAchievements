@@ -676,19 +676,29 @@ namespace PlayniteAchievements
                     _gameCustomDataStore.UpgradeStoredRecordsToCurrentSchema();
                 }
 
-                using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataWarmup", thresholdMs: 50))
-                {
-                    // Counted, not loaded out. LoadAll deep-clones every stored record, and this
-                    // wanted a number -- so a user who has customized their whole library paid a
-                    // full copy of every record at startup, and it was discarded on the next line.
-                    var count = _gameCustomDataStore.QueryAll(rows => rows.Count());
-                    _logger?.Debug($"Preloaded {count} game custom-data rows.");
-                }
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "Failed to warm game custom-data cache during plugin startup.");
+                _logger?.Warn(ex, "Failed to upgrade stored game custom-data records during plugin startup.");
             }
+
+            // Off the UI thread: a caller that needs every row first waits for this read rather
+            // than starting its own.
+            var store = _gameCustomDataStore;
+            Task.Run(() =>
+            {
+                try
+                {
+                    using (PerfScope.StartStartup(_logger, "PluginCtor.CustomDataWarmup", thresholdMs: 50))
+                    {
+                        store.EnsureCacheLoaded();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "Failed to warm game custom-data cache during plugin startup.");
+                }
+            });
         }
 
         /// <summary>
