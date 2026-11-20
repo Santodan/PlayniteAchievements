@@ -48,6 +48,9 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="Stretch"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
@@ -87,6 +90,9 @@
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                       <Grid>
                         <!-- The separator is drawn behind the cells rather than as the border of
                              this Border. As a border it would inset the content by its own
