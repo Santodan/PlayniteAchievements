@@ -1532,7 +1532,7 @@
                                     Height="1"
                                     Margin="12,0"
                                     VerticalAlignment="Bottom"
-                                    Background="{DynamicResource PlayAch.Brush.Separator}"
+                                    Background="{DynamicResource PlayAch.Brush.Border}"
                                     Opacity="{StaticResource PlayAch.Opacity.Muted}"
                                     Visibility="Collapsed"/>
                             <ContentPresenter x:Name="ExpandSite"
