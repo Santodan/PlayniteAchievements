@@ -81,6 +81,11 @@ namespace PlayniteAchievements.Views.Controls
         public StylePinnedDataGridColumnHeadersPresenter()
         {
             DataGridStylePin.UseBaseTypeStyle(this, typeof(DataGridColumnHeadersPresenter));
+
+            // A header's Column does not notify when it changes, so a recycled header keeps every
+            // binding that reads through Column (hidden text, header alignment) on the column it
+            // was first made for. Headers are few; each column's header is built for it.
+            VirtualizingPanel.SetVirtualizationMode(this, VirtualizationMode.Standard);
         }
 
         // The presenter sits in the grid's ScrollViewer template.
