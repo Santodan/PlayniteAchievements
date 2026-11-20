@@ -46,9 +46,10 @@ namespace PlayniteAchievements.Services.Database
     /// A virtualizing grid whose rows differ in height reads every index on each layout pass, so
     /// once it reports a realized row (<see cref="Realized"/>) only realized rows move the anchor
     /// and want pages, and its reads neither move it nor count as a sweep. For such a grid a
-    /// landed page fills the placeholders it handed out one per idle turn, nearest the anchor
-    /// first: filling a row builds what shows it, and a whole page at once would do that in the
-    /// frame of a drag step. Until its turn a placeholder stands in as before.
+    /// landed page fills the placeholders it handed out one per idle turn, top down from the
+    /// first row of the grid's latest run of realized rows: filling a row builds what shows it,
+    /// and a whole page at once would do that in the frame of a drag step. Until its turn a
+    /// placeholder stands in as before.
     /// </para>
     /// <para>
     /// A query change or a touching feed change reads the keys again with the pages around the
@@ -92,6 +93,10 @@ namespace PlayniteAchievements.Services.Database
         private int _count;
         private int _anchor;
         private int _lastIndex = -1;
+        // The grid realizes rows top down, so the anchor ends on the last one; fills start at the
+        // first row of that run instead.
+        private int _fillFrom;
+        private int _lastRealized = -1;
         private int _runStart;
         private int _runApplies;
         private int _applies;
@@ -233,6 +238,12 @@ namespace PlayniteAchievements.Services.Database
         public void Realized(int index)
         {
             _realizing = true;
+            if (index != _lastRealized + 1)
+            {
+                _fillFrom = index;
+            }
+
+            _lastRealized = index;
             if (!_keysLoaded || index < 0 || index >= _count)
             {
                 return;
@@ -581,8 +592,8 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
-        // Fills the waiting placeholder nearest the anchor; one whose page was dropped or read
-        // again since is left to that.
+        // Fills the waiting placeholders top down: first those from the start of the latest
+        // realized run, then the rest. One whose page was dropped or read again since is left to that.
         private void FillNext()
         {
             _filling = false;
@@ -594,7 +605,8 @@ namespace PlayniteAchievements.Services.Database
             var index = -1;
             foreach (var waiting in _fills.Keys)
             {
-                if (index < 0 || Math.Abs(waiting - _anchor) < Math.Abs(index - _anchor))
+                var inRun = waiting >= _fillFrom;
+                if (index < 0 || (inRun && index < _fillFrom) || (inRun == (index >= _fillFrom) && waiting < index))
                 {
                     index = waiting;
                 }
