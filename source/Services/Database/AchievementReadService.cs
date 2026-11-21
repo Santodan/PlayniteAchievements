@@ -111,6 +111,22 @@ namespace PlayniteAchievements.Services.Database
         public string UnlockTimeUtc { get; set; }
     }
 
+    /// <summary>The achievement editor's read of some rows: the rows and the provider values of their platform rows.</summary>
+    internal sealed class EditorRowsRead
+    {
+        public EditorRowsRead(
+            IReadOnlyList<AchievementRowRecord> rows,
+            IReadOnlyDictionary<(long UserId, long DefinitionId), EditorBaselineRecord> baselines)
+        {
+            Rows = rows ?? Array.Empty<AchievementRowRecord>();
+            Baselines = baselines ?? new Dictionary<(long UserId, long DefinitionId), EditorBaselineRecord>();
+        }
+
+        public IReadOnlyList<AchievementRowRecord> Rows { get; }
+
+        public IReadOnlyDictionary<(long UserId, long DefinitionId), EditorBaselineRecord> Baselines { get; }
+    }
+
     /// <summary>Reads the keys of the <see cref="AchievementGroup.ProviderGame"/> and <see cref="AchievementGroup.FriendGame"/> groups.</summary>
     internal static class AchievementGroupKeys
     {
