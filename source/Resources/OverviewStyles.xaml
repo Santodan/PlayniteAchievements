@@ -116,7 +116,8 @@
                                 <RowDefinition Height="Auto"/>
                             </SelectiveScrollingGrid.RowDefinitions>
 
-                            <controls:StylePinnedDataGridCellsPresenter Grid.Column="1"
+                            <controls:StylePinnedDataGridCellsPresenter x:Name="DGR_Cells"
+                                                    Grid.Column="1"
                                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                                     SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
 
@@ -133,6 +134,10 @@
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- An unloaded row's skeleton cells shimmer as one band across the row. -->
+                        <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                            <Setter TargetName="DGR_Cells" Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
