@@ -45,6 +45,7 @@ namespace PlayniteAchievements.Services.UI
         private readonly Func<bool> _tryRefreshFocusedView;
         private readonly Action<Guid> _fireTestUnlock;
         private readonly Action _toggleWorkshopWindow;
+        private readonly Action _toggleAchievementEditorWindow;
         private readonly Dictionary<int, AchievementHotkeyAction> _registeredGlobalHotkeys =
             new Dictionary<int, AchievementHotkeyAction>();
 
@@ -59,6 +60,7 @@ namespace PlayniteAchievements.Services.UI
         private AchievementHotkeyGesture _categoryModeGesture = AchievementHotkeyGesture.Empty;
         private AchievementHotkeyGesture _testUnlockGesture = AchievementHotkeyGesture.Empty;
         private AchievementHotkeyGesture _workshopGesture = AchievementHotkeyGesture.Empty;
+        private AchievementHotkeyGesture _achievementEditorGesture = AchievementHotkeyGesture.Empty;
         private AchievementHotkeyAction? _lastHandledAction;
         private DateTime _lastHandledAtUtc;
         private string _lastGlobalRegistrationFailureSignature;
@@ -75,7 +77,8 @@ namespace PlayniteAchievements.Services.UI
             Func<bool> tryFlipCategoryMode = null,
             Func<bool> tryRefreshFocusedView = null,
             Action<Guid> fireTestUnlock = null,
-            Action toggleWorkshopWindow = null)
+            Action toggleWorkshopWindow = null,
+            Action toggleAchievementEditorWindow = null)
         {
             _api = api;
             _settings = settings;
@@ -89,6 +92,7 @@ namespace PlayniteAchievements.Services.UI
             _tryRefreshFocusedView = tryRefreshFocusedView;
             _fireTestUnlock = fireTestUnlock;
             _toggleWorkshopWindow = toggleWorkshopWindow;
+            _toggleAchievementEditorWindow = toggleAchievementEditorWindow;
         }
 
         private Dispatcher UiDispatcher =>
@@ -171,12 +175,13 @@ namespace PlayniteAchievements.Services.UI
             _categoryModeGesture = ResolveGesture(persisted?.EnableCategoryModeHotkey, persisted?.CategoryModeHotkey);
             _testUnlockGesture = ResolveGesture(persisted?.EnableTestUnlockHotkey, persisted?.TestUnlockHotkey);
             _workshopGesture = ResolveGesture(persisted?.EnableWorkshopHotkey, persisted?.WorkshopHotkey);
+            _achievementEditorGesture = ResolveGesture(persisted?.EnableAchievementEditorHotkey, persisted?.AchievementEditorHotkey);
 
             var enableGlobalHotkeys = persisted?.EnableAchievementHotkeys == true &&
                                       persisted.EnableGlobalAchievementHotkeys;
 
             _logger?.Debug(
-                $"Refreshing achievement hotkeys. enabled={persisted?.EnableAchievementHotkeys == true}, global={enableGlobalHotkeys}, view='{_viewGesture}', manage='{_manageGesture}', overview='{_overviewGesture}', openSettings='{_openSettingsGesture}', categoryMode='{_categoryModeGesture}', testUnlock='{_testUnlockGesture}', workshop='{_workshopGesture}', sinkHandle={_globalHotkeyWindowHandle}");
+                $"Refreshing achievement hotkeys. enabled={persisted?.EnableAchievementHotkeys == true}, global={enableGlobalHotkeys}, view='{_viewGesture}', manage='{_manageGesture}', overview='{_overviewGesture}', openSettings='{_openSettingsGesture}', categoryMode='{_categoryModeGesture}', testUnlock='{_testUnlockGesture}', workshop='{_workshopGesture}', achievementEditor='{_achievementEditorGesture}', sinkHandle={_globalHotkeyWindowHandle}");
 
             UnregisterGlobalHotkeys(disposeSink: !enableGlobalHotkeys);
 
@@ -339,6 +344,12 @@ namespace PlayniteAchievements.Services.UI
                 return true;
             }
 
+            if (_toggleAchievementEditorWindow != null && !_achievementEditorGesture.IsEmpty && gesture.Equals(_achievementEditorGesture))
+            {
+                action = AchievementHotkeyAction.AchievementEditor;
+                return true;
+            }
+
             return false;
         }
 
@@ -379,6 +390,12 @@ namespace PlayniteAchievements.Services.UI
             if (action == AchievementHotkeyAction.Workshop)
             {
                 _toggleWorkshopWindow?.Invoke();
+                return;
+            }
+
+            if (action == AchievementHotkeyAction.AchievementEditor)
+            {
+                _toggleAchievementEditorWindow?.Invoke();
                 return;
             }
 
@@ -672,7 +689,10 @@ namespace PlayniteAchievements.Services.UI
             FireTestUnlock,
 
             // Opens, focuses, or closes the Workshop window. In-app only: no global registration.
-            Workshop
+            Workshop,
+
+            // Opens, focuses, or closes the Achievement Editor window. In-app only: no global registration.
+            AchievementEditor
         }
     }
 }
