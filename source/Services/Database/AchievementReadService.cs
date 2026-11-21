@@ -88,6 +88,29 @@ namespace PlayniteAchievements.Services.Database
         public long CompareHasGame { get; set; }
     }
 
+    /// <summary>
+    /// The provider's values of one platform achievement for one user, as
+    /// <see cref="AchievementReadService.EditorBaselines"/> reads them; stored values, as
+    /// <see cref="AchievementRowRecord"/> holds them.
+    /// </summary>
+    internal sealed class EditorBaselineRecord
+    {
+        public long DefinitionId { get; set; }
+        public long UserId { get; set; }
+        public string DisplayName { get; set; }
+        public string Description { get; set; }
+        public string UnlockedIconPath { get; set; }
+        public string LockedIconPath { get; set; }
+        public int? Points { get; set; }
+        public string TrophyType { get; set; }
+        public string Tags { get; set; }
+        public long Hidden { get; set; }
+        public long IsCapstone { get; set; }
+
+        /// <summary>The unlock time the platform reported, before any override; null when locked.</summary>
+        public string UnlockTimeUtc { get; set; }
+    }
+
     /// <summary>Reads the keys of the <see cref="AchievementGroup.ProviderGame"/> and <see cref="AchievementGroup.FriendGame"/> groups.</summary>
     internal static class AchievementGroupKeys
     {
@@ -247,6 +270,29 @@ namespace PlayniteAchievements.Services.Database
         /// <summary>The rows of <paramref name="keys"/>, in their order; a key whose row no longer matches is left out.</summary>
         public IReadOnlyList<AchievementRowRecord> Rows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
             Read(db => Rows(db, query, keys));
+
+        /// <summary>The provider's values of the platform rows of <paramref name="keys"/>, by user and definition id.</summary>
+        public IReadOnlyDictionary<(long UserId, long DefinitionId), EditorBaselineRecord> EditorBaselines(IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            Read(db => EditorBaselines(db, keys));
+
+        internal static IReadOnlyDictionary<(long UserId, long DefinitionId), EditorBaselineRecord> EditorBaselines(
+            SQLiteDatabase db,
+            IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            var result = new Dictionary<(long, long), EditorBaselineRecord>();
+            if (keys == null || !keys.Any(key => key.PlayniteGameId == null && key.DefinitionId.HasValue))
+            {
+                return result;
+            }
+
+            var command = AchievementQuerySql.EditorBaselines(keys);
+            foreach (var row in db.Load<EditorBaselineRecord>(command.Sql, command.Args))
+            {
+                result[(row.UserId, row.DefinitionId)] = row;
+            }
+
+            return result;
+        }
 
         /// <summary>The library games of the provider games <paramref name="changes"/> name.</summary>
         public IReadOnlyList<Guid> LibraryGamesOf(IEnumerable<FriendCacheChange> changes) => Read(db => LibraryGamesOf(db, changes));
