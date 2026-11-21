@@ -121,6 +121,16 @@ namespace PlayniteAchievements.Services.Database
         Tally
     }
 
+    /// <summary>The fields <see cref="AchievementQuery.SearchText"/> matches for the current user.</summary>
+    internal enum AchievementSearchFields
+    {
+        /// <summary>Game and achievement name, as the recent-achievement lists search.</summary>
+        Default,
+
+        /// <summary>Game name, achievement name, description and API name, as the achievement editor searches.</summary>
+        Editor
+    }
+
     /// <summary>
     /// One read of resolved achievement rows: whose rows, which games, which rows of them, in what
     /// order and which page. Immutable; each <c>With</c> method returns a changed copy.
@@ -229,6 +239,31 @@ namespace PlayniteAchievements.Services.Database
         /// category and provider for friends.
         /// </summary>
         public string SearchText { get; private set; }
+
+        /// <summary>The fields <see cref="SearchText"/> matches for the current user; friend rows always match their own set.</summary>
+        public AchievementSearchFields SearchFields { get; private set; }
+
+        /// <summary>
+        /// Only rows the user customized (true) or left alone (false), as the achievement editor
+        /// marks them: authored, or a stored override that differs from the provider's value, a
+        /// cleared field, a note, goal, filter or unlock-time override, or a changed capstone
+        /// mark; null for both.
+        /// </summary>
+        public bool? Customized { get; private set; }
+
+        /// <summary>
+        /// For a Playnite game the current user has on several accounts, only the rows of the
+        /// most recently updated one, as the per-game cache read picks it; authored rows always.
+        /// </summary>
+        public bool LatestProgressOnly { get; private set; }
+
+        /// <summary>
+        /// Achievements, as Playnite game id and API name, that match whatever the row filters say,
+        /// within the query's users and games; null for none. The row filters are every condition
+        /// on the row's own values: unlock state and time, rarity, trophy, tags, category, search,
+        /// customization, key groups, capstones and hidden.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<Guid, string>> KeptAchievements { get; private set; }
 
         /// <summary>
         /// Leaves out games excluded from summaries and achievements filtered or filtered from
@@ -365,6 +400,28 @@ namespace PlayniteAchievements.Services.Database
             });
 
         public AchievementQuery WhereSearch(string text) => With(query => query.SearchText = text);
+
+        public AchievementQuery WhereSearch(string text, AchievementSearchFields fields) =>
+            With(query =>
+            {
+                query.SearchText = text;
+                query.SearchFields = fields;
+            });
+
+        public AchievementQuery WhereCustomized(bool? customized) => With(query => query.Customized = customized);
+
+        public AchievementQuery WithLatestProgressOnly(bool latest = true) => With(query => query.LatestProgressOnly = latest);
+
+        /// <summary>Rows of these pairs pass the row filters; null or empty keeps none.</summary>
+        public AchievementQuery OrKeep(IEnumerable<KeyValuePair<Guid, string>> achievements) =>
+            With(query =>
+            {
+                var list = achievements?
+                    .Where(pair => pair.Key != Guid.Empty && !string.IsNullOrWhiteSpace(pair.Value))
+                    .Distinct()
+                    .ToList();
+                query.KeptAchievements = list?.Count > 0 ? list : null;
+            });
 
         public AchievementQuery WithSummaryRules(bool apply = true) => With(query => query.SummaryRules = apply);
 
