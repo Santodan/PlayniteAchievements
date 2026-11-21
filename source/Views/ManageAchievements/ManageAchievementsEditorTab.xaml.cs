@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using Playnite.SDK.Events;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
@@ -47,6 +48,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static readonly Dictionary<string, bool> DefaultColumnVisibility =
             new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
+                ["EditorGame"] = true,
                 ["EditorIcon"] = true,
                 ["EditorName"] = true,
                 ["EditorDescription"] = true,
@@ -78,6 +80,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static readonly Dictionary<string, double> DefaultColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
+                ["EditorGame"] = 180,
                 ["EditorIcon"] = 58,
                 ["EditorName"] = 240,
                 ["EditorDescription"] = 320,
@@ -148,7 +151,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 DropIndicator = DropInsertLine,
                 DragCountPopup = DragCountPopup,
                 DragCountText = DragCountText,
-                IsReorderableItem = item => item is AchievementEditorRow,
+                IsReorderableItem = item => item is AchievementEditorRow && ViewModel?.IsPagedMode != true,
                 ExtractDragKeys = items => AchievementOrderHelper.NormalizeApiNames(
                     items.OfType<AchievementEditorRow>().Select(item => item.OriginalApiName)),
                 MoveItemsRelativeToTarget = (apiNames, target, insertAfter) =>
@@ -158,6 +161,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 RestoreSelection = RestoreSelectionByApiNames,
                 RowPressOutsideDragHandle = NormalizeSelectionForRoutedCell
             });
+
+            if (!viewModel.IsLibraryScope)
+            {
+                CustomAchievementsGrid.Columns.Remove(EditorGameColumn);
+            }
 
             AttachColumnPersistence();
 
@@ -305,6 +313,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </remarks>
         private void AttachFilter()
         {
+            if (ViewModel?.IsPagedMode == true)
+            {
+                return;
+            }
+
             var view = CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows);
             if (view == null)
             {
@@ -358,6 +371,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </remarks>
         private void SyncFilteredRows()
         {
+            if (ViewModel?.IsPagedMode == true)
+            {
+                return;
+            }
+
             var rows = ViewModel?.AchievementRows;
             var view = CollectionViewSource.GetDefaultView(rows);
             if (view == null)
@@ -423,8 +441,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </summary>
         private void SelectAllButton_Click(object sender, RoutedEventArgs e)
         {
-            CustomAchievementsGrid.SelectAll();
+            SelectAllRows();
             CustomAchievementsGrid.Focus();
+        }
+
+        private void SelectAllRows()
+        {
+            if (ViewModel?.GridRows is IPartiallyLoadedRows paged)
+            {
+                CustomAchievementsGrid.SelectedItems.Clear();
+                foreach (var row in paged.LoadedItems.OfType<AchievementEditorRow>().Where(row => !row.IsPlaceholder).ToList())
+                {
+                    CustomAchievementsGrid.SelectedItems.Add(row);
+                }
+
+                return;
+            }
+
+            CustomAchievementsGrid.SelectAll();
         }
 
         private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
@@ -468,6 +502,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
             if (e?.Row?.Item is AchievementEditorRow realized)
             {
                 _realizedRows.Add(realized);
+            }
+
+            // The paged rows load the pages around the rows the grid realizes.
+            if (CustomAchievementsGrid.ItemsSource is IRealizedRows paged && e?.Row != null)
+            {
+                paged.Realized(e.Row.GetIndex());
             }
 
             if (!Common.PerfScope.PerfTracingEnabled)
@@ -595,7 +635,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             }
 
             var wanted = new HashSet<string>(apiNames, StringComparer.OrdinalIgnoreCase);
-            var rows = CustomAchievementsGrid.Items.OfType<AchievementEditorRow>().ToList();
+
+            // The loaded rows only across games: the grid's items would read every page.
+            var rows = ViewModel?.GridRows is IPartiallyLoadedRows paged
+                ? paged.LoadedItems.OfType<AchievementEditorRow>().ToList()
+                : CustomAchievementsGrid.Items.OfType<AchievementEditorRow>().ToList();
             var matches = rows
                 .Where(row => !string.IsNullOrWhiteSpace(row.OriginalApiName) &&
                               wanted.Contains(row.OriginalApiName))
@@ -615,7 +659,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
             // SelectAll goes through the Selector's own batched selection change instead, which
             // is one operation whatever the row count -- and "everything was selected" is
             // exactly the case those three produce.
-            if (matches.Count == rows.Count && rows.Count > 0)
+            if (matches.Count == rows.Count && rows.Count > 0 && ViewModel?.IsPagedMode != true)
             {
                 CustomAchievementsGrid.SelectAll();
                 return;
@@ -830,6 +874,12 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </summary>
         private void MoveAchievementSelection(int delta)
         {
+            if (ViewModel?.GridRows is IPartiallyLoadedRows && ViewModel.GridRows is System.Collections.IList pagedRows)
+            {
+                MovePagedSelection(pagedRows, delta);
+                return;
+            }
+
             var view = CollectionViewSource.GetDefaultView(ViewModel?.AchievementRows);
             if (view == null)
             {
@@ -872,6 +922,30 @@ namespace PlayniteAchievements.Views.ManageAchievements
             ScrollRowIntoView(rows[next]);
         }
 
+        /// <summary>Steps through the paged rows by index, reading only the row stepped onto.</summary>
+        private void MovePagedSelection(System.Collections.IList rows, int delta)
+        {
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            var index = CustomAchievementsGrid.SelectedItem == null ? -1 : rows.IndexOf(CustomAchievementsGrid.SelectedItem);
+            var next = index < 0 ? (delta > 0 ? 0 : rows.Count - 1) : index + delta;
+            if (next < 0 || next >= rows.Count || !(rows[next] is AchievementEditorRow row))
+            {
+                return;
+            }
+
+            if (CustomAchievementsGrid.SelectedItems.Count > 1)
+            {
+                CustomAchievementsGrid.SelectedItems.Clear();
+            }
+
+            CustomAchievementsGrid.SelectedItem = row;
+            CustomAchievementsGrid.ScrollIntoView(row);
+        }
+
         /// <summary>
         /// Brings a row the editor picked into view, after the grid has had a chance to realize it:
         /// a row added a moment ago has no container yet, and scrolling to one that does not exist
@@ -901,6 +975,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
+            if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.GridRows))
+            {
+                DetachFilter();
+                AttachFilter();
+                _realizedRows.Clear();
+            }
+
             if (e?.PropertyName == nameof(ManageAchievementsEditorViewModel.SelectedRow) ||
                 e?.PropertyName == nameof(ManageAchievementsEditorViewModel.EditTarget))
             {
@@ -2416,6 +2497,10 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     Execute(viewModel.RedoCommand);
                     break;
 
+                case Key.A when viewModel.IsPagedMode:
+                    SelectAllRows();
+                    break;
+
                 default:
                     return;
             }
@@ -2535,7 +2620,9 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private GridColumnLayoutOptions GetColumnLayout()
         {
             return ViewModel?.Settings?.Persisted?.GridOptions
-                ?.GetManageAchievements(GridOptionKeys.ManageAchievements.Editor)
+                ?.GetManageAchievements(ViewModel.IsLibraryScope
+                    ? GridOptionKeys.ManageAchievements.LibraryEditor
+                    : GridOptionKeys.ManageAchievements.Editor)
                 ?.Columns;
         }
 
