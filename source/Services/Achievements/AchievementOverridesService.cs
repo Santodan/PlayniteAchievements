@@ -1361,6 +1361,38 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Replaces the stored authored achievement with the id of <paramref name="definition"/>,
+        /// keeping its place in the list and every other definition as stored; adds it at the end
+        /// when the game has none with that id. For an editor that holds only some of a game's
+        /// achievements, where <see cref="SetCustomAchievements"/> would drop the rest.
+        /// </summary>
+        public void UpsertCustomAchievement(Guid gameId, CustomAchievementDefinition definition)
+        {
+            var id = definition?.Id?.Trim();
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(id))
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                var definitions = customData.CustomAchievements ?? new List<CustomAchievementDefinition>();
+                var index = definitions.FindIndex(existing =>
+                    string.Equals(existing?.Id?.Trim(), id, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0)
+                {
+                    definitions[index] = definition.Clone();
+                }
+                else
+                {
+                    definitions.Add(definition.Clone());
+                }
+
+                customData.CustomAchievements = definitions;
+            });
+        }
+
+        /// <summary>
         /// Puts <paramref name="apiNames"/> at the head of the order. Everything else keeps its order
         /// behind them: entries the order does not name follow those it does, in their own order.
         /// </summary>
