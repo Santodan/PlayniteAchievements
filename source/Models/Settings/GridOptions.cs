@@ -89,6 +89,9 @@ namespace PlayniteAchievements.Models.Settings
         public static class ManageAchievements
         {
             public const string Editor = "ManageAchievementsEditor";
+
+            /// <summary>The library editor's grid, which adds a Game column to the per-game one.</summary>
+            public const string LibraryEditor = "LibraryAchievementEditor";
         }
 
         public static class CategorySummaries
@@ -1426,6 +1429,7 @@ namespace PlayniteAchievements.Models.Settings
             Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.DesktopTheme, CreateDefaultCategorySummaries);
 
             Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.Editor, () => new ManageAchievementsGridOptions());
+            Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.LibraryEditor, () => new ManageAchievementsGridOptions());
 
             RefreshOptionSubscriptions();
         }
