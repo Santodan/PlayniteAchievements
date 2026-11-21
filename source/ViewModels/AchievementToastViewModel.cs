@@ -791,7 +791,7 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public Brush AccentBrush => IsCapstone
-            ? RarityAppearanceHelper.GetCompletedBrush(_settings)
+            ? RarityAppearanceHelper.GetCompletedGradientBrush(_settings)
             : RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
         /// <summary>
@@ -804,7 +804,7 @@ namespace PlayniteAchievements.ViewModels
         // Completion palette, always available regardless of this notification's kind so the
         // bundled templates (and themes) apply completion styling with triggers on
         // IsGameCompleted / IsCompletionAchievement. The glows honor the rarity-glow toggles.
-        public Brush CompletedBrush => RarityAppearanceHelper.GetCompletedBrush(_settings);
+        public Brush CompletedBrush => RarityAppearanceHelper.GetCompletedGradientBrush(_settings);
         public Effect CompletedGlowEffect => _style.Toast.ShowRarityGlow && HasSoftCompletionGlow
             ? RarityAppearanceHelper.GetCompletedGlow(useEndColor: true, _settings)
             : null;
@@ -847,14 +847,14 @@ namespace PlayniteAchievements.ViewModels
         public ImageSource CompletedBadgeImage => RarityAppearanceHelper.CreateCompletedBadgePreview(_settings);
         public Brush RarityBrush => RarityAppearanceHelper.GetBrush(_rarity, _settings);
 
-        // Capstone color takes precedence over rarity, matching the grid's RarityNameBrush.
+        // The capstone gradient takes precedence over rarity, matching the grid's RarityNameBrush.
         public Brush TitleBrush => _style.Toast.RarityColoredName
             ? AccentBrush
             : Application.Current?.TryFindResource("PlayAch.Brush.Text") as Brush ?? Brushes.White;
 
         // Title color for the standalone "Game Complete!" notification. Honors each surface's
         // rarity-colored-name toggle exactly like TitleBrush/FrameTitleBrush do for a normal unlock:
-        // the completed color when on, plain text when off.
+        // the completed gradient when on, plain text when off.
         public Brush CompletedTitleBrush => _style.Toast.RarityColoredName ? CompletedBrush : PlainTitleBrush;
         public Brush FrameCompletedTitleBrush => _style.Frame.RarityColoredName ? CompletedBrush : PlainTitleBrush;
         private static Brush PlainTitleBrush =>
