@@ -1007,6 +1007,28 @@ namespace PlayniteAchievements.Services.UI
             return true;
         }
 
+        /// <summary>
+        /// Brings the open plugin window that hosts a <typeparamref name="T"/> to the front. False
+        /// when none is open. Runs on the UI thread.
+        /// </summary>
+        public bool TryActivateOpenWindowHosting<T>() where T : class
+        {
+            var application = Application.Current;
+            var window = application?.Windows?
+                .OfType<Window>()
+                .FirstOrDefault(candidate => candidate != null
+                                             && candidate.IsVisible
+                                             && !ReferenceEquals(candidate, application.MainWindow)
+                                             && HostsControl<T>(candidate.Content));
+            if (window == null)
+            {
+                return false;
+            }
+
+            ActivateTrackedWindow(window);
+            return true;
+        }
+
         /// <summary>Whether a window's content is, or directly wraps, a <typeparamref name="T"/>.</summary>
         private static bool HostsControl<T>(object content) where T : class
         {
