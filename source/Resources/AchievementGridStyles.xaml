@@ -780,14 +780,9 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
@@ -838,14 +833,9 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
