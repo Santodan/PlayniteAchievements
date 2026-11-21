@@ -336,10 +336,14 @@
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center">
                         <!-- Fill set in the style, not as an attribute, so the status color
-                             triggers can override it. The lock only shows while locked, so the
-                             triggers need no Unlocked condition. -->
+                             triggers can override it. The muted completed gradient replaces the
+                             base glyph fill; the inherited missable, unobtainable and tag triggers
+                             still win. The lock only shows while locked, so the triggers need no
+                             Unlocked condition. -->
                         <Path.Style>
-                            <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}"/>
+                            <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}">
+                                <Setter Property="Fill" Value="{Binding CapstoneLockBrush}"/>
+                            </Style>
                         </Path.Style>
                         <Path.Data>
                             <CombinedGeometry GeometryCombineMode="Exclude">
