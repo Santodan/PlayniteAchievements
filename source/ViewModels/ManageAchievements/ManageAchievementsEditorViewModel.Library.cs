@@ -550,11 +550,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var apiName = NormalizeText(record.ApiName);
             row.CategoryLabel = game.CategoryOverrides.TryGetValue(apiName, out var category) ? category : null;
             row.TagsValue = game.TagOverrides.TryGetValue(apiName, out var tags) ? tags : null;
-            row.SetCapstoneStateFromSource(
-                detail.IsCapstone,
-                AchievementCategoryHelper.ToCategoryLabelDisplayText(detail.Category),
-                null,
-                null);
+            // Without the names of what each capstone stands for: those need the game's whole
+            // achievement list, and their category text a resource lookup this thread cannot make.
+            row.SetCapstoneStateFromSource(detail.IsCapstone, null, null, null);
             if (game.AutoCapstones.TryGetValue(apiName, out var auto))
             {
                 row.IsAutoCapstone = true;
