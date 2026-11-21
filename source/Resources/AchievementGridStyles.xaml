@@ -300,7 +300,8 @@
             <Border.Resources>
                 <helpers:ImplicitStyleMirror/>
             </Border.Resources>
-            <Grid VerticalAlignment="Center" Opacity="{StaticResource PlayAch.Opacity.Skeleton}">
+            <Grid VerticalAlignment="Center" Opacity="{StaticResource PlayAch.Opacity.Skeleton}"
+                  helpers:SkeletonShimmer.IsActive="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="5*"/>
                     <ColumnDefinition Width="3*"/>
@@ -353,6 +354,7 @@
         <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Skeleton}"/>
         <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
     </Style>
 
     <!-- DataGrid Cell Style -->
