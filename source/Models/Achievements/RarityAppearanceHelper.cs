@@ -210,16 +210,35 @@ namespace PlayniteAchievements.Models.Achievements
             resources["PlayAch.Effect.CompletedGlowStart"] = GetCompletedGlow(useEndColor: false, settings);
             resources["PlayAch.Effect.CompletedGlowEnd"] = GetCompletedGlow(useEndColor: true, settings);
             resources["PlayAch.Effect.CompletedGlowEdge"] = GetCompletedEdge(settings);
-            resources["PlayAch.Brush.CompletedGlowBloom"] = CreateCompletedGlowBloomBrush(settings);
+            resources["PlayAch.Brush.CompletedGlowBloom"] = GetCompletedGradientBrush(settings);
         }
 
         /// <summary>
-        /// Diagonal CompletedStart -> CompletedEnd sweep for surfaces whose art is too small for
-        /// the two glow shadows to read and that draw the bloom as a blurred underlay instead.
-        /// The direction mirrors those shadows' offsets (start toward 135, end toward 315), so
-        /// the underlay carries the same up-left start / down-right end color bias.
+        /// Diagonal CompletedStart -> CompletedEnd sweep with no highlight band: the capstone and
+        /// completion color for text, strips and fills, and the blurred bloom underlay for art too
+        /// small for the two glow shadows. The direction mirrors those shadows' offsets (start
+        /// toward 135, end toward 315). Mapped to each element's own bounds, it runs left to right
+        /// across a line of text and top to bottom down a thin strip.
         /// </summary>
-        private static Brush CreateCompletedGlowBloomBrush(PersistedSettings settings)
+        public static Brush GetCompletedGradientBrush(PersistedSettings settings = null)
+        {
+            return CreateDiagonalBrush(GetCompletedStartColor(settings), GetCompletedEndColor(settings));
+        }
+
+        /// <summary>
+        /// <see cref="GetCompletedGradientBrush"/> with both colors pulled partway toward gray, for
+        /// the locked capstone padlock.
+        /// </summary>
+        public static Brush GetMutedCompletedGradientBrush(PersistedSettings settings = null)
+        {
+            return CreateDiagonalBrush(
+                Desaturate(GetCompletedStartColor(settings), MutedCompletedAmount),
+                Desaturate(GetCompletedEndColor(settings), MutedCompletedAmount));
+        }
+
+        private const double MutedCompletedAmount = 0.35;
+
+        private static Brush CreateDiagonalBrush(Color start, Color end)
         {
             var brush = new LinearGradientBrush
             {
@@ -227,8 +246,8 @@ namespace PlayniteAchievements.Models.Achievements
                 EndPoint = new Point(1, 1)
             };
 
-            brush.GradientStops.Add(new GradientStop(GetCompletedStartColor(settings), 0.0));
-            brush.GradientStops.Add(new GradientStop(GetCompletedEndColor(settings), 1.0));
+            brush.GradientStops.Add(new GradientStop(start, 0.0));
+            brush.GradientStops.Add(new GradientStop(end, 1.0));
             if (brush.CanFreeze)
             {
                 brush.Freeze();
@@ -1065,6 +1084,13 @@ namespace PlayniteAchievements.Models.Achievements
                 (byte)Math.Round(from.R + ((to.R - from.R) * amount)),
                 (byte)Math.Round(from.G + ((to.G - from.G) * amount)),
                 (byte)Math.Round(from.B + ((to.B - from.B) * amount)));
+        }
+
+        // Blends toward the color's own Rec. 601 luma gray, which lowers saturation and keeps brightness.
+        private static Color Desaturate(Color color, double amount)
+        {
+            var luma = (byte)Math.Round((0.299 * color.R) + (0.587 * color.G) + (0.114 * color.B));
+            return Blend(color, Color.FromArgb(color.A, luma, luma, luma), amount);
         }
 
         private static string NormalizeColorText(string value)
