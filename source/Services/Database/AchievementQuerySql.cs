@@ -282,6 +282,32 @@ namespace PlayniteAchievements.Services.Database
         }
 
         /// <summary>
+        /// The provider's values of the platform rows of <paramref name="keys"/>, one row per user
+        /// and definition: each field as the metadata and platform layers resolve it without the
+        /// custom layer, and the user's unlock time as the platform reported it. These are what the
+        /// achievement editor compares a row's shown values with. Authored keys have none.
+        /// </summary>
+        public static Command EditorBaselines(IReadOnlyList<RowKey> keys)
+        {
+            var platform = (keys ?? Array.Empty<RowKey>()).Where(key => key.PlayniteGameId == null && key.DefinitionId.HasValue).ToList();
+            var sql = @"SELECT ad.Id AS DefinitionId, ugp.UserId AS UserId,
+                " + AchievementLayerSql.ProviderValue("DisplayName", Models.Achievements.AchievementField.DisplayName) + @" AS DisplayName,
+                " + AchievementLayerSql.ProviderValue("Description", Models.Achievements.AchievementField.Description) + @" AS Description,
+                " + AchievementLayerSql.ProviderValue("UnlockedIconPath", Models.Achievements.AchievementField.UnlockedIcon) + @" AS UnlockedIconPath,
+                " + AchievementLayerSql.ProviderValue("LockedIconPath", Models.Achievements.AchievementField.LockedIcon) + @" AS LockedIconPath,
+                " + AchievementLayerSql.ProviderValue("Points", Models.Achievements.AchievementField.Points) + @" AS Points,
+                " + AchievementLayerSql.ProviderValue("TrophyType", Models.Achievements.AchievementField.TrophyType) + @" AS TrophyType,
+                " + AchievementLayerSql.ProviderTags() + @" AS Tags,
+                ad.Hidden AS Hidden, ad.IsCapstone AS IsCapstone, ua.UnlockTimeUtc AS UnlockTimeUtc
+            FROM PlatformDefinitions ad
+            LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
+            INNER JOIN UserGameProgress ugp ON ugp.GameId = ad.GameId AND " + IdList("ugp.UserId", platform.Select(key => key.UserId)) + @"
+            LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id AND ua.Unlocked = 1
+            WHERE " + IdList("ad.Id", platform.Select(key => key.DefinitionId)) + ";";
+            return new Command(sql, Array.Empty<object>());
+        }
+
+        /// <summary>
         /// One row per group of the matching rows with their counts and sums. Tag groups by the
         /// stored tag text; the reader splits it.
         /// </summary>
@@ -415,7 +441,12 @@ namespace PlayniteAchievements.Services.Database
 
         private static string Where(AchievementQuery query, List<object> args)
         {
+            // Scope conditions pick whose rows and which games; row filters test the row's own
+            // values, and kept achievements pass them. Each list binds its own arguments, and the
+            // filters come after every scope condition in the text, so their arguments follow.
             var conditions = new List<string>();
+            var filters = new List<string>();
+            var filterArgs = new List<object>();
             if (query.Friends)
             {
                 conditions.Add("r.IsCurrentUser = 0 AND u.IsActiveFriend = 1 AND u.FriendSource IS NOT NULL");
@@ -464,6 +495,11 @@ namespace PlayniteAchievements.Services.Database
                     string.Join(", ", query.ExceptGameIds.Select(id => "'" + id.ToString("D") + "'")) + ")");
             }
 
+            if (query.LatestProgressOnly && !query.Friends)
+            {
+                conditions.Add(LatestProgressSql);
+            }
+
             if (!string.IsNullOrWhiteSpace(query.GameProviderKey))
             {
                 // A term on the view's own column, so SQLite narrows the view to the game.
@@ -485,60 +521,6 @@ namespace PlayniteAchievements.Services.Database
                     (gameConditions.Count == 0 ? "0" : string.Join(" OR ", gameConditions)) + "))");
             }
 
-            if (query.Unlocked.HasValue)
-            {
-                conditions.Add(query.Unlocked.Value ? "r.Unlocked = 1" : "r.Unlocked = 0");
-            }
-
-            var capstoneOrRarity = query.CapstonesOnly && query.CapstoneOrRarity && query.Rarities != null;
-            if (query.Rarities != null)
-            {
-                var rarity = InList(RarityTierSql, query.Rarities.Select(tier => tier.ToString()).ToList(), args);
-                conditions.Add(capstoneOrRarity ? "(" + rarity + " OR r.IsCapstone = 1)" : rarity);
-            }
-
-            if (query.TrophyTypes != null)
-            {
-                conditions.Add(InList(
-                    TrophySql,
-                    query.TrophyTypes.Where(type => !string.IsNullOrWhiteSpace(type)).Select(type => type.Trim().ToLowerInvariant()).ToList(),
-                    args));
-            }
-
-            if (query.ClassificationKeys != null)
-            {
-                var keys = query.ClassificationKeys.Where(key => !string.IsNullOrWhiteSpace(key)).ToList();
-                conditions.Add(keys.Count == 0
-                    ? "0"
-                    : "pa_classified(r.CategoryKind, r.Tags" + string.Concat(keys.Select(_ => ", ?")) + ") = 1");
-                args.AddRange(keys);
-            }
-
-            if (query.UnlockedFromDay.HasValue || query.UnlockedToDay.HasValue)
-            {
-                conditions.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
-                if (query.UnlockedFromDay.HasValue)
-                {
-                    conditions.Add("pa_localday(r.UnlockTimeUtc) >= ?");
-                    args.Add(Day(query.UnlockedFromDay.Value));
-                }
-
-                if (query.UnlockedToDay.HasValue)
-                {
-                    conditions.Add("pa_localday(r.UnlockTimeUtc) <= ?");
-                    args.Add(Day(query.UnlockedToDay.Value));
-                }
-            }
-
-            if (SearchQuery.From(query.SearchText).HasValue)
-            {
-                // The fields each surface's search index joins today.
-                conditions.Add(query.Friends
-                    ? "pa_search(?, " + FriendName(query) + ", r.GameName, r.DisplayName, r.Description, r.Category, r.ProviderKey) = 1"
-                    : "pa_search(?, r.GameName, r.DisplayName) = 1");
-                args.Add(query.SearchText);
-            }
-
             if (query.SummaryRules)
             {
                 conditions.Add("r.ExcludedFromSummaries = 0 AND r.IsFiltered = 0 AND r.IsSummaryFiltered = 0");
@@ -550,47 +532,163 @@ namespace PlayniteAchievements.Services.Database
                 args.Add(query.ProviderKey);
             }
 
-            foreach (var group in query.KeyGroups ?? Array.Empty<IReadOnlyList<string>>())
-            {
-                conditions.Add(group.Count == 0 ? "0" : "(" + string.Join(" OR ", group.Select(key => KeyCondition(key, args))) + ")");
-            }
-
             if (query.Achievements != null)
             {
-                conditions.Add(query.Achievements.Count == 0
+                conditions.Add(query.Achievements.Count == 0 ? "0" : AchievementPairsSql(query.Achievements));
+            }
+
+            if (query.Unlocked.HasValue)
+            {
+                filters.Add(query.Unlocked.Value ? "r.Unlocked = 1" : "r.Unlocked = 0");
+            }
+
+            var capstoneOrRarity = query.CapstonesOnly && query.CapstoneOrRarity && query.Rarities != null;
+            if (query.Rarities != null)
+            {
+                var rarity = InList(RarityTierSql, query.Rarities.Select(tier => tier.ToString()).ToList(), filterArgs);
+                filters.Add(capstoneOrRarity ? "(" + rarity + " OR r.IsCapstone = 1)" : rarity);
+            }
+
+            if (query.TrophyTypes != null)
+            {
+                filters.Add(InList(
+                    TrophySql,
+                    query.TrophyTypes.Where(type => !string.IsNullOrWhiteSpace(type)).Select(type => type.Trim().ToLowerInvariant()).ToList(),
+                    filterArgs));
+            }
+
+            if (query.ClassificationKeys != null)
+            {
+                var keys = query.ClassificationKeys.Where(key => !string.IsNullOrWhiteSpace(key)).ToList();
+                filters.Add(keys.Count == 0
                     ? "0"
-                    : "r.PlayniteGameId IN (" + string.Join(", ", query.Achievements.Select(pair => pair.Key).Distinct().Select(id => "'" + id.ToString("D") + "'")) +
-                      ") AND " + TextList("(r.PlayniteGameId || char(31) || r.ApiName) COLLATE NOCASE",
-                          query.Achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value)));
+                    : "pa_classified(r.CategoryKind, r.Tags" + string.Concat(keys.Select(_ => ", ?")) + ") = 1");
+                filterArgs.AddRange(keys);
+            }
+
+            if (query.UnlockedFromDay.HasValue || query.UnlockedToDay.HasValue)
+            {
+                filters.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
+                if (query.UnlockedFromDay.HasValue)
+                {
+                    filters.Add("pa_localday(r.UnlockTimeUtc) >= ?");
+                    filterArgs.Add(Day(query.UnlockedFromDay.Value));
+                }
+
+                if (query.UnlockedToDay.HasValue)
+                {
+                    filters.Add("pa_localday(r.UnlockTimeUtc) <= ?");
+                    filterArgs.Add(Day(query.UnlockedToDay.Value));
+                }
+            }
+
+            if (SearchQuery.From(query.SearchText).HasValue)
+            {
+                // The fields each surface's search index joins today.
+                filters.Add(query.Friends
+                    ? "pa_search(?, " + FriendName(query) + ", r.GameName, r.DisplayName, r.Description, r.Category, r.ProviderKey) = 1"
+                    : query.SearchFields == AchievementSearchFields.Editor
+                        ? "pa_search(?, r.GameName, r.DisplayName, r.Description, r.ApiName) = 1"
+                        : "pa_search(?, r.GameName, r.DisplayName) = 1");
+                filterArgs.Add(query.SearchText);
+            }
+
+            foreach (var group in query.KeyGroups ?? Array.Empty<IReadOnlyList<string>>())
+            {
+                filters.Add(group.Count == 0 ? "0" : "(" + string.Join(" OR ", group.Select(key => KeyCondition(key, filterArgs))) + ")");
             }
 
             if (query.RequireUnlockTime)
             {
-                conditions.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
+                filters.Add("r.Unlocked = 1 AND r.UnlockTimeUtc IS NOT NULL");
             }
 
             if (query.HideHiddenLocked)
             {
-                conditions.Add("NOT (r.Hidden = 1 AND r.Unlocked = 0)");
+                filters.Add("NOT (r.Hidden = 1 AND r.Unlocked = 0)");
             }
 
             if (query.CapstonesOnly && !capstoneOrRarity)
             {
-                conditions.Add("r.IsCapstone = 1");
+                filters.Add("r.IsCapstone = 1");
             }
 
             if (query.CategoryLabels != null)
             {
-                conditions.Add(InList(
+                filters.Add(InList(
                     "pa_category(r.Category)",
                     query.CategoryLabels.Select(AchievementCategoryHelper.NormalizeCategoryOrDefault).Distinct(StringComparer.Ordinal).ToList(),
-                    args));
+                    filterArgs));
+            }
+
+            if (query.Customized.HasValue && !query.Friends)
+            {
+                filters.Add(query.Customized.Value ? CustomizedSql : "NOT " + CustomizedSql);
+            }
+
+            if (filters.Count > 0)
+            {
+                conditions.Add(query.KeptAchievements == null
+                    ? string.Join(@"
+              AND ", filters)
+                    : "((" + string.Join(" AND ", filters) + ") OR " + AchievementPairsSql(query.KeptAchievements) + ")");
+                args.AddRange(filterArgs);
             }
 
             return @"
             WHERE " + string.Join(@"
               AND ", conditions);
         }
+
+        // The rows of these achievements, inline: a Guid's text is hex and dashes only, and the
+        // API names are quoted literals, so a long list binds no variables.
+        private static string AchievementPairsSql(IReadOnlyList<KeyValuePair<Guid, string>> achievements) =>
+            "(r.PlayniteGameId IN (" + string.Join(", ", achievements.Select(pair => pair.Key).Distinct().Select(id => "'" + id.ToString("D") + "'")) +
+            ") AND " + TextList("(r.PlayniteGameId || char(31) || r.ApiName) COLLATE NOCASE",
+                achievements.Select(pair => pair.Key.ToString("D") + "\u001f" + pair.Value)) + ")";
+
+        // The provider game of each Playnite game the current user's cache read picks: the most
+        // recently updated progress of it, as SqlNadoCacheStore.LoadCurrentUserGameData orders
+        // them. Not correlated, so SQLite builds the list once per statement.
+        private const string LatestProgressSql = @"(r.IsAuthored = 1 OR r.GameId IN (
+                SELECT lp.GameId FROM (
+                    SELECT up.GameId AS GameId, ROW_NUMBER() OVER (
+                        PARTITION BY pg.PlayniteGameId ORDER BY up.LastUpdatedUtc DESC, up.Id DESC) AS Latest
+                    FROM UserGameProgress up
+                    INNER JOIN Users cu ON cu.Id = up.UserId AND cu.IsCurrentUser = 1
+                    INNER JOIN Games pg ON pg.Id = up.GameId
+                    WHERE pg.PlayniteGameId IS NOT NULL AND TRIM(COALESCE(up.CacheKey, '')) <> '') lp
+                WHERE lp.Latest = 1))";
+
+        // A stored override that differs from what the metadata and platform layers resolve
+        // without it, as AchievementCustomizationRules compares a row with its provider values.
+        private static string OverrideDiffers(string column, Models.Achievements.AchievementField field, bool trim = false)
+        {
+            var stored = trim ? "NULLIF(TRIM(cx." + column + "), '')" : "cx." + column;
+            var provider = AchievementLayerSql.ProviderValue(column, field);
+            return "(" + stored + " IS NOT NULL AND " + stored + " IS NOT " + (trim ? "NULLIF(TRIM(" + provider + "), '')" : provider) + ")";
+        }
+
+        // Whether the editor marks the row customized: authored, an override row carrying a
+        // change, or a capstone mark that differs from the platform's.
+        private static readonly string CustomizedSql = @"(r.IsAuthored = 1
+                OR EXISTS (SELECT 1 FROM " + AchievementLayerSql.AchievementsTable + @" cx
+                    LEFT JOIN PlatformDefinitions ad ON ad.Id = r.Id
+                    LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
+                    WHERE cx.PlayniteGameId = r.PlayniteGameId AND cx.ApiName = r.ApiName AND cx.IsAuthored = 0 AND (
+                        TRIM(COALESCE(cx.Note, '')) <> '' OR cx.GoalOrder IS NOT NULL OR cx.FilterOrder IS NOT NULL
+                        OR cx.SummaryFilterOrder IS NOT NULL OR cx.UnlockTimeUtc IS NOT NULL OR cx.Cleared <> 0
+                        OR " + OverrideDiffers("DisplayName", Models.Achievements.AchievementField.DisplayName, trim: true) + @"
+                        OR " + OverrideDiffers("Description", Models.Achievements.AchievementField.Description, trim: true) + @"
+                        OR " + OverrideDiffers("Points", Models.Achievements.AchievementField.Points) + @"
+                        OR " + OverrideDiffers("TrophyType", Models.Achievements.AchievementField.TrophyType, trim: true) + @"
+                        OR " + OverrideDiffers("UnlockedIconPath", Models.Achievements.AchievementField.UnlockedIcon, trim: true) + @"
+                        OR " + OverrideDiffers("LockedIconPath", Models.Achievements.AchievementField.LockedIcon, trim: true) + @"
+                        OR " + OverrideDiffers("Tags", Models.Achievements.AchievementField.Tags, trim: true) + @"
+                        OR (cx.Hidden IS NOT NULL AND cx.Hidden IS NOT ad.Hidden)
+                        OR (cx.Category IS NOT NULL AND pa_category(cx.Category) IS NOT pa_category(" +
+                            AchievementLayerSql.ProviderValue("Category", Models.Achievements.AchievementField.Category) + @"))))
+                OR (r.IsAuthored = 0 AND r.IsCapstone IS NOT (SELECT pd.IsCapstone FROM PlatformDefinitions pd WHERE pd.Id = r.Id)))";
 
         // A row's game provider: its platform key, else its provider key, else for an authored row
         // its Playnite game's.
