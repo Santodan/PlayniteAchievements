@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Services.Tests
         private int _total;
         private int _version;
 
-        private PagedRows<Row> Create(int total, int maxRows = 0, AchievementQuery query = null, bool update = false, int pendingRows = 0)
+        private PagedRows<Row> Create(int total, int maxRows = 0, AchievementQuery query = null, bool update = false, int pendingRows = 0, List<Row> placed = null)
         {
             _total = total;
             var rows = new PagedRows<Row>(
@@ -57,7 +57,8 @@ namespace PlayniteAchievements.Services.Tests
                         kept.Updates++;
                     }
                     : (Action<Row, Row>)null,
-                pendingRows: pendingRows);
+                pendingRows: pendingRows,
+                placed: placed == null ? (Action<Row>)null : placed.Add);
             rows.CollectionChanged += (_, e) => _events.Add(e);
             rows.PropertyChanged += (_, e) => _properties.Add(e.PropertyName);
             return rows;
@@ -131,6 +132,24 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreSame(first, At(rows, 0), "the placeholder shown becomes the row");
             Assert.IsFalse(first.IsPlaceholder);
             Assert.AreEqual(7, Count(NotifyCollectionChangedAction.Remove), "the extra placeholders go");
+        }
+
+        [TestMethod]
+        public void Placed_ReportsRowsPutInPlaceAsThemselves_NotThoseCopiedIntoAHandedOutRow()
+        {
+            var reset = new List<Row>();
+            var large = Create(2000, placed: reset);
+            _scheduler.Drain();
+            CollectionAssert.AreEqual(Enumerable.Range(0, 200).ToList(), reset.Select(row => row.Index).ToList(), "the first pages of a reset");
+            Assert.IsTrue(reset.All(row => ReferenceEquals(row, At(large, row.Index))));
+
+            var placed = new List<Row>();
+            var rows = Create(5, update: true, pendingRows: 12, placed: placed);
+            var first = At(rows, 0);
+            _scheduler.Drain();
+
+            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, placed.Select(row => row.Index).ToList(), "index 0 was copied into its placeholder");
+            Assert.IsFalse(placed.Contains(first));
         }
 
         [TestMethod]
