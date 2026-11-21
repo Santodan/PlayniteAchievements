@@ -465,6 +465,16 @@ namespace PlayniteAchievements
 
             yield return new MainMenuItem
             {
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_AchievementEditor"),
+                MenuSection = PluginMainMenuSection,
+                Action = (a) =>
+                {
+                    OpenLibraryEditorWindow();
+                }
+            };
+
+            yield return new MainMenuItem
+            {
                 Description = ResourceProvider.GetString("LOCPlayAch_Common_Settings"),
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
