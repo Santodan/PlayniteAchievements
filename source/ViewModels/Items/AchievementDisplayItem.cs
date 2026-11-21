@@ -1387,7 +1387,7 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Rarity-based foreground brush for the achievement name: the completed color for capstone
+        /// Rarity-based foreground brush for the achievement name: the completed gradient for capstone
         /// achievements (which takes precedence), otherwise the rarity tier brush. Computed unconditionally;
         /// grids use it when their per-grid name color source is Rarity.
         /// </summary>
@@ -1397,10 +1397,15 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
                 return IsCapstone
-                    ? RarityAppearanceHelper.GetCompletedBrush(persisted)
+                    ? RarityAppearanceHelper.GetCompletedGradientBrush(persisted)
                     : RarityAppearanceHelper.GetBrush(Rarity, persisted);
             }
         }
+
+        /// <summary>Muted completed gradient for the locked capstone padlock.</summary>
+        public System.Windows.Media.Brush CapstoneLockBrush =>
+            RarityAppearanceHelper.GetMutedCompletedGradientBrush(
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
 
         public System.Windows.Media.Brush RarityBrush
         {
@@ -1591,6 +1596,7 @@ namespace PlayniteAchievements.ViewModels.Items
             ShowFriendSpoilers = resolved.ShowFriendSpoilers;
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
+            OnPropertyChanged(nameof(CapstoneLockBrush));
         }
 
         /// <summary>
@@ -2062,6 +2068,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(DefaultOrderIndex));
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
+            OnPropertyChanged(nameof(CapstoneLockBrush));
             OnPropertyChanged(nameof(Hidden));
             OnPropertyChanged(nameof(IsUnlock));
             OnPropertyChanged(nameof(ApiName));
