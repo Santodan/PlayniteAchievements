@@ -147,6 +147,7 @@
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataNormalizer.cs" Link="Source\Services\GameCustomData\GameCustomDataNormalizer.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataFacet.cs" Link="Source\Services\GameCustomData\GameCustomDataFacet.cs" />
     <Compile Include="..\..\source\ViewModels\ManageAchievements\EditorUndoJournal.cs" Link="Source\ViewModels\ManageAchievements\EditorUndoJournal.cs" />
+    <Compile Include="..\..\source\ViewModels\ManageAchievements\EditorScope.cs" Link="Source\ViewModels\ManageAchievements\EditorScope.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataRepository.cs" Link="Source\Services\GameCustomData\GameCustomDataRepository.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomLayer.cs" Link="Source\Services\GameCustomData\GameCustomLayer.cs" />
     <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataRuntimeProjector.cs" Link="Source\Services\GameCustomData\GameCustomDataRuntimeProjector.cs" />
