@@ -899,6 +899,26 @@ namespace PlayniteAchievements.Services.Database
                 .Select(row => SummaryCacheReader.MapRow(row, null, MakeAbsolutePath))
                 .ToList();
 
+        /// <inheritdoc cref="Cache.ICacheReadOptimizations.LoadEditorRows"/>
+        public EditorRowsRead LoadEditorRows(SQLiteDatabase db, AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            var rows = AchievementReadService.Rows(db, query, keys);
+            foreach (var row in rows)
+            {
+                row.UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath);
+                row.LockedIconPath = MakeAbsolutePath(row.LockedIconPath);
+            }
+
+            var baselines = AchievementReadService.EditorBaselines(db, keys);
+            foreach (var baseline in baselines.Values)
+            {
+                baseline.UnlockedIconPath = MakeAbsolutePath(baseline.UnlockedIconPath);
+                baseline.LockedIconPath = MakeAbsolutePath(baseline.LockedIconPath);
+            }
+
+            return new EditorRowsRead(rows, baselines);
+        }
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);
