@@ -6,8 +6,8 @@ using System.Windows.Media;
 namespace PlayniteAchievements.Views.Helpers
 {
     /// <summary>
-    /// A soft highlight that sweeps across a loading skeleton (a placeholder cell, a score card or
-    /// widget block). One mask brush is shared by every skeleton, so all of them sweep in step,
+    /// A soft highlight that sweeps across a loading skeleton (a placeholder row's cells, a score
+    /// card or widget block). One mask brush is shared by every skeleton, so all of them sweep in step,
     /// and it moves on <see cref="RayAnimationDriver"/>'s tick only while a skeleton is visible.
     /// The mask holds a skeleton at two thirds of its opacity outside the band.
     /// </summary>
