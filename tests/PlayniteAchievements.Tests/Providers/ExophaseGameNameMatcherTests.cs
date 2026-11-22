@@ -151,6 +151,8 @@ namespace PlayniteAchievements.Tests.Providers
         [DataTestMethod]
         [DataRow("vita", "psvita")]
         [DataRow("psvita", "vita")]
+        [DataRow("ps-vita", "ps-vita")]
+        [DataRow("ps-vita", "psvita")]
         public void SelectBestSearchMatch_VitaSpellingsMatchEachOther(string rowPlatform, string target)
         {
             var games = new[]
