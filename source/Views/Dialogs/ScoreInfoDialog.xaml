@@ -71,7 +71,7 @@
                         Grid.Column="0"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         CornerRadius="{StaticResource PlayAch.Radius.Card}"
                         Padding="14"
                         Margin="0,0,8,12">
@@ -94,7 +94,7 @@
                         Grid.Column="1"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         CornerRadius="{StaticResource PlayAch.Radius.Card}"
                         Padding="14"
                         Margin="8,0,0,12">
@@ -118,7 +118,7 @@
                         Grid.ColumnSpan="2"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         CornerRadius="{StaticResource PlayAch.Radius.Card}"
                         Padding="14">
                     <StackPanel>
