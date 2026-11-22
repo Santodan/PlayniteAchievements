@@ -100,7 +100,7 @@
                                         Grid.Column="2"
                                         Style="{DynamicResource PlayAch.FilePickTarget.Style}"
                                         Background="Transparent"
-                                        CornerRadius="3"
+                                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                         Padding="6,3"
                                         Margin="0,0,10,0"
                                         VerticalAlignment="Center"
