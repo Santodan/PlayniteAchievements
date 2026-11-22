@@ -6753,11 +6753,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _selectedTypeFilters,
                     _typeFilterOptions,
                     ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
-                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId)),
+                    TagFilterName),
                 () => _typeFilterOptions,
                 option => _selectedTypeFilters.Contains(option),
                 (option, isSelected) => ToggleFilter(_selectedTypeFilters, option, isSelected),
-                getDisplayLabel: key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId))
+                getDisplayLabel: TagFilterName)
             {
                 MinWidth = 140
             };
