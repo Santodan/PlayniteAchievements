@@ -18315,7 +18315,7 @@ index 4050c849314c69af400170f1d8a24c730e36154e..e90eb116b8695ce59a8d7b19e6b11c51
          {
              try
 diff --git a/source/Services/UI/ToastNotificationService.cs b/source/Services/UI/ToastNotificationService.cs
-index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734f48526cd 100644
+index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..a9029bbad9d1d679cef2cd1eed542beefaab8725 100644
 --- a/source/Services/UI/ToastNotificationService.cs
 +++ b/source/Services/UI/ToastNotificationService.cs
 @@ -1,4 +1,4 @@
@@ -18544,7 +18544,32 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              // Zero until the cards are laid out and measured; the pre-show placement pass has no
              // card to measure either, so the two agree.
              _activeCardInset = default(Thickness);
-@@ -2816,8 +2904,10 @@ await Task.WhenAny(
+@@ -2691,8 +2779,11 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             // frame.
+             //
+             // Previews and retriggers are exempt: both capture the instant they are asked for.
++            // Santodan-Fork: Memories screenshots, when enabled, supply their own delay.
++            var memoriesSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+             var captureDelaySeconds = !waveIsTestFire && !wave[0].IsPreview
+-                ? Math.Max(0, _activeWaveCaptures?.CaptureDelaySeconds ?? _settings?.Persisted?.CaptureDelaySeconds ?? 0)
++                ? SantodanMemoriesCapturePolicy.ResolveCaptureDelaySeconds(
++                    _activeWaveCaptures, memoriesSettings, _settings?.Persisted)
+                 : 0;
+ 
+             // The instant the base frame is aimed at, published to the recording service so a
+@@ -2721,9 +2812,8 @@ private async Task ShowWaveAsync(IReadOnlyList<AchievementToastViewModel> wave)
+             // The unlock set is saved first, so it takes the normal file names and the delayed
+             // set lands on the duplicate names.
+             var dualCapture = captureDelaySeconds > 0 &&
+-                (_activeWaveCaptures?.CaptureAtUnlockAndAfterDelay
+-                    ?? _settings?.Persisted?.CaptureAtUnlockAndAfterDelay
+-                    ?? false);
++                SantodanMemoriesCapturePolicy.ResolveCaptureAtUnlockAndAfterDelay(
++                    _activeWaveCaptures, memoriesSettings, _settings?.Persisted);
+             var unlockCaptureUtc = dualCapture && waveNotifyDelayed ? waveStartUtc : (DateTime?)null;
+             var primaryCaptureUtc = dualCapture ? unlockCaptureUtc : surfaceCaptureUtc;
+ 
+@@ -2816,8 +2906,10 @@ await Task.WhenAny(
                  return;
              }
  
@@ -18557,7 +18582,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              var items = ToastSurfaceFactory.BuildToastSurface(cardItems, template);
  
              LogWaveDiagnostics(cardItems, template, wavePlan.Mode);
-@@ -3172,7 +3262,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -3172,7 +3264,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                  // Built while the card slid in, the slide stood still on screen for 150 ms,
                  // though the presenter was stepped every composition.
                  var recordsTrack = _activeIsGame && _activeReferenceHwnd != IntPtr.Zero && !wave[0].IsProgressUpdate &&
@@ -18566,7 +18591,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
                  if (visible)
                  {
                      holdLayers = PrepareHoldLayers(
-@@ -3353,7 +3443,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
+@@ -3353,7 +3445,7 @@ await Task.WhenAny(baseCaptureTask, Task.Delay(BaseCaptureGraceMs))
                      // window alive. The blits are deliberately not awaited: awaiting them would
                      // park the hold, countdown and slide-out behind a delayed capture and leave
                      // the toast on screen for the length of the delay.
@@ -18575,7 +18600,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
                      toastCompositeTask = BlitWaveToastOverlaysAsync(
                          rendered, baseCaptureTask, anchorFramesTask, null,
                          disposeOverlays: delayedCaptureTask == null);
-@@ -3720,6 +3810,10 @@ private sealed class WaveScreenshotPlan
+@@ -3720,6 +3812,10 @@ private sealed class WaveScreenshotPlan
              public List<(AchievementToastViewModel Vm, ScreenshotVariants Variants)> Items { get; } =
                  new List<(AchievementToastViewModel, ScreenshotVariants)>();
  
@@ -18586,7 +18611,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              public string BaseDirectory { get; set; }
  
              // The wave's game's own capture folder, saved into as is; null uses BaseDirectory\Game.
-@@ -3765,7 +3859,7 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3765,7 +3861,7 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              // The screenshots master switch is ANDed into each variant by the policy below (the
              // game's own when it has capture settings).
              // A game with its own capture folder saves straight into it and needs no global folder.
@@ -18595,7 +18620,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              var gameData = LoadGameData(first.PlayniteGameId);
              var gameDir = gameData?.CaptureOverride?.CaptureDirectory;
              var baseDir = persisted?.UnlockScreenshotDirectory;
-@@ -3778,7 +3872,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3778,7 +3874,8 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
              // unlock — re-capturing a moment is the point of the shortcut. Opting into the test
              // folder diverts it to a shared "Test" subfolder the capture library hides, which is
              // what makes the shortcut usable for throwaway testing instead.
@@ -18605,7 +18630,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              {
                  baseDir = System.IO.Path.Combine(
                      string.IsNullOrWhiteSpace(baseDir) ? gameDir : baseDir,
-@@ -3788,6 +3883,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
+@@ -3788,6 +3885,9 @@ private WaveScreenshotPlan BuildScreenshotPlan(IReadOnlyList<AchievementToastVie
  
              var plan = new WaveScreenshotPlan
              {
@@ -18615,7 +18640,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
                  BaseDirectory = baseDir,
                  GameDirectory = gameDir,
                  CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
-@@ -4092,30 +4190,60 @@ await Task.Run(() =>
+@@ -4092,30 +4192,60 @@ await Task.Run(() =>
                                  : clean;
                              if ((item.Variants & ScreenshotVariants.Clean) != 0 && itemClean != null)
                              {
@@ -18679,7 +18704,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
                              }
                          }
  
-@@ -4342,6 +4470,12 @@ private ToastHorizontalAlignment Horizontal()
+@@ -4342,6 +4472,12 @@ private ToastHorizontalAlignment Horizontal()
              return _activePosition.Horizontal();
          }
  
@@ -18692,7 +18717,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
          private bool AlignBottom()
          {
              return _activePosition.IsBottom();
-@@ -6253,17 +6387,7 @@ private void ReserveSlideTravel(Window window, ItemsControl surface)
+@@ -6253,17 +6389,7 @@ private void ReserveSlideTravel(Window window, ItemsControl surface)
              }
          }
  
@@ -18711,7 +18736,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
  
          /// <summary>
          /// The corner the toast uses: the scope style's position when set, then a theme override
-@@ -6272,6 +6396,21 @@ private bool SlideFromBottom()
+@@ -6272,6 +6398,21 @@ private bool SlideFromBottom()
          /// </summary>
          private ToastScreenCorner EffectivePosition(NotificationSurfaceStyle scopeToast)
          {
@@ -18733,7 +18758,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
              var styled = scopeToast?.Position;
              if (styled.HasValue && Enum.IsDefined(typeof(ToastScreenCorner), styled.Value))
              {
-@@ -6300,6 +6439,57 @@ private ToastScreenCorner EffectivePosition(NotificationSurfaceStyle scopeToast)
+@@ -6300,6 +6441,57 @@ private ToastScreenCorner EffectivePosition(NotificationSurfaceStyle scopeToast)
              return setting;
          }
  
@@ -18791,7 +18816,7 @@ index 50feb63f03f00eb31d5cd2696a8e0254c50ec9a7..19070b470562de93ea241d21ec370734
          /// <summary>
          /// The toast display time in seconds: a theme override (numeric or string resource
          /// <see cref="AchievementToastTemplateResolver.DurationSecondsResourceKey"/>) when present and
-@@ -6308,6 +6498,16 @@ private ToastScreenCorner EffectivePosition(NotificationSurfaceStyle scopeToast)
+@@ -6308,6 +6500,16 @@ private ToastScreenCorner EffectivePosition(NotificationSurfaceStyle scopeToast)
          /// </summary>
          private int EffectiveDurationSeconds()
          {
@@ -18844,7 +18869,7 @@ index 3e31c22b0c8d42ee9d15b10b6d8d42993f29fdf9..a3a9faf5380fc907a1b3b6da82b7ae19
          /// Moves the window's HWND to a physical desktop position without resizing it. The
          /// <c>SetWindowPos</c> call runs inside a Per-Monitor-V2 thread scope so the coordinates are
 diff --git a/source/Services/UI/UnlockScreenshotService.cs b/source/Services/UI/UnlockScreenshotService.cs
-index 99569f263e87d3f0374d0d364319427c8873cf38..2d19d486226c7f3ec9f7fde81efb4db948c5a64d 100644
+index 99569f263e87d3f0374d0d364319427c8873cf38..9f98c5987a65755a0fe1e3a774f8f13b31ec568f 100644
 --- a/source/Services/UI/UnlockScreenshotService.cs
 +++ b/source/Services/UI/UnlockScreenshotService.cs
 @@ -1,3 +1,4 @@
@@ -18862,53 +18887,10 @@ index 99569f263e87d3f0374d0d364319427c8873cf38..2d19d486226c7f3ec9f7fde81efb4db9
  
  namespace PlayniteAchievements.Services.UI
  {
-@@ -118,6 +122,165 @@ public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId, int cap
+@@ -118,6 +122,122 @@ public Bitmap CaptureGameWindow(IntPtr knownHwnd, int? startedProcessId, int cap
              }
          }
  
-+        public Bitmap CaptureUsingMode(
-+            LocalUnlockScreenshotCaptureMode mode,
-+            IntPtr knownHwnd,
-+            int? startedProcessId)
-+        {
-+            try
-+            {
-+                Rectangle bounds;
-+                if (mode == LocalUnlockScreenshotCaptureMode.FullDesktop)
-+                {
-+                    bounds = SystemInformation.VirtualScreen;
-+                }
-+                else
-+                {
-+                    var foreground = GetForegroundWindow();
-+                    if (!TryGetWindowRectangle(foreground, out bounds))
-+                    {
-+                        return CaptureGameWindow(knownHwnd, startedProcessId, capHeight: 0);
-+                    }
-+                }
-+
-+                if (bounds.Width <= 0 || bounds.Height <= 0)
-+                {
-+                    return null;
-+                }
-+
-+                // CopyFromScreen writes RGB but does not populate alpha. Argb would save a
-+                // transparent PNG even though the captured color pixels are valid.
-+                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
-+                using (var graphics = Graphics.FromImage(bitmap))
-+                {
-+                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
-+                }
-+
-+                return bitmap;
-+            }
-+            catch (Exception ex)
-+            {
-+                ForkLog.Wrap(_logger)?.Debug(ex, "Custom unlock screenshot capture failed.");
-+                return null;
-+            }
-+        }
-+
 +        public void SaveUsingCustomSettings(
 +            Bitmap bitmap,
 +            LocalSettings settings,
@@ -19028,7 +19010,7 @@ index 99569f263e87d3f0374d0d364319427c8873cf38..2d19d486226c7f3ec9f7fde81efb4db9
          /// <summary>
          /// Captures the entire monitor that <paramref name="windowOnMonitor"/> sits on (the
          /// Playnite window when no game is running), so a notification fired out of game captures
-@@ -316,6 +479,7 @@ private void SaveCore(
+@@ -316,6 +436,7 @@ private void SaveCore(
                  Directory.CreateDirectory(folder);
                  var path = EnsureUniquePath(Path.Combine(folder, relative.FileName));
                  writeToPath(path);
@@ -19036,7 +19018,7 @@ index 99569f263e87d3f0374d0d364319427c8873cf38..2d19d486226c7f3ec9f7fde81efb4db9
              }
              catch (Exception ex)
              {
-@@ -410,9 +574,8 @@ internal static string SanitizeCaptureGameName(string gameName)
+@@ -410,9 +531,8 @@ internal static string SanitizeCaptureGameName(string gameName)
  
          /// <summary>
          /// Bounds of the monitor hosting the game window (started-process main window, else
@@ -23588,7 +23570,7 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index 1e86344685eaebfab5bd678ba4fec19c0470ee71..cc533e90c3ca51e05ab3e6e727cdb469bb4010ad 100644
+index 1e86344685eaebfab5bd678ba4fec19c0470ee71..a72825499e42503cdfba0a19c621bebf3933cace 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 @@ -8,6 +8,30 @@
@@ -23750,7 +23732,12 @@ index 1e86344685eaebfab5bd678ba4fec19c0470ee71..cc533e90c3ca51e05ab3e6e727cdb469
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
-@@ -917,6 +960,11 @@
+@@ -913,10 +956,16 @@
+     <Compile Include="..\..\source\Services\UI\ScreenshotVariants.cs" Link="Source\Services\UI\ScreenshotVariants.cs" />
+     <Compile Include="..\..\source\Services\UI\SystemFontCatalog.cs" Link="Source\Services\UI\SystemFontCatalog.cs" />
+     <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
++    <Compile Include="..\..\source\Services\UI\SantodanMemoriesCapturePolicy.cs" Link="Source\Services\UI\SantodanMemoriesCapturePolicy.cs" />
+     <Compile Include="..\..\source\Services\UI\UnlockClipVariantPolicy.cs" Link="Source\Services\UI\UnlockClipVariantPolicy.cs" />
      <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
      <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotService.cs" Link="Source\Services\UI\UnlockScreenshotService.cs" />

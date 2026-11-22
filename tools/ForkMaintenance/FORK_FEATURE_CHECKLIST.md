@@ -1,5 +1,37 @@
 # Santodan fork feature checklist
 
+## Memories capture delay and dead monitor cleanup - 2026-11-22
+
+- The Memories **Capture delay (ms)** field (0-10,000, default 750) applies to
+  live unlock screenshots while Memories screenshots are enabled. It is resolved
+  by `source/Services/UI/SantodanMemoriesCapturePolicy.cs`, called from
+  `ToastNotificationService`. Precedence: a game's own capture settings
+  (Manage Achievements > Notifications), then the Memories delay with the
+  upstream "capture at unlock and after delay" option forced off, then the
+  upstream globals when Memories screenshots are off. Previews and retriggers
+  capture immediately. Clips keep their own delay; a Memories screenshot delay
+  must not move a clip's anchor. Regression coverage:
+  `SantodanMemoriesCapturePolicyTests`.
+- The never-instantiated `ActiveGameAchievementMonitor`,
+  `ExophaseGameAchievementMonitor` and `RetroAchievementsGameAchievementMonitor`
+  were removed, together with the full-desktop/active-window and JPEG capture
+  path and the `ScreenshotCaptureMode`/`ScreenshotImageFormat` settings.
+  `LocalAchievementScreenshotService` is now a static helper class holding only
+  `ReplaceTokens`, `SanitizeFileName` and `BuildUniquePath`, which Memories
+  screenshot and clip naming still use. Do not restore the removed monitors.
+- The per-game "Refresh when game closes" hint points at
+  Santodan-Fork > Platforms > Local, where the global setting lives.
+- `ACHIEVEMENT_NOTIFICATIONS_GUIDE.md` and `LOCAL_PROVIDER_TROUBLESHOOTING.md`
+  describe the Santodan-Fork settings locations and current behavior.
+- Verification for this change: Release rebuild passed and the full MSTest
+  suite passed (6157 passed, 1 skipped). Live check still pending: unlock with
+  Memories screenshots and a nonzero delay, then with Memories off.
+- Bundle refreshed against v4.3.0 (`804cf50d`). Preflight and actual replay
+  passed in a clean baseline clone, and all 2774 captured files matched the
+  working tree (newline-normalized; localization compared by parsed value).
+  The export dropped 16 en_US recipes whose only difference from the baseline
+  was `&#10;` versus a literal line break; their parsed values are identical.
+
 ## Native emulator, recompilation and PC-port sources - 2026-11-20
 
 - Preserve `Providers/Local/Santodan/NativeSources/`, the Local provider partials,
@@ -434,11 +466,11 @@ Primary fork areas:
 - `source/Services/InGameAchievementPoller.cs`
 - `source/Services/UI/ToastNotificationService.cs`
 - `source/Services/UI/UnlockScreenshotService.cs`
+- `source/Services/UI/SantodanMemoriesCapturePolicy.cs`
 - `source/Services/Recording/UnlockRecordingService.cs`
 - `source/Services/ThemeIntegration/ThemeIntegrationService.cs`
 - `source/PlayniteAchievementsPlugin.cs`
 - `source/Services/Local/`
-- `source/Services/Exophase/`
 - `source/Views/LegacyNotificationSettingsControl.*`
 - `source/Resources/AdditionalSounds/`
 - `tools/notification-template-builder.html`

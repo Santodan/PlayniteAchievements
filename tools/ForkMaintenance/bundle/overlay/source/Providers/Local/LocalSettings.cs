@@ -40,18 +40,6 @@ namespace PlayniteAchievements.Providers.Local
         Infinite = 2
     }
 
-    public enum LocalUnlockScreenshotCaptureMode
-    {
-        FullDesktop = 0,
-        ActiveWindow = 1
-    }
-
-    public enum LocalUnlockScreenshotImageFormat
-    {
-        Png = 0,
-        Jpeg = 1
-    }
-
     public enum LocalUnlockNotificationDeliveryMode
     {
         WindowsToast = 0,
@@ -413,8 +401,6 @@ namespace PlayniteAchievements.Providers.Local
         private string _screenshotSaveFolder = string.Empty;
         private string _screenshotFilenameTemplate = DefaultScreenshotFilenameTemplate;
         private int _screenshotDelayMilliseconds = 750;
-        private LocalUnlockScreenshotCaptureMode _screenshotCaptureMode = LocalUnlockScreenshotCaptureMode.FullDesktop;
-        private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
         private RaritySelection _screenshotRarities = RaritySelection.All;
         private bool _screenshotAlwaysCaptureCompletion = true;
         private bool _screenshotClean;
@@ -775,18 +761,6 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(
                 ref _screenshotDelayMilliseconds,
                 Math.Max(MinScreenshotDelayMilliseconds, Math.Min(MaxScreenshotDelayMilliseconds, value)));
-        }
-
-        public LocalUnlockScreenshotCaptureMode ScreenshotCaptureMode
-        {
-            get => _screenshotCaptureMode;
-            set => SetValue(ref _screenshotCaptureMode, value);
-        }
-
-        public LocalUnlockScreenshotImageFormat ScreenshotImageFormat
-        {
-            get => _screenshotImageFormat;
-            set => SetValue(ref _screenshotImageFormat, value);
         }
 
         public RaritySelection ScreenshotRarities

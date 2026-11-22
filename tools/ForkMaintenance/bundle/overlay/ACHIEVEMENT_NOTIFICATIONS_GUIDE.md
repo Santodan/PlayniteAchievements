@@ -1,113 +1,156 @@
 # Achievement Notifications Guide
 
-Achievement notifications monitor a running game's achievement source and notify you when the unlocked set changes. The visual settings are shared by supported real-time providers, while Local monitoring is the core path described here.
+The fork's custom Achievement Notification replaces the extension's standard unlock toast with a styled overlay and/or Windows toast while a game is running. Everything described here is under **Add-ons > Extension settings > Playnite Achievements > Santodan-Fork > Achievement Notification**, which has three pages: **General**, **Notification Style**, and **Memories**.
+
+Unlock detection uses the extension's normal in-game monitor, so it works for every provider that can be refreshed while you play (Local, Steam, RetroAchievements, and so on), not only Local games. Local-specific setup is covered in [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md).
 
 ## Enable notifications
 
-1. Enable the **Local** provider under **Providers > Local**.
-2. Open **Add-ons > Extension settings > Playnite Achievements > Achievement Notifications**.
-3. Enable **real-time Local achievement monitoring**.
-4. Choose a polling interval. The supported range is 1–60 seconds; the default is 5 seconds.
-5. Select a delivery mode and configure a sound/style.
-6. Choose a preview game and achievement, the provider (if you have the provider icon or wildcard), then click **Test Notification** before launching a game.
+1. Open **Santodan-Fork > Achievement Notification > General**.
+2. Under **Live unlock detection**, enable **Use custom Achievement Notification for live unlocks**. Most notification controls stay disabled until this is on.
+3. Choose a **Polling interval (seconds)**. The supported range is 1–60 seconds and the default is 5 seconds. While this option is enabled, it replaces the upstream in-game polling interval.
+4. Under **Notification delivery**, select a **Delivery mode** and check the in-app/system switches (see below).
+5. Open **Notification Style**, pick a style, a preview game and a preview achievement, then click **Test Notification** in **Sound Notification** before launching a game.
+6. Click **Save** in the settings window.
 
-The monitor runs only for the currently running game. On start it creates a baseline; achievements already unlocked in that first snapshot are not announced as new. It then checks the source file for changes and compares the new unlocked set with the baseline.
+For Local games, also enable the **Local** provider under **Santodan-Fork > Platforms > Local**.
 
-## Delivery modes
+When a game starts, the monitor takes a baseline. Achievements already unlocked in that first read are not announced. It then refreshes the running game at the polling interval and announces only achievements that were newly unlocked since the baseline.
 
-- **Windows toast only:** sends a system/Playnite notification without an overlay.
+## Notification template
+
+**Use upstream notification template** (General page) switches between the two renderers:
+
+- **Unchecked (default):** the Santodan-Fork custom notification is used for live unlocks, screenshots and video overlays. Delivery and style are configured on these pages.
+- **Checked:** the extension's upstream notification is used instead. Configure its delivery and appearance in the upstream **Notifications** settings tab. **Test Notification** then sends an upstream preview.
+
+## Delivery
+
+- **Windows toast only:** sends a system notification without an overlay.
 - **Overlay only:** shows the styled in-app overlay.
-- **Hybrid (Overlay + Toast):** uses both.
+- **Hybrid (Overlay + Toast):** uses both. This is the default.
 
 The **Show in-app notification when achievement is unlocked** and **Send System notification** switches can further enable or disable the two outputs. If a selected delivery mode appears to do nothing, confirm that its matching switch is enabled.
 
-Overlay behavior includes position, duration, fade/slide transition, opacity, and scale. Multiple unlocks can be stacked. Some SAN templates require overlay delivery; the test action forces overlay mode for those templates.
+Other delivery options:
+
+- **Use a single custom notification:** a new unlock replaces the visible notification and restarts its display time. Disable it to show separate, stacked notifications for a batch of unlocks.
+- **Show overlay on the active game's monitor:** the overlay follows the game between monitors. Use windowed or borderless fullscreen.
+- **Debug achievement notification logging:** writes notification diagnostics to `AchNotifDebug.log` in the extension data folder.
+
+The custom notification still respects the upstream notification switches, provider notification overrides and the game's own notification settings in **Manage Achievements > Notifications**. If those disable unlock notifications for a provider or game, the custom notification is skipped too.
 
 ## Styles and templates
 
+**Notification Style** contains:
 
-The Custom style editor supports saved slots, layout, up to six text lines, colors, font treatments, icon sources, rarity glow, game cover/banner artwork, animation, and imported templates.
+- **Default style** and **Provider override:** choose Steam, PlayStation, Xbox, Minimal or Custom globally, then optionally choose a different style for Local, Steam, Epic, GOG, PlayStation, Xbox or RetroAchievements.
+- **Preview game** and **Preview achievement:** sample data for previews, including the game's cover and banner. **Preview Selected Style** and **Preview All Styles** show the styles without sound.
+- **Custom style slot:** **Save Slot**, **Load Slot**, add/remove slots and **Clear all slots**.
+- **Import Template**, **Export Template** and **Open Builder**.
 
-SAN preset can be imported. Steam Achievement Notifier's Native OS preset is not an overlay skin; use Windows-toast delivery for native OS behavior.
+The Custom style editor supports layout, up to six text lines, text templates with wildcards, conditional text rows, colors and gradients, font treatments, primary/secondary icon sources and custom icons, rarity glow, game cover and banner artwork, progress bars, transitions (fade, slide, circle and SAN transitions), SAN elements, opacity and size. **Inline real-time preview** updates while you edit.
 
-Use **Test Notification** after changing a style. A successful preview proves rendering and sound, but not that the game has a valid Local source; detection is tested by launching and unlocking in the game.
+Text templates support optional groups such as `<achievementName>[[ (<progress> -)]]`. A group appears only when every wildcard inside it has a value; nesting is not supported. See [the progress bar notes](tools/NotificationTemplates/PROGRESS_BAR.md) for progress bar sources and placement.
 
-There are no templates provided, you can create your own as you like.
+**Import Template** accepts exported JSON templates and Steam Achievement Notifier (SAN) presets: select the preset's `index.html` or `styles.css`. SAN's **Native OS** preset is not an overlay skin; use **Windows toast only** for native OS behavior.
 
-I would advice to use the builder html file, can be open from the `Open Builder` button next to the saved slots, for more customization like the drag-edit available in it.
+There are no templates provided; you can create your own as you like.
+
+I would advise using the builder HTML file, which can be opened from the **Open Builder** button next to the saved slots, for more customization such as the drag-edit available in it.
+
+Use **Test Notification** after changing a style. It always uses the Custom style. A SAN transition or SAN element forces overlay delivery for the test. A successful test proves rendering and sound, but not that the game's achievement source is detected; detection is tested by launching and unlocking in the game.
 
 ## Sounds
 
-Choose a bundled sound or a custom sound file. The default bundled sound is `Resources\Sounds\Steam.wav`; additional sounds are under [`source/Resources/AdditionalSounds`](https://github.com/Santodan/PlayniteAchievements/tree/main/source/Resources/AdditionalSounds).
+Choose a sound in **Sound Notification**. The default bundled sound is `Resources\Sounds\Steam.wav` and cannot be removed. Use **Add File** or **Add Folder** to add more `.wav` files; additional sounds are under [`source/Resources/AdditionalSounds`](https://github.com/Santodan/PlayniteAchievements/tree/main/source/Resources/AdditionalSounds).
+
+**Sound lead (ms)** controls the relative timing between audio and the visual notification. Positive values start the sound before the overlay; negative values show the overlay first and delay the sound. Extreme values can make the sound seem disconnected from the overlay.
 
 If no sound plays:
 
 - run **Test Notification**;
 - verify the custom path still exists and is readable;
-- switch temporarily to a bundled WAV file;
+- switch temporarily to the bundled Steam sound;
 - check the Windows volume mixer and the active output device;
-- confirm notifications are enabled for this game.
+- check **Decoded sound cache** under **Santodan-Fork > Performance** if you changed it.
 
-Sound lead timing controls the relative timing between audio and the visual notification. Extreme custom timing can make the sound seem disconnected from the overlay.
+## Score progress notifications
 
-## Screenshots
+**Score Progress Notifications** (Notification Style page) can show a notification when your Collection or Prestige score reaches a new level or tier. For each score, enable **Notify on level up** and/or **Notify on tier up**, pick a **Saved style** slot, a sound and a sound lead, and use **Test**. A tier notification takes priority when both happen together.
 
-Unlock screenshots can capture the full desktop or the active window, after a configurable delay from 0–10,000 ms, as PNG or JPEG.
+## Memories: screenshots and video clips
 
-If the save folder is blank, files go to `Pictures\PlayniteAchievements\UnlockScreenshots`. The filename and folder supports wildcards that are present in the extension.
+The **Memories** page captures unlocks. Captures are tied to a real detected unlock, not to a preview.
 
-Invalid filename characters are cleaned automatically. A short delay may capture the game before its own animation settles; a longer delay may capture a different active window. Use **Full desktop** when exclusive/fullscreen window capture is unreliable.
+### Screenshots
+
+Enable **Save a screenshot when a new achievement is detected**, then choose one or more variants:
+
+- **Clean:** the game without a notification;
+- **With notification:** the game with the notification card composited in;
+- **Framed:** a framed composition.
+
+Each variant has its own **Capture rarities** (Common, Uncommon, Rare, Ultra rare) and **Always capture game completion**. **Filename suffixes** distinguish the variants. For SAN notifications, **SAN screenshot view** and **Capture before view ends (ms)** choose which view is captured.
+
+If **Save folder** is blank, files go to `Pictures\PlayniteAchievements\UnlockScreenshots`. The folder and **Filename template** support the wildcards shown on the page (`<gameName>`, `<achievementName>`, `<date>`, `<time>`, `<dateTime>`, `<source>`, `<provider>`, `<gameId>`, `<unlockIndex>`, `<unlockCount>`). Screenshots are saved as PNG. Invalid filename characters are cleaned automatically.
+
+**Capture delay (ms)** (0–10,000, default 750) moves the screenshot a little after the unlock, so the game's own unlock animation can settle. It replaces the upstream capture delay, and the upstream option to also capture at the unlock moment is not used. Previews and Test Notification always capture immediately. A game with its own capture settings in **Manage Achievements > Notifications** keeps using those. The delay applies only to screenshots; clips keep their own timing.
+
+Memories settings take effect only while they are enabled on this page. With Memories screenshots or clips switched off, the upstream capture settings apply unchanged.
+
+### Video clips
+
+Enable **Save a video clip when an achievement is detected**. Choose capture rarities and **Always capture game completion**, a save folder (blank uses the screenshot folder) and filename template, **Pre-roll length (seconds)** (5–60, default 15), **Frames per second** (10–60, default 30) and **Resolution** (Native, 1080p, 720p). Optionally include system audio (full system or game only) and the microphone. Recording uses Windows Graphics Capture and Media Foundation.
 
 ## Per-game controls
 
-Right-click one or more games and use the Playnite Achievements menu to disable or enable real-time notifications. This per-game switch overrides the global monitoring setting for those games.
+There is no separate per-game real-time toggle. To silence or change notifications for one game, use **Manage Achievements > Notifications** for that game. The monitor also skips games excluded from refreshes (**Playnite Achievements > Maintenance > Exclude from Refreshes**). If one game is silent while **Test Notification** works, check both.
 
-The monitor also skips games excluded from achievement refreshes. If one game is silent while Test Notification works, check both its notification toggle and refresh exclusion.
+## Refresh when a game closes
 
-## Optional refresh behavior
-
-- **Refresh achievements when a game closes** performs a normal refresh after the process exits.
-- **Refresh achievements on real-time unlock** queues an extension refresh after displaying a detected unlock.
-
-The live monitor already writes the current Local data to the cache. The extra refresh option is useful when other extension views or integrations need a full refresh immediately, but it may perform more work.
+**Refresh achievements when a game closes** is on the Local page (**Santodan-Fork > Platforms > Local**). It performs a normal refresh after the process exits. You can override it per game in **Manage Achievements > Local Overrides > Local Saves & Schema > Refresh when game closes**.
 
 ## Troubleshooting decision path
 
 ### Test Notification does not appear
 
-1. Confirm real-time monitoring is enabled; the notification controls are disabled otherwise.
-2. Check delivery mode and its matching in-app/system switch.
-3. Try a built-in style and bundled sound.
-4. If only a custom/SAN template fails, re-import it and verify referenced asset paths still exist.
-5. Check whether an overlay is positioned on another monitor or hidden behind an exclusive-fullscreen game. Test in windowed/borderless mode.
+1. Confirm **Use custom Achievement Notification for live unlocks** is enabled; the notification controls are disabled otherwise.
+2. If **Use upstream notification template** is checked, the test uses the upstream notification and its settings.
+3. Check the delivery mode and its matching in-app/system switch.
+4. Try a built-in style and the bundled Steam sound.
+5. If only a custom or SAN template fails, re-import it and verify referenced asset paths still exist.
+6. Check whether the overlay is on another monitor or hidden behind an exclusive-fullscreen game. Test in windowed or borderless mode, and try **Show overlay on the active game's monitor**.
 
 ### Test works, but real unlocks do not
 
-1. Confirm the game resolves through the Local provider and a manual refresh shows its achievements.
-2. Check the per-game notification toggle and refresh exclusion.
-3. Confirm the Local achievement file changes while the game is running. Some games write only on exit.
-4. Ensure the correct save folder and Steam user are selected.
-5. Remember that the initial snapshot establishes a baseline and deliberately does not announce old unlocks.
-6. Increase the chance of catching delayed writes by leaving Playnite running until the game fully exits; the monitor performs a final post-stop recheck.
+1. Confirm a manual refresh of the game shows its achievements. For Local games, see [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md).
+2. Check **Manage Achievements > Notifications** for that game, the upstream notification switches, and refresh exclusion.
+3. For Local games, confirm the achievement file changes while the game is running. Some games write only on exit.
+4. Remember that the first read establishes a baseline and deliberately does not announce old unlocks.
+5. If the game writes on exit, keep Playnite running until the game fully exits and enable **Refresh achievements when a game closes**.
 
 ### Notification appears without an icon or useful text
 
-The unlock was detected, but its metadata schema was incomplete or did not correlate with the local API key. Set the correct App ID, select a better metadata priority, or configure a custom schema as described in [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md).
+The unlock was detected, but its metadata was incomplete or did not match the save's API keys. Set the correct App ID, change the metadata source priority, or configure a custom schema as described in [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md).
 
 ### Duplicate or unexpected notifications
 
-- Do not run overlapping save folders that point to duplicated copies of the same achievement state.
-- Check whether both overlay and system toast are enabled in Hybrid mode; two visible surfaces are expected there.
-- A batch of multiple achievements may be displayed as stacked notifications.
-- If an external achievement notifier is also monitoring the same files, disable one of the two applications.
+- Do not let multiple scanned folders point at duplicate copies of the same achievement state.
+- In Hybrid mode, two visible surfaces (overlay and toast) are expected.
+- With **Use a single custom notification** off, a batch of unlocks is shown as stacked notifications.
+- If an external notifier is also monitoring the same files, disable one of the two applications.
 
-### Screenshots are missing
+### Screenshots or clips are missing
 
-- Screenshot capture is tied to a real detected unlock, not merely to the visual preview.
-- Confirm screenshot capture is enabled and the target folder is writable.
-- Try the default folder and PNG format.
-- For active-window failures, use full-desktop capture and add a modest delay.
+- Captures follow a real detected unlock, not the preview.
+- Confirm the capture is enabled, at least one screenshot variant is selected, and the unlock's rarity is selected for that variant.
+- Confirm the target folder is writable, or clear it to use the default folder.
+- Use windowed or borderless fullscreen if exclusive fullscreen capture fails.
+- If a screenshot is taken too early or too late, adjust **Capture delay (ms)** on the Memories page, or the game's own capture delay in **Manage Achievements > Notifications** when it has one.
 
 ## Logs for bug reports
 
-Relevant log messages include `Started active Local achievement monitor`, `Initialized ... baseline`, `Detected ... newly unlocked`, `Skipped ... notification`, and `Active Local achievement refresh failed`. Include the game name, delivery mode, selected style, polling interval, and whether **Test Notification** worked. Redact personal paths if necessary.
+Use **Santodan-Fork > General > Logs** (**Open logs**, **Copy Logs**) to collect `playniteachievements.log`. Relevant messages include `[InGameMonitor]` lines, `[AchievementNotification] Upstream poll detection routed to custom notification`, and `[LocalToast]` lines. For notification issues, also enable **Debug achievement notification logging** and include `AchNotifDebug.log`.
+
+Include the game name, provider, delivery mode, selected style, polling interval, and whether **Test Notification** worked. Redact personal paths if necessary.
