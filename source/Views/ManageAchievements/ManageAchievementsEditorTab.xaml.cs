@@ -161,6 +161,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 RestoreSelection = RestoreSelectionByApiNames,
                 RowPressOutsideDragHandle = NormalizeSelectionForRoutedCell
             });
+            CustomAchievementsGrid.AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(AchievementsGrid_SelectionInput), true);
+            CustomAchievementsGrid.AddHandler(PreviewKeyDownEvent, new KeyEventHandler(AchievementsGrid_SelectionInput), true);
 
             if (!viewModel.IsLibraryScope)
             {
@@ -445,6 +447,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
             CustomAchievementsGrid.Focus();
         }
 
+        /// <summary>
+        /// Selects every row. Across games the grid marks the rows it has loaded, and the view
+        /// model selects every row the filters match from the database, which selecting the
+        /// grid's items would do only by loading every page.
+        /// </summary>
         private void SelectAllRows()
         {
             if (ViewModel?.GridRows is IPartiallyLoadedRows paged)
@@ -455,6 +462,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     CustomAchievementsGrid.SelectedItems.Add(row);
                 }
 
+                ViewModel.SelectAllMatching();
                 return;
             }
 
@@ -464,6 +472,24 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
         {
             CustomAchievementsGrid.UnselectAll();
+            ViewModel?.SetSelectedRows(Array.Empty<AchievementEditorRow>());
+        }
+
+        // Set while a click or a key in the grid is being handled, so its selection report is the
+        // user's and replaces a selection of every match; cleared once the input has run.
+        private bool _gridSelectionInput;
+
+        private void AchievementsGrid_SelectionInput(object sender, RoutedEventArgs e)
+        {
+            if (_gridSelectionInput)
+            {
+                return;
+            }
+
+            _gridSelectionInput = true;
+            _ = Dispatcher.BeginInvoke(
+                new Action(() => _gridSelectionInput = false),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private int _realizedRowCount;
@@ -680,6 +706,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// </summary>
         private void AchievementsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // A selection of every match holds rows the grid has not loaded: its own reports, as
+            // pages load and the list resets, are not the user's and would shrink it.
+            if (ViewModel?.IsAllMatchingSelected == true && !_gridSelectionInput)
+            {
+                return;
+            }
+
             ViewModel?.SetSelectedRows(CustomAchievementsGrid.SelectedItems.OfType<AchievementEditorRow>());
         }
 
