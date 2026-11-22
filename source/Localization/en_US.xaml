@@ -1001,6 +1001,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_RoundGameArtCorners">Game art corner rounding</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RoundGameArtCorners_Help">Rounds the corners of game covers, game icons and category art.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RoundAchievementIconCorners">Achievement icon corner rounding</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RoundLayoutCorners">Layout corner rounding</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RoundLayoutCorners_Help">Rounds the corners of text boxes, dropdowns, buttons, cards and menus.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PixelsAutomaticUnit">pixels (empty = automatic)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RowsUnlimitedUnit">rows (empty = unlimited)</sys:String>
 
