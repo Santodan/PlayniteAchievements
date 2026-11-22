@@ -137,7 +137,7 @@
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <Border CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="True"
                                 Margin="6,2"
                                 HorizontalAlignment="Center"
