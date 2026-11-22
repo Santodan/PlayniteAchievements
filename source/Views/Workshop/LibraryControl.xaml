@@ -91,7 +91,7 @@
                     <Border Width="52" Height="34"
                             Margin="0,0,12,0"
                             ClipToBounds="True"
-                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            Background="{DynamicResource PlayAch.Brush.Panel}"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                             CornerRadius="3">
@@ -199,7 +199,7 @@
                         <Border Height="140"
                                 Margin="0,0,0,12"
                                 ClipToBounds="True"
-                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                 CornerRadius="4">
@@ -418,7 +418,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                         CornerRadius="4">
@@ -463,7 +463,7 @@
                 <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="Transparent"/>
 
                 <Border Grid.Column="2"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                         CornerRadius="4">
