@@ -134,6 +134,16 @@ namespace PlayniteAchievements.Providers.Tests
                 ExophaseApiClient.BuildSearchUrl("game", "psvita"));
         }
 
+        [DataTestMethod]
+        [DataRow("psvita")]
+        [DataRow(null)]
+        public void BuildUrlFromSlug_VitaPageIsATrophyPage(string platformHint)
+        {
+            Assert.AreEqual(
+                "https://www.exophase.com/game/gravity-rush-psvita/trophies/",
+                ExophaseApiClient.BuildUrlFromSlug("gravity-rush-psvita", platformHint));
+        }
+
         [TestMethod]
         public void BuildSearchUrl_Xbox360_RoutesThroughXboxArchiveWithPlatformId()
         {

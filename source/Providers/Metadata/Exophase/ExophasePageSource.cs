@@ -178,13 +178,13 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 }
             }
 
-            var platforms = (platformSlugs ?? Array.Empty<string>()).Select(slug => slug.ToLowerInvariant()).ToList();
+            var platforms = (platformSlugs ?? Array.Empty<string>()).Select(ExophaseFriendPlatformMatcher.NormalizePlatformSlug).ToList();
             var pages = games
                 .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
                 .Select(game => (
                     Game: game,
                     Platform: (game.Platforms ?? new List<ExophasePlatform>())
-                        .Select(platform => platforms.IndexOf(platform?.Slug?.Trim().ToLowerInvariant() ?? string.Empty))
+                        .Select(platform => platforms.IndexOf(ExophaseFriendPlatformMatcher.NormalizePlatformSlug(platform?.Slug) ?? string.Empty))
                         .Where(index => index >= 0)
                         .DefaultIfEmpty(-1)
                         .Min(),
@@ -223,12 +223,12 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
             }
 
             var platforms = new HashSet<string>(
-                (platformSlugs ?? Array.Empty<string>()).Select(slug => slug.ToLowerInvariant()),
+                (platformSlugs ?? Array.Empty<string>()).Select(ExophaseFriendPlatformMatcher.NormalizePlatformSlug).Where(slug => slug != null),
                 StringComparer.OrdinalIgnoreCase);
             return (found ?? new List<ExophaseGame>())
                 .Where(game => game != null && !string.IsNullOrWhiteSpace(game.EndpointAwards))
                 .Where(game => platforms.Count == 0 ||
-                               (game.Platforms ?? new List<ExophasePlatform>()).Any(platform => platforms.Contains(platform?.Slug?.Trim() ?? string.Empty)))
+                               (game.Platforms ?? new List<ExophasePlatform>()).Any(platform => platforms.Contains(ExophaseFriendPlatformMatcher.NormalizePlatformSlug(platform?.Slug) ?? string.Empty)))
                 .Select(game => (Slug: ExophaseApiClient.ExtractSlugFromUrl(game.EndpointAwards), Game: game))
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Slug))
                 .GroupBy(entry => entry.Slug, StringComparer.OrdinalIgnoreCase)

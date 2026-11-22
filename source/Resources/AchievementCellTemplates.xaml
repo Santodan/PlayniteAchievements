@@ -337,12 +337,24 @@
                           VerticalAlignment="Center">
                         <!-- Fill set in the style, not as an attribute, so the status color
                              triggers can override it. The muted completed gradient replaces the
-                             base glyph fill; the inherited missable, unobtainable and tag triggers
-                             still win. The lock only shows while locked, so the triggers need no
-                             Unlocked condition. -->
+                             base glyph fill and, under All Tags, a tag's color; the inherited
+                             missable and unobtainable triggers still win. The lock only shows
+                             while locked, so the triggers need no Unlocked condition. -->
                         <Path.Style>
                             <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}">
                                 <Setter Property="Fill" Value="{Binding CapstoneLockBrush}"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                                                       Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                                            <Condition Binding="{Binding HasTagBrush, FallbackValue=False}" Value="True"/>
+                                            <Condition Binding="{Binding IsMissable, FallbackValue=False}" Value="False"/>
+                                            <Condition Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Fill" Value="{Binding CapstoneLockBrush}"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
                             </Style>
                         </Path.Style>
                         <Path.Data>
