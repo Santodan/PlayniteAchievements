@@ -4738,10 +4738,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 try
                 {
                     SetCapstonesForGameRows(game.ToList(), isCapstone);
-                    foreach (var row in game)
-                    {
-                        KeepEditedRow(row);
-                    }
+                    KeepEditedRows(game);
                 }
                 finally
                 {
@@ -5997,6 +5994,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 FlushBatchedFieldWrites();
             }
 
+            KeepEditedRows(_selectedRows);
             RefreshRevealHeaderState();
 
             // Authored rows are stored as one definition list, so a single save covers all of them.
