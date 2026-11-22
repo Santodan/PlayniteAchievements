@@ -101,6 +101,16 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void Apply_ResolvesPanelToTransparent_WhenThemeHasNoPanelOrCardBrush()
+        {
+            var resources = new ResourceDictionary();
+
+            PlayAchResourceService.Apply(resources, null);
+
+            AssertBrush(resources, "PlayAch.Brush.Panel", Color.FromArgb(0, 0, 0, 0));
+        }
+
+        [TestMethod]
         public void Apply_PublishesCompletedFillBrush()
         {
             var resources = new ResourceDictionary();
