@@ -447,10 +447,10 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Resource key for a plugin window's own background, which Playnite's window template also
+        /// Resource key for a popout window's own background, which Playnite's window template also
         /// paints behind the title bar. It is the Window background setting, so the title bar and
-        /// the content match; a transparent setting keeps the theme's window background instead,
-        /// because a window has nothing behind it to show through.
+        /// the content match; a transparent setting uses the opaque popup surface instead, because a
+        /// window has nothing behind it to show through.
         /// </summary>
         public const string WindowFrameResourceKey = "PlayAch.Brush.Window.Frame";
 
@@ -462,36 +462,7 @@ namespace PlayniteAchievements.Services.UI
                 return surface;
             }
 
-            return FindThemeWindowBackground() ?? surface;
-        }
-
-        // The background the theme's StandardWindowStyle gives every window (FusionX uses its popup
-        // brush, the default theme WindowBackgourndBrush), read from the style's own setter.
-        private static Brush FindThemeWindowBackground()
-        {
-            var style = Application.Current?.TryFindResource("StandardWindowStyle") as Style;
-            for (; style != null; style = style.BasedOn)
-            {
-                foreach (var setter in style.Setters.OfType<Setter>())
-                {
-                    if (setter.Property != System.Windows.Controls.Control.BackgroundProperty)
-                    {
-                        continue;
-                    }
-
-                    if (setter.Value is Brush brush)
-                    {
-                        return brush;
-                    }
-
-                    if (setter.Value is DynamicResourceExtension dynamicResource)
-                    {
-                        return Application.Current.TryFindResource(dynamicResource.ResourceKey) as Brush;
-                    }
-                }
-            }
-
-            return Application.Current?.TryFindResource("WindowBackgourndBrush") as Brush;
+            return resources["PlayAch.Brush.PopupSurface"] ?? surface;
         }
 
         private static object ResolveAlias(ResourceDictionary resources, AliasDefinition alias)
