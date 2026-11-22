@@ -2779,8 +2779,11 @@ namespace PlayniteAchievements.Services.UI
             // frame.
             //
             // Previews and retriggers are exempt: both capture the instant they are asked for.
+            // Santodan-Fork: Memories screenshots, when enabled, supply their own delay.
+            var memoriesSettings = Providers.ProviderRegistry.Settings<Providers.Local.LocalSettings>();
             var captureDelaySeconds = !waveIsTestFire && !wave[0].IsPreview
-                ? Math.Max(0, _activeWaveCaptures?.CaptureDelaySeconds ?? _settings?.Persisted?.CaptureDelaySeconds ?? 0)
+                ? SantodanMemoriesCapturePolicy.ResolveCaptureDelaySeconds(
+                    _activeWaveCaptures, memoriesSettings, _settings?.Persisted)
                 : 0;
 
             // The instant the base frame is aimed at, published to the recording service so a
@@ -2809,9 +2812,8 @@ namespace PlayniteAchievements.Services.UI
             // The unlock set is saved first, so it takes the normal file names and the delayed
             // set lands on the duplicate names.
             var dualCapture = captureDelaySeconds > 0 &&
-                (_activeWaveCaptures?.CaptureAtUnlockAndAfterDelay
-                    ?? _settings?.Persisted?.CaptureAtUnlockAndAfterDelay
-                    ?? false);
+                SantodanMemoriesCapturePolicy.ResolveCaptureAtUnlockAndAfterDelay(
+                    _activeWaveCaptures, memoriesSettings, _settings?.Persisted);
             var unlockCaptureUtc = dualCapture && waveNotifyDelayed ? waveStartUtc : (DateTime?)null;
             var primaryCaptureUtc = dualCapture ? unlockCaptureUtc : surfaceCaptureUtc;
 

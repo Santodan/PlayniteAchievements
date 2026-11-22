@@ -956,6 +956,7 @@
     <Compile Include="..\..\source\Services\UI\ScreenshotVariants.cs" Link="Source\Services\UI\ScreenshotVariants.cs" />
     <Compile Include="..\..\source\Services\UI\SystemFontCatalog.cs" Link="Source\Services\UI\SystemFontCatalog.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />
+    <Compile Include="..\..\source\Services\UI\SantodanMemoriesCapturePolicy.cs" Link="Source\Services\UI\SantodanMemoriesCapturePolicy.cs" />
     <Compile Include="..\..\source\Services\UI\UnlockClipVariantPolicy.cs" Link="Source\Services\UI\UnlockClipVariantPolicy.cs" />
     <Compile Include="..\..\source\Services\UI\ToastWindowPlacer.cs" Link="Source\Services\UI\ToastWindowPlacer.cs" />
     <Compile Include="..\..\source\Services\UI\ToastMotionStoryboardFactory.cs" Link="Source\Services\UI\ToastMotionStoryboardFactory.cs" />

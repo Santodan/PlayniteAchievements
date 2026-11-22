@@ -95,6 +95,10 @@ Each variant has its own **Capture rarities** (Common, Uncommon, Rare, Ultra rar
 
 If **Save folder** is blank, files go to `Pictures\PlayniteAchievements\UnlockScreenshots`. The folder and **Filename template** support the wildcards shown on the page (`<gameName>`, `<achievementName>`, `<date>`, `<time>`, `<dateTime>`, `<source>`, `<provider>`, `<gameId>`, `<unlockIndex>`, `<unlockCount>`). Screenshots are saved as PNG. Invalid filename characters are cleaned automatically.
 
+**Capture delay (ms)** (0–10,000, default 750) moves the screenshot a little after the unlock, so the game's own unlock animation can settle. It replaces the upstream capture delay, and the upstream option to also capture at the unlock moment is not used. Previews and Test Notification always capture immediately. A game with its own capture settings in **Manage Achievements > Notifications** keeps using those. The delay applies only to screenshots; clips keep their own timing.
+
+Memories settings take effect only while they are enabled on this page. With Memories screenshots or clips switched off, the upstream capture settings apply unchanged.
+
 ### Video clips
 
 Enable **Save a video clip when an achievement is detected**. Choose capture rarities and **Always capture game completion**, a save folder (blank uses the screenshot folder) and filename template, **Pre-roll length (seconds)** (5–60, default 15), **Frames per second** (10–60, default 30) and **Resolution** (Native, 1080p, 720p). Optionally include system audio (full system or game only) and the microphone. Recording uses Windows Graphics Capture and Media Foundation.
@@ -143,6 +147,7 @@ The unlock was detected, but its metadata was incomplete or did not match the sa
 - Confirm the capture is enabled, at least one screenshot variant is selected, and the unlock's rarity is selected for that variant.
 - Confirm the target folder is writable, or clear it to use the default folder.
 - Use windowed or borderless fullscreen if exclusive fullscreen capture fails.
+- If a screenshot is taken too early or too late, adjust **Capture delay (ms)** on the Memories page, or the game's own capture delay in **Manage Achievements > Notifications** when it has one.
 
 ## Logs for bug reports
 
