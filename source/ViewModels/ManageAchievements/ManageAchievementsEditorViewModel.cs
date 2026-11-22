@@ -8280,6 +8280,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// column's lock fill and tooltip alongside Missable.
         /// </summary>
         public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(EffectiveTagsValue);
+
+        /// <summary>
+        /// The color of the row's Missable or Unobtainable tag, whichever comes first with a color;
+        /// null when neither has one, where the status lock uses the missable red.
+        /// </summary>
+        public System.Windows.Media.Brush MissableStatusBrush =>
+            Tags.AchievementTagPresentation.FirstColoredBrush(EffectiveTagsValue, _gameId, AchievementTagHelper.IsSystemTag);
+
+        public bool HasMissableStatusBrush => MissableStatusBrush != null;
+
+        /// <summary>Muted completed gradient for the locked capstone padlock in the status column.</summary>
+        public System.Windows.Media.Brush CapstoneLockBrush =>
+            PlayniteAchievements.Models.Achievements.RarityAppearanceHelper.GetMutedCompletedGradientBrush(
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
+
         private Guid? _gameId;
 
         /// <summary>Re-reads tag names after the tag lists changed.</summary>
@@ -8291,6 +8306,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(TagChips));
             OnPropertyChanged(nameof(TagsButtonText));
             OnPropertyChanged(nameof(HasTagIcons));
+            OnPropertyChanged(nameof(MissableStatusBrush));
+            OnPropertyChanged(nameof(HasMissableStatusBrush));
         }
 
         /// <summary>The game the row belongs to, so its own tags resolve.</summary>

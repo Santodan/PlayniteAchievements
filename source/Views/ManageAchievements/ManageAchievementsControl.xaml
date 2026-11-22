@@ -38,14 +38,14 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.1F}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Selected}" />
                                     <Setter Property="FontWeight" Value="SemiBold" />
                                 </Trigger>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.14}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}" />
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocused" Value="True">
-                                    <Setter TargetName="BorderRoot" Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Tint.20}" />
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

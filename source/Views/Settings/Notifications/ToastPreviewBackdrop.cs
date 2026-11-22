@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Views.Settings.Notifications
         {
             if (_backdrop != null)
             {
-                _frame.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Surface");
+                _frame.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Panel");
                 _backdrop = null;
                 _backdropSource = null;
             }

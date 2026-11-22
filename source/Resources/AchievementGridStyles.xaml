@@ -560,7 +560,7 @@
                                   Width="10"
                                   Height="8"
                                   Data="M 0,4 L 3.5,7.5 L 10,0"
-                                  Stroke="White"
+                                  Stroke="{DynamicResource PlayAch.Brush.Text}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -1169,12 +1169,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>
@@ -1276,12 +1276,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>

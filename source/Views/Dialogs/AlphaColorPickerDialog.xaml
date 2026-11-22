@@ -52,7 +52,7 @@
             </LinearGradientBrush>
 
             <Style x:Key="ColorPickerPanelStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
                 <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>

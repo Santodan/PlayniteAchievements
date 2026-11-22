@@ -220,6 +220,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
         private bool _commonGlowTierCleared = true;
+        private bool _surfaceOverrideMovedToPanel = true;
         private bool _categoryProgressColumnAlignmentDefaulted = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
@@ -2581,6 +2582,19 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// True when this config's Surface and Panel resource overrides use the current split:
+        /// Panel colors cards and containers, Surface colors inputs. Cards drew on Surface before,
+        /// so the migration moves a saved Surface override to Panel once, for configs whose JSON
+        /// lacks this flag. Defaults true because every config this build writes already uses the
+        /// split, so a Surface color chosen in the very first session is never moved.
+        /// </summary>
+        public bool SurfaceOverrideMovedToPanel
+        {
+            get => _surfaceOverrideMovedToPanel;
+            set => SetValue(ref _surfaceOverrideMovedToPanel, value);
+        }
+
+        /// <summary>
         /// True when the category summary Progress column alignment in this config is either the
         /// seeded Right default or the user's own choice, including a cleared override. The
         /// category options used to seed Right on the deserialization target, so earlier builds
@@ -3523,6 +3537,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
                 CommonGlowTierCleared = this.CommonGlowTierCleared,
+                SurfaceOverrideMovedToPanel = this.SurfaceOverrideMovedToPanel,
                 CategoryProgressColumnAlignmentDefaulted = this.CategoryProgressColumnAlignmentDefaulted,
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,

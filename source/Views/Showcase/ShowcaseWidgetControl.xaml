@@ -22,7 +22,7 @@
              trigger can clear them. Transparent (not null) keeps gaps hit-testable. -->
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
                 <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DrawsBackground, RelativeSource={RelativeSource AncestorType=UserControl}}"

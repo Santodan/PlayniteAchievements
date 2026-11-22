@@ -125,7 +125,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(code, "state.StatusPanel.Visibility");
             Assert.IsFalse(code.Contains("Widget drawer"));
             Assert.IsFalse(code.Contains("UnplaceWidget"));
-            StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Surface}");
+            StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Panel}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Border}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Text}");
             Assert.IsFalse(widgetXaml.Contains("x:Name=\"GlyphText\""));
