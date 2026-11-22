@@ -19,6 +19,12 @@ namespace PlayniteAchievements
 {
     public partial class PlayniteAchievementsPlugin
     {
+        /// <summary>
+        /// Shows Log Memory Diagnostics in the extensions menu while memory tracing is armed.
+        /// Off: tracing still logs without the menu item.
+        /// </summary>
+        private static readonly bool MemoryDiagnosticsMenuEnabled = false;
+
         private static string PluginGameMenuSection => ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
         // Nested "Maintenance" submenu under the plugin's game-menu section (Playnite uses | to nest).
         private static string PluginGameMaintenanceSection =>
@@ -589,11 +595,11 @@ namespace PlayniteAchievements
                 };
             }
 
-            // Developer-only diagnostic, hidden unless the hardcoded PerfScope.PerfTracingEnabled
-            // flag is on (never shown in a tracing-off build). Deliberately not localized.
+            // Developer-only diagnostic, hidden unless the hardcoded MemoryDiagnosticsMenuEnabled
+            // flag is on and memory tracing is armed. Deliberately not localized.
             // Available mid-refresh: capturing memory state during and after large scans is the
             // point. The compacting collect logs a managed-vs-native breakdown of residual memory.
-            if (Common.MemoryDiagnostics.Enabled)
+            if (MemoryDiagnosticsMenuEnabled && Common.MemoryDiagnostics.Enabled)
             {
                 yield return new MainMenuItem
                 {
