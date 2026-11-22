@@ -363,6 +363,40 @@ namespace PlayniteAchievements.Tests.Services.UI
         }
 
         [TestMethod]
+        public void AchievementIconCornerRadius_TakesTheArtRadiusUntilSetThenStaysIndependent()
+        {
+            var json = JsonConvert.SerializeObject(new { CornerRoundingRadius = 12 });
+            var loaded = JsonConvert.DeserializeObject<PersistedSettings>(json);
+
+            Assert.AreEqual(12, loaded.AchievementIconCornerRadius);
+
+            loaded.CornerRoundingRadius = 3;
+            Assert.AreEqual(12, loaded.AchievementIconCornerRadius);
+
+            loaded.AchievementIconCornerRadius = -2;
+            Assert.AreEqual(0, loaded.AchievementIconCornerRadius);
+            Assert.AreEqual(3, loaded.CornerRoundingRadius);
+        }
+
+        [TestMethod]
+        public void Apply_PublishesSeparateArtAndIconRadii()
+        {
+            var resources = new ResourceDictionary();
+            var settings = new PersistedSettings
+            {
+                RoundGameArtCorners = true,
+                RoundAchievementIconCorners = true,
+                CornerRoundingRadius = 10,
+                AchievementIconCornerRadius = 5
+            };
+
+            PlayAchResourceService.Apply(resources, new Dictionary<string, ResourceOverrideSetting>(), settings);
+
+            Assert.AreEqual(10d, resources[PlayAchResourceService.ArtCornerRadiusResourceKey]);
+            Assert.AreEqual(5d, resources[PlayAchResourceService.AchievementIconCornerRadiusResourceKey]);
+        }
+
+        [TestMethod]
         public void LayoutCornerRounding_DefaultsToOnAtFour()
         {
             var settings = new PersistedSettings();
