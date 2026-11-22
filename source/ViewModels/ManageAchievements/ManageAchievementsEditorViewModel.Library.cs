@@ -281,6 +281,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             Scope = EditorScope.Library(GameFilter?.SelectedGameIds);
+            ClearAllMatchingSelection();
             ClearKeptRows();
             SetStatus(null, false);
             if (Scope.SingleGameId is Guid single)
@@ -413,6 +414,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>The filters changed: the kept rows go and the list reads from its top.</summary>
         private void ApplyPagedFilters()
         {
+            ClearAllMatchingSelection();
             ClearKeptRows();
             _pagedRows?.SetQuery(BuildLibraryQuery(), fromStart: true);
         }
@@ -1143,6 +1145,133 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, game),
                 option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
         }
+
+        #endregion
+
+        #region Select all matching
+
+        // Rows built per read when selecting every match; the grid's own page size.
+        private const int SelectAllChunk = 100;
+
+        private int _selectAllMatchingVersion;
+        private bool _isAllMatchingSelected;
+
+        /// <summary>
+        /// Whether the selection is every row the filters match across games, read from the
+        /// database. The grid shows only the part of it that it has loaded, so its own reports
+        /// of what is selected do not replace it; a click or a key in the grid does.
+        /// </summary>
+        public bool IsAllMatchingSelected
+        {
+            get => _isAllMatchingSelected;
+            private set => SetValue(ref _isAllMatchingSelected, value);
+        }
+
+        /// <summary>
+        /// Selects every row the filters match across games without loading the grid's pages:
+        /// the keys are read from the database, and the rows the grid has not loaded are built
+        /// off the UI thread a page at a time. Rows the grid has loaded are selected as
+        /// themselves.
+        /// </summary>
+        public void SelectAllMatching()
+        {
+            if (!IsPagedMode)
+            {
+                return;
+            }
+
+            var version = ++_selectAllMatchingVersion;
+            var query = BuildLibraryQuery();
+            var loaded = LoadedRowsByKey();
+            var sources = _librarySources;
+            sources.Scheduler.Run(() =>
+            {
+                List<AchievementQuerySql.RowKey> keys = null;
+                var built = new Dictionary<string, AchievementEditorRow>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    using (Common.PerfScope.Start(_logger, "Editor.SelectAllMatching", thresholdMs: 50))
+                    {
+                        keys = sources.Reads.Reads.SortedKeys(query).ToList();
+                        var missing = keys.Where(key => !loaded.ContainsKey(KeyText(key))).ToList();
+                        for (var start = 0; start < missing.Count; start += SelectAllChunk)
+                        {
+                            if (version != _selectAllMatchingVersion)
+                            {
+                                return;
+                            }
+
+                            var chunk = missing.Skip(start).Take(SelectAllChunk).ToList();
+                            foreach (var row in LoadPagedRows(query, chunk))
+                            {
+                                built[HistoryRowKey(GameOf(row), row.OriginalApiName)] = row;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to select every achievement the editor's filters match.");
+                    keys = null;
+                }
+
+                sources.Scheduler.Post(() =>
+                {
+                    if (keys == null || _isDetached || version != _selectAllMatchingVersion || !IsPagedMode)
+                    {
+                        return;
+                    }
+
+                    // The grid may have loaded or dropped pages meanwhile; a row it holds now is
+                    // the instance to select.
+                    var current = LoadedRowsByKey();
+                    var rows = new List<AchievementEditorRow>(keys.Count);
+                    foreach (var key in keys)
+                    {
+                        var text = KeyText(key);
+                        if (current.TryGetValue(text, out var row) || loaded.TryGetValue(text, out row))
+                        {
+                            rows.Add(row);
+                        }
+                        else if (built.TryGetValue(text, out row))
+                        {
+                            AttachPagedRow(row);
+                            rows.Add(row);
+                        }
+                    }
+
+                    SetSelectedRows(rows);
+                    IsAllMatchingSelected = true;
+                });
+            });
+        }
+
+        /// <summary>Drops a selection of every match, and any still being read, when the filters change.</summary>
+        private void ClearAllMatchingSelection()
+        {
+            _selectAllMatchingVersion++;
+            if (IsAllMatchingSelected)
+            {
+                SetSelectedRows(Array.Empty<AchievementEditorRow>());
+            }
+        }
+
+        private Dictionary<string, AchievementEditorRow> LoadedRowsByKey()
+        {
+            var rows = new Dictionary<string, AchievementEditorRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in EditableRows)
+            {
+                if (row?.GameId is Guid gameId && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                {
+                    rows[HistoryRowKey(gameId, row.OriginalApiName)] = row;
+                }
+            }
+
+            return rows;
+        }
+
+        private static string KeyText(AchievementQuerySql.RowKey key) =>
+            HistoryRowKey(Guid.TryParse(key?.PlayniteGameId, out var gameId) ? gameId : Guid.Empty, key?.ApiName);
 
         #endregion
 
