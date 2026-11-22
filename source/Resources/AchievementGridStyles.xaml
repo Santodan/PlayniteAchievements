@@ -193,6 +193,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridColumnHeader">
                     <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                            BorderThickness="0,0,0,1"
                             ClipToBounds="False"
                             SnapsToDevicePixels="True">
                         <Grid ClipToBounds="False">
