@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Views.Workshop.Preview
         private static FrameworkElement CreateBlock(ShowcaseBlockPreview block)
         {
             var border = new Border { Margin = new Thickness(4), Padding = new Thickness(8, 6, 8, 6) };
-            border.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            border.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             border.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.GridSurface");
             if (!block.WidgetKind.HasValue)
             {

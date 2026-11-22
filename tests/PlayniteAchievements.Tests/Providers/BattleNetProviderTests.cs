@@ -537,6 +537,36 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void RemoveExcludedAchievements_DropsForeverCopiesButKeepsUnlocked()
+        {
+            var achievements = new List<AchievementDetail>
+            {
+                new AchievementDetail { ApiName = "61989", DisplayName = "Novice Hunter" },
+                new AchievementDetail { ApiName = "63975", DisplayName = "Novice Hunter" },
+                new AchievementDetail { ApiName = "63969" },
+                new AchievementDetail { ApiName = "64033", Unlocked = true },
+                new AchievementDetail { ApiName = "64034" }
+            };
+            var keptUnlocked = new List<string>();
+
+            var removed = WowGameStrategy.RemoveExcludedAchievements(achievements, WowVersion.Forever, keptUnlocked);
+
+            Assert.AreEqual(2, removed);
+            CollectionAssert.AreEquivalent(new[] { "61989", "64033", "64034" }, achievements.Select(a => a.ApiName).ToList());
+            CollectionAssert.AreEqual(new[] { "64033" }, keptUnlocked);
+        }
+
+        [TestMethod]
+        public void RemoveExcludedAchievements_LeavesOtherVersionsUnchanged()
+        {
+            var achievements = new List<AchievementDetail> { new AchievementDetail { ApiName = "63975" } };
+
+            Assert.AreEqual(0, WowGameStrategy.RemoveExcludedAchievements(achievements, WowVersion.Classic, null));
+            Assert.AreEqual(0, WowGameStrategy.RemoveExcludedAchievements(achievements, WowVersion.Retail, null));
+            Assert.AreEqual(1, achievements.Count);
+        }
+
+        [TestMethod]
         public void Sc2BuildAchievements_MapsStaticCatalogOntoProfile()
         {
             var definitions = JsonConvert.DeserializeObject<Sc2AchievementDefinitionsResponse>(@"{

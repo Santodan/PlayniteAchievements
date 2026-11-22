@@ -132,6 +132,7 @@ namespace PlayniteAchievements.Views.Showcase
         public ShowcaseWidgetControl()
         {
             InitializeComponent();
+            SetResourceReference(LayoutRadiusProperty, PlayniteAchievements.Services.UI.PlayAchResourceService.LayoutCornerRadiusValueResourceKey);
             ShowLoadingPlaceholder();
             var chartClick = new ChartClickEventHandler(OnChartClicked);
             AddHandler(PieChartWithRadialIcons.SliceClickedEvent, chartClick);
@@ -282,15 +283,32 @@ namespace PlayniteAchievements.Views.Showcase
             return false;
         }
 
-        // PlayAch.Radius.Section (8) less PlayAch.Thickness.Border (1): the border's inner curve.
-        private const double InnerCornerRadius = 7;
+        // The layout corner radius, held as a resource reference so a settings change reclips the content.
+        private static readonly DependencyProperty LayoutRadiusProperty =
+            DependencyProperty.Register(
+                "LayoutRadius",
+                typeof(double),
+                typeof(ShowcaseWidgetControl),
+                new PropertyMetadata(0d, (d, e) => ((ShowcaseWidgetControl)d).ApplyRootContentClip()));
 
         private void OnRootContentSizeChanged(object sender, SizeChangedEventArgs e)
         {
+            ApplyRootContentClip();
+        }
+
+        // Clips the content to the border's inner curve: the layout radius less PlayAch.Thickness.Border (1).
+        private void ApplyRootContentClip()
+        {
+            if (RootContent == null)
+            {
+                return;
+            }
+
+            var inner = Math.Max(0, (double)GetValue(LayoutRadiusProperty) - 1);
             RootContent.Clip = new System.Windows.Media.RectangleGeometry(
-                new Rect(e.NewSize),
-                InnerCornerRadius,
-                InnerCornerRadius);
+                new Rect(RootContent.RenderSize),
+                inner,
+                inner);
         }
 
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)

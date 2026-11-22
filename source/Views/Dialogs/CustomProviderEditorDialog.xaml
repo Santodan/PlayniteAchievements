@@ -44,7 +44,7 @@
                 <Border Grid.Column="0"
                         Width="88"
                         Height="88"
-                        CornerRadius="6"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Margin="0,0,16,0"
                         VerticalAlignment="Top"
                         BorderBrush="{DynamicResource NormalBorderBrush}"

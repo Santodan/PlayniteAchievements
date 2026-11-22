@@ -158,7 +158,9 @@ namespace PlayniteAchievements.Views.Settings.Display
             }
             else if (e.PropertyName == nameof(PersistedSettings.CornerRoundingRadius) ||
                      e.PropertyName == nameof(PersistedSettings.RoundGameArtCorners) ||
-                     e.PropertyName == nameof(PersistedSettings.RoundAchievementIconCorners))
+                     e.PropertyName == nameof(PersistedSettings.RoundAchievementIconCorners) ||
+                     e.PropertyName == nameof(PersistedSettings.RoundLayoutCorners) ||
+                     e.PropertyName == nameof(PersistedSettings.LayoutCornerRadius))
             {
                 PlayAchResourceService.ApplyCornerRoundingToApplication(_settings?.Persisted);
             }

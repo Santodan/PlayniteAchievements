@@ -270,6 +270,18 @@ namespace PlayniteAchievements.Providers.BattleNet
                 version).ConfigureAwait(false);
             _logger?.Info($"{version.LogTag} Official achievement merge completed. characters={mergeStats.FetchedCharacters}, completions={mergeStats.CompletionCount}, updated={mergeStats.UpdatedCount}, added={mergeStats.AddedCount}, mode={mergeStats.Mode}");
 
+            var keptUnlocked = new List<string>();
+            var excluded = RemoveExcludedAchievements(achievements, version, keptUnlocked);
+            if (excluded > 0)
+            {
+                _logger?.Info($"{version.LogTag} Left out {excluded} achievements in the excluded id block.");
+            }
+
+            if (keptUnlocked.Count > 0)
+            {
+                _logger?.Warn($"{version.LogTag} Kept {keptUnlocked.Count} unlocked achievements in the excluded id block: {string.Join(",", keptUnlocked)}");
+            }
+
             if (achievements.Count == 0)
             {
                 _logger?.Warn($"{version.LogTag} No achievements were parsed from the official API. game={GameLabel(game)}");
@@ -385,6 +397,39 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// as one, is already in <paramref name="guildCategoryIds"/>, or sits under one; all of those
         /// are added to the set and their achievements left out.
         /// </summary>
+        /// <summary>
+        /// Removes the version's excluded achievements unless they are unlocked. Unlocked ones stay
+        /// and their ids are added to <paramref name="keptUnlocked"/>. Returns the number removed.
+        /// </summary>
+        internal static int RemoveExcludedAchievements(
+            List<AchievementDetail> achievements,
+            WowVersion version,
+            List<string> keptUnlocked)
+        {
+            if (achievements == null || version == null)
+            {
+                return 0;
+            }
+
+            return achievements.RemoveAll(achievement =>
+            {
+                if (achievement == null ||
+                    !int.TryParse(achievement.ApiName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ||
+                    !version.IsExcludedAchievement(id))
+                {
+                    return false;
+                }
+
+                if (achievement.Unlocked)
+                {
+                    keptUnlocked?.Add(achievement.ApiName);
+                    return false;
+                }
+
+                return true;
+            });
+        }
+
         internal static List<AchievementDetail> BuildCatalogFromCategories(
             IEnumerable<WowAchievementCategoryResource> resources,
             HashSet<int> guildCategoryIds)

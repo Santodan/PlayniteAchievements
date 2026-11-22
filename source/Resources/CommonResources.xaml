@@ -172,7 +172,7 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
@@ -202,7 +202,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter Margin="{TemplateBinding Padding}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -288,7 +288,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Chrome" CornerRadius="4" Background="Transparent">
+                    <Border x:Name="Chrome" CornerRadius="{DynamicResource PlayAch.Radius.Layout}" Background="Transparent">
                         <TextBlock Text="{TemplateBinding Content}"
                                    FontFamily="{TemplateBinding FontFamily}"
                                    FontSize="{TemplateBinding FontSize}"
@@ -329,7 +329,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Chrome" CornerRadius="4" Background="Transparent" Padding="{TemplateBinding Padding}">
+                    <Border x:Name="Chrome" CornerRadius="{DynamicResource PlayAch.Radius.Layout}" Background="Transparent" Padding="{TemplateBinding Padding}">
                         <StackPanel Orientation="Horizontal">
                             <controls:GlyphIcon x:Name="Glyph"
                                                 Glyph="&#xEF44;"
@@ -546,7 +546,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Chrome"
-                            CornerRadius="4"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1">
@@ -593,7 +593,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter Margin="{TemplateBinding Padding}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -627,7 +627,7 @@
 
     <!-- The shared box of text inputs and dropdown-style selector buttons (search bars and the
          Showcase and grid control bar dropdowns), so both draw from one set of values. Their
-         templates draw this box with PlayAch.Radius.Small, an Accent outline on hover and a
+         templates draw this box with PlayAch.Radius.Layout, an Accent outline on hover and a
          Selection outline on focus. -->
     <Style x:Key="PlayAch.InputChrome.BaseStyle" TargetType="Control">
         <Setter Property="MinHeight" Value="{StaticResource PlayAch.Size.Control.Height}"/>
@@ -651,7 +651,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ScrollViewer x:Name="PART_ContentHost"
                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
@@ -694,7 +694,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ScrollViewer x:Name="PART_ContentHost"
                                       Margin="{TemplateBinding Padding}"
@@ -744,7 +744,7 @@
                                   Width="10"
                                   Height="8"
                                   Data="M 0,4 L 3.5,7.5 L 10,0"
-                                  Stroke="White"
+                                  Stroke="{DynamicResource PlayAch.Brush.Text}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -958,7 +958,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid>
                             <ToggleButton x:Name="ToggleButton"
@@ -1125,7 +1125,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <DockPanel Margin="0,0,2,0">
                             <Viewbox DockPanel.Dock="Right" Width="20">
@@ -1417,7 +1417,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Margin="0,0,1,0"
                             SnapsToDevicePixels="True">
                         <ContentPresenter ContentSource="Header"
@@ -1470,7 +1470,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -1638,10 +1638,10 @@
     </Style>
 
     <Style x:Key="PlayAch.CardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Surface}"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
         <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.CardPadding}"/>
     </Style>
 
@@ -1716,7 +1716,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter Margin="{TemplateBinding Padding}"
                                           HorizontalAlignment="Center"
@@ -1761,12 +1761,15 @@
         <Setter Property="Margin" Value="0,0,0,14"/>
     </Style>
 
+    <!-- A settings section as a card: the Panel fill (a theme's panel or card brush, transparent
+         when it has none) and the Border outline, so a section still reads as one group where the
+         theme leaves Panel transparent. -->
     <Style x:Key="PlayAch.SectionBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
-        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
+        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.SectionPadding}"/>
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Xl}"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
     </Style>
 
@@ -1806,7 +1809,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>

@@ -275,7 +275,7 @@
 
                                             <Border Width="48"
                                                     Height="48"
-                                                    CornerRadius="4"
+                                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                                     Background="{DynamicResource PlayAch.Brush.ControlSurface}"
                                                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                     BorderThickness="1"
@@ -338,7 +338,7 @@
 
                                                         <Border Width="24"
                                                                 Height="24"
-                                                                CornerRadius="3"
+                                                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                                                 Background="{DynamicResource PlayAch.Brush.ControlSurface}"
                                                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                                                 BorderThickness="1"

@@ -351,7 +351,7 @@
     <Style x:Key="PlayAch.Skeleton.Block" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Text}"/>
         <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Skeleton}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
         <Setter Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
     </Style>
@@ -560,7 +560,7 @@
                                   Width="10"
                                   Height="8"
                                   Data="M 0,4 L 3.5,7.5 L 10,0"
-                                  Stroke="White"
+                                  Stroke="{DynamicResource PlayAch.Brush.Text}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -759,7 +759,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -812,7 +812,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4,0,0,4"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout.Left}"
                             SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -866,7 +866,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="5"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <DockPanel>
@@ -910,7 +910,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="5"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <DockPanel>
@@ -959,7 +959,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="3">
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                             <Grid MinWidth="150">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="22"/>
@@ -1009,7 +1009,7 @@
                             <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                     BorderThickness="1"
-                                    CornerRadius="5"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="4"
                                     SnapsToDevicePixels="True">
                                 <!-- Same scroll cap as the menu itself: a submenu listing every
@@ -1092,7 +1092,7 @@
                                 Background="{DynamicResource PlayAch.Brush.Control.Background}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
-                                CornerRadius="3"/>
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"/>
                         <Path x:Name="CheckMark"
                               Data="M 3.5 8 L 6.5 11 L 12.5 5"
                               Stroke="{DynamicResource PlayAch.Brush.Accent}"
@@ -1138,7 +1138,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid MinWidth="120"
                               Margin="4,0,10,0">
@@ -1169,12 +1169,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>
@@ -1220,7 +1220,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid MinWidth="120"
                               Margin="4,0,10,0">
@@ -1276,12 +1276,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>

@@ -268,7 +268,7 @@
                 </GroupBox>
 
                 <Border Grid.Row="5"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         Padding="8">

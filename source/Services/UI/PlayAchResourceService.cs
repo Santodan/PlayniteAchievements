@@ -66,11 +66,17 @@ namespace PlayniteAchievements.Services.UI
             Brush("PlayAch.Brush.Text.Secondary", "LOCPlayAch_Settings_Appearance_Resource_TextSecondary", "TextBrushDarker", "TextBrush"),
             // TextBrushDark is pure black in Playnite's default theme (it is the brush for text on light accents), so a muted-text token must not fall to it.
             Brush("PlayAch.Brush.Text.Tertiary", "LOCPlayAch_Settings_Appearance_Resource_TextTertiary", "TextBrushDarker", "TextBrush"),
-            Brush("PlayAch.Brush.Surface", "LOCPlayAch_Settings_Appearance_Resource_Surface", "ControlBackgroundBrush"),
-            Brush("PlayAch.Brush.Panel", "LOCPlayAch_Settings_Appearance_Resource_Panel", "PanelBackgroundBrush", "ControlBackgroundBrush"),
+            // Inputs: the brush each theme's own TextBox fills with (Helium names it
+            // TextBlockBackgroundBrush; the default theme and most others use ControlBackgroundBrush).
+            Brush("PlayAch.Brush.Surface", "LOCPlayAch_Settings_Appearance_Resource_Surface", "TextBlockBackgroundBrush", "ControlBackgroundBrush"),
+            // Cards and containers: a theme's panel or card brush, else transparent so containers
+            // never take the input fill.
+            Brush("PlayAch.Brush.Panel", "LOCPlayAch_Settings_Appearance_Resource_Panel", "PanelBackgroundBrush", "CardBackgroundBrush"),
             Brush("PlayAch.Brush.WindowSurface", "LOCPlayAch_Settings_Appearance_Resource_WindowSurface", "WindowBackgourndBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.GridSurface", "LOCPlayAch_Settings_Appearance_Resource_GridSurface", "GridItemBackgroundBrush", "ControlBackgroundBrush"),
-            Brush("PlayAch.Brush.Border", "LOCPlayAch_Settings_Appearance_Resource_Border", "NormalBorderBrush", "ControlBackgroundBrush"),
+            // Card outlines and dividers: the theme's panel separator. NormalBorderBrush is the
+            // control border, which FusionX, Helium and others leave transparent.
+            Brush("PlayAch.Brush.Border", "LOCPlayAch_Settings_Appearance_Resource_Border", "PanelSeparatorBrush", "NormalBorderBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.ControlBorder", "LOCPlayAch_Settings_Appearance_Resource_ControlBorder", "NormalBrush", "SelectionLightBrush"),
             Brush("PlayAch.Brush.Glyph", "LOCPlayAch_ManageAchievements_Tab_CustomIcons", "GlyphBrush"),
             Brush("PlayAch.Brush.Accent", "LOCPlayAch_Settings_Appearance_Resource_Accent", "HighlightGlyphBrush", "GlyphBrush"),
@@ -159,6 +165,8 @@ namespace PlayniteAchievements.Services.UI
                 resources[alias.ResourceKey] = ResolveAlias(resources, alias);
             }
 
+            resources[WindowFrameResourceKey] = ResolveWindowFrame(resources);
+
             RarityAppearanceHelper.ApplyCompletedGameBrushResource(resources, settings);
             RarityAppearanceHelper.ApplyCompletedGlowEffectResources(resources, settings);
             RarityAppearanceHelper.ApplyCompletedProgressFillResource(resources, settings);
@@ -209,6 +217,17 @@ namespace PlayniteAchievements.Services.UI
         public const string ArtCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.Art";
         public const string AchievementIconCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.AchievementIcon";
 
+        /// <summary>
+        /// Resource keys for the corner radius of layout surfaces (inputs, buttons, cards, menus):
+        /// all four corners, the left or right pair for the halves of a joined group, and the
+        /// radius as a double for code that derives from it. All 0 when layout rounding is off.
+        /// The keys exist only at runtime, so no merged static dictionary can hold one.
+        /// </summary>
+        public const string LayoutCornerRadiusResourceKey = "PlayAch.Radius.Layout";
+        public const string LayoutCornerRadiusLeftResourceKey = "PlayAch.Radius.Layout.Left";
+        public const string LayoutCornerRadiusRightResourceKey = "PlayAch.Radius.Layout.Right";
+        public const string LayoutCornerRadiusValueResourceKey = "PlayAch.Radius.Layout.Value";
+
         /// <summary>Publishes the corner rounding settings at application scope.</summary>
         public static void ApplyCornerRoundingToApplication(PersistedSettings settings)
         {
@@ -237,6 +256,12 @@ namespace PlayniteAchievements.Services.UI
             resources[AchievementIconCornerRadiusResourceKey] = icon;
             resources[ArtCornerRadiusShapeResourceKey] = new CornerRadius(art);
             resources[AchievementIconCornerRadiusShapeResourceKey] = new CornerRadius(icon);
+
+            var layout = ResolveCornerRadius(settings.RoundLayoutCorners, settings.LayoutCornerRadius);
+            resources[LayoutCornerRadiusResourceKey] = new CornerRadius(layout);
+            resources[LayoutCornerRadiusLeftResourceKey] = new CornerRadius(layout, 0, 0, layout);
+            resources[LayoutCornerRadiusRightResourceKey] = new CornerRadius(0, layout, layout, 0);
+            resources[LayoutCornerRadiusValueResourceKey] = layout;
         }
 
         private static TokenDefinition Brush(
@@ -358,8 +383,20 @@ namespace PlayniteAchievements.Services.UI
                 }
             }
 
+            if (value == null && TransparentWhenMissingTokens.Contains(token.ResourceKey))
+            {
+                return CreateBrush(TransparentValue);
+            }
+
             return value;
         }
+
+        // Tokens whose fallback chain ends in transparent rather than an unset resource, so a
+        // container with no theme brush stays hit-testable and draws only its border.
+        private static readonly HashSet<string> TransparentWhenMissingTokens = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "PlayAch.Brush.Panel"
+        };
 
         // Surfaces that float over other content (dropdown popups, context menus) must be opaque
         // to stay readable. Themes often define their panel/surface brushes as transparent so they
@@ -371,6 +408,13 @@ namespace PlayniteAchievements.Services.UI
             "PlayAch.Brush.PopupSurface"
         };
 
+        // Outlines that exist only to be seen: a transparent theme brush moves on to the next key in
+        // the chain instead of hiding the edge.
+        private static readonly HashSet<string> VisibleRequiredTokens = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "PlayAch.Brush.Border"
+        };
+
         private static bool IsUsableResource(TokenDefinition token, object value)
         {
             if (value == null)
@@ -378,7 +422,8 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (OpaqueRequiredTokens.Contains(token.ResourceKey) && IsFullyTransparent(value as Brush))
+            if ((OpaqueRequiredTokens.Contains(token.ResourceKey) || VisibleRequiredTokens.Contains(token.ResourceKey)) &&
+                IsFullyTransparent(value as Brush))
             {
                 return false;
             }
@@ -399,6 +444,54 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return brush is SolidColorBrush solid && solid.Color.A == 0;
+        }
+
+        /// <summary>
+        /// Resource key for a plugin window's own background, which Playnite's window template also
+        /// paints behind the title bar. It is the Window background setting, so the title bar and
+        /// the content match; a transparent setting keeps the theme's window background instead,
+        /// because a window has nothing behind it to show through.
+        /// </summary>
+        public const string WindowFrameResourceKey = "PlayAch.Brush.Window.Frame";
+
+        private static object ResolveWindowFrame(ResourceDictionary resources)
+        {
+            var surface = resources["PlayAch.Brush.WindowSurface"] as Brush;
+            if (surface != null && !IsFullyTransparent(surface))
+            {
+                return surface;
+            }
+
+            return FindThemeWindowBackground() ?? surface;
+        }
+
+        // The background the theme's StandardWindowStyle gives every window (FusionX uses its popup
+        // brush, the default theme WindowBackgourndBrush), read from the style's own setter.
+        private static Brush FindThemeWindowBackground()
+        {
+            var style = Application.Current?.TryFindResource("StandardWindowStyle") as Style;
+            for (; style != null; style = style.BasedOn)
+            {
+                foreach (var setter in style.Setters.OfType<Setter>())
+                {
+                    if (setter.Property != System.Windows.Controls.Control.BackgroundProperty)
+                    {
+                        continue;
+                    }
+
+                    if (setter.Value is Brush brush)
+                    {
+                        return brush;
+                    }
+
+                    if (setter.Value is DynamicResourceExtension dynamicResource)
+                    {
+                        return Application.Current.TryFindResource(dynamicResource.ResourceKey) as Brush;
+                    }
+                }
+            }
+
+            return Application.Current?.TryFindResource("WindowBackgourndBrush") as Brush;
         }
 
         private static object ResolveAlias(ResourceDictionary resources, AliasDefinition alias)

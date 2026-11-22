@@ -41,10 +41,12 @@ namespace PlayniteAchievements.Providers.BattleNet
             dataForAzerothPath: "forever",
             minimumDataForAzerothRarityEntries: 25,
             realmSlug: s => null,
-            character: s => null);
+            character: s => null,
+            excludedAchievementIds: Tuple.Create(63969, 64033));
 
         private readonly Func<BattleNetSettings, string> _realmSlug;
         private readonly Func<BattleNetSettings, string> _character;
+        private readonly Tuple<int, int> _excludedAchievementIds;
 
         private WowVersion(
             BattleNetGameTitle title,
@@ -54,7 +56,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             string dataForAzerothPath,
             int minimumDataForAzerothRarityEntries,
             Func<BattleNetSettings, string> realmSlug,
-            Func<BattleNetSettings, string> character)
+            Func<BattleNetSettings, string> character,
+            Tuple<int, int> excludedAchievementIds = null)
         {
             Title = title;
             NamespacePrefix = namespacePrefix;
@@ -64,6 +67,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             MinimumDataForAzerothRarityEntries = minimumDataForAzerothRarityEntries;
             _realmSlug = realmSlug;
             _character = character;
+            _excludedAchievementIds = excludedAchievementIds;
         }
 
         public BattleNetGameTitle Title { get; }
@@ -96,6 +100,16 @@ namespace PlayniteAchievements.Providers.BattleNet
         public string RealmSlug(BattleNetSettings settings) => settings == null ? null : _realmSlug(settings);
 
         public string Character(BattleNetSettings settings) => settings == null ? null : _character(settings);
+
+        /// <summary>
+        /// True for an id in the version's block of copies left out of the catalog. Forever's static
+        /// namespace serves IDs 63969-64033 as a second copy of 55 of its achievements; Data for
+        /// Azeroth marks the same 65 IDs excluded and lists none of them as seen.
+        /// </summary>
+        public bool IsExcludedAchievement(int id) =>
+            _excludedAchievementIds != null &&
+            id >= _excludedAchievementIds.Item1 &&
+            id <= _excludedAchievementIds.Item2;
 
         public static WowVersion ForTitle(BattleNetGameTitle title)
         {

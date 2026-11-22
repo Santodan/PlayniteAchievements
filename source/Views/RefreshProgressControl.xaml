@@ -29,7 +29,7 @@
 
         <!-- Header Section -->
         <Border Grid.Row="0"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="{DynamicResource PlayAch.Brush.Panel}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="0,0,0,1"
                 Padding="16,12">
@@ -59,7 +59,7 @@
 
         <!-- Progress Section -->
         <Border Grid.Row="1"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="{DynamicResource PlayAch.Brush.Panel}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="0,0,0,1"
                 Padding="16,14">
@@ -98,7 +98,7 @@
 
         <!-- Buttons Section -->
         <Border Grid.Row="2"
-                Background="{DynamicResource PlayAch.Brush.Surface}"
+                Background="{DynamicResource PlayAch.Brush.Panel}"
                 Padding="16,12">
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Right">

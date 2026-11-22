@@ -244,6 +244,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
             target.CommonGlowTierCleared = source.CommonGlowTierCleared;
+            target.SurfaceOverrideMovedToPanel = source.SurfaceOverrideMovedToPanel;
             target.CategoryProgressColumnAlignmentDefaulted = source.CategoryProgressColumnAlignmentDefaulted;
             target.GridColumnHeaderAlignment = source.GridColumnHeaderAlignment;
             target.GridCellAlignment = source.GridCellAlignment;
@@ -255,6 +256,8 @@ namespace PlayniteAchievements.Models.Settings
             target.CornerRoundingRadius = source.CornerRoundingRadius;
             target.RoundGameArtCorners = source.RoundGameArtCorners;
             target.RoundAchievementIconCorners = source.RoundAchievementIconCorners;
+            target.RoundLayoutCorners = source.RoundLayoutCorners;
+            target.LayoutCornerRadius = source.LayoutCornerRadius;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
             target.ProgressDetailShownCount = source.ProgressDetailShownCount;

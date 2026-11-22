@@ -644,7 +644,7 @@
          fixed row height is configured it bounds the layout, and Uniform
          stretch fits the art inside both cell dimensions without clipping. -->
     <DataTemplate x:Key="AchievementGameColumnTemplate">
-        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 ClipToBounds="True"
                 Margin="2"
                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -676,7 +676,7 @@
          or cover per the grid's UseCoverImages setting. Bounded like the game column so
          banner-shaped art fills the constraining cell dimension without being clipped. -->
     <DataTemplate x:Key="AchievementCategoryColumnTemplate">
-        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 ClipToBounds="True"
                 Margin="2"
                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"

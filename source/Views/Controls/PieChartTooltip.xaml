@@ -23,7 +23,7 @@
     <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
             BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-            CornerRadius="4"
+            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
             IsHitTestVisible="False"
             Padding="8,4">
         <ItemsControl ItemsSource="{Binding Points}">

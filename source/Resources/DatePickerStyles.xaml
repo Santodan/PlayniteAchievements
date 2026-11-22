@@ -130,7 +130,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="CalendarButton">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -163,7 +163,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="CalendarDayButton">
                     <Border x:Name="Bd" Background="Transparent"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -276,7 +276,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <DockPanel>
                             <Popup x:Name="PART_Popup" StaysOpen="False"

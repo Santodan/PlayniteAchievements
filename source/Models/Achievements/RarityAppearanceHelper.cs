@@ -622,7 +622,7 @@ namespace PlayniteAchievements.Models.Achievements
                     ? key.Substring("Score".Length)
                     : key;
                 var image = defaultKey.StartsWith("Trophy", StringComparison.Ordinal)
-                    ? TryGetDefaultTrophyImage(key)
+                    ? TryGetDefaultTrophyImage(GetDefaultTrophyKey(key))
                     : TryGetDefaultImage(defaultKey);
                 if (image != null)
                 {
@@ -804,7 +804,7 @@ namespace PlayniteAchievements.Models.Achievements
             var geometry = TryGetDefaultTrophyGeometry("GeoTrophy");
             if (geometry == null)
             {
-                return TryGetDefaultTrophyImage(trophyKey) as DrawingImage;
+                return TryGetDefaultTrophyImage(GetDefaultTrophyKey(trophyKey)) as DrawingImage;
             }
 
             var baseColor = GetTrophyColor(trophyKey, settings);
@@ -1170,6 +1170,15 @@ namespace PlayniteAchievements.Models.Achievements
         private static Geometry TryGetDefaultTrophyGeometry(string resourceKey)
         {
             return TryGetDefaultTrophyResource(resourceKey) as Geometry;
+        }
+
+        // The graded trophy images in TrophyBadges.xaml carry a Default suffix so they never shadow
+        // the user-colored application-scope keys; TrophyUnknown has no generated version.
+        private static string GetDefaultTrophyKey(string trophyKey)
+        {
+            return string.Equals(trophyKey, "TrophyUnknown", StringComparison.Ordinal)
+                ? trophyKey
+                : trophyKey + "Default";
         }
 
         private static ImageSource TryGetDefaultTrophyImage(string resourceKey)

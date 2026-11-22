@@ -145,8 +145,7 @@
                     <!-- The slider covers the useful range; the box takes any value, and each image
                          caps the radius at half its shorter side. Enabled while either checkbox is on. -->
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius}"
-                                         Hint="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius_Help}"
-                                         Margin="0">
+                                         Hint="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius_Help}">
                         <controls:SettingRow.Style>
                             <Style TargetType="{x:Type controls:SettingRow}">
                                 <Setter Property="IsEnabled" Value="False"/>
@@ -169,6 +168,36 @@
                                     VerticalAlignment="Center"
                                     Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                             <TextBox Text="{Binding Persisted.CornerRoundingRadius, UpdateSourceTrigger=LostFocus}"
+                                     Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
+                                     TextAlignment="Right"/>
+                        </StackPanel>
+                    </controls:SettingRow>
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_RoundLayoutCorners}"
+                                         Hint="{DynamicResource LOCPlayAch_Settings_RoundLayoutCorners_Help}">
+                        <CheckBox IsChecked="{Binding Persisted.RoundLayoutCorners}"/>
+                    </controls:SettingRow>
+                    <!-- One radius for every rounded layout surface. Enabled while the checkbox is on. -->
+                    <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_CornerRoundingRadius}"
+                                         Margin="0">
+                        <controls:SettingRow.Style>
+                            <Style TargetType="{x:Type controls:SettingRow}">
+                                <Setter Property="IsEnabled" Value="False"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Persisted.RoundLayoutCorners}" Value="True">
+                                        <Setter Property="IsEnabled" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </controls:SettingRow.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <Slider Style="{StaticResource SettingsSliderStyle}"
+                                    Minimum="0" Maximum="16"
+                                    SmallChange="1" LargeChange="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Value="{Binding Persisted.LayoutCornerRadius, Mode=TwoWay}"
+                                    Width="160"
+                                    VerticalAlignment="Center"
+                                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                            <TextBox Text="{Binding Persisted.LayoutCornerRadius, UpdateSourceTrigger=LostFocus}"
                                      Width="{StaticResource PlayAch.Size.Input.NarrowWidth}"
                                      TextAlignment="Right"/>
                         </StackPanel>
