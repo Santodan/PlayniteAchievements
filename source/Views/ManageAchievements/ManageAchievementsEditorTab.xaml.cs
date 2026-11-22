@@ -45,10 +45,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
         /// on read, so a column added later appears at its default without a migration while an
         /// explicit hide still persists.
         /// </summary>
+        /// <summary>The library editor's Game column, which the Manage window's editor never has.</summary>
+        private const string GameColumnKey = "EditorGameIcon";
+
         private static readonly Dictionary<string, bool> DefaultColumnVisibility =
             new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
-                ["EditorGame"] = true,
+                [GameColumnKey] = true,
                 ["EditorIcon"] = true,
                 ["EditorName"] = true,
                 ["EditorDescription"] = true,
@@ -80,7 +83,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
         private static readonly Dictionary<string, double> DefaultColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
-                ["EditorGame"] = 180,
+                [GameColumnKey] = 58,
                 ["EditorIcon"] = 58,
                 ["EditorName"] = 240,
                 ["EditorDescription"] = 320,
@@ -2612,7 +2615,11 @@ namespace PlayniteAchievements.Views.ManageAchievements
                     }
                 },
                 saveSettings: SaveColumnSettings,
-                defaultWidthSeeds: DefaultColumnWidthSeeds,
+                defaultWidthSeeds: ViewModel?.IsLibraryScope == true
+                    ? DefaultColumnWidthSeeds
+                    : DefaultColumnWidthSeeds
+                        .Where(pair => !string.Equals(pair.Key, GameColumnKey, StringComparison.OrdinalIgnoreCase))
+                        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
                 getOrder: () => GetColumnLayout()?.Order,
                 setOrder: map =>
                 {
@@ -2681,6 +2688,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
             foreach (var pair in DefaultColumnVisibility)
             {
+                // The Manage window's settings say nothing of a column it never has.
+                if (ViewModel?.IsLibraryScope != true &&
+                    string.Equals(pair.Key, GameColumnKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 if (!map.ContainsKey(pair.Key))
                 {
                     map[pair.Key] = pair.Value;
