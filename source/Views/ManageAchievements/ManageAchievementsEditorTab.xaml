@@ -20,6 +20,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:DefaultGameImageConverter x:Key="EditorDefaultGameImage" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
             <converters:ProviderIconConverter x:Key="ProviderIconConverter" />
             <converters:FontLineHeightConverter x:Key="FontLineHeightConverter" />
@@ -903,21 +904,34 @@
 
                     <!-- The library editor's rows span games, so each names its own. A per-game
                          editor drops this column before its layout is read. -->
+                    <!-- The library editor's only: the game's icon, named in its tooltip, sized by the
+                         column like the achievement icon beside it. The Manage window removes it. -->
                     <DataGridTemplateColumn x:Name="EditorGameColumn"
-                                            Width="180"
-                                            MinWidth="80"
+                                            Width="58"
+                                            MinWidth="32"
+                                            MaxWidth="180"
                                             SortMemberPath="GameName"
                                             IsReadOnly="True"
-                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorGame"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorGameIcon"
                                             helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Game}"
                                             Header="{DynamicResource LOCPlayAch_Column_Game}">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsIconCellStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding GameName}"
-                                           ToolTip="{Binding GameName}"
-                                           Margin="6,0"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" />
+                                <controls:SquareDecorator>
+                                    <Image Stretch="Uniform"
+                                           Margin="2"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           helpers:AsyncImage.Uri="{Binding GameIconPath, Converter={StaticResource EditorDefaultGameImage}, ConverterParameter=icon}"
+                                           helpers:AsyncImage.DecodePixel="96"
+                                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
+                                </controls:SquareDecorator>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
