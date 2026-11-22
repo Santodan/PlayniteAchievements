@@ -95,6 +95,9 @@
          apply to every matching control in the Playnite process, including other plugins. -->
     <Style x:Key="PlayAch.DataGrid.BaseStyle" TargetType="{x:Type DataGrid}">
         <Setter Property="helpers:DataGridColumnGripperBehavior.IsEnabled" Value="True"/>
+        <!-- Makes each row's ItemsControl.AlternationIndex its item index, so the row templates
+             can leave the separator off the first row. -->
+        <Setter Property="AlternationCount" Value="2147483647"/>
         <Style.Triggers>
             <Trigger Property="helpers:DataGridHoverScrollBarBehavior.IsEnabled"
                      Value="True">
@@ -190,8 +193,6 @@
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridColumnHeader">
                     <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                            BorderThickness="0,0,0,1"
                             ClipToBounds="False"
                             SnapsToDevicePixels="True">
                         <Grid ClipToBounds="False">
@@ -634,10 +635,11 @@
                              border insets the content by its thickness, leaving a one-pixel break
                              in anything a cell draws to the row edge. The category tree connectors
                              run the full height of every row and have to cross it unbroken.
-                             BorderThickness is left unbound for the same reason. -->
+                             BorderThickness is left unbound for the same reason. It sits on the
+                             top edge and the first row hides it, so lines fall only between rows. -->
                         <Rectangle x:Name="DGR_Separator"
                                    Height="1"
-                                   VerticalAlignment="Bottom"
+                                   VerticalAlignment="Top"
                                    Fill="{TemplateBinding BorderBrush}"
                                    SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
@@ -667,6 +669,9 @@
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                            <Setter TargetName="DGR_Separator" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                         <!-- An unloaded row's skeleton cells shimmer as one band across the row. -->
                         <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
                             <Setter TargetName="DGR_Cells" Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
