@@ -1870,10 +1870,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // the selection, leaving one capstone and no sign of which.
             row.AllowBulkCapstone = SelectionCategoriesAreDistinct();
             row.SetCapstoneStateFromSource(SharedCapstone(), null, null, null);
+            // Stamped before the proxy is listened to: its setter announces the tags' display.
+            row.GameId = _gameId;
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
-            row.GameId = _gameId;
             BulkRow = row;
         }
 
