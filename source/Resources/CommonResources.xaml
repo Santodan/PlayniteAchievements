@@ -744,7 +744,7 @@
                                   Width="10"
                                   Height="8"
                                   Data="M 0,4 L 3.5,7.5 L 10,0"
-                                  Stroke="White"
+                                  Stroke="{DynamicResource PlayAch.Brush.Text}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
