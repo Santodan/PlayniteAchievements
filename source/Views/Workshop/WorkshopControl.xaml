@@ -62,7 +62,7 @@
                     <Border Grid.Column="1"
                             Width="72" Height="48"
                             Margin="0,0,10,0"
-                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            Background="{DynamicResource PlayAch.Brush.Panel}"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                             CornerRadius="3">
@@ -144,7 +144,7 @@
             <DataTemplate x:Key="WorkshopItemDetailTemplate" DataType="{x:Type vm:WorkshopItemViewModel}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="16">
-                        <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                 CornerRadius="4"
@@ -159,7 +159,7 @@
                                                 HorizontalAlignment="Center"
                                                 VerticalAlignment="Center"/>
                         </Border>
-                        <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                 CornerRadius="4"
@@ -174,7 +174,7 @@
                                    Stretch="Uniform"
                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                         </Border>
-                        <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                                 CornerRadius="4"
