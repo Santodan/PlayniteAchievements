@@ -1230,7 +1230,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Text">Text</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_TextSecondary">Secondary text</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_TextTertiary">Muted text</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Surface">Content background</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Surface">Input background</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_Panel">Panel background</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_WindowSurface">Window background</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance_Resource_GridSurface">Grid background</sys:String>
