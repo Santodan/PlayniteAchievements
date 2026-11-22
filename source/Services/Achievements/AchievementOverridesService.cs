@@ -696,6 +696,138 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        /// <summary>
+        /// Sets the category and tag overrides of the named achievements and keeps every other
+        /// achievement's as stored, for the library editor, which lists only some of a game's
+        /// rows. A null or empty map leaves that facet alone. True when the write moved an auto
+        /// capstone into or out of the default category.
+        /// </summary>
+        public bool PatchAchievementAssignments(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> tagOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var rescoped = false;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    if (categoryOverrides?.Count > 0)
+                    {
+                        var before = CloneOverrides(customData);
+                        GameCustomDataPatches.SetOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                        var after = customData.AchievementOverrides;
+                        var moved = AutoCapstoneScope.Rescope(
+                            customData.CustomAchievements,
+                            apiName => before.TryGetValue(apiName, out var entry) ? entry?.Category : null,
+                            apiName => after != null && after.TryGetValue(apiName, out var entry) ? entry?.Category : null);
+                        if (moved != null)
+                        {
+                            customData.CustomAchievements = moved;
+                            rescoped = true;
+                        }
+                    }
+
+                    GameCustomDataPatches.SetTagOverrides(customData, tagOverrides);
+                },
+                affectsSummaryData: false);
+            return rescoped;
+        }
+
+        /// <summary>
+        /// Adds the named achievements to the filter lists or takes them out, keeping every other
+        /// achievement's place, for the library editor. A null or empty map leaves that list alone.
+        /// </summary>
+        public void PatchAchievementFilters(
+            Guid gameId,
+            IReadOnlyDictionary<string, bool> filtered,
+            IReadOnlyDictionary<string, bool> summaryFiltered)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                if (filtered?.Count > 0)
+                {
+                    customData.FilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.FilteredAchievementApiNames, filtered);
+                }
+
+                if (summaryFiltered?.Count > 0)
+                {
+                    customData.SummaryFilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.SummaryFilteredAchievementApiNames, summaryFiltered);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Sets the named achievements' icon overrides and keeps every other achievement's, for the
+        /// library editor. A null path removes that override.
+        /// </summary>
+        public void PatchIconOverrides(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> unlockedIconOverrides,
+            IReadOnlyDictionary<string, string> lockedIconOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                GameCustomDataPatches.SetOverrideField(customData, unlockedIconOverrides, (entry, value) => entry.UnlockedIconPath = value);
+                GameCustomDataPatches.SetOverrideField(customData, lockedIconOverrides, (entry, value) => entry.LockedIconPath = value);
+            });
+        }
+
+        /// <summary>
+        /// Reverts the named achievements to the provider's values in one store update: drops
+        /// their override records, which carry their fields, category, tags, note and icons, and
+        /// takes them out of the filter lists and the goals. The library editor's revert; the
+        /// game's order and capstones are left as stored.
+        /// </summary>
+        public void RevertAchievements(Guid gameId, IEnumerable<string> achievementApiNames)
+        {
+            var removed = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames ?? Array.Empty<string>())
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    removed[apiName] = false;
+                }
+            }
+
+            if (gameId == Guid.Empty || removed.Count == 0)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    GameCustomDataPatches.RemoveOverrides(customData, removed.Keys);
+                    customData.FilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.FilteredAchievementApiNames, removed);
+                    customData.SummaryFilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.SummaryFilteredAchievementApiNames, removed);
+                    customData.GoalAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.GoalAchievementApiNames, removed);
+                },
+                affectsSummaryData: true);
+        }
+
         private static Dictionary<string, AchievementOverride> CloneOverrides(GameCustomDataFile customData)
         {
             var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
