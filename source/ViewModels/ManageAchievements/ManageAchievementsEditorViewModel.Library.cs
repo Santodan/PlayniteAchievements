@@ -426,17 +426,35 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// <summary>Keeps an edited row listed until the filters change.</summary>
         private void KeepEditedRow(AchievementEditorRow row)
         {
-            if (!IsPagedMode || !IsFiltering || row?.GameId == null || string.IsNullOrWhiteSpace(row.OriginalApiName))
+            if (AddKeptRow(row))
             {
-                return;
+                _pagedRows.SetQuery(BuildLibraryQuery());
+            }
+        }
+
+        // The kept rows ride in the query's SQL, so a bulk edit of many rows keeps the first of
+        // them only; the rest leave the list as their edit takes them out of the filters.
+        private const int MaxKeptRows = 1000;
+
+        private bool AddKeptRow(AchievementEditorRow row)
+        {
+            if (!IsPagedMode ||
+                !IsFiltering ||
+                _keptRows.Count >= MaxKeptRows ||
+                row?.GameId == null ||
+                string.IsNullOrWhiteSpace(row.OriginalApiName))
+            {
+                return false;
             }
 
             var gameId = row.GameId.Value;
-            if (_keptRowKeys.Add(HistoryRowKey(gameId, row.OriginalApiName)))
+            if (!_keptRowKeys.Add(HistoryRowKey(gameId, row.OriginalApiName)))
             {
-                _keptRows.Add(new KeyValuePair<Guid, string>(gameId, row.OriginalApiName));
-                _pagedRows.SetQuery(BuildLibraryQuery());
+                return false;
             }
+
+            _keptRows.Add(new KeyValuePair<Guid, string>(gameId, row.OriginalApiName));
+            return true;
         }
 
         /// <summary>
@@ -1015,9 +1033,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void KeepEditedRows(IEnumerable<AchievementEditorRow> rows)
         {
+            var added = false;
             foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
             {
-                KeepEditedRow(row);
+                added |= AddKeptRow(row);
+            }
+
+            if (added)
+            {
+                _pagedRows.SetQuery(BuildLibraryQuery());
             }
         }
 
