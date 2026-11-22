@@ -649,6 +649,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 List<string> categories = null;
                 List<string> tags = null;
+                Dictionary<string, string> userTagNames = null;
                 try
                 {
                     categories = sources.Reads.Reads.Keys(scope, AchievementGroup.Category)
@@ -660,6 +661,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     tags = sources.Reads.Reads.Keys(scope, AchievementGroup.Tag)
                         .Where(tag => !string.IsNullOrWhiteSpace(tag))
                         .ToList();
+                    userTagNames = ReadUserTagNames(sources, scope, tags);
                 }
                 catch (Exception ex)
                 {
@@ -674,6 +676,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
 
                     _categoryFilterOptions = categories;
+                    _libraryTagNames = userTagNames ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     if (!AssignableCategoryOptions.SequenceEqual(categories, CategoryPathHelper.LabelComparer))
                     {
                         Common.CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, categories);
@@ -692,6 +695,58 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 });
             });
         }
+
+        // The names of the games' own tags the listed rows carry. A game's own tag is named in
+        // that game's list, and the filter across games has no one game to look it up in.
+        private Dictionary<string, string> _libraryTagNames =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Reads the names of the games' own tags among <paramref name="tags"/>, from the lists of
+        /// the games whose rows carry them. Off the UI thread.
+        /// </summary>
+        private static Dictionary<string, string> ReadUserTagNames(
+            EditorLibrarySources sources,
+            AchievementQuery scope,
+            IReadOnlyCollection<string> tags)
+        {
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var userTags = tags
+                .Where(tag => tag.StartsWith(AchievementTagHelper.UserKeyPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (userTags.Count == 0)
+            {
+                return names;
+            }
+
+            var wanted = new HashSet<string>(userTags, StringComparer.OrdinalIgnoreCase);
+            foreach (var key in sources.Reads.Reads.Keys(scope.WhereClassification(userTags), AchievementGroup.Game))
+            {
+                if (!Guid.TryParse(key, out var gameId))
+                {
+                    continue;
+                }
+
+                foreach (var definition in AchievementTagRegistry.GetGameTags(gameId))
+                {
+                    if (definition != null &&
+                        wanted.Contains(definition.Key) &&
+                        !string.IsNullOrWhiteSpace(definition.Name) &&
+                        !names.ContainsKey(definition.Key))
+                    {
+                        names[definition.Key] = definition.Name;
+                    }
+                }
+            }
+
+            return names;
+        }
+
+        /// <summary>A tag's name in the Tags filter: across games a game's own tag by the name its game gives it.</summary>
+        private string TagFilterName(string key) =>
+            IsPagedMode && key != null && _libraryTagNames.TryGetValue(key, out var name)
+                ? name
+                : ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId);
 
         #endregion
 
