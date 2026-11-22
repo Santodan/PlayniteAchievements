@@ -4583,7 +4583,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
+            // One reset rather than an add or remove per label: every change rebuilds the pickers
+            // bound to the list, and the library editor narrowing to one game drops thousands of
+            // labels at once, which took 28 seconds removed one at a time.
+            AssignableCategoryOptions.ReplaceAll(ordered);
 
             // The category filter holds its own copy of this list, and only a full reload used to
             // retake it: a category created, renamed or first filed here stayed out of the filter
