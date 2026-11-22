@@ -100,10 +100,11 @@
                              the row edge - the category tree connectors run the full height of
                              every row and have to cross it unbroken. Behind the cells it still
                              reads as a separator everywhere else, since nothing else paints over
-                             it. BorderThickness is left unbound for the same reason. -->
+                             it. BorderThickness is left unbound for the same reason. It sits on the
+                             top edge and the first row hides it, so lines fall only between rows. -->
                         <Rectangle x:Name="DGR_Separator"
                                    Height="1"
-                                   VerticalAlignment="Bottom"
+                                   VerticalAlignment="Top"
                                    Fill="{TemplateBinding BorderBrush}"
                                    SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
@@ -134,6 +135,9 @@
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                            <Setter TargetName="DGR_Separator" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                         <!-- An unloaded row's skeleton cells shimmer as one band across the row. -->
                         <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
                             <Setter TargetName="DGR_Cells" Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
