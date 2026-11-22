@@ -254,6 +254,8 @@ namespace PlayniteAchievements.Models.Settings
             target.CornerRoundingRadius = source.CornerRoundingRadius;
             target.RoundGameArtCorners = source.RoundGameArtCorners;
             target.RoundAchievementIconCorners = source.RoundAchievementIconCorners;
+            target.RoundLayoutCorners = source.RoundLayoutCorners;
+            target.LayoutCornerRadius = source.LayoutCornerRadius;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
             target.ProgressDetailShownCount = source.ProgressDetailShownCount;
