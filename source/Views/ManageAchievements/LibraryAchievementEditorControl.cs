@@ -159,11 +159,13 @@ namespace PlayniteAchievements.Views.ManageAchievements
 
         /// <summary>
         /// Carries changed icon overrides into the cached rows, one apply at a time, as the Manage
-        /// window does. Icons are edited only while the editor lists one game.
+        /// window does: of the game the event names, or of the one game the editor lists.
         /// </summary>
         private void ViewModel_IconOverridesSaved(object sender, IconOverridesSavedEventArgs e)
         {
-            var gameId = _viewModel?.GameId ?? Guid.Empty;
+            var gameId = e?.GameId is Guid named && named != Guid.Empty
+                ? named
+                : _viewModel?.GameId ?? Guid.Empty;
             var apiNames = e?.ChangedApiNames?.ToList();
             if (gameId == Guid.Empty || apiNames == null || apiNames.Count == 0)
             {
