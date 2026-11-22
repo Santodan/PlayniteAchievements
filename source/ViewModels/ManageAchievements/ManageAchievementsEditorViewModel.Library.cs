@@ -328,6 +328,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         #region Paged rows
 
+        /// <summary>
+        /// Skeleton rows the editor shows before its first read: enough 66px rows to fill a
+        /// maximized window on a 2160px-tall display. Only the visible ones are realized.
+        /// </summary>
+        private const int PendingSkeletonRows = 40;
+
         private void EnsurePagedRows()
         {
             var query = BuildLibraryQuery();
@@ -349,7 +355,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 gate: _pagedFeedGate,
                 placed: AttachPagedRow,
                 // Skeleton rows until the first read lands: across every game it is the slowest.
-                pendingRows: PlaceholderRows.Count);
+                pendingRows: PendingSkeletonRows);
             _pagedRows.PropertyChanged += PagedRows_PropertyChanged;
             HasRows = _pagedRows.Count > 0;
             Common.LeakWatch.Track("EditorPagedRows", _pagedRows);
