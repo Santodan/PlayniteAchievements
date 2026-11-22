@@ -66,8 +66,12 @@ namespace PlayniteAchievements.Services.UI
             Brush("PlayAch.Brush.Text.Secondary", "LOCPlayAch_Settings_Appearance_Resource_TextSecondary", "TextBrushDarker", "TextBrush"),
             // TextBrushDark is pure black in Playnite's default theme (it is the brush for text on light accents), so a muted-text token must not fall to it.
             Brush("PlayAch.Brush.Text.Tertiary", "LOCPlayAch_Settings_Appearance_Resource_TextTertiary", "TextBrushDarker", "TextBrush"),
-            Brush("PlayAch.Brush.Surface", "LOCPlayAch_Settings_Appearance_Resource_Surface", "ControlBackgroundBrush"),
-            Brush("PlayAch.Brush.Panel", "LOCPlayAch_Settings_Appearance_Resource_Panel", "PanelBackgroundBrush", "ControlBackgroundBrush"),
+            // Inputs: the brush each theme's own TextBox fills with (Helium names it
+            // TextBlockBackgroundBrush; the default theme and most others use ControlBackgroundBrush).
+            Brush("PlayAch.Brush.Surface", "LOCPlayAch_Settings_Appearance_Resource_Surface", "TextBlockBackgroundBrush", "ControlBackgroundBrush"),
+            // Cards and containers: a theme's panel or card brush, else transparent so containers
+            // never take the input fill.
+            Brush("PlayAch.Brush.Panel", "LOCPlayAch_Settings_Appearance_Resource_Panel", "PanelBackgroundBrush", "CardBackgroundBrush"),
             Brush("PlayAch.Brush.WindowSurface", "LOCPlayAch_Settings_Appearance_Resource_WindowSurface", "WindowBackgourndBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.GridSurface", "LOCPlayAch_Settings_Appearance_Resource_GridSurface", "GridItemBackgroundBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.Border", "LOCPlayAch_Settings_Appearance_Resource_Border", "NormalBorderBrush", "ControlBackgroundBrush"),
@@ -358,8 +362,20 @@ namespace PlayniteAchievements.Services.UI
                 }
             }
 
+            if (value == null && TransparentWhenMissingTokens.Contains(token.ResourceKey))
+            {
+                return CreateBrush(TransparentValue);
+            }
+
             return value;
         }
+
+        // Tokens whose fallback chain ends in transparent rather than an unset resource, so a
+        // container with no theme brush stays hit-testable and draws only its border.
+        private static readonly HashSet<string> TransparentWhenMissingTokens = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "PlayAch.Brush.Panel"
+        };
 
         // Surfaces that float over other content (dropdown popups, context menus) must be opaque
         // to stay readable. Themes often define their panel/surface brushes as transparent so they
