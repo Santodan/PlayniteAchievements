@@ -122,49 +122,6 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        public Bitmap CaptureUsingMode(
-            LocalUnlockScreenshotCaptureMode mode,
-            IntPtr knownHwnd,
-            int? startedProcessId)
-        {
-            try
-            {
-                Rectangle bounds;
-                if (mode == LocalUnlockScreenshotCaptureMode.FullDesktop)
-                {
-                    bounds = SystemInformation.VirtualScreen;
-                }
-                else
-                {
-                    var foreground = GetForegroundWindow();
-                    if (!TryGetWindowRectangle(foreground, out bounds))
-                    {
-                        return CaptureGameWindow(knownHwnd, startedProcessId, capHeight: 0);
-                    }
-                }
-
-                if (bounds.Width <= 0 || bounds.Height <= 0)
-                {
-                    return null;
-                }
-
-                // CopyFromScreen writes RGB but does not populate alpha. Argb would save a
-                // transparent PNG even though the captured color pixels are valid.
-                var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb);
-                using (var graphics = Graphics.FromImage(bitmap))
-                {
-                    graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
-                }
-
-                return bitmap;
-            }
-            catch (Exception ex)
-            {
-                ForkLog.Wrap(_logger)?.Debug(ex, "Custom unlock screenshot capture failed.");
-                return null;
-            }
-        }
-
         public void SaveUsingCustomSettings(
             Bitmap bitmap,
             LocalSettings settings,
