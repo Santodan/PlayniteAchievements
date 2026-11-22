@@ -94,7 +94,7 @@
                             Background="{DynamicResource PlayAch.Brush.Panel}"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3">
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                         <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource LibraryThumbnailTemplate}"/>
                     </Border>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -202,7 +202,7 @@
                                 Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="4">
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                             <Grid>
                                 <Image helpers:AsyncImage.Uri="{Binding ThumbnailPath}"
                                        helpers:AsyncImage.DecodePixel="768"
@@ -276,7 +276,7 @@
                                    Margin="0,16,0,6"/>
                         <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1,1,1,0"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 Visibility="{Binding HasUses, Converter={StaticResource BoolToVis}}">
                             <ItemsControl ItemsSource="{Binding Uses}" ItemTemplate="{StaticResource LibraryUseTemplate}"/>
                         </Border>
@@ -421,7 +421,7 @@
                         Background="{DynamicResource PlayAch.Brush.Panel}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        CornerRadius="4">
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                     <Grid>
                         <ListBox Style="{StaticResource PlayAch.ListBox.BaseStyle}"
                                  ItemContainerStyle="{StaticResource LibraryRowStyle}"
@@ -466,7 +466,7 @@
                         Background="{DynamicResource PlayAch.Brush.Panel}"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        CornerRadius="4">
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                     <ContentControl Content="{Binding SelectedRow}"
                                     ContentTemplate="{StaticResource LibraryDetailTemplate}"
                                     Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"/>
