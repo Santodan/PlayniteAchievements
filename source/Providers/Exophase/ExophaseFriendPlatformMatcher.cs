@@ -229,8 +229,9 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "ubisoft-connect":
                 case "ubisoft connect":
                     return "ubisoft";
-                // Page addresses spell the Vita "psvita"; search and profile data spell it "vita".
+                // Exophase's Vita slug is "ps-vita"; "psvita" and "vita" are older spellings.
                 case "psvita":
+                case "ps-vita":
                     return "vita";
                 default:
                     return token;
@@ -360,6 +361,7 @@ namespace PlayniteAchievements.Providers.Exophase
             "ps4",
             "ps5",
             "psp",
+            "ps-vita",
             "psvita",
             "vita",
             "retro",
