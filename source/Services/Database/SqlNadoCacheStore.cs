@@ -903,10 +903,17 @@ namespace PlayniteAchievements.Services.Database
         public EditorRowsRead LoadEditorRows(SQLiteDatabase db, AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
         {
             var rows = AchievementReadService.Rows(db, query, keys);
+            var games = new Dictionary<Guid, GamePresentation>();
             foreach (var row in rows)
             {
                 row.UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath);
                 row.LockedIconPath = MakeAbsolutePath(row.LockedIconPath);
+
+                // The game's name and art as Playnite has them now, as the overview reads them.
+                var presentation = ResolveGamePresentation(ParseGuid(row.PlayniteGameId), games);
+                row.GameName = presentation.DisplayName ?? row.GameName;
+                row.GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.GameIconPath);
+                row.GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.GameCoverPath);
             }
 
             var baselines = AchievementReadService.EditorBaselines(db, keys);
