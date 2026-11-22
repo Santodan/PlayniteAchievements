@@ -254,6 +254,7 @@ namespace PlayniteAchievements.Models.Settings
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
             target.IconScaleMode = source.IconScaleMode;
             target.CornerRoundingRadius = source.CornerRoundingRadius;
+            target.AchievementIconCornerRadius = source.AchievementIconCornerRadius;
             target.RoundGameArtCorners = source.RoundGameArtCorners;
             target.RoundAchievementIconCorners = source.RoundAchievementIconCorners;
             target.RoundLayoutCorners = source.RoundLayoutCorners;
