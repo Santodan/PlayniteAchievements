@@ -5029,6 +5029,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             ApplyRowDisplaySettings(row, useSeparateLockedIcons ?? ResolveUseSeparateLockedIcons());
+            StampListedGame(row);
             row.PropertyChanged -= Row_PropertyChanged;
             row.PropertyChanged += Row_PropertyChanged;
             row.RevealStateChanged -= Row_RevealStateChanged;
@@ -8255,6 +8256,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         private string _gameName;
+
+        /// <summary>The icon of the game the row belongs to, for the library editor's Game column.</summary>
+        public string GameIconPath
+        {
+            get => _gameIconPath;
+            set => SetValue(ref _gameIconPath, value);
+        }
+
+        private string _gameIconPath;
 
         /// <summary>A row standing in for one the library editor has not read yet; it edits nothing.</summary>
         public bool IsPlaceholder { get; set; }
