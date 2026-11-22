@@ -251,7 +251,7 @@ namespace PlayniteAchievements.Services.UI
             }
 
             var art = ResolveCornerRadius(settings.RoundGameArtCorners, settings.CornerRoundingRadius);
-            var icon = ResolveCornerRadius(settings.RoundAchievementIconCorners, settings.CornerRoundingRadius);
+            var icon = ResolveCornerRadius(settings.RoundAchievementIconCorners, settings.AchievementIconCornerRadius);
             resources[ArtCornerRadiusResourceKey] = art;
             resources[AchievementIconCornerRadiusResourceKey] = icon;
             resources[ArtCornerRadiusShapeResourceKey] = new CornerRadius(art);
