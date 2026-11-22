@@ -242,6 +242,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
             target.CommonGlowTierCleared = source.CommonGlowTierCleared;
+            target.SurfaceOverrideMovedToPanel = source.SurfaceOverrideMovedToPanel;
             target.CategoryProgressColumnAlignmentDefaulted = source.CategoryProgressColumnAlignmentDefaulted;
             target.GridColumnHeaderAlignment = source.GridColumnHeaderAlignment;
             target.GridCellAlignment = source.GridCellAlignment;
