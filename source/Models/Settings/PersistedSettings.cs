@@ -234,6 +234,7 @@ namespace PlayniteAchievements.Models.Settings
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
         private int _cornerRoundingRadius = 6;
+        private int? _achievementIconCornerRadius;
         private bool _roundGameArtCorners;
         private bool _roundAchievementIconCorners;
         private bool _roundLayoutCorners = true;
@@ -2697,13 +2698,32 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _iconScaleMode, value);
         }
         /// <summary>
-        /// Corner radius in pixels for rounded game art, category art and achievement icons. Each
-        /// surface caps it at half its own shorter side.
+        /// Corner radius in pixels for rounded game art and category art. Each surface caps it at
+        /// half its own shorter side.
         /// </summary>
         public int CornerRoundingRadius
         {
             get => _cornerRoundingRadius;
             set => SetValue(ref _cornerRoundingRadius, Math.Max(0, value));
+        }
+
+        /// <summary>
+        /// Corner radius in pixels for rounded achievement icons. Settings saved while one radius
+        /// covered both kinds hold no value for it, so the first read takes CornerRoundingRadius
+        /// and keeps it; from then on the two are independent.
+        /// </summary>
+        public int AchievementIconCornerRadius
+        {
+            get
+            {
+                if (_achievementIconCornerRadius == null)
+                {
+                    _achievementIconCornerRadius = _cornerRoundingRadius;
+                }
+
+                return _achievementIconCornerRadius.Value;
+            }
+            set => SetValue(ref _achievementIconCornerRadius, Math.Max(0, value));
         }
 
         /// <summary>Whether game and category art is drawn with CornerRoundingRadius corners.</summary>
@@ -2713,7 +2733,7 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _roundGameArtCorners, value);
         }
 
-        /// <summary>Whether achievement icons are drawn with CornerRoundingRadius corners.</summary>
+        /// <summary>Whether achievement icons are drawn with AchievementIconCornerRadius corners.</summary>
         public bool RoundAchievementIconCorners
         {
             get => _roundAchievementIconCorners;
@@ -3590,6 +3610,7 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 IconScaleMode = this.IconScaleMode,
                 CornerRoundingRadius = this.CornerRoundingRadius,
+                AchievementIconCornerRadius = this.AchievementIconCornerRadius,
                 RoundGameArtCorners = this.RoundGameArtCorners,
                 RoundAchievementIconCorners = this.RoundAchievementIconCorners,
                 RoundLayoutCorners = this.RoundLayoutCorners,
@@ -3730,6 +3751,7 @@ namespace PlayniteAchievements.Models.Settings
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
             CornerRoundingRadius = defaults.CornerRoundingRadius;
+            AchievementIconCornerRadius = defaults.AchievementIconCornerRadius;
             RoundGameArtCorners = defaults.RoundGameArtCorners;
             RoundAchievementIconCorners = defaults.RoundAchievementIconCorners;
             RoundLayoutCorners = defaults.RoundLayoutCorners;
