@@ -125,6 +125,42 @@ namespace PlayniteAchievements.Services.GameCustomData
             return keep ? Read(playniteGameId, rows) : null;
         }
 
+        /// <summary>
+        /// Writes several games' normalized records in one transaction, and returns for each, in
+        /// order, the record its rows hold (null when they were deleted) and whether a row moved.
+        /// </summary>
+        public IReadOnlyList<(GameCustomDataFile Persisted, bool Changed)> SaveBatch(
+            IReadOnlyList<KeyValuePair<Guid, GameCustomDataFile>> normalizedRecords)
+        {
+            var prepared = (normalizedRecords ?? Array.Empty<KeyValuePair<Guid, GameCustomDataFile>>())
+                .Select(pair =>
+                {
+                    if (pair.Key == Guid.Empty)
+                    {
+                        throw new ArgumentException("Game ID is required.", nameof(normalizedRecords));
+                    }
+
+                    var keep = GameCustomDataNormalizer.HasInternalData(pair.Value);
+                    return (GameId: pair.Key, Keep: keep, Rows: keep ? ToRows(pair.Value) : null);
+                })
+                .ToList();
+            var changed = new bool[prepared.Count];
+            if (prepared.Count > 0)
+            {
+                WithDb(createIfMissing: prepared.Any(item => item.Keep), db => db.RunTransaction(() =>
+                {
+                    for (var index = 0; index < prepared.Count; index++)
+                    {
+                        changed[index] = Write(db, prepared[index].GameId, prepared[index].Rows);
+                    }
+                }));
+            }
+
+            return prepared
+                .Select((item, index) => (item.Keep ? Read(item.GameId, item.Rows) : null, changed[index]))
+                .ToList();
+        }
+
         /// <summary>Normalizes and writes every record in one transaction; returns the games whose rows moved.</summary>
         public IReadOnlyList<Guid> SaveMany(IEnumerable<GameCustomDataFile> items)
         {
