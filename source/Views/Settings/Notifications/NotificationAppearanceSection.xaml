@@ -221,7 +221,7 @@
                              blurred-background card (ToastPreviewBackdrop). -->
                         <Border x:Name="ToastMockupFrame"
                                 Grid.Column="0"
-                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
                                 CornerRadius="8"
@@ -237,7 +237,7 @@
                              out on the same 1080-DIP virtual canvas the compositor uses, scaled
                              down uniformly. -->
                         <Border Grid.Column="0"
-                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
                                 CornerRadius="8"
