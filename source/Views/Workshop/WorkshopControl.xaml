@@ -65,7 +65,7 @@
                             Background="{DynamicResource PlayAch.Brush.Panel}"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3">
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                         <Grid>
                             <!-- Uniform: the whole cover or preview fits the box (a tall game data
                                  grid or a wide banner would lose its edges to a fill). -->
@@ -147,7 +147,7 @@
                         <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 Height="140"
                                 Margin="0,0,0,12"
                                 Visibility="{Binding HasThumbnail, Converter={StaticResource InverseBoolToVis}}">
@@ -162,7 +162,7 @@
                         <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 MaxHeight="260"
                                 Margin="0,0,0,12"
                                 Cursor="Hand"
@@ -177,7 +177,7 @@
                         <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 MaxHeight="260"
                                 Margin="0,0,0,12"
                                 Cursor="Hand"
@@ -242,7 +242,7 @@
                                        Margin="0,16,0,6"/>
                             <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                     BorderThickness="1,1,1,0"
-                                    CornerRadius="4">
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                                 <ItemsControl ItemsSource="{Binding Uses}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:WorkshopUseLine}">
@@ -431,7 +431,7 @@
                                 Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                                CornerRadius="4">
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                             <ContentControl Content="{Binding SelectedItem}"
                                             ContentTemplate="{StaticResource WorkshopItemDetailTemplate}"
                                             Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}"/>
