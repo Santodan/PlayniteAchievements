@@ -1735,7 +1735,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _bulkRow, value);
         }
 
-        public bool IsBulkEditing => _selectedRows.Count > 1;
+        public bool IsBulkEditing => BulkSelectionCount > 1;
 
         /// <summary>
         /// Whether the details pane is showing. Deliberately not persisted: folding it away is a
@@ -1748,7 +1748,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             set => SetValue(ref _isDetailsPaneExpanded, value);
         }
 
-        public int BulkSelectionCount => _selectedRows.Count;
+        public int BulkSelectionCount => IsAllMatchingSelected ? _allMatchingCount : _selectedRows.Count;
 
         public bool HasEditTarget => EditTarget != null;
 
@@ -1779,13 +1779,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // The grid re-reports the same selection while it processes a collection reset and
             // again after a view refresh. Each report otherwise raises EditTarget and re-seeds the
             // whole details pane, which is most of the cost of one edit.
-            if (incoming.Count == _selectedRows.Count &&
+            var wasAllMatching = IsAllMatchingSelected;
+            if (!wasAllMatching &&
+                incoming.Count == _selectedRows.Count &&
                 !incoming.Where((row, index) => !ReferenceEquals(row, _selectedRows[index])).Any())
             {
                 return;
             }
 
-            IsAllMatchingSelected = false;
+            _allMatchingQuery = null;
+            ApplySelection(incoming);
+            if (wasAllMatching)
+            {
+                OnPropertyChanged(nameof(IsAllMatchingSelected));
+            }
+        }
+
+        /// <summary>Takes <paramref name="incoming"/> as the selection and re-seeds the details pane from it.</summary>
+        private void ApplySelection(IReadOnlyList<AchievementEditorRow> incoming)
+        {
             _selectedRows.Clear();
             foreach (var row in incoming)
             {
@@ -1816,7 +1828,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _bulkRow.PropertyChanged -= BulkRow_PropertyChanged;
             }
 
-            if (_selectedRows.Count <= 1)
+            if (_selectedRows.Count == 0 || BulkSelectionCount <= 1)
             {
                 BulkRow = null;
                 return;
@@ -1924,7 +1936,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void SyncBulkRowFromSelection()
         {
-            if (_bulkRow == null || _selectedRows.Count <= 1)
+            // Over every match the pane is re-seeded once the whole gesture has run.
+            if (_isApplyingAllMatching)
+            {
+                return;
+            }
+
+            if (_bulkRow == null || _selectedRows.Count == 0 || BulkSelectionCount <= 1)
             {
                 SyncTypeOptionsToEditTarget();
                 return;
@@ -2891,6 +2909,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryForSelection(string categoryLabel)
         {
+            if (DeferToAllMatching(() => SetCategoryForSelection(categoryLabel)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetCategoryForSelection",
@@ -3029,6 +3052,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetTagsForSelection(IEnumerable<string> tags)
         {
+            var tagList = tags?.ToList();
+            if (DeferToAllMatching(() => SetTagsForSelection(tagList)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetTagsForSelection",
@@ -3063,9 +3092,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void CreateAndAssignTag(string name)
         {
+            // Over every match each chunk finds the tag the first chunk created in its game.
             if (IsPagedMode)
             {
-                CreateAndAssignTagAcrossGames(name);
+                if (!DeferToAllMatching(() => CreateAndAssignTagAcrossGames(name)))
+                {
+                    CreateAndAssignTagAcrossGames(name);
+                }
+
                 return;
             }
 
@@ -3083,6 +3117,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetTagForSelection(string tag, bool isSelected)
         {
+            if (DeferToAllMatching(() => SetTagForSelection(tag, isSelected)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetTagForSelection",
@@ -3131,6 +3170,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
+            // Over every match a capstone can only be cleared: setting one needs the rows in
+            // distinct categories, which no selection that large is.
+            if (IsAllMatchingSelected && !_isApplyingAllMatching)
+            {
+                if (!isCapstone)
+                {
+                    DeferToAllMatching(() => SetCapstoneForSelection(false));
+                }
+
+                return;
+            }
+
             MarkUndoIntent(EditorEditIntent.Command("Capstone", "LOCPlayAch_Dynamic_Capstone"));
 
             var targets = ResolveSelectionTargets();
@@ -3145,7 +3196,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            if (!SelectionCategoriesAreDistinct())
+            // A chunk of a clear over every match may hold rows of one category; clearing does
+            // not displace anything.
+            if (!_isApplyingAllMatching && !SelectionCategoriesAreDistinct())
             {
                 return;
             }
@@ -3211,6 +3264,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetFilterScopeForSelection(AchievementFilterScope scope)
         {
+            if (DeferToAllMatching(() => SetFilterScopeForSelection(scope)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetFilterScopeForSelection",
@@ -3243,31 +3301,58 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void RevertSelected()
         {
+            // Over every match it is confirmed once, for the count matched, then reverts what
+            // each chunk holds that carries a customization.
+            if (IsAllMatchingSelected && !_isApplyingAllMatching)
+            {
+                if (ConfirmRevert(_allMatchingCount, null))
+                {
+                    DeferToAllMatching(RevertSelectionTargets);
+                }
+
+                return;
+            }
+
             var targets = ResolveSelectionTargets()
                 .Where(row => IsRevertible(row) && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
-            if (targets.Count == 0)
+            if (targets.Count == 0 || !ConfirmRevert(targets.Count, targets[0].DisplayName))
             {
                 return;
             }
 
-            var message = targets.Count == 1
+            RevertTargets(targets);
+        }
+
+        private void RevertSelectionTargets()
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => IsRevertible(row) && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count > 0)
+            {
+                RevertTargets(targets);
+            }
+        }
+
+        private static bool ConfirmRevert(int count, string singleName)
+        {
+            var message = count == 1 && singleName != null
                 ? string.Format(
                     L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle", "Revert \"{0}\" to the provider's values?"),
-                    targets[0].DisplayName)
+                    singleName)
                 : string.Format(
                     L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected", "Revert {0} achievements to the provider's values?"),
-                    targets.Count);
-            if (ShowConfirmation(
+                    count);
+            return ShowConfirmation(
                     message,
                     L("LOCPlayAch_ManageAchievements_Editor_Revert", "Revert"),
                     MessageBoxButton.YesNo,
-                    MessageBoxImage.Question) != MessageBoxResult.Yes)
-            {
-                return;
-            }
+                    MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
 
-
+        private void RevertTargets(IReadOnlyList<AchievementEditorRow> targets)
+        {
             MarkUndoIntent(
                 EditorEditIntent.Atomic("Revert", "LOCPlayAch_ManageAchievements_Editor_Revert"),
                 targets.Select(row => row.OriginalApiName));
@@ -5746,6 +5831,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            if (DeferToAllMatching(() => BulkRow_PropertyChanged(sender, e)))
+            {
+                return;
+            }
+
             // A bulk edit writes once per selected row; naming the gesture here keeps all of
             // those writes in one undo step.
             MarkUndoIntent(EditorEditIntent.FieldEdit(ResolveFieldGesture(property), "LOCPlayAch_Common_Edit"));
@@ -7274,6 +7364,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         /// <summary>Seeds the write cache from one row, under the row's game.</summary>
+        /// <summary>Drops a row's entries from the write cache, for a row that is not kept.</summary>
+        private void ForgetOverrideWriteCache(AchievementEditorRow row)
+        {
+            var apiName = row?.OriginalApiName;
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            var gameId = GameOf(row);
+            foreach (var field in new[]
+                     {
+                         AchievementEditableField.DisplayName,
+                         AchievementEditableField.Description,
+                         AchievementEditableField.TrophyType,
+                         AchievementEditableField.UnlockTimeUtc,
+                         AchievementEditableField.Points,
+                         AchievementEditableField.Hidden
+                     })
+            {
+                _lastWrittenOverrides.Remove(OverrideWriteKey(gameId, apiName, field));
+            }
+        }
+
         private void SeedOverrideWriteCache(AchievementEditorRow row)
         {
             {
