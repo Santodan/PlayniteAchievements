@@ -252,7 +252,7 @@
                                  taller than the art. -->
                             <Grid HorizontalAlignment="Center"
                                   VerticalAlignment="Center">
-                                <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                                <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                         ClipToBounds="True"
                                         RenderOptions.BitmapScalingMode="HighQuality"
                                         UseLayoutRounding="True"
