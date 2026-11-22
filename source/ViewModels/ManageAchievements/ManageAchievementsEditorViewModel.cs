@@ -252,7 +252,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
             StateFilter = BuildStateFilter();
-            AssignableCategoryOptions = new ObservableCollection<string>();
+            AssignableCategoryOptions = new BulkObservableCollection<string>();
             TagSelectionOptions = new ObservableCollection<TagSelectionOption>(
                 AchievementTagRegistry.GetAssignableKeys(_gameId).Select(type =>
                     new TagSelectionOption(type, ManageAchievementsCategoryViewModel.GetTagDisplayName(type, _gameId))));
@@ -1260,7 +1260,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public BulkObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
-        public ObservableCollection<string> AssignableCategoryOptions { get; }
+        public BulkObservableCollection<string> AssignableCategoryOptions { get; }
 
         /// <summary>Category-type toggles for the selected row; changes persist immediately.</summary>
         public Guid GameId => _gameId;
