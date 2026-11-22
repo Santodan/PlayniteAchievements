@@ -38,7 +38,7 @@
                 <DataTemplate>
                     <Border Width="160" Height="90"
                             Margin="0,0,8,8"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             ClipToBounds="True"
                             Background="{DynamicResource PlayAch.Brush.Panel}"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
