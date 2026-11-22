@@ -213,6 +213,17 @@ namespace PlayniteAchievements.Services.UI
         public const string ArtCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.Art";
         public const string AchievementIconCornerRadiusShapeResourceKey = "PlayAch.CornerRadius.AchievementIcon";
 
+        /// <summary>
+        /// Resource keys for the corner radius of layout surfaces (inputs, buttons, cards, menus):
+        /// all four corners, the left or right pair for the halves of a joined group, and the
+        /// radius as a double for code that derives from it. All 0 when layout rounding is off.
+        /// The keys exist only at runtime, so no merged static dictionary can hold one.
+        /// </summary>
+        public const string LayoutCornerRadiusResourceKey = "PlayAch.Radius.Layout";
+        public const string LayoutCornerRadiusLeftResourceKey = "PlayAch.Radius.Layout.Left";
+        public const string LayoutCornerRadiusRightResourceKey = "PlayAch.Radius.Layout.Right";
+        public const string LayoutCornerRadiusValueResourceKey = "PlayAch.Radius.Layout.Value";
+
         /// <summary>Publishes the corner rounding settings at application scope.</summary>
         public static void ApplyCornerRoundingToApplication(PersistedSettings settings)
         {
@@ -241,6 +252,12 @@ namespace PlayniteAchievements.Services.UI
             resources[AchievementIconCornerRadiusResourceKey] = icon;
             resources[ArtCornerRadiusShapeResourceKey] = new CornerRadius(art);
             resources[AchievementIconCornerRadiusShapeResourceKey] = new CornerRadius(icon);
+
+            var layout = ResolveCornerRadius(settings.RoundLayoutCorners, settings.LayoutCornerRadius);
+            resources[LayoutCornerRadiusResourceKey] = new CornerRadius(layout);
+            resources[LayoutCornerRadiusLeftResourceKey] = new CornerRadius(layout, 0, 0, layout);
+            resources[LayoutCornerRadiusRightResourceKey] = new CornerRadius(0, layout, layout, 0);
+            resources[LayoutCornerRadiusValueResourceKey] = layout;
         }
 
         private static TokenDefinition Brush(
