@@ -5812,6 +5812,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// (categories, filters, goals) are staged across the rows and written once, because each
         /// of their setters rewrites the game's whole map or list.
         /// </remarks>
+        /// <summary>The proxy fields <see cref="BulkRow_PropertyChanged"/> applies to the selection.</summary>
+        private static readonly HashSet<string> BulkAppliedFields = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(AchievementEditorRow.CategoryLabel),
+            nameof(AchievementEditorRow.TagsValue),
+            nameof(AchievementEditorRow.FilterScope),
+            nameof(AchievementEditorRow.IsGoal),
+            nameof(AchievementEditorRow.Unlocked),
+            nameof(AchievementEditorRow.UnlockedIconPath),
+            nameof(AchievementEditorRow.LockedIconPath),
+            nameof(AchievementEditorRow.DisplayName),
+            nameof(AchievementEditorRow.Description),
+            nameof(AchievementEditorRow.PointsText),
+            nameof(AchievementEditorRow.TrophyType),
+            nameof(AchievementEditorRow.AchievementNote),
+            nameof(AchievementEditorRow.Hidden),
+            nameof(AchievementEditorRow.ProgressNumText),
+            nameof(AchievementEditorRow.ProgressDenomText),
+            nameof(AchievementEditorRow.UnlockTime),
+            nameof(AchievementEditorRow.RarityInput)
+        };
+
         private void BulkRow_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             // The bulk editor: one gesture writes the same field across every selected row, so
@@ -5830,8 +5852,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Only the fields the switch below applies are edits. The proxy also raises display
+            // properties (its tags' names, its reveal state), and across every match a deferred
+            // non-edit still ran a whole apply, whose re-seeded proxy raised them again.
             var property = e?.PropertyName;
-            if (string.IsNullOrEmpty(property))
+            if (string.IsNullOrEmpty(property) || !BulkAppliedFields.Contains(property))
             {
                 return;
             }
