@@ -1031,6 +1031,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .GroupBy(GameOf)
                 .ToList();
 
+        /// <summary>Keeps edited rows listed until the filters change, with one new query for all of them.</summary>
         private void KeepEditedRows(IEnumerable<AchievementEditorRow> rows)
         {
             var added = false;
