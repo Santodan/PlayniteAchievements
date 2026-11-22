@@ -935,7 +935,21 @@ application to an as-yet-unseen future upstream release.
 
 ## Refresh the bundle from the working fork
 
-Run this after the fork is working and tested:
+Before exporting, update the repository skills so they describe the current code:
+
+1. Review `.agents/skills/santodan-fork-*` (context and its `references/source-map.md`,
+   development, maintenance, upstream-update, notifications, local-provider,
+   settings-ui, recipes) against the changes being captured. Update file paths,
+   symbol names, settings, defaults, removed code and pitfalls they mention.
+   A skill that points at a renamed or deleted file costs every later chat tokens.
+2. Copy the updated skills to the global skill folder `%USERPROFILE%\.claude\skills\`
+   so the outside copies match, and confirm both copies are identical, for example
+   `diff -rq .agents/skills/<name> ~/.claude/skills/<name>`.
+3. Run the export below. It copies `.agents/skills/` into
+   `bundle/overlay/.agents/skills/`, so the copies inside the bundle match too.
+   After validation, check that the overlay skill files equal `.agents/skills/`.
+
+Run the export after the fork is working and tested:
 
 ```powershell
 cd E:\Programs\Playnite\CustomExtension\PlayniteAchievements-main

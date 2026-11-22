@@ -48,7 +48,20 @@ Review their inclusion instead of silently changing exclusions or omitting files
    the user requests another baseline. Resolve its ref and verify it still
    matches `baselineCommit`; if it moved, use the recorded commit. Do not fetch
    upstream or substitute `upstream/main` to refresh a local fix.
-4. Export the current complete working tree only after understanding which
+4. **Update the skills before exporting.** Every bundle refresh also refreshes the
+   fork skills, inside and outside ForkMaintenance:
+   - Review `.agents/skills/santodan-fork-*` (including
+     `santodan-fork-context/references/source-map.md`) against the changes being
+     captured. Fix paths, symbol names, settings, defaults, removed code and
+     pitfalls that changed; add new fork areas to the relevant area map. Keep
+     each skill short; it is loaded to save tokens.
+   - Copy them to the global folder `~/.claude/skills/` (outside copy) and confirm
+     `diff -rq .agents/skills/<name> ~/.claude/skills/<name>` reports nothing.
+   - The export then copies `.agents/skills/` into
+     `tools/ForkMaintenance/bundle/overlay/.agents/skills/` (inside copy). After
+     export, confirm the overlay skill files equal `.agents/skills/`.
+   - If nothing in the skills needed changing, say so in the report.
+5. Export the current complete working tree only after understanding which
    staged, unstaged, and untracked changes it will capture. It is not limited to
    the latest fix. Do not discard unrelated user work to narrow the export.
    Isolate the export input if the request explicitly limits captured changes.

@@ -62,3 +62,17 @@ records a replay baseline, not necessarily the latest upstream release.
   `santodan-fork-upstream-update`.
 
 Each task skill includes the essential boundaries so it can also be used alone.
+
+## Area maps (load the one you need instead of searching)
+
+- Custom notification, delivery, styles, sounds, Memories capture:
+  `santodan-fork-notifications`.
+- Local provider, save discovery, schemas, overrides, native sources, polling:
+  `santodan-fork-local-provider`.
+- Settings window layout, fork sub-tabs, labels and localization:
+  `santodan-fork-settings-ui`.
+- Filtered build/test commands, reading big files, commits, changelog wording:
+  `santodan-fork-recipes`.
+
+If a client cannot load skills by name, read
+`.agents/skills/<name>/SKILL.md` directly.

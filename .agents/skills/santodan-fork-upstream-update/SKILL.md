@@ -90,6 +90,9 @@ identity/polling, Steam authentication and public schemas, custom-data migration
 capstones, notification/capture behavior, saved settings, and theme adapters.
 Do not claim live Playnite verification from compilation or replay alone.
 
+Before exporting, update the `santodan-fork-*` skills to match the integrated code
+in `.agents/skills/` and `~/.claude/skills/`, as described in
+`santodan-fork-maintenance` step 4; the export carries them into the bundle overlay.
 Export a fresh bundle with the newly selected upstream baseline explicitly, then
 preflight and actually replay onto an isolated checkout of that exact commit.
 Compare intended captured source, verify hashes/protected files, and record the
