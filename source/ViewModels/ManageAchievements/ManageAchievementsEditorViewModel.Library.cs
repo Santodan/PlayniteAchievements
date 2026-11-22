@@ -1235,6 +1235,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var query = BuildLibraryQuery();
             ReadRepresentatives(query, version, (representatives, count) =>
             {
+                // One match or none is all loaded, so the grid's own selection already holds it.
+                if (count <= 1)
+                {
+                    return;
+                }
+
                 _allMatchingQuery = query;
                 _allMatchingCount = count;
                 ApplySelection(representatives);
