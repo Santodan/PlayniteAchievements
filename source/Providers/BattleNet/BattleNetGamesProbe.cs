@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Providers.BattleNet
     internal static class BattleNetGamesProbe
     {
         /// <summary>Hardcoded gate for the probe menu item. Turn off before a release.</summary>
-        internal static readonly bool Enabled = true;
+        internal static readonly bool Enabled = false;
 
         /// <summary>Limits the run to the Forever rounds and its catalog dump.</summary>
         private static readonly bool ForeverOnly = true;
