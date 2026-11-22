@@ -191,9 +191,8 @@
     <sys:Double x:Key="PlayAch.Size.Text.DataGridCellMaxHeight">72</sys:Double>
 
     <CornerRadius x:Key="PlayAch.Radius.Tiny">2</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Small">4</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Card">6</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Section">8</CornerRadius>
+    <!-- The radius of inputs, buttons, cards and menus is the user's layout rounding setting,
+         published at runtime as PlayAch.Radius.Layout (PlayAchResourceService), not a token here. -->
     <CornerRadius x:Key="PlayAch.Radius.PillSmall">11</CornerRadius>
     <CornerRadius x:Key="PlayAch.Radius.Circle18">9</CornerRadius>
     <CornerRadius x:Key="PlayAch.Radius.Circle34">17</CornerRadius>
