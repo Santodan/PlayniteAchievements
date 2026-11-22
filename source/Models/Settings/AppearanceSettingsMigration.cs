@@ -25,6 +25,10 @@ namespace PlayniteAchievements.Models.Settings
     /// into the compact locked and compact unlocked settings where the config does not define
     /// them. The single setting covered all three lists before the per-list settings existed. A
     /// saved config carries every key, so the absent key is the gate and no flag is used.
+    ///
+    /// Surface to Panel: moves a saved Surface resource override to Panel, gated by
+    /// <see cref="PersistedSettings.SurfaceOverrideMovedToPanel"/>. Cards drew on Surface before
+    /// Panel took over cards and containers and Surface took over inputs.
     /// </summary>
     public static class AppearanceSettingsMigration
     {
@@ -47,6 +51,7 @@ namespace PlayniteAchievements.Models.Settings
                 var changed = SeedInlineSurfaceTransparency(persisted);
                 changed |= ClearCommonGlowTier(persisted);
                 changed |= SeedCompactRarityBars(persisted);
+                changed |= MoveSurfaceOverrideToPanel(persisted);
                 return changed
                     ? root.ToString(Formatting.None)
                     : json;
@@ -145,6 +150,55 @@ namespace PlayniteAchievements.Models.Settings
             }
 
             return changed;
+        }
+
+        /// <summary>
+        /// Moves a saved Surface override to Panel where Panel has none, so cards keep their
+        /// color now that they draw on Panel, then removes the Surface entry so inputs start on
+        /// Follow Playnite. Stamps the one-time flag.
+        /// </summary>
+        private static bool MoveSurfaceOverrideToPanel(JObject persisted)
+        {
+            const string flagName = nameof(PersistedSettings.SurfaceOverrideMovedToPanel);
+            const string surfaceKey = "PlayAch.Brush.Surface";
+            const string panelKey = "PlayAch.Brush.Panel";
+
+            var flag = persisted[flagName];
+            if (flag != null && flag.Type == JTokenType.Boolean && flag.Value<bool>())
+            {
+                return false;
+            }
+
+            if (persisted[nameof(PersistedSettings.ResourceOverrides)] is JObject overrides)
+            {
+                var surface = FindProperty(overrides, surfaceKey);
+                if (surface != null)
+                {
+                    if (FindProperty(overrides, panelKey) == null)
+                    {
+                        overrides[panelKey] = surface.Value.DeepClone();
+                    }
+
+                    surface.Remove();
+                }
+            }
+
+            persisted[flagName] = true;
+            return true;
+        }
+
+        // Resource override keys deserialize case-insensitively, so match them the same way.
+        private static JProperty FindProperty(JObject obj, string name)
+        {
+            foreach (var property in obj.Properties())
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return property;
+                }
+            }
+
+            return null;
         }
 
         private static void ClearCommonBit(JObject persisted, string propertyName)
