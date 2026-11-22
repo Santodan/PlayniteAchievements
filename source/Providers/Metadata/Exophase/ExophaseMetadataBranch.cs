@@ -186,6 +186,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
                 { "ps4", "PS4" },
                 { "ps5", "PS5" },
                 { "psvita", "PS Vita" },
+                { "vita", "PS Vita" },
                 { "xbox-360", "Xbox 360" },
                 { "xbox-one", "Xbox One" }
             };
