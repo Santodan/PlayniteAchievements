@@ -30,7 +30,7 @@
 
     <Style x:Key="SettingGroupCardStyle" TargetType="Border">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
         <Setter Property="Padding" Value="14"/>
         <Setter Property="Margin" Value="0,0,0,14"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
@@ -97,7 +97,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Section}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}">
                         <Border.Effect>
                             <DropShadowEffect Color="{StaticResource PlayAch.Color.Shadow}" Opacity="0.06" BlurRadius="8" ShadowDepth="1"/>
