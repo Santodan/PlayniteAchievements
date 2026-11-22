@@ -69,6 +69,8 @@ namespace PlayniteAchievements.Views.ManageAchievements
             _viewModel.IconOverridesSaved += ViewModel_IconOverridesSaved;
 
             _tab = new ManageAchievementsEditorTab(_viewModel);
+            // The window's edge is the tab's edge here; the Manage window sets it inside a card.
+            _tab.SetResourceReference(MarginProperty, "PlayAch.Thickness.CardPadding");
             Content = _tab;
 
             _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
