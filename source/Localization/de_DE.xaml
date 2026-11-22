@@ -39,7 +39,7 @@
     <sys:String x:Key="LOCPlayAch_Granularity_Month">Monat</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Level">Stufe</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Spielzeit</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Freischaltung</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Letzte Freischaltung</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_DateAdded">Hinzugefügt</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ReleaseDate">Veröffentlicht</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">Offen</sys:String>
@@ -1830,7 +1830,7 @@ Fortfahren?</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleSources">Errungene Erfolge nach Quelle</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsHiddenAchievement">Verborgener Erfolg</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsHiddenTrophy">Verborgene Trophäe</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsLastUnlock">Freischaltung</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsLastUnlock">Letzte Freischaltung</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementslvGamesProgression">Steigerung</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsManualAchievements">Deine Erfolge</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsNoCommon">Ungewöhnlich</sys:String>
