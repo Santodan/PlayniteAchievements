@@ -184,9 +184,38 @@ namespace PlayniteAchievements.Providers.ShadPS4
         {
             // A null result means "trophy data not located"; the refresh pipeline skips
             // persistence for null results so previously cached achievements are preserved.
-            return TryResolveTrophyXml(game, titleCache, npCommIdCache, out var xmlPath, out var format, out var npcommid)
-                ? ParseTrophyXml(game, xmlPath, format, npcommid, cancel)
-                : Task.FromResult<GameAchievementData>(null);
+            if (TryResolveTrophyXml(game, titleCache, npCommIdCache, out var xmlPath, out var format, out var npcommid))
+            {
+                return ParseTrophyXml(game, xmlPath, format, npcommid, cancel);
+            }
+
+            LogUnmatchedGame(game, npCommIdCache);
+            return Task.FromResult<GameAchievementData>(null);
+        }
+
+        /// <summary>
+        /// One line naming what each lookup step found for a game with no trophy data.
+        /// </summary>
+        private void LogUnmatchedGame(Game game, Dictionary<string, string> npCommIdCache)
+        {
+            if (_logger == null || game == null)
+            {
+                return;
+            }
+
+            string npcommid = null;
+            string npbindSource = null;
+            if (_provider != null && _provider.TryReadNpbind(game, out var npbind, out npbindSource))
+            {
+                npcommid = ShadPS4DataProvider.ExtractNpCommIdFromNpbind(npbind);
+            }
+
+            GameCustomDataLookup.TryGetShadPS4MatchIdOverride(game.Id, out var overrideMatchId);
+            var hasPerUserFile = npcommid != null && npCommIdCache != null && npCommIdCache.ContainsKey(npcommid);
+            _logger.Info(
+                $"[ShadPS4] No trophy data for '{game.Name}': " +
+                $"npcommid={npcommid ?? "none"} (npbind {npbindSource ?? "not found"}, per-user file {(hasPerUserFile ? "found" : "missing")}), " +
+                $"titleId={ExtractTitleIdFromGame(game) ?? "none"}, override={overrideMatchId ?? "none"}.");
         }
 
         /// <summary>
@@ -210,7 +239,17 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
             if (GameCustomDataLookup.TryGetShadPS4MatchIdOverride(game.Id, out var overrideMatchId))
             {
-                return TryResolveOverrideTrophyXml(overrideMatchId, titleCache, npCommIdCache, out xmlPath, out format, out npcommid);
+                if (TryResolveOverrideTrophyXml(overrideMatchId, titleCache, npCommIdCache, out xmlPath, out format, out npcommid))
+                {
+                    return true;
+                }
+
+                // Title ids only key the legacy layout; on a miss the game resolves as if no
+                // override were set.
+                if (ShadPS4MatchIdHelper.GetKind(overrideMatchId) != ShadPS4MatchIdKind.TitleId)
+                {
+                    return false;
+                }
             }
 
             if ((titleCache?.Count ?? 0) <= 0 && (npCommIdCache?.Count ?? 0) <= 0)
@@ -929,6 +968,11 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private string ExtractTitleIdFromGame(Game game)
         {
+            if (_provider != null)
+            {
+                return _provider.ExtractTitleIdFromGame(game);
+            }
+
             var installDir = ExpandGamePath(game, game?.InstallDirectory);
 
             // Uninstalled EmuLibrary games carry no install directory; recover the

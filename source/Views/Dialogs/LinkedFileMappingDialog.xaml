@@ -14,7 +14,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementGridStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementGridStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
             <!-- The preview grid takes the Editor grid's look: row separators, the hover and selected
@@ -125,8 +125,9 @@
                     <ComboBox ItemsSource="{Binding DataContext.FieldOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                               SelectedItem="{Binding SelectedField, Mode=TwoWay}"
                               DisplayMemberPath="Name"
-                              MinWidth="120" />
-                    <TextBlock Text="{Binding ColumnName}"
+                              MinWidth="120"
+                              Visibility="{Binding IsPosition, Converter={StaticResource InverseBoolToVis}}" />
+                    <TextBlock Text="{Binding DisplayName}"
                                Margin="2,4,0,0"
                                Style="{StaticResource HintTextStyle}"
                                TextTrimming="CharacterEllipsis"
@@ -196,68 +197,6 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- One unlinked achievement: its icon and name, in a wrapping list. A masked one
-                 reveals on click, and masks again on a second click. -->
-            <Style x:Key="UnlinkedChipStyle" TargetType="Button">
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="Margin" Value="0,0,6,6" />
-                <Setter Property="BorderBrush" Value="Transparent" />
-                <Setter Property="ToolTip" Value="{Binding Description}" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Chip"
-                                    Background="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Padding="4,3,10,3">
-                                <ContentPresenter />
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
-                        <Setter Property="Cursor" Value="Hand" />
-                    </DataTrigger>
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding CanReveal}" Value="True" />
-                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                        </MultiDataTrigger.Conditions>
-                        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}" />
-                    </MultiDataTrigger>
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding CanReveal}" Value="True" />
-                            <Condition Binding="{Binding IsRevealed}" Value="False" />
-                        </MultiDataTrigger.Conditions>
-                        <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Achievements_ClickToReveal}" />
-                    </MultiDataTrigger>
-                </Style.Triggers>
-            </Style>
-
-            <DataTemplate x:Key="UnlinkedAchievementTemplate">
-                <Button Style="{StaticResource UnlinkedChipStyle}"
-                        Command="{Binding DataContext.ToggleRevealOneCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}">
-                    <StackPanel Orientation="Horizontal">
-                        <Image Width="24" Height="24"
-                               Margin="0,0,6,0"
-                               VerticalAlignment="Center"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               helpers:AsyncImage.DecodePixel="48"
-                               helpers:AsyncImage.Uri="{Binding Icon}" />
-                        <TextBlock Text="{Binding Name, Mode=OneWay}"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   VerticalAlignment="Center"
-                                   MaxWidth="220"
-                                   TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                </Button>
-            </DataTemplate>
-
             <!-- The match cell: once the file was matched, a dropdown that pairs the row by hand
                  (Automatic, None, or any of the game's achievements). A hand pairing shows bold. -->
             <DataTemplate x:Key="MatchCellTemplate">
@@ -283,6 +222,65 @@
                         </DockPanel>
                     </ToggleButton>
                 </Grid>
+            </DataTemplate>
+
+            <!-- One way to match, in the match dropdown: the column, how its cells are read, and the
+                 rows it pairs, each at a fixed width so every line lines up. -->
+            <DataTemplate x:Key="MatchChoiceTemplate">
+                <Grid AutomationProperties.Name="{Binding Name}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding ColumnText}"
+                               ToolTip="{Binding ColumnText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ReadingText}"
+                               Style="{StaticResource HintTextStyle}"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding CountText}"
+                               Style="{StaticResource HintTextStyle}"
+                               TextWrapping="NoWrap"
+                               Margin="12,0,0,0" />
+                </Grid>
+            </DataTemplate>
+
+            <!-- An achievement in the achievements list: its icon and name, masked per the display
+                 settings, with its description as the tooltip. -->
+            <DataTemplate x:Key="AchievementCellTemplate">
+                <DockPanel ToolTip="{Binding Description}" Background="Transparent">
+                    <Image DockPanel.Dock="Left"
+                           Width="28" Height="28"
+                           Margin="0,0,8,0"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           helpers:AsyncImage.DecodePixel="56"
+                           helpers:AsyncImage.Uri="{Binding Icon}" />
+                    <TextBlock Text="{Binding Name, Mode=OneWay}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </DataTemplate>
+
+            <!-- An achievement's row cell: the file row it pairs with, as a dropdown of the file's
+                 rows that pairs it by hand. A hand pairing shows bold. -->
+            <DataTemplate x:Key="AchievementRowCellTemplate">
+                <ToggleButton Style="{StaticResource PlayAch.ToggleButton.ComboBoxLookStyle}"
+                              IsChecked="{Binding IsPickerOpen, Mode=OneWay}"
+                              Focusable="False"
+                              PreviewMouseLeftButtonDown="PickerButton_PreviewMouseLeftButtonDown"
+                              PreviewMouseLeftButtonUp="PickerButton_PreviewMouseLeftButtonUp">
+                    <TextBlock Text="{Binding RowText}" Style="{StaticResource MatchCellTextStyle}" VerticalAlignment="Center" />
+                </ToggleButton>
             </DataTemplate>
 
             <!-- The pairing dropdown's content, shown in the window's one popup for the row whose
@@ -341,6 +339,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -379,13 +378,43 @@
                           DisplayMemberPath="Name" />
             </Grid>
 
-            <Grid Grid.Row="1" Margin="0,12,0,0">
+            <!-- How rows are matched: the count, then the way, which lists every way the file offers.
+                 Hidden on a game with no achievements, where every row is new. -->
+            <Grid Grid.Row="1" Visibility="{Binding ShowsMatching, Converter={StaticResource BoolToVis}}">
+            <DockPanel Margin="0,12,0,0" LastChildFill="False">
+                <DockPanel.Style>
+                    <Style TargetType="DockPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding MatchSummary}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DockPanel.Style>
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{DynamicResource LOCPlayAch_LinkedFile_MatchBy}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0,0,10,0" />
+                <ComboBox DockPanel.Dock="Left"
+                          Width="420"
+                          ItemsSource="{Binding MatchChoices}"
+                          SelectedItem="{Binding SelectedMatch, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource MatchChoiceTemplate}"
+                          HorizontalContentAlignment="Stretch"
+                          AutomationProperties.Name="{DynamicResource LOCPlayAch_LinkedFile_MatchBy}" />
+                <TextBlock DockPanel.Dock="Left"
+                           Text="{Binding MatchSummary}"
+                           Style="{StaticResource FieldLabelStyle}"
+                           Margin="12,0,0,0" />
+            </DockPanel>
+            </Grid>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="280" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Preview: each file column's header picks the field it feeds; the first column shows the match -->
                 <DockPanel Grid.Column="0">
                     <TextBlock DockPanel.Dock="Top"
                                Margin="0,0,0,6"
@@ -393,36 +422,76 @@
                                Foreground="{DynamicResource PlayAch.Brush.AuthError}"
                                TextWrapping="Wrap"
                                Visibility="{Binding HasReadMessage, Converter={StaticResource BoolToVis}}" />
-                    <DataGrid x:Name="PreviewGrid"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              CanUserSortColumns="False"
-                              CanUserReorderColumns="False"
-                              CanUserAddRows="False"
-                              HeadersVisibility="Column"
-                              SelectionUnit="FullRow"
-                              SelectionMode="Single"
-                              FrozenColumnCount="1"
-                              EnableColumnVirtualization="True"
-                              EnableRowVirtualization="True"
-                              MinColumnWidth="140"
-                              GridLinesVisibility="None"
-                              RowBackground="Transparent"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
-                              RowStyle="{StaticResource PreviewRowStyle}"
-                              CellStyle="{StaticResource PreviewCellStyle}"
-                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
-                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                              ItemsSource="{Binding PreviewRows}">
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="Background" Value="Transparent" />
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-                    </DataGrid>
+                    <TabControl x:Name="Tabs" Background="Transparent" BorderThickness="0">
+                        <!-- The game's achievements, each with the row it pairs with and what the row says. -->
+                        <TabItem Header="{DynamicResource LOCPlayAch_Achievements}"
+                                 Visibility="{Binding ShowsMatching, Converter={StaticResource BoolToVis}}">
+                            <DataGrid x:Name="AchievementsGrid"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      CanUserSortColumns="False"
+                                      CanUserReorderColumns="False"
+                                      CanUserAddRows="False"
+                                      HeadersVisibility="Column"
+                                      SelectionUnit="FullRow"
+                                      SelectionMode="Single"
+                                      FrozenColumnCount="1"
+                                      EnableColumnVirtualization="True"
+                                      EnableRowVirtualization="True"
+                                      MinColumnWidth="90"
+                                      GridLinesVisibility="None"
+                                      RowBackground="Transparent"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                                      RowStyle="{StaticResource PreviewRowStyle}"
+                                      CellStyle="{StaticResource PreviewCellStyle}"
+                                      helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      ItemsSource="{Binding AchievementRows}">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                            </DataGrid>
+                        </TabItem>
+
+                        <!-- The file: each column's header picks the field it feeds; the first column shows the match. -->
+                        <TabItem Header="{DynamicResource LOCPlayAch_LinkedFile_File}">
+                            <DataGrid x:Name="PreviewGrid"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      CanUserSortColumns="False"
+                                      CanUserReorderColumns="False"
+                                      CanUserAddRows="False"
+                                      HeadersVisibility="Column"
+                                      SelectionUnit="FullRow"
+                                      SelectionMode="Single"
+                                      FrozenColumnCount="1"
+                                      EnableColumnVirtualization="True"
+                                      EnableRowVirtualization="True"
+                                      MinColumnWidth="140"
+                                      GridLinesVisibility="None"
+                                      RowBackground="Transparent"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                                      RowStyle="{StaticResource PreviewRowStyle}"
+                                      CellStyle="{StaticResource PreviewCellStyle}"
+                                      helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      ItemsSource="{Binding PreviewRows}">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                            </DataGrid>
+                        </TabItem>
+                    </TabControl>
                 </DockPanel>
 
                 <!-- Side panel: the options of the chosen format, then the settings for this
@@ -515,43 +584,28 @@
                                           ToolTip="{DynamicResource LOCPlayAch_LinkedFile_CreateUnmatchedHint}"
                                           Style="{StaticResource OptionCheckBoxStyle}"
                                           Margin="0" />
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="{DynamicResource LOCPlayAch_LinkedFile_DetailsCustomOnly}"
+                                           Style="{StaticResource HintTextStyle}"
+                                           Visibility="{Binding ShowsDetailsHint, Converter={StaticResource BoolToVis}}" />
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
                 </Border>
             </Grid>
 
-            <!-- What applying would do, then the achievements the file has no row for. -->
-            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+            <!-- What applying would do. -->
+            <StackPanel Grid.Row="3" Margin="0,10,0,0">
                 <TextBlock Text="{Binding ProblemText}"
                            Foreground="{DynamicResource PlayAch.Brush.AuthError}"
                            TextWrapping="Wrap"
                            Margin="0,0,0,4"
                            Visibility="{Binding HasProblem, Converter={StaticResource BoolToVis}}" />
                 <TextBlock Text="{Binding ResultText}" Style="{StaticResource HintTextStyle}" />
-                <Expander Margin="0,6,0,0"
-                          Visibility="{Binding HasUnlinked, Converter={StaticResource BoolToVis}}">
-                    <Expander.Header>
-                        <TextBlock Text="{Binding UnlinkedHeader}" Style="{StaticResource SectionHeaderStyle}" />
-                    </Expander.Header>
-                    <ScrollViewer MaxHeight="132"
-                                  Margin="0,6,0,0"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding UnlinkedAchievements}"
-                                      ItemTemplate="{StaticResource UnlinkedAchievementTemplate}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Expander>
             </StackPanel>
 
             <!-- Footer -->
-            <DockPanel Grid.Row="3" Margin="0,14,0,0">
+            <DockPanel Grid.Row="4" Margin="0,14,0,0">
                 <Button DockPanel.Dock="Left"
                         Content="{DynamicResource LOCPlayAch_LinkedFile_Unlink}"
                         Command="{Binding UnlinkCommand}"

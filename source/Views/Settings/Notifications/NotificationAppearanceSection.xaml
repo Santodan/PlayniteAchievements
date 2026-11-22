@@ -12,9 +12,9 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -32,7 +32,7 @@
          Relevant to this section specifically: the toast mockup is meant to match the live toast,
          and the live toast window sets the same pair. The description line opts itself back out
          locally (NotificationResources ToastDescriptionLine) so its two-line clamp keeps matching. -->
-    <Grid Background="{DynamicResource PlayAch.Brush.Panel}"
+    <Grid Background="Transparent"
           UseLayoutRounding="True"
           SnapsToDevicePixels="True">
         <Grid Margin="20">
@@ -221,7 +221,7 @@
                              blurred-background card (ToastPreviewBackdrop). -->
                         <Border x:Name="ToastMockupFrame"
                                 Grid.Column="0"
-                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
                                 CornerRadius="8"
@@ -237,7 +237,7 @@
                              out on the same 1080-DIP virtual canvas the compositor uses, scaled
                              down uniformly. -->
                         <Border Grid.Column="0"
-                                Background="{DynamicResource PlayAch.Brush.Surface}"
+                                Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
                                 CornerRadius="8"

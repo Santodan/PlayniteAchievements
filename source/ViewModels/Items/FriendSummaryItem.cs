@@ -26,6 +26,11 @@ namespace PlayniteAchievements.ViewModels.Items
         [IgnoreDataMember]
         public ICommand SetDynamicFriendScopeUserCommand { get; set; }
 
+        /// <summary>Stands in for a row before the grid's first read lands (see <see cref="PlaceholderRows"/>).</summary>
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool IsPlaceholder { get; set; }
+
         private string _displayName;
         private string _avatarPath;
         private int _sharedGamesCount;

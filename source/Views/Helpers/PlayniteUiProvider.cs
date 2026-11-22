@@ -151,21 +151,17 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            // Back standalone popout windows with the opaque popout (popup/dialog) surface rather
-            // than WindowSurface. WindowSurface ships transparent so embedded theme views blend into
-            // the host; a floating window with a transparent backdrop would be see-through, so use
-            // PopupSurface (guaranteed opaque via EnsureOpaqueIfRequired) instead.
-            var popoutSurface =
-                app.TryFindResource("PlayAch.Brush.Dialog.Background") as Brush ??
-                app.TryFindResource("PlayAch.Brush.PopupSurface") as Brush ??
-                app.TryFindResource("PlayAch.Brush.Window.Background") as Brush ??
-                app.TryFindResource("PlayAch.Brush.WindowSurface") as Brush;
-            if (popoutSurface != null)
+            // Back popout windows with the window frame brush: the Window background setting, or the
+            // opaque popup surface while that setting is transparent (a window has nothing behind it
+            // to show through). The theme's window template paints the title bar with the window's
+            // Background, so the title bar matches the content below it.
+            const string frameKey = Services.UI.PlayAchResourceService.WindowFrameResourceKey;
+            if (app.TryFindResource(frameKey) is Brush frame)
             {
-                window.Resources["WindowBackgourndBrush"] = popoutSurface;
-                window.Resources["StandardWindowBackgroundBrush"] = popoutSurface;
-                window.Resources["WindowBaseBackgroundBrush"] = popoutSurface;
-                window.Background = popoutSurface;
+                window.Resources["WindowBackgourndBrush"] = frame;
+                window.Resources["StandardWindowBackgroundBrush"] = frame;
+                window.Resources["WindowBaseBackgroundBrush"] = frame;
+                window.SetResourceReference(Control.BackgroundProperty, frameKey);
             }
 
             var borderBrush =

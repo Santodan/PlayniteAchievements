@@ -817,8 +817,9 @@ namespace PlayniteAchievements.Services
 
         /// <summary>
         /// Applies a linked file read. Linked-definition rows go to the cache and the manual link,
-        /// so the next refresh keeps them; custom rows go to their definitions, which the cache
-        /// never holds. The snapshots include the custom rows so their unlocks are announced.
+        /// so the next refresh keeps them; a platform's rows go to the cache, which keeps a recorded
+        /// unlock through refreshes; custom rows go to their definitions, which the cache never
+        /// holds. The snapshots include the custom rows so their unlocks are announced.
         /// </summary>
         private void ApplyLinkedFileResult(
             GamePollState state,
@@ -839,11 +840,19 @@ namespace PlayniteAchievements.Services
             var linkedDefinitionRows = observations
                 .Where(observation => !CustomAchievementProjectionService.IsCustomApiName(observation?.ApiName))
                 .ToList();
-            if (linkedDefinitionRows.Count > 0 && state.Provider != null && _progressWriter != null)
+            // The rows are written under the provider the cache holds them for, which need not be
+            // one that services the game right now.
+            var cachedProviderKey = _cacheManager?.LoadGameData(gameId.ToString())?.ProviderKey;
+            if (string.IsNullOrWhiteSpace(cachedProviderKey))
+            {
+                cachedProviderKey = state.Provider?.ProviderKey;
+            }
+
+            if (linkedDefinitionRows.Count > 0 && !string.IsNullOrWhiteSpace(cachedProviderKey) && _progressWriter != null)
             {
                 var cacheWrite = _progressWriter.ApplyInGameProgress(
                     gameId.ToString(),
-                    state.Provider.ProviderKey,
+                    cachedProviderKey,
                     linkedDefinitionRows);
                 if (cacheWrite?.Success == true)
                 {
@@ -2088,16 +2097,15 @@ namespace PlayniteAchievements.Services
                 string preferredApiName = null;
                 if (gameId == Guid.Empty)
                 {
-                    var recent = (_cacheManager as ICacheReadOptimizations)?
-                        .LoadCachedSummaryDataFast(1)?.RecentUnlocks;
-                    var mostRecent = recent != null && recent.Count > 0 ? recent[0] : null;
-                    if (mostRecent?.PlayniteGameId == null || mostRecent.PlayniteGameId == Guid.Empty)
+                    var mostRecent = (_cacheManager as ICacheReadOptimizations)?.Reads?.Rows(
+                        Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlockTimeKnown()
+                            .OrderBy(Database.AchievementSort.UnlockTime, descending: true).Page(1))?.FirstOrDefault();
+                    if (!Guid.TryParse(mostRecent?.PlayniteGameId, out gameId) || gameId == Guid.Empty)
                     {
                         _logger?.Debug("[InGameMonitor] Test notification skipped: no recent unlock in the library.");
                         return;
                     }
 
-                    gameId = mostRecent.PlayniteGameId.Value;
                     preferredApiName = mostRecent.ApiName;
                 }
 

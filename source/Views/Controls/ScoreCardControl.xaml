@@ -15,7 +15,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="ScoreCardPanelStyle" TargetType="Border">
-                <Setter Property="CornerRadius" Value="7"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding" Value="9,7"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
@@ -31,7 +31,7 @@
                         <Setter Property="Cursor" Value="Arrow"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding IsFeatured, ElementName=Root}" Value="True">
-                        <Setter Property="CornerRadius" Value="10"/>
+                        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                         <Setter Property="BorderThickness" Value="1"/>
                         <Setter Property="Padding" Value="15,13"/>
                         <Setter Property="MinHeight" Value="96"/>
@@ -40,7 +40,7 @@
                          Scores widget instead of tinting by tier. -->
                     <DataTrigger Binding="{Binding Compact, ElementName=Root}" Value="True">
                         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.GridSurface}"/>
-                        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Section}"/>
+                        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Flat, ElementName=Root}" Value="True">
                         <Setter Property="Background" Value="Transparent"/>
@@ -329,7 +329,7 @@
                 <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
                 <Setter Property="BorderBrush" Value="{Binding AccentBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
                 <Setter Property="Padding" Value="12,10"/>
                 <Setter Property="Width" Value="300"/>
                 <Setter Property="MaxWidth" Value="300"/>
@@ -562,6 +562,7 @@
                        Style="{StaticResource ScoreCardPlatformIconStyle}"/>
                 <Image helpers:AsyncImage.Uri="{Binding GameArtPath}"
                        helpers:AsyncImage.DecodePixel="256"
+                       helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}"
                        Style="{StaticResource ScoreCardGameArtStyle}"/>
 
                 <Grid x:Name="TextColumn">

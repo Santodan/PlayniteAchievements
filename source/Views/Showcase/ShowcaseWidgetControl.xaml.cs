@@ -132,6 +132,8 @@ namespace PlayniteAchievements.Views.Showcase
         public ShowcaseWidgetControl()
         {
             InitializeComponent();
+            SetResourceReference(LayoutRadiusProperty, PlayniteAchievements.Services.UI.PlayAchResourceService.LayoutCornerRadiusValueResourceKey);
+            ShowLoadingPlaceholder();
             var chartClick = new ChartClickEventHandler(OnChartClicked);
             AddHandler(PieChartWithRadialIcons.SliceClickedEvent, chartClick);
             AddHandler(UnlockTimelineChart.ColumnClickedEvent, chartClick);
@@ -281,15 +283,32 @@ namespace PlayniteAchievements.Views.Showcase
             return false;
         }
 
-        // PlayAch.Radius.Section (8) less PlayAch.Thickness.Border (1): the border's inner curve.
-        private const double InnerCornerRadius = 7;
+        // The layout corner radius, held as a resource reference so a settings change reclips the content.
+        private static readonly DependencyProperty LayoutRadiusProperty =
+            DependencyProperty.Register(
+                "LayoutRadius",
+                typeof(double),
+                typeof(ShowcaseWidgetControl),
+                new PropertyMetadata(0d, (d, e) => ((ShowcaseWidgetControl)d).ApplyRootContentClip()));
 
         private void OnRootContentSizeChanged(object sender, SizeChangedEventArgs e)
         {
+            ApplyRootContentClip();
+        }
+
+        // Clips the content to the border's inner curve: the layout radius less PlayAch.Thickness.Border (1).
+        private void ApplyRootContentClip()
+        {
+            if (RootContent == null)
+            {
+                return;
+            }
+
+            var inner = Math.Max(0, (double)GetValue(LayoutRadiusProperty) - 1);
             RootContent.Clip = new System.Windows.Media.RectangleGeometry(
-                new Rect(e.NewSize),
-                InnerCornerRadius,
-                InnerCornerRadius);
+                new Rect(RootContent.RenderSize),
+                inner,
+                inner);
         }
 
         private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -440,7 +459,13 @@ namespace PlayniteAchievements.Views.Showcase
             BodyHost.Margin = fullBleed
                 ? new Thickness(0)
                 : new Thickness(inset, inset + titleRoom, inset, inset);
-            if (_projection?.Instance == null)
+            if (_projection == null)
+            {
+                ShowLoadingPlaceholder();
+                return;
+            }
+
+            if (_projection.Instance == null)
             {
                 SetBodyContent(CreateEmptyText());
                 return;
@@ -481,7 +506,7 @@ namespace PlayniteAchievements.Views.Showcase
                     }
                     else
                     {
-                        SetBodyContent(_projection.MosaicAchievements?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<IconMosaicWidgetViewModel>()
                             : CreateEmptyText());
                     }
@@ -504,7 +529,7 @@ namespace PlayniteAchievements.Views.Showcase
 
                     // Both branches, so a refresh reaches a reused control too: these rows are what
                     // the info panel resolves captures against.
-                    slideshow.SetAchievementRows(_projection.Snapshot?.Achievements, _projection.Snapshot);
+                    slideshow.SetSnapshot(_projection.Snapshot);
                     slideshow.SetEditHold(!IsHitTestVisible);
                     break;
                 case ShowcaseWidgetKind.RecentAchievements:
@@ -512,13 +537,13 @@ namespace PlayniteAchievements.Views.Showcase
                     // pinned view model for reorder support and placeholder rows.
                     if (_projection.ResolvedPinCollectionId != null)
                     {
-                        SetBodyContent(_projection.AchievementRows?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<PinnedAchievementsWidgetViewModel>()
                             : CreateEmptyText(Localize("LOCPlayAch_Showcase_NoPinnedAchievements")));
                     }
                     else
                     {
-                        SetBodyContent(_projection.AchievementRows?.Count > 0
+                        SetBodyContent(_projection.HasRows
                             ? (object)UpdateBodyViewModel<RecentAchievementsWidgetViewModel>()
                             : CreateEmptyText());
                     }
@@ -615,17 +640,27 @@ namespace PlayniteAchievements.Views.Showcase
         }
 
         /// <summary>
-        /// Shown by the host while the overview has no snapshot yet, so a fresh dashboard reads
-        /// as loading rather than as empty. Only a never-projected host takes it; the first
-        /// projection apply replaces it through RebuildBody.
+        /// A skeleton block in place of the body until the first projection lands, so a widget
+        /// with no data yet reads as loading rather than as empty. Only a never-projected host
+        /// takes it; the first projection apply replaces it through RebuildBody.
         /// </summary>
         public void ShowLoadingPlaceholder()
         {
-            if (BodyHost.Content == null && _projection == null)
+            if (_projection != null)
             {
-                SetBodyContent(CreateEmptyText(Localize("LOCPlayAch_Status_LoadingAchievements")));
+                return;
             }
+
+            if (_skeleton == null)
+            {
+                _skeleton = new Border();
+                _skeleton.SetResourceReference(StyleProperty, "PlayAch.Skeleton.Block");
+            }
+
+            SetBodyContent(_skeleton);
         }
+
+        private Border _skeleton;
 
         // Reuses (or lazily creates) the body view model for this control and feeds it the
         // current projection and viewport. Implicit templates in ShowcaseWidgetTemplates.xaml render

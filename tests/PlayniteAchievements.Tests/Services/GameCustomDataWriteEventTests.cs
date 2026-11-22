@@ -52,14 +52,12 @@ namespace PlayniteAchievements.Tests.Services
                 store.Update(
                     gameId,
                     data => data.AchievementNotes = new Dictionary<string, string> { ["a"] = "b" },
-                    affectsSummaryData: true,
-                    affectsOverrideMirror: false);
+                    affectsSummaryData: false);
 
                 Assert.IsNotNull(observed);
-                Assert.IsTrue(observed.AffectsSummaryData);
                 Assert.IsFalse(
-                    observed.AffectsOverrideMirror,
-                    "Forwarding the default instead of the caller's flag makes an undo resync " +
+                    observed.AffectsSummaryData,
+                    "Forwarding the default instead of the caller's flag makes an undo rebuild " +
                     "work the original write opted out of.");
             });
         }

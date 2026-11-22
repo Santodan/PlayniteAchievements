@@ -62,6 +62,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return GetRawJsonAsync(uri, cancel);
         }
 
+        /// <summary>
+        /// The console's games with achievements, without their ROM hashes, for title lookups.
+        /// </summary>
+        public Task<string> GetGameTitleListAsync(int consoleId, CancellationToken cancel)
+        {
+            var uri = new Uri(ApiBase, $"API_GetGameList.php?y={Uri.EscapeDataString(_apiKey)}&i={consoleId}&f=1");
+            return GetRawJsonAsync(uri, cancel);
+        }
+
         public Task<Models.RaGameListWithTitleResponse> GetGameListAsync(int consoleId, CancellationToken cancel)
         {
             var uri = new Uri(ApiBase, $"API_GetGameList.php?y={Uri.EscapeDataString(_apiKey)}&i={consoleId}&h=1");

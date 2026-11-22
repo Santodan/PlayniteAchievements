@@ -5,6 +5,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Friends;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
@@ -28,7 +29,10 @@ namespace PlayniteAchievements.ViewModels
     public sealed class ViewFriendsAchievementsViewModel : ObservableObject, IDisposable, IFriendSummariesFilterSource
     {
         private readonly Guid _gameId;
-        private readonly FriendGameAchievementsDataCoordinator _dataCoordinator;
+        private readonly IFriendCacheManager _friendCache;
+        private readonly IReadScheduler _scheduler;
+        private LiveQuery<GameData> _data;
+        private FriendsOverviewLists _lists = FriendsOverviewLists.Empty;
         private readonly RefreshRuntime _refreshRuntime;
         private readonly RefreshEntryPoint _refreshEntryPoint;
         private readonly IPlayniteAPI _playniteApi;
@@ -52,7 +56,6 @@ namespace PlayniteAchievements.ViewModels
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly FriendVsFriendCompareController _friendCompare;
         private FriendGameSummaryItem _summaryItem;
-        private FriendOverviewProjection _projection;
         private FriendSummaryItem _selectedFriend;
         private string _selectedCategoryName;
         private string _friendSearchText = string.Empty;
@@ -62,20 +65,31 @@ namespace PlayniteAchievements.ViewModels
         private double _progressPercent;
         private string _progressMessage;
         private string _statusText;
-        private CancellationTokenSource _loadCts;
         private bool _disposed;
 
+        // The game's friends and every friend's rows of it, read together.
+        private sealed class GameData
+        {
+            public FriendsOverviewLists Lists { get; set; }
+
+            public IReadOnlyList<FriendAchievementDisplayItem> Rows { get; set; }
+        }
+
+        /// <param name="scheduler">Where reads run and apply; the application dispatcher by default.</param>
         internal ViewFriendsAchievementsViewModel(
             Guid gameId,
-            FriendGameAchievementsDataCoordinator dataCoordinator,
+            IFriendCacheManager friendCache,
             RefreshRuntime refreshRuntime,
             RefreshEntryPoint refreshEntryPoint,
             IPlayniteAPI playniteApi,
             ILogger logger,
-            PlayniteAchievementsSettings settings)
+            PlayniteAchievementsSettings settings,
+            IReadScheduler scheduler = null)
         {
             _gameId = gameId;
-            _dataCoordinator = dataCoordinator ?? throw new ArgumentNullException(nameof(dataCoordinator));
+            _friendCache = friendCache;
+            _scheduler = scheduler ?? new DispatcherReadScheduler(
+                Application.Current?.Dispatcher ?? System.Windows.Threading.Dispatcher.CurrentDispatcher);
             _refreshRuntime = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _playniteApi = playniteApi;
@@ -94,9 +108,9 @@ namespace PlayniteAchievements.ViewModels
             _friendCompare = new FriendVsFriendCompareController(
                 () => SelectedFriend,
                 GetCompareFriendOptions,
-                isRowInScope: null,
-                loadCurrentUserIdentities: () => _dataCoordinator.LoadCurrentUserIdentities(),
-                logger: logger);
+                loadCurrentUserIdentities: () => _friendCache?.LoadCurrentUserIdentities(),
+                logger: logger,
+                hasPairData: HasCompareGameData);
             _achievementControlBar.AttachFriendCompare(_friendCompare);
             PersistCompareSelection();
 
@@ -122,7 +136,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _refreshRuntime.RebuildProgress += OnRebuildProgress;
-            _dataCoordinator.SnapshotInvalidated += OnSnapshotInvalidated;
             _ = LoadAsync();
         }
 
@@ -404,50 +417,55 @@ namespace PlayniteAchievements.ViewModels
         private CategorySummaryGridOptions CategorySummaryOptions =>
             _settings?.Persisted?.GridOptions?.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewFriendsAchievements);
 
-        public async Task LoadAsync()
+        /// <summary>Reads the game's friends and rows, again when already read; reread on every touching change.</summary>
+        public Task LoadAsync()
         {
-            if (_disposed)
+            var reads = _friendCache?.FriendReads;
+            if (_disposed || reads == null)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            var previous = _loadCts;
-            var cts = new CancellationTokenSource();
-            _loadCts = cts;
-            previous?.Cancel();
-            previous?.Dispose();
+            if (_data != null)
+            {
+                _data.SetQuery(_data.Query);
+                return Task.CompletedTask;
+            }
 
             IsLoading = true;
             ProgressPercent = 0;
             ProgressMessage = L("LOCPlayAch_Status_LoadingAchievements");
-
-            try
-            {
-                var snapshot = await _dataCoordinator.GetSnapshotAsync(_gameId, cts.Token);
-                if (cts.IsCancellationRequested || _disposed)
+            _data = new LiveQuery<GameData>(
+                reads.Feed,
+                AchievementQuery.AllFriends.ForGames(new[] { _gameId }).OrderBy(AchievementSort.Display),
+                query =>
                 {
-                    return;
-                }
-
-                ApplySnapshot(snapshot);
-                ProgressPercent = 100;
-                ProgressMessage = string.Empty;
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed to load friend achievements for {_gameId}.");
-                StatusText = L("LOCPlayAch_FriendsOverview_LoadFailed");
-            }
-            finally
-            {
-                if (ReferenceEquals(_loadCts, cts))
+                    var lists = FriendsOverviewLists.Load(reads, _settings?.Persisted, _gameId);
+                    var rows = reads.Rows(query);
+                    lists.StampIdentity(rows, _settings?.Persisted);
+                    return new GameData { Lists = lists, Rows = rows };
+                },
+                _scheduler,
+                onError: ex =>
                 {
+                    _logger?.Error(ex, $"Failed to load friend achievements for {_gameId}.");
+                    _scheduler.Post(() =>
+                    {
+                        IsLoading = false;
+                        StatusText = L("LOCPlayAch_FriendsOverview_LoadFailed");
+                    });
+                });
+            _data.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed)
+                {
+                    ApplyData(_data.Result);
                     IsLoading = false;
+                    ProgressPercent = 100;
+                    ProgressMessage = string.Empty;
                 }
-            }
+            };
+            return Task.CompletedTask;
         }
 
         public void RefreshView()
@@ -455,7 +473,6 @@ namespace PlayniteAchievements.ViewModels
             // The window's grid-option surfaces have no flat-name change notifications, so a
             // settings save must re-read the option-backed properties explicitly.
             NotifySettingProperties();
-            _dataCoordinator.Invalidate();
             _ = LoadAsync();
         }
 
@@ -467,7 +484,7 @@ namespace PlayniteAchievements.ViewModels
         public void Dispose()
         {
             _disposed = true;
-            _dataCoordinator.SnapshotInvalidated -= OnSnapshotInvalidated;
+            _data?.Dispose();
             _refreshRuntime.RebuildProgress -= OnRebuildProgress;
             if (_settings != null)
             {
@@ -476,9 +493,6 @@ namespace PlayniteAchievements.ViewModels
 
             _persistedSubscription?.Dispose();
             _persistedSubscription = null;
-
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
         }
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
@@ -486,17 +500,18 @@ namespace PlayniteAchievements.ViewModels
             return FriendSurfaceControlBars.CreateFriendSummariesControlBar(this);
         }
 
-        private void ApplySnapshot(FriendsOverviewSnapshot snapshot)
+        private void ApplyData(GameData data)
         {
+            _lists = data?.Lists ?? FriendsOverviewLists.Empty;
             _allFriends.Clear();
-            _allFriends.AddRange((snapshot?.Friends ?? new List<FriendSummaryItem>())
+            _allFriends.AddRange(_lists.Friends
                 .Where(friend => friend != null)
                 .OrderByDescending(friend => friend.IsFavorite)
                 .ThenByDescending(friend => friend.LastUnlockUtc ?? DateTime.MinValue)
                 .ThenBy(friend => friend.DisplayName, StringComparer.CurrentCultureIgnoreCase));
 
             _allAchievements.Clear();
-            _allAchievements.AddRange((snapshot?.AllAchievements ?? new List<FriendAchievementDisplayItem>())
+            _allAchievements.AddRange((data?.Rows ?? Array.Empty<FriendAchievementDisplayItem>())
                 .Where(achievement => achievement?.PlayniteGameId == _gameId));
 
             _friendsWithAchievements.Clear();
@@ -505,9 +520,7 @@ namespace PlayniteAchievements.ViewModels
                 _friendsWithAchievements.Add(FriendOverviewProjection.GetFriendScopeKey(achievement));
             }
 
-            _projection = snapshot?.Projection;
-            _summaryItem = (snapshot?.Games ?? new List<FriendGameSummaryItem>())
-                .FirstOrDefault(game => game?.PlayniteGameId == _gameId);
+            _summaryItem = _lists.Games.FirstOrDefault(game => game?.PlayniteGameId == _gameId);
 
             if (_summaryItem != null && !string.IsNullOrWhiteSpace(_summaryItem.GameName))
             {
@@ -544,7 +557,12 @@ namespace PlayniteAchievements.ViewModels
             return FriendSurfaceControlBars.GetCompareFriendOptions(
                 _allFriends,
                 SelectedFriend,
-                friend => _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend)));
+                HasCompareGameData);
+        }
+
+        private bool HasCompareGameData(FriendSummaryItem friend)
+        {
+            return _friendsWithAchievements.Contains(FriendOverviewProjection.GetFriendScopeKey(friend));
         }
 
         // Mirrors the Friends Overview game-summary pair: the aggregate all-friends row when no
@@ -559,15 +577,9 @@ namespace PlayniteAchievements.ViewModels
 
         private FriendGameSummaryItem GetSelectedFriendGameSummary()
         {
-            if (SelectedFriend == null || _projection == null)
-            {
-                return null;
-            }
-
-            // The warm-path snapshot reuses the full overview projection, so the per-friend
-            // rows must be filtered back down to this window's game.
-            return _projection.GetSelectedFriendGames(SelectedFriend)
-                .FirstOrDefault(game => game?.PlayniteGameId == _gameId);
+            return SelectedFriend == null
+                ? null
+                : _lists.GamesOf(SelectedFriend).FirstOrDefault(game => game?.PlayniteGameId == _gameId);
         }
 
         private void ApplyFilters()
@@ -726,7 +738,6 @@ namespace PlayniteAchievements.ViewModels
                         SwallowExceptions = false,
                         ProgressSingleGameId = _gameId
                     });
-                _dataCoordinator.Invalidate();
                 await LoadAsync();
                 ProgressPercent = 100;
                 ProgressMessage = L("LOCPlayAch_Status_RefreshComplete");
@@ -767,26 +778,8 @@ namespace PlayniteAchievements.ViewModels
 
             if (_refreshRuntime.IsFinalProgressReport(report))
             {
-                _dataCoordinator.Invalidate();
                 _ = LoadAsync();
             }
-        }
-
-        private void OnSnapshotInvalidated(object sender, EventArgs e)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-            {
-                dispatcher.BeginInvoke(new Action(() => _ = LoadAsync()));
-                return;
-            }
-
-            _ = LoadAsync();
         }
 
         private void OnSettingsChanged(object sender, PropertyChangedEventArgs e)

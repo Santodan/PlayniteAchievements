@@ -66,9 +66,9 @@
     <SolidColorBrush x:Key="CompletionFrameMaskBrush" Color="{StaticResource PlayAch.Color.Shadow}"/>
 
     <!-- Completion frame, drawn on the cover art in the style of a mythic cover frame: a light
-         scrim along the bottom, a square-cornered band on the cover's edge (heavier along the
-         bottom), and a diamond emblem carrying the completion badge on the bottom border between
-         two laurel branches.
+         scrim along the bottom, a band on the cover's edge (heavier along the bottom, its corners
+         following PlayAch.CornerRadius.Art), and a diamond emblem carrying the completion badge
+         on the bottom border between two laurel branches.
          The band and laurels are drawn once as a silhouette (FrameShapes) that masks a single
          completed-gradient fill and sheen, so the start-to-end sweep runs across the whole frame
          instead of restarting in each piece.
@@ -79,7 +79,8 @@
     <ControlTemplate x:Key="CompletionFrameTemplate" TargetType="Control">
         <controls:OverlayLayoutHost>
             <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
-                <Border IsHitTestVisible="False">
+                <Border IsHitTestVisible="False"
+                        CornerRadius="{DynamicResource PlayAch.CornerRadius.Art}">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Offset="0.75" Color="{StaticResource CompletionFrameScrimClear}"/>
@@ -89,6 +90,7 @@
                 </Border>
                 <Grid x:Name="FrameShapes" IsHitTestVisible="False">
                     <Border BorderThickness="3,3,3,4"
+                            CornerRadius="{DynamicResource PlayAch.CornerRadius.Art}"
                             BorderBrush="{StaticResource CompletionFrameMaskBrush}"/>
                     <!-- The laurels fill only the width the frame is given, so a narrow cover
                          shrinks them rather than widening the frame; the row's height is their
@@ -334,10 +336,26 @@
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center">
                         <!-- Fill set in the style, not as an attribute, so the status color
-                             triggers can override it. The lock only shows while locked, so the
-                             triggers need no Unlocked condition. -->
+                             triggers can override it. The muted completed gradient replaces the
+                             base glyph fill and, under All Tags, a tag's color; the inherited
+                             missable and unobtainable triggers still win. The lock only shows
+                             while locked, so the triggers need no Unlocked condition. -->
                         <Path.Style>
-                            <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}"/>
+                            <Style TargetType="Path" BasedOn="{StaticResource AchievementLockedStatusFillStyle}">
+                                <Setter Property="Fill" Value="{Binding CapstoneLockBrush}"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding StatusColor, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}, FallbackValue={x:Static settings:AchievementStatusColorMode.MissableUnobtainable}}"
+                                                       Value="{x:Static settings:AchievementStatusColorMode.AllTags}"/>
+                                            <Condition Binding="{Binding HasTagBrush, FallbackValue=False}" Value="True"/>
+                                            <Condition Binding="{Binding IsMissable, FallbackValue=False}" Value="False"/>
+                                            <Condition Binding="{Binding IsUnobtainable, FallbackValue=False}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Fill" Value="{Binding CapstoneLockBrush}"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
                         </Path.Style>
                         <Path.Data>
                             <CombinedGeometry GeometryCombineMode="Exclude">
@@ -626,7 +644,7 @@
          fixed row height is configured it bounds the layout, and Uniform
          stretch fits the art inside both cell dimensions without clipping. -->
     <DataTemplate x:Key="AchievementGameColumnTemplate">
-        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 ClipToBounds="True"
                 Margin="2"
                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -634,7 +652,8 @@
                 RenderOptions.BitmapScalingMode="HighQuality"
                 UseLayoutRounding="True"
                 SnapsToDevicePixels="True">
-            <Image Stretch="Uniform">
+            <Image Stretch="Uniform"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
@@ -657,7 +676,7 @@
          or cover per the grid's UseCoverImages setting. Bounded like the game column so
          banner-shaped art fills the constraining cell dimension without being clipped. -->
     <DataTemplate x:Key="AchievementCategoryColumnTemplate">
-        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 ClipToBounds="True"
                 Margin="2"
                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -665,7 +684,8 @@
                 RenderOptions.BitmapScalingMode="HighQuality"
                 UseLayoutRounding="True"
                 SnapsToDevicePixels="True">
-            <Image Stretch="Uniform">
+            <Image Stretch="Uniform"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Setter Property="helpers:AsyncImage.CapAtOwnSize" Value="{DynamicResource PlayAch.Image.CapAtOwnSize}"/>
@@ -681,6 +701,19 @@
                 </Image.Style>
             </Image>
         </Border>
+    </DataTemplate>
+
+    <!-- The Hardcore achievement's solid rarity border, built only for a row that shows it.
+         Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
+         so it never covers or shrinks the icon, matching how the glow extended outward. -->
+    <DataTemplate x:Key="AchievementHardcoreBorderTemplate">
+        <Border Margin="-1"
+                BorderThickness="3"
+                CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
+                Background="Transparent"
+                IsHitTestVisible="False"
+                SnapsToDevicePixels="True"
+                BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}"/>
     </DataTemplate>
 
     <!-- Achievement Icon Template - glow is isolated behind an unaffected front icon -->
@@ -699,7 +732,8 @@
             <controls:RarityRayBurst Rarity="{Binding Rarity}"
                                      HasRarityData="{Binding HasRarityPercent}"
                                      SubjectUri="{Binding DisplayIcon}"
-                                     SubjectInset="2">
+                                     SubjectInset="2"
+                                     CornerRadiusPx="{DynamicResource PlayAch.Radius.AchievementIcon}">
                 <controls:RarityRayBurst.Style>
                     <Style TargetType="controls:RarityRayBurst">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -757,15 +791,11 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <Image Stretch="Uniform"
-                       Margin="2"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128"
-                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
-                    <Image.Style>
-                        <Style TargetType="Image">
+                <!-- The effect sits on this wrapper and the rounding clip on the Image inside it, so the
+                     glow is cast from the rounded art and the clip never cuts the blur. -->
+                <Border>
+                    <Border.Style>
+                        <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -800,8 +830,16 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           Margin="2"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           IsHitTestVisible="False"
+                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                           helpers:AsyncImage.DecodePixel="128"
+                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                </Border>
             </Border>
 
             <!-- Edge that comes with the rays: the same layer as the soft halo above, at a blur small
@@ -813,15 +851,10 @@
                 <Border.CacheMode>
                     <BitmapCache/>
                 </Border.CacheMode>
-                <Image Stretch="Uniform"
-                       Margin="2"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128"
-                       helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
-                    <Image.Style>
-                        <Style TargetType="Image">
+                <!-- Effect on the wrapper, rounding clip on the Image, as for the halo above. -->
+                <Border>
+                    <Border.Style>
+                        <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Setter Property="Effect" Value="{x:Null}"/>
                             <Style.Triggers>
@@ -854,8 +887,16 @@
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+                    <Image Stretch="Uniform"
+                           Margin="2"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           IsHitTestVisible="False"
+                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                           helpers:AsyncImage.DecodePixel="128"
+                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                </Border>
             </Border>
 
             <!-- Front icon. While the row is masked this is the user's locked or hidden cover, so it
@@ -866,7 +907,8 @@
                    RenderOptions.BitmapScalingMode="HighQuality"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
                    helpers:AsyncImage.DecodePixel="128"
-                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}">
+                   helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                   helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Style.Triggers>
@@ -883,33 +925,26 @@
                 </Image.Style>
             </Image>
 
-            <!-- Solid rarity border for Hardcore achievements (replaces the glow).
-                 Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
-                 so it never covers or shrinks the icon, matching how the glow extended outward. -->
-            <Border Margin="-1"
-                    BorderThickness="3"
-                    Background="Transparent"
-                    IsHitTestVisible="False"
-                    SnapsToDevicePixels="True"
-                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
-                                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
+            <!-- Solid rarity border for Hardcore achievements (replaces the glow). The template's
+                 trigger shows it: a presenter's own bindings read no row until it has built its
+                 content, which it does not while collapsed. -->
+            <ContentPresenter x:Name="HardcoreBorder"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementHardcoreBorderTemplate}"
+                              IsHitTestVisible="False"
+                              Visibility="Collapsed"/>
         </Grid>
+        <DataTemplate.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                    <Condition Binding="{Binding ShowHardcoreBorder, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="HardcoreBorder" Property="Visibility" Value="Visible"/>
+            </MultiDataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 
     <!-- The achievement name text of the Achievement and Title columns. Its color follows the
@@ -999,13 +1034,18 @@
         <Setter Property="ProviderKey" Value="{Binding ProviderKey, Mode=OneWay}"/>
     </Style>
 
-    <!-- Achievement Info Template with Hidden Styling -->
+    <!-- Achievement Info Template with Hidden Styling. The name and description share the row's
+         height: a DockPanel hands each the height left, so either wraps and is trimmed only where it
+         reaches the bottom of the cell. The cell's tooltip carries the full text. -->
     <DataTemplate x:Key="AchievementInfoTemplate">
-        <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                    Background="Transparent">
-            <TextBlock FontWeight="SemiBold"
+        <DockPanel LastChildFill="True"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   Background="Transparent">
+            <TextBlock DockPanel.Dock="Top"
+                       FontWeight="SemiBold"
                        TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
                        Style="{StaticResource AchievementNameTextStyle}"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
                 <InlineUIContainer BaselineAlignment="Center">
@@ -1028,7 +1068,6 @@
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Margin" Value="0,3,0,0"/>
-                        <Setter Property="MaxHeight" Value="44"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
@@ -1044,32 +1083,86 @@
                 </InlineUIContainer><Run Text="{Binding DescriptionResolved, Mode=OneWay}"
                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}, Converter={StaticResource BrushOpacity}, ConverterParameter={StaticResource PlayAch.Opacity.Subtle}}"/>
             </TextBlock>
-        </StackPanel>
+        </DockPanel>
     </DataTemplate>
 
-    <!-- Unlock Date / Progress Template -->
-    <DataTemplate x:Key="AchievementUnlockDateTemplate">
+    <!-- AchievementInfoTemplate while the grid shows no detail before the name or the
+         description: the same text without the detail elements, which as empty inline
+         containers still made each line format again on every arrange. -->
+    <DataTemplate x:Key="AchievementInfoPlainTemplate">
+        <DockPanel LastChildFill="True"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   Background="Transparent">
+            <TextBlock DockPanel.Dock="Top"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       Style="{StaticResource AchievementNameTextStyle}"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"><Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                     FontStyle="Italic"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
+                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+            </TextBlock>
+            <TextBlock FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,0,0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+                <!-- The ellipsis takes the TextBlock's brush, so the dimming stays on the run. -->
+                <Run Text="{Binding DescriptionResolved, Mode=OneWay}"
+                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TextBlock}, Converter={StaticResource BrushOpacity}, ConverterParameter={StaticResource PlayAch.Opacity.Subtle}}"/>
+            </TextBlock>
+        </DockPanel>
+    </DataTemplate>
+
+    <!-- The stand-in drawn in a Compare avatar circle whose side has no avatar image (a
+         provider with no stored account, or a friend with no cached avatar). The element's Tag
+         carries the avatar path. -->
+    <Style x:Key="CompareAvatarPlaceholderStyle" TargetType="controls:GlyphIcon">
+        <Setter Property="Glyph" Value="&#xED05;"/>
+        <Setter Property="Size" Value="11"/>
+        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Icon}"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Muted}"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="{x:Null}">
+                <Setter Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="">
+                <Setter Property="Visibility" Value="Visible"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- The Unlock Date cell in compare mode. -->
+    <DataTemplate x:Key="AchievementUnlockDateCompareTemplate">
         <!-- The tooltip names both sides of the comparison, so it covers the whole cell rather
              than only the friend's row. It resolves to null outside compare mode.
 
-             Outside compare mode the grid stretches and the date aligns itself inside the star
-             column, as it always has. In compare mode the grid instead sizes to its content and
-             takes the column's alignment itself, so the avatar+date block moves as one unit:
-             centered centers the whole pair, right pushes the whole pair right. Aligning each row
-             on its own instead would leave the two avatars at different offsets, since the rows
-             hold different text. -->
+             The grid always stretches. In compare mode the avatars sit in column 0 at the cell's
+             left edge, so they form one column down the grid whatever the rows hold, and each
+             row's text takes the column's configured alignment within the space to their right. -->
         <Grid Background="Transparent"
+              HorizontalAlignment="Stretch"
               ToolTip="{Binding ComparisonToolTip, Mode=OneWay}">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                            <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -1087,29 +1180,20 @@
                     Margin="0,0,5,0"
                     ClipToBounds="True"
                     VerticalAlignment="Center"
+                    Background="{DynamicResource PlayAch.Brush.Control.Background}"
                     Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
-                <Image Stretch="Uniform"
-                       helpers:AsyncImage.Uri="{Binding ComparisonOwnerAvatarPath}"
-                       helpers:AsyncImage.DecodePixel="32"/>
+                <Grid>
+                    <controls:GlyphIcon Style="{StaticResource CompareAvatarPlaceholderStyle}"
+                                        Tag="{Binding ComparisonOwnerAvatarPath}"/>
+                    <Image Stretch="Uniform"
+                           helpers:AsyncImage.Uri="{Binding ComparisonOwnerAvatarPath}"
+                           helpers:AsyncImage.DecodePixel="32"/>
+                </Grid>
             </Border>
 
-            <!-- Inside the block the text sits hard against its avatar; the block as a whole is
-                 what carries the column's alignment (see the grid style above). Letting the text
-                 align itself here as well would slide it away from the avatar and stagger the two
-                 rows. Outside compare mode there is no block to align, so the column's configured
-                 alignment applies to the text directly, as it always has. -->
             <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                   Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="HorizontalAlignment" Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                                <Setter Property="HorizontalAlignment" Value="Left"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
                 <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                         Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                         Foreground="{DynamicResource PlayAch.Brush.Text}"
@@ -1125,21 +1209,23 @@
                 </TextBlock>
             </Grid>
 
+            <!-- Hidden in compare mode for an unlock with no date, where the Unlocked label below
+                 takes the row. -->
             <Grid Grid.Column="1"
-                Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
                 Margin="4,0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
-                <!-- The column stops stretching once the cell sizes to its content in compare
-                     mode, so the bar needs a floor there or it shrinks to the width of whatever
-                     text the friend row happens to carry. Left unconstrained otherwise, where the
-                     star column still drives its width. -->
                 <Grid.Style>
                     <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasComparison}" Value="True">
-                                <Setter Property="MinWidth" Value="80"/>
-                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasComparison}" Value="True"/>
+                                    <Condition Binding="{Binding UnlockedWithoutDate}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
@@ -1161,7 +1247,8 @@
                  the progress bar inside it only renders when HasProgress, so a locked achievement
                  with no progress data leaves this row empty. Beside an avatar that reads as a
                  stray image, so the friend row's Locked label is mirrored here. -->
-            <Grid Grid.Column="1" HorizontalAlignment="Left">
+            <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -1184,10 +1271,35 @@
                         Opacity="{StaticResource PlayAch.Opacity.Placeholder}"/>
             </Grid>
 
-            <!-- Comparison row: the compare friend's avatar + unlock date, Locked, or N/A when
-                 they have no data for the row's game. The avatar
-                 sits in the same Auto column as the owner's above it, so the two line up by
-                 construction instead of each row aligning itself independently. -->
+            <!-- Owner's Unlocked label, compare mode only: an unlock with no date on record (a
+                 manual unlock) has no date to show beside the avatar. -->
+            <Grid Grid.Column="1"
+                  HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasComparison}" Value="True"/>
+                                    <Condition Binding="{Binding UnlockedWithoutDate}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
+            </Grid>
+
+            <!-- Comparison row: the compare friend's avatar + unlock date, Unlocked when they have
+                 it with no date, Locked, or N/A when they have no data for the row's game. The
+                 avatar sits in the same Auto column as the owner's above it, so the two line up
+                 by construction. -->
             <Border Grid.Row="1"
                     Grid.Column="0"
                     Width="16"
@@ -1196,19 +1308,23 @@
                     Margin="0,2,5,0"
                     ClipToBounds="True"
                     VerticalAlignment="Center"
+                    Background="{DynamicResource PlayAch.Brush.Control.Background}"
                     Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
-                <Image Stretch="Uniform"
-                       helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
-                       helpers:AsyncImage.DecodePixel="32"/>
+                <Grid>
+                    <controls:GlyphIcon Style="{StaticResource CompareAvatarPlaceholderStyle}"
+                                        Tag="{Binding ComparisonFriendAvatarPath}"/>
+                    <Image Stretch="Uniform"
+                           helpers:AsyncImage.Uri="{Binding ComparisonFriendAvatarPath}"
+                           helpers:AsyncImage.DecodePixel="32"/>
+                </Grid>
             </Border>
 
-            <!-- Left, matching the owner's text above: this row only exists in compare mode, where
-                 both sides are pinned left against their shared avatar column. -->
+            <!-- The friend's text takes the column's alignment, as the owner's text above does. -->
             <StackPanel Grid.Row="1"
                         Grid.Column="1"
                         Orientation="Horizontal"
                         Margin="0,2,0,0"
-                        HorizontalAlignment="Left"
+                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                         Visibility="{Binding HasComparison, Converter={StaticResource BoolToVis}}">
                 <TextBlock VerticalAlignment="Center"
                         Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
@@ -1223,6 +1339,12 @@
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                        Visibility="{Binding ComparisonUnlockedWithoutDate, Converter={StaticResource BoolToVis}}"/>
                 <!-- The outer panel shows Locked for every row that is not unlocked; the text
                      inside reads N/A instead when the comparison does not apply. -->
                 <StackPanel Orientation="Horizontal"
@@ -1243,6 +1365,73 @@
                 </StackPanel>
             </StackPanel>
         </Grid>
+    </DataTemplate>
+
+    <!-- The locked progress bar and its count, built only for a row that shows it. -->
+    <DataTemplate x:Key="AchievementUnlockProgressTemplate">
+        <Grid>
+            <ProgressBar Style="{StaticResource GameProgressBar}"
+                         Value="{Binding ProgressPercent, Mode=OneWay}"
+                         Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+
+            <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Unlock Date / Progress Template: the unlock date, or the locked progress. The progress
+         and the compare layout sit in presenters that stay collapsed until a row shows them, so
+         neither is built for a row that does not. In compare mode the compare layout takes the
+         cell. -->
+    <DataTemplate x:Key="AchievementUnlockDateTemplate">
+        <Grid>
+            <TextBlock x:Name="UnlockDate"
+                       HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                       Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                       TextWrapping="Wrap"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                       Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                        <Binding Path="UnlockTimeLocal"/>
+                        <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+
+            <ContentPresenter x:Name="Progress"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementUnlockProgressTemplate}"
+                              Margin="4,0"
+                              VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                              Visibility="Collapsed"/>
+
+            <ContentPresenter x:Name="Compare"
+                              Content="{Binding}"
+                              ContentTemplate="{StaticResource AchievementUnlockDateCompareTemplate}"
+                              Visibility="Collapsed"/>
+        </Grid>
+        <!-- The presenters are shown by these triggers: a presenter's own bindings read no row
+             until it has built its content, which it does not while collapsed. Later triggers
+             win, so compare mode hides the progress too. -->
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding ShowLockedProgress}" Value="True">
+                <Setter TargetName="Progress" Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasComparison}" Value="True">
+                <Setter TargetName="UnlockDate" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Progress" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Compare" Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
     </DataTemplate>
 
 

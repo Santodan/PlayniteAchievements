@@ -1,13 +1,14 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Achievements;
+using SqlNado;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.Database
 {
     /// <summary>
-    /// The metadata layer table and the views that resolve the custom layer mirror
-    /// (<c>AchievementOverrides</c>) and the metadata layer over the platform's
+    /// The metadata and custom layer tables and the views that resolve the custom layer
+    /// (<see cref="AchievementsTable"/>) and the metadata layer over the platform's
     /// <c>PlatformDefinitions</c>, with the same precedence as <see cref="LayerResolver"/>.
     /// </summary>
     /// <remarks>
@@ -26,8 +27,21 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         public const string UserViewName = "ResolvedAchievements";
 
-        /// <summary>Every view this class creates, including names retired since.</summary>
-        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, ViewName, "AchievementDefinitionLayers", "ResolvedDefinitions" };
+        /// <summary>
+        /// Every user's achievements: the columns of <see cref="UserViewName"/> plus <c>UserId</c> and
+        /// <c>IsCurrentUser</c>, for the current user and for friends. <see cref="UserViewName"/> is
+        /// its <c>IsCurrentUser = 1</c> rows, numbered. Authored rows have a NULL <c>UserId</c>.
+        /// </summary>
+        public const string AllUsersViewName = "UserAchievementRows";
+
+        /// <summary>
+        /// The order the plugin lists a game's achievements in, over the columns of
+        /// <see cref="AllUsersViewName"/>; <see cref="UserViewName"/> numbers rows by it (DisplayOrder).
+        /// </summary>
+        internal const string DisplayOrderSql = "CustomOrder IS NULL, CustomOrder, MetadataOrder IS NULL, MetadataOrder, IsAuthored, Id, ApiName";
+
+        /// <summary>Every view this class creates, dependents first, including names retired since.</summary>
+        public static readonly IReadOnlyList<string> AllViewNames = new[] { UserViewName, AllUsersViewName, ViewName, "AchievementDefinitionLayers", "ResolvedDefinitions" };
 
         /// <summary>The metadata layer columns, in insert order, after AchievementDefinitionId.</summary>
         public static readonly IReadOnlyList<string> MetadataColumns = new[]
@@ -61,21 +75,78 @@ namespace PlayniteAchievements.Services.Database
                     DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = OLD.Id;
                 END;";
 
-        /// <summary>Game-level custom state the views need, mirrored from the custom-data store.</summary>
-        public const string CreateGameStateTableSql = @"CREATE TABLE IF NOT EXISTS GameCustomState (
+        /// <summary>The user's custom data per achievement: overrides, flags, positions and authored achievements.</summary>
+        public const string AchievementsTable = "CustomLayerAchievements";
+
+        /// <summary>The user's custom data per game: its flags and every setting no query reads (SettingsJson).</summary>
+        public const string GamesTable = "CustomLayerGames";
+
+        /// <summary>The user's settings per category: its kind, position and art.</summary>
+        public const string CategoriesTable = "CustomLayerCategories";
+
+        /// <summary>
+        /// The custom layer tables earlier versions rebuilt from <c>GameCustomData</c> on every
+        /// change. Those versions still rebuild them when run on this database, so the custom layer
+        /// lives under its own names, which they never touch.
+        /// </summary>
+        public static readonly IReadOnlyList<string> RetiredMirrorTables = new[] { "AchievementOverrides", "GameCustomState", "AchievementCategories", "AchievementCategoryKinds", "AchievementFilters" };
+
+        /// <summary>CacheMetadata key set when the <c>GameCustomData</c> payloads moved into the custom layer tables.</summary>
+        public const string CustomLayerMigratedKey = "custom_layer_migrated";
+
+        /// <summary>Per achievement, the user's override (<c>IsAuthored</c> 0) or an achievement the user authored (1).</summary>
+        private static readonly string CreateAchievementsTableSql = @"CREATE TABLE IF NOT EXISTS " + AchievementsTable + @" (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                ApiName TEXT NOT NULL COLLATE NOCASE,
+                IsAuthored INTEGER NOT NULL DEFAULT 0,
+                DisplayName TEXT NULL,
+                Description TEXT NULL,
+                Points INTEGER NULL,
+                TrophyType TEXT NULL COLLATE NOCASE,
+                Category TEXT NULL,
+                Tags TEXT NULL,
+                Hidden INTEGER NULL,
+                UnlockedIconPath TEXT NULL,
+                LockedIconPath TEXT NULL,
+                UnlockTimeUtc TEXT NULL,
+                Cleared INTEGER NOT NULL DEFAULT 0,
+                Note TEXT NULL,
+                GoalOrder INTEGER NULL,
+                CustomOrder INTEGER NULL,
+                FilterOrder INTEGER NULL,
+                SummaryFilterOrder INTEGER NULL,
+                CapstoneOrder INTEGER NULL,
+                Position INTEGER NULL,
+                Unlocked INTEGER NOT NULL DEFAULT 0,
+                ProgressNum INTEGER NULL,
+                ProgressDenom INTEGER NULL,
+                ScaledPoints INTEGER NULL,
+                CategoryKind TEXT NULL,
+                GlobalPercentUnlocked REAL NULL,
+                Rarity TEXT NULL,
+                IsCapstone INTEGER NOT NULL DEFAULT 0,
+                IsAutoCapstone INTEGER NOT NULL DEFAULT 0,
+                IsWholeGameAutoCapstone INTEGER NOT NULL DEFAULT 0,
+                UpdatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName, IsAuthored)
+            );";
+
+        private static readonly string CreateGamesTableSql = @"CREATE TABLE IF NOT EXISTS " + GamesTable + @" (
                 PlayniteGameId TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
                 CapstonesMaterialized INTEGER NOT NULL DEFAULT 0,
                 HasManualLink INTEGER NOT NULL DEFAULT 0,
                 ExcludedFromSummaries INTEGER NOT NULL DEFAULT 0,
                 ExcludedFromRefreshes INTEGER NOT NULL DEFAULT 0,
-                UseSeparateLockedIcons INTEGER NOT NULL DEFAULT 0
+                UseSeparateLockedIcons INTEGER NOT NULL DEFAULT 0,
+                SettingsJson TEXT NOT NULL DEFAULT '{}'
             );";
 
         /// <summary>
         /// The user's settings per category path: its kind ("None" says it has none), its position in
         /// the custom category order and its custom art.
         /// </summary>
-        public const string CreateCategoriesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCategories (
+        private static readonly string CreateCategoriesTableSql = @"CREATE TABLE IF NOT EXISTS " + CategoriesTable + @" (
                 PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
                 Category TEXT NOT NULL COLLATE NOCASE,
                 Kind TEXT NULL,
@@ -83,6 +154,23 @@ namespace PlayniteAchievements.Services.Database
                 ImagePath TEXT NULL,
                 PRIMARY KEY (PlayniteGameId, Category)
             );";
+
+        /// <summary>Creates the custom layer tables. Both the cache and the custom-data store call it.</summary>
+        public static void EnsureCustomLayerTables(SQLiteDatabase db)
+        {
+            // The first layout (schema 23) kept values in two places; dropping it moves GameCustomData in again.
+            if (db.ExecuteScalar<long>("SELECT COUNT(*) FROM pragma_table_info('" + AchievementsTable + "') WHERE name = 'IsFiltered';") > 0)
+            {
+                db.ExecuteNonQuery("DROP TABLE " + AchievementsTable + ";");
+                db.ExecuteNonQuery("DROP TABLE " + GamesTable + ";");
+                db.ExecuteNonQuery("DROP TABLE " + CategoriesTable + ";");
+                db.ExecuteNonQuery("DELETE FROM CacheMetadata WHERE Key = ?;", CustomLayerMigratedKey);
+            }
+
+            db.ExecuteNonQuery(CreateAchievementsTableSql);
+            db.ExecuteNonQuery(CreateGamesTableSql);
+            db.ExecuteNonQuery(CreateCategoriesTableSql);
+        }
 
         /// <summary>Each achievement's capture files, as the plugin matches them to it.</summary>
         public const string CreateCapturesTableSql = @"CREATE TABLE IF NOT EXISTS AchievementCaptures (
@@ -101,7 +189,23 @@ namespace PlayniteAchievements.Services.Database
 
         public const string DeleteSql = "DELETE FROM AchievementMetadataLayer WHERE AchievementDefinitionId = ?;";
 
-        /// <summary>Dropped and recreated on every start, so they always match this code.</summary>
+        /// <summary>
+        /// Whether the database holds exactly the views <see cref="RecreateViewSql"/> creates, by
+        /// the CREATE text SQLite keeps for each, and none of the retired ones.
+        /// </summary>
+        public static bool ViewsAreCurrent(SQLiteDatabase db)
+        {
+            var expected = RecreateViewSql().Where(sql => sql.StartsWith("CREATE ")).Select(sql => sql.TrimEnd(';')).ToList();
+            return AllViewNames.All(name =>
+            {
+                var stored = db.ExecuteScalar<string>("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?;", new object[] { name });
+                return stored == null
+                    ? !expected.Any(sql => sql.StartsWith("CREATE VIEW " + name + " "))
+                    : expected.Contains(stored);
+            });
+        }
+
+        /// <summary>Dropped and recreated on a start that finds them differ from this code (<see cref="ViewsAreCurrent"/>).</summary>
         public static IEnumerable<string> RecreateViewSql()
         {
             foreach (var view in AllViewNames)
@@ -110,7 +214,11 @@ namespace PlayniteAchievements.Services.Database
             }
 
             yield return "CREATE VIEW " + ViewName + " AS SELECT\n" + PublicColumns() + FromClause + ";";
-            yield return UserViewSql();
+            yield return AllUsersViewSql();
+            yield return "CREATE VIEW " + UserViewName + " AS SELECT " +
+                string.Join(", ", PublicColumnNames.Concat(UserColumnNames)) +
+                ", ROW_NUMBER() OVER (PARTITION BY PlayniteGameId ORDER BY " + DisplayOrderSql + ") - 1 AS DisplayOrder" +
+                " FROM " + AllUsersViewName + " WHERE IsCurrentUser = 1;";
         }
 
         private static string PublicColumns() => @"                ad.Id AS Id,
@@ -130,8 +238,7 @@ namespace PlayniteAchievements.Services.Database
                      ELSE " + StoredKind + @" END AS CategoryKind,
                 " + Pick("TrophyType", AchievementField.TrophyType, custom: true) + @",
                 COALESCE(c.Hidden, ad.Hidden) AS Hidden,
-                CASE WHEN COALESCE(gs.CapstonesMaterialized, 0) = 1 THEN COALESCE(c.CapstoneAssigned, 0)
-                     ELSE ad.IsCapstone END AS IsCapstone,
+                " + IsCapstone("ad") + @" AS IsCapstone,
                 CASE WHEN " + IsCleared(AchievementField.Rarity) + @" THEN NULL
                      WHEN m.Rarity IS NOT NULL THEN m.GlobalPercentUnlocked
                      ELSE ad.GlobalPercentUnlocked END AS GlobalPercentUnlocked,
@@ -141,8 +248,8 @@ namespace PlayniteAchievements.Services.Database
                 " + Pick("MetadataOrder", AchievementField.Order) + @",
                 ad.CreatedUtc AS CreatedUtc,
                 ad.UpdatedUtc AS UpdatedUtc,
-                COALESCE(c.IsFiltered, 0) AS IsFiltered,
-                COALESCE(c.IsSummaryFiltered, 0) AS IsSummaryFiltered,
+                c.FilterOrder IS NOT NULL AS IsFiltered,
+                c.SummaryFilterOrder IS NOT NULL AS IsSummaryFiltered,
                 c.Note AS Note,
                 c.GoalOrder IS NOT NULL AS IsGoal,
                 c.GoalOrder AS GoalOrder,
@@ -154,9 +261,9 @@ namespace PlayniteAchievements.Services.Database
               FROM PlatformDefinitions ad
               LEFT JOIN AchievementMetadataLayer m ON m.AchievementDefinitionId = ad.Id
               LEFT JOIN Games g ON g.Id = ad.GameId
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
-              LEFT JOIN AchievementCategories k ON k.PlayniteGameId = g.PlayniteGameId AND k.Category = " + ResolvedCategory;
+              LEFT JOIN " + AchievementsTable + @" c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN " + CategoriesTable + @" k ON k.PlayniteGameId = g.PlayniteGameId AND k.Category = " + ResolvedCategory;
 
         private const string CaptureColumns =
             "cap.CleanPath AS CleanCapturePath, cap.NotificationPath AS NotificationCapturePath, " +
@@ -167,9 +274,8 @@ namespace PlayniteAchievements.Services.Database
 
         private static string ResolvedCategory => "COALESCE(" + Value("Category", AchievementField.Category, custom: true) + ", 'Default')";
 
-        /// <summary>A column of the user's settings for the given game and category.</summary>
-        private static string CategoryValue(string column, string gameId, string category) =>
-            "(SELECT k." + column + " FROM AchievementCategories k WHERE k.PlayniteGameId = " + gameId + " AND k.Category = " + category + ")";
+        private static string IsCapstone(string platform) =>
+            "CASE WHEN COALESCE(gs.CapstonesMaterialized, 0) = 1 THEN c.CapstoneOrder IS NOT NULL ELSE " + platform + ".IsCapstone END";
 
         /// <summary>The public view's columns, in order; the user view's two halves list them alike.</summary>
         private static readonly string[] PublicColumnNames =
@@ -180,75 +286,132 @@ namespace PlayniteAchievements.Services.Database
             "IsSummaryFiltered", "Note", "IsGoal", "GoalOrder", "CustomOrder", "CategoryOrder", "CategoryArtPath"
         };
 
-        /// <summary>How an authored achievement's mirror row fills each public column.</summary>
+        /// <summary>The user view's columns after the public ones, in order, before DisplayOrder.</summary>
+        private static readonly string[] UserColumnNames =
+        {
+            "PlayniteGameId", "GameName", "ProviderKey", "Unlocked", "UnlockTimeUtc", "ProgressNum", "ProgressDenom",
+            "ExcludedFromSummaries", "IsAuthored", "CleanCapturePath", "NotificationCapturePath", "FramedCapturePath",
+            "VideoCapturePath"
+        };
+
+        private static string AuthoredCategory => "COALESCE(" + Value("Category", AchievementField.Category, custom: true, platform: "a") + ", 'Default')";
+
+        /// <summary>
+        /// How an authored achievement fills each public column: the user's override row (c) over
+        /// the achievement as the user defined it (a), as the platform half resolves a definition.
+        /// </summary>
         private static readonly Dictionary<string, string> AuthoredColumns = new Dictionary<string, string>
         {
             ["Id"] = "NULL",
             ["GameId"] = "NULL",
-            ["Category"] = "COALESCE(a.Category, 'Default')",
-            ["ProviderCategory"] = "COALESCE(a.Category, 'Default')",
-            ["Hidden"] = "COALESCE(a.Hidden, 0)",
+            ["DisplayName"] = Value("DisplayName", AchievementField.DisplayName, custom: true, platform: "a"),
+            ["Description"] = Value("Description", AchievementField.Description, custom: true, platform: "a"),
+            ["UnlockedIconPath"] = Value("UnlockedIconPath", AchievementField.UnlockedIcon, custom: true, platform: "a"),
+            ["LockedIconPath"] = Value("LockedIconPath", AchievementField.LockedIcon, custom: true, platform: "a"),
+            ["Points"] = Value("Points", AchievementField.Points, custom: true, platform: "a"),
+            ["Category"] = AuthoredCategory,
+            ["ProviderCategory"] = AuthoredCategory,
+            ["Tags"] = Tags("a"),
+            ["CategoryKind"] = "CASE WHEN " + StoredKind + " IS NULL THEN a.CategoryKind WHEN " + StoredKind + " = 'None' THEN NULL ELSE " + StoredKind + " END",
+            ["TrophyType"] = Value("TrophyType", AchievementField.TrophyType, custom: true, platform: "a"),
+            ["Hidden"] = "COALESCE(c.Hidden, a.Hidden, 0)",
+            ["IsCapstone"] = IsCapstone("a"),
             ["Rarity"] = "COALESCE(a.Rarity, 'Common')",
             ["ProgressMax"] = "a.ProgressDenom",
             ["MetadataOrder"] = "NULL",
             ["CreatedUtc"] = "NULL",
-            ["IsGoal"] = "a.GoalOrder IS NOT NULL",
-            ["CategoryOrder"] = CategoryValue("SortIndex", "a.PlayniteGameId", "COALESCE(a.Category, 'Default')"),
-            ["CategoryArtPath"] = CategoryValue("ImagePath", "a.PlayniteGameId", "COALESCE(a.Category, 'Default')")
+            ["IsFiltered"] = "c.FilterOrder IS NOT NULL",
+            ["IsSummaryFiltered"] = "c.SummaryFilterOrder IS NOT NULL",
+            ["IsGoal"] = "c.GoalOrder IS NOT NULL",
+            ["CategoryOrder"] = "k.SortIndex",
+            ["CategoryArtPath"] = "k.ImagePath"
         };
 
         /// <summary>
-        /// The current user's achievements: each definition of a game the user has, with unlock
-        /// state and the user's unlock time, plus the achievements the user authored, numbered in
-        /// the order the plugin lists them (DisplayOrder).
+        /// Every user's achievements: each definition of a game the user has, with unlock state and
+        /// unlock time, plus the achievements the current user authored. Unlock-time overrides and
+        /// clears and authored achievements apply to the current user only.
         /// </summary>
-        private static string UserViewSql()
+        /// <remarks>
+        /// No window function, so SQLite applies any filter before reading the layers; queries
+        /// order by <see cref="DisplayOrderSql"/> instead of a row number. Unlocked and locked
+        /// definitions are separate halves with a constant <c>Unlocked</c>, so a filter on it skips
+        /// the other half and an unlocked read starts from the unlocked rows.
+        /// </remarks>
+        private static string AllUsersViewSql()
         {
-            var unlockTimeBit = (int)AchievementField.UnlockTime;
-            var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
+            // The rest come from the definition (a), or the override row (c) for its notes and order.
             var authored = string.Join(",\n                ", PublicColumnNames.Select(name =>
-                (AuthoredColumns.TryGetValue(name, out var expression) ? expression : "a." + name) + " AS " + name));
-            return "CREATE VIEW " + UserViewName + @" AS SELECT u.*,
-                ROW_NUMBER() OVER (PARTITION BY u.PlayniteGameId ORDER BY u.CustomOrder IS NULL, u.CustomOrder,
-                    u.MetadataOrder IS NULL, u.MetadataOrder, u.IsAuthored, u.Id, u.ApiName) - 1 AS DisplayOrder
-              FROM (SELECT
-                " + platform + @",
-                g.PlayniteGameId AS PlayniteGameId,
-                g.GameName AS GameName,
-                g.ProviderKey AS ProviderKey,
-                COALESCE(ua.Unlocked, 0) AS Unlocked,
-                CASE WHEN COALESCE(ua.Unlocked, 0) = 1 AND c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
-                     WHEN COALESCE(ua.Unlocked, 0) = 1 AND (COALESCE(c.Cleared, 0) & " + unlockTimeBit + @") <> 0 THEN NULL
-                     ELSE ua.UnlockTimeUtc END AS UnlockTimeUtc,
-                ua.ProgressNum AS ProgressNum,
-                ua.ProgressDenom AS ProgressDenom,
-                COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
-                0 AS IsAuthored,
-                " + CaptureColumns + @"
-              FROM UserGameProgress ugp
-              INNER JOIN Users u ON u.Id = ugp.UserId AND u.IsCurrentUser = 1
-              INNER JOIN Games g ON g.Id = ugp.GameId
-              INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
-              LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id
-              LEFT JOIN AchievementOverrides c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = g.PlayniteGameId
-              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName
+                (AuthoredColumns.TryGetValue(name, out var expression) ? expression : (name == "Note" || name.EndsWith("Order") ? "c." : "a.") + name) + " AS " + name));
+            return "CREATE VIEW " + AllUsersViewName + " AS " + PlatformRowsSql(unlocked: true) + @"
+            UNION ALL " + PlatformRowsSql(unlocked: false) + @"
             UNION ALL SELECT
                 " + authored + @",
                 a.PlayniteGameId AS PlayniteGameId,
                 (SELECT gn.GameName FROM Games gn WHERE gn.PlayniteGameId = a.PlayniteGameId AND gn.GameName IS NOT NULL LIMIT 1) AS GameName,
                 NULL AS ProviderKey,
                 a.Unlocked AS Unlocked,
-                a.UnlockTimeUtc AS UnlockTimeUtc,
+                CASE WHEN a.Unlocked = 0 OR COALESCE(gs.HasManualLink, 0) = 1 THEN a.UnlockTimeUtc
+                     WHEN c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
+                     WHEN " + IsCleared(AchievementField.UnlockTime, "c") + @" THEN NULL
+                     ELSE a.UnlockTimeUtc END AS UnlockTimeUtc,
                 a.ProgressNum AS ProgressNum,
                 a.ProgressDenom AS ProgressDenom,
                 COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
                 1 AS IsAuthored,
-                " + CaptureColumns + @"
-              FROM AchievementOverrides a
-              LEFT JOIN GameCustomState gs ON gs.PlayniteGameId = a.PlayniteGameId
+                " + CaptureColumns + @",
+                NULL AS UserId,
+                1 AS IsCurrentUser
+              FROM " + AchievementsTable + @" a
+              LEFT JOIN " + AchievementsTable + @" c ON c.PlayniteGameId = a.PlayniteGameId AND c.ApiName = a.ApiName AND c.IsAuthored = 0
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = a.PlayniteGameId
+              LEFT JOIN " + CategoriesTable + @" k ON k.PlayniteGameId = a.PlayniteGameId AND k.Category = " + AuthoredCategory + @"
               LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = a.PlayniteGameId AND cap.ApiName = a.ApiName
-              WHERE a.IsAuthored = 1) u;";
+              WHERE a.IsAuthored = 1;";
+        }
+
+        /// <summary>
+        /// The definitions of each game a user has, the unlocked ones or the rest. Unlock-time
+        /// overrides and clears apply to the current user's unlocked rows of games without a manual
+        /// link, as <see cref="Models.Settings.AchievementOverride.ApplyUnlockTimeTo"/> applies them.
+        /// </summary>
+        private static string PlatformRowsSql(bool unlocked)
+        {
+            var platform = string.Join(",\n                ", PublicColumnNames.Select(name => "ad." + name + " AS " + name));
+            var unlockTime = unlocked
+                ? @"CASE WHEN usr.IsCurrentUser = 0 OR COALESCE(gs.HasManualLink, 0) = 1 THEN ua.UnlockTimeUtc
+                     WHEN c.UnlockTimeUtc IS NOT NULL THEN c.UnlockTimeUtc
+                     WHEN (COALESCE(c.Cleared, 0) & " + (int)AchievementField.UnlockTime + @") <> 0 THEN NULL
+                     ELSE ua.UnlockTimeUtc END"
+                : "ua.UnlockTimeUtc";
+            var achievements = unlocked
+                ? @"INNER JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
+              INNER JOIN " + ViewName + @" ad ON ad.Id = ua.AchievementDefinitionId AND ad.GameId = ugp.GameId"
+                : @"INNER JOIN " + ViewName + @" ad ON ad.GameId = ugp.GameId
+              LEFT JOIN UserAchievements ua ON ua.UserGameProgressId = ugp.Id AND ua.AchievementDefinitionId = ad.Id";
+            return @"SELECT
+                " + platform + @",
+                g.PlayniteGameId AS PlayniteGameId,
+                g.GameName AS GameName,
+                g.ProviderKey AS ProviderKey,
+                " + (unlocked ? "1" : "0") + @" AS Unlocked,
+                " + unlockTime + @" AS UnlockTimeUtc,
+                ua.ProgressNum AS ProgressNum,
+                ua.ProgressDenom AS ProgressDenom,
+                COALESCE(gs.ExcludedFromSummaries, 0) AS ExcludedFromSummaries,
+                0 AS IsAuthored,
+                " + CaptureColumns + @",
+                usr.Id AS UserId,
+                usr.IsCurrentUser AS IsCurrentUser
+              FROM UserGameProgress ugp
+              INNER JOIN Users usr ON usr.Id = ugp.UserId
+              INNER JOIN Games g ON g.Id = ugp.GameId
+              " + achievements + @"
+              LEFT JOIN " + AchievementsTable + @" c ON c.PlayniteGameId = g.PlayniteGameId AND c.ApiName = ad.ApiName AND c.IsAuthored = 0
+              LEFT JOIN " + GamesTable + @" gs ON gs.PlayniteGameId = g.PlayniteGameId
+              LEFT JOIN AchievementCaptures cap ON cap.PlayniteGameId = g.PlayniteGameId AND cap.ApiName = ad.ApiName" +
+              (unlocked ? string.Empty : @"
+              WHERE ua.Unlocked IS NOT 1");
         }
 
         private static string IsCleared(AchievementField field, string layer = "m") =>
@@ -258,11 +421,22 @@ namespace PlayniteAchievements.Services.Database
         /// The first layer that supplies the column, set or cleared: custom (when it carries the
         /// field), then metadata, then the platform, as <see cref="LayerResolver"/> picks it.
         /// </summary>
-        private static string Value(string column, AchievementField field, bool custom = false) =>
+        /// <remarks>An authored achievement (<paramref name="platform"/> "a") has no metadata layer.</remarks>
+        private static string Value(string column, AchievementField field, bool custom = false, string platform = "ad") =>
             "CASE " +
             (custom ? "WHEN c." + column + " IS NOT NULL THEN c." + column + " WHEN " + IsCleared(field, "c") + " THEN NULL " : string.Empty) +
-            "WHEN m." + column + " IS NOT NULL THEN m." + column + " WHEN " + IsCleared(field) + " THEN NULL " +
-            "ELSE ad." + column + " END";
+            (platform == "ad" ? "WHEN m." + column + " IS NOT NULL THEN m." + column + " WHEN " + IsCleared(field) + " THEN NULL " : string.Empty) +
+            "ELSE " + platform + "." + column + " END";
+
+        /// <summary>
+        /// The column as the metadata and platform layers resolve it, without the user's custom
+        /// layer: the provider's value the achievement editor compares an override with. Reads
+        /// <c>PlatformDefinitions</c> as <c>ad</c> and <c>AchievementMetadataLayer</c> as <c>m</c>.
+        /// </summary>
+        internal static string ProviderValue(string column, AchievementField field) => Value(column, field);
+
+        /// <summary>The tags <see cref="ProviderValue"/> resolves: the metadata layer's with the platform's derived tags, else the platform's.</summary>
+        internal static string ProviderTags() => Tags(custom: false);
 
         private static string Pick(string column, AchievementField field, bool custom = false) =>
             Value(column, field, custom) + " AS " + column;
@@ -271,16 +445,22 @@ namespace PlayniteAchievements.Services.Database
         /// The tags <see cref="LayerResolver.ResolveTags"/> gives: the deciding layer's, plus the
         /// platform's derived tags always and its Unobtainable when metadata decides.
         /// </summary>
-        private static string Tags()
+        private static string Tags(string platform = "ad", bool custom = true)
         {
             string Keep(string key) =>
-                "CASE WHEN ('|' || COALESCE(ad.Tags, '') || '|') LIKE '%|" + key + "|%' THEN '|" + key + "' ELSE '' END";
+                "CASE WHEN ('|' || COALESCE(" + platform + ".Tags, '') || '|') LIKE '%|" + key + "|%' THEN '|" + key + "' ELSE '' END";
             var derived = Keep(AchievementTagHelper.Softcore) + " || " + Keep(AchievementTagHelper.Hardcore);
-            return "CASE WHEN c.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags, "c") + @"
-                     THEN NULLIF(TRIM(COALESCE(c.Tags, '') || " + derived + @", '|'), '')
+            var metadata = platform != "ad" ? string.Empty : @"
                      WHEN m.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags) + @"
-                     THEN NULLIF(TRIM(COALESCE(m.Tags, '') || " + derived + " || " + Keep(AchievementTagHelper.Unobtainable) + @", '|'), '')
-                     ELSE ad.Tags END";
+                     THEN NULLIF(TRIM(COALESCE(m.Tags, '') || " + derived + " || " + Keep(AchievementTagHelper.Unobtainable) + @", '|'), '')";
+            if (!custom)
+            {
+                return "CASE" + metadata + " ELSE " + platform + ".Tags END";
+            }
+
+            return "CASE WHEN c.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags, "c") + @"
+                     THEN NULLIF(TRIM(COALESCE(c.Tags, '') || " + derived + @", '|'), '')" + metadata + @"
+                     ELSE " + platform + ".Tags END";
         }
     }
 }

@@ -6,6 +6,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -106,20 +107,6 @@ namespace PlayniteAchievements.ViewModels
             ScheduleAchievementFilterApply();
         }
 
-        /// <summary>
-        /// Offers the trophy options only while some unlocked achievement has a trophy type; an
-        /// empty list hides the trophy filter. The rarity options (the tiers and Capstone) are
-        /// fixed. The rarity and trophy option labels are the slice labels the rarity and trophy
-        /// pies draw, so a slice click selects the option of the same name.
-        /// </summary>
-        private void UpdateAchievementFilterOptions()
-        {
-            if (_tierFilters.UpdateRows(_allRecentAchievements))
-            {
-                RecentAchievementsControlBar?.Refresh();
-            }
-        }
-
         private void ScheduleAchievementFilterApply() => ScheduleFilterApply();
 
         /// <summary>
@@ -157,24 +144,8 @@ namespace PlayniteAchievements.ViewModels
 
         private bool _filterApplyPending;
 
-        /// <summary>
-        /// Rows whose game the Games grid lists, so its filters (platform, progress, activity,
-        /// search) combine with the Achievements grid's own; every row while the Games grid is
-        /// unfiltered.
-        /// </summary>
-        private IEnumerable<AchievementDisplayItem> KeepGamesGridGames(IEnumerable<AchievementDisplayItem> items)
-        {
-            var listed = _filteredGameSummaries;
-            if (listed == null || listed.Count == (_allGameSummaries?.Count(game => game != null) ?? 0))
-            {
-                return items;
-            }
-
-            var ids = new HashSet<Guid>(listed
-                .Where(game => game?.PlayniteGameId.HasValue == true)
-                .Select(game => game.PlayniteGameId.Value));
-            return items.Where(item => item?.PlayniteGameId.HasValue == true && ids.Contains(item.PlayniteGameId.Value));
-        }
+        private const OverviewLinkedFilter AchievementFilters =
+            OverviewLinkedFilter.UnlockSpan | OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy | OverviewLinkedFilter.Tag;
 
         private bool HasAchievementFilters(OverviewLinkedFilter exclude) =>
             ((exclude & OverviewLinkedFilter.UnlockSpan) == 0 && UnlockSpanFilter.HasValue) ||
@@ -184,10 +155,10 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// The Achievements grid's filters, less those in <paramref name="exclude"/>, as one test
-        /// on an achievement row. Only unlocked rows pass: the filters describe unlocks. An unlock
-        /// with no time passes unless the date range is set, which it cannot fall inside.
+        /// on the snapshot's unlocks. An unlock with no time passes unless the date range is set,
+        /// which it cannot fall inside.
         /// </summary>
-        private Func<AchievementDisplayItem, bool> AchievementFilter(OverviewLinkedFilter exclude)
+        private Func<UnlockFact, bool> AchievementFilter(OverviewLinkedFilter exclude)
         {
             var span = (exclude & OverviewLinkedFilter.UnlockSpan) == 0 ? UnlockSpanFilter : null;
             var tiers = _tierFilters;
@@ -197,13 +168,11 @@ namespace PlayniteAchievements.ViewModels
                 ? _selectedTagFilters.ToList()
                 : null;
 
-            return item =>
-                item?.Unlocked == true &&
-                (!span.HasValue ||
-                 (item.UnlockTimeUtc.HasValue && span.Value.Contains(UnlockDayCounts.DayOf(item.UnlockTimeUtc.Value)))) &&
-                (!applyRarity || tiers.MatchesRarity(item)) &&
-                (!applyTrophy || tiers.MatchesTrophy(item)) &&
-                (tags == null || tags.Any(tag => AchievementTagHelper.Contains(item.Tags, tag)));
+            return fact =>
+                (!span.HasValue || (fact.Day.HasValue && span.Value.Contains(fact.Day.Value))) &&
+                (!applyRarity || tiers.MatchesRarity(fact.Tally)) &&
+                (!applyTrophy || tiers.MatchesTrophy(fact.Tally)) &&
+                (tags == null || tags.Any(tag => AchievementTagHelper.Contains(fact.Tally.Key, tag)));
         }
 
         // A key for the filters a view applies, so a cached view knows when they moved.
@@ -224,17 +193,11 @@ namespace PlayniteAchievements.ViewModels
                    "|" + rarity + "|" + trophy + "|" + tag;
         }
 
-        /// <summary>The Achievements grid's rows its filters keep; every row while none is set.</summary>
-        private IEnumerable<AchievementDisplayItem> ApplyAchievementFilters(IEnumerable<AchievementDisplayItem> items)
-        {
-            return HasAchievementFilters(OverviewLinkedFilter.None)
-                ? items.Where(AchievementFilter(OverviewLinkedFilter.None))
-                : items;
-        }
-
         /// <summary>
-        /// Games with at least one achievement the Achievements grid's filters keep (less those in
-        /// <paramref name="exclude"/>); every game while none is set.
+        /// Games with at least one unlock the Achievements grid's filters keep (less those in
+        /// <paramref name="exclude"/>); every game while none is set. The grid's own filters read
+        /// the games from the database; a linked widget leaving one of them out counts them from
+        /// the snapshot's unlocks.
         /// </summary>
         private IEnumerable<GameSummaryItem> ApplyAchievementFiltersToGames(
             IEnumerable<GameSummaryItem> games,
@@ -245,12 +208,61 @@ namespace PlayniteAchievements.ViewModels
                 return games;
             }
 
-            var filter = AchievementFilter(exclude);
-            var kept = new HashSet<Guid>((_allRecentAchievements ?? new List<AchievementDisplayItem>())
-                .Where(filter)
-                .Where(item => item.PlayniteGameId.HasValue)
-                .Select(item => item.PlayniteGameId.Value));
+            HashSet<Guid> kept;
+            if ((exclude & AchievementFilters) == 0)
+            {
+                kept = MatchingGames();
+                if (kept == null)
+                {
+                    // The first read is still running.
+                    return games;
+                }
+            }
+            else
+            {
+                kept = new HashSet<Guid>((_latestSnapshot?.Unlocks ?? Array.Empty<UnlockFact>())
+                    .Where(AchievementFilter(exclude))
+                    .Select(fact => fact.GameId));
+            }
+
             return games.Where(game => game?.PlayniteGameId.HasValue == true && kept.Contains(game.PlayniteGameId.Value));
+        }
+
+        // The games the filters keep, from the last read; null before the first. A read whose
+        // filters changed starts here and filters the Games grid again when it ends.
+        private HashSet<Guid> MatchingGames()
+        {
+            var query = AchievementFilterQuery();
+            if (_matchingGames != null)
+            {
+                if (!string.Equals(AchievementQuerySql.KeyOf(query), AchievementQuerySql.KeyOf(_matchingGames.Query), StringComparison.Ordinal))
+                {
+                    _matchingGames.SetQuery(query);
+                }
+
+                return _matchingGames.Result;
+            }
+
+            if (_cacheReads == null)
+            {
+                return null;
+            }
+
+            _matchingGames = new LiveQuery<HashSet<Guid>>(
+                null,
+                query,
+                read => new HashSet<Guid>(_cacheReads.Reads.Keys(read, AchievementGroup.Game)
+                    .Select(key => Guid.TryParse(key, out var id) ? id : Guid.Empty)),
+                _scheduler,
+                onError: ex => _logger?.Error(ex, "Failed to read the games the achievement filters keep."));
+            _matchingGames.PropertyChanged += (sender, e) =>
+            {
+                if (e.PropertyName == nameof(LiveQuery<object>.Result) && !_disposed && ReferenceEquals(sender, _matchingGames))
+                {
+                    ApplyLeftFilters();
+                }
+            };
+            return null;
         }
 
         /// <summary>
@@ -276,10 +288,7 @@ namespace PlayniteAchievements.ViewModels
 
             var narrowTo = GetLinkedNarrowedGame(selection)?.PlayniteGameId;
             // Narrowed to one game the games filters no longer apply, but the achievement ones do.
-            const OverviewLinkedFilter achievementFilters =
-                OverviewLinkedFilter.UnlockSpan | OverviewLinkedFilter.Rarity | OverviewLinkedFilter.Trophy |
-                OverviewLinkedFilter.Tag;
-            var key = (narrowTo.HasValue ? exclude & achievementFilters : exclude, narrowTo, countsGames);
+            var key = (narrowTo.HasValue ? exclude & AchievementFilters : exclude, narrowTo, countsGames);
             // Whole games are not cut, so for them the filters matter only through the games kept,
             // except the unlock range, which cuts their completions to the ones finished in it.
             var completionSpan = countsGames && !narrowTo.HasValue && (exclude & OverviewLinkedFilter.UnlockSpan) == 0

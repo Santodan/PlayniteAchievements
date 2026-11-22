@@ -1,10 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Database;
+using PlayniteAchievements.Services.GameCustomData;
 using SqlNado;
 
 namespace PlayniteAchievements.SqlNado.Tests
@@ -46,7 +51,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Definition(db, "custom", "Own", "Desc", 10, "Steam", null, "Softcore|Unobtainable", null, "Common");
                 Metadata(db, "custom", displayName: "Borrowed", points: 50, tags: "Collectable");
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, Category, Tags, Cleared, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, Category, Tags, Cleared, UpdatedUtc)
                       VALUES (?, 'custom', 'Mine', 'My Story', 'Challenge', ?, '');",
                     GameId,
                     (long)AchievementField.Description);
@@ -147,8 +152,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                 db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (1, ?, 1);", wonId);
                 db.ExecuteNonQuery("INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked) VALUES (2, ?, 0);", wonId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, Note, GoalOrder, CustomOrder, IsFiltered, UpdatedUtc)
-                      VALUES (?, 'open', 'route note', 0, 3, 1, '');",
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, Note, GoalOrder, CustomOrder, FilterOrder, UpdatedUtc)
+                      VALUES (?, 'open', 'route note', 0, 3, 0, '');",
                     GameId);
 
                 var rows = db.Load<UserRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + " ORDER BY ApiName;").ToList();
@@ -192,15 +197,15 @@ namespace PlayniteAchievements.SqlNado.Tests
                     "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) VALUES (1, ?, 1, '2025-01-01T00:00:00Z');",
                     wonId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, UnlockedIconPath, UnlockTimeUtc, CapstoneAssigned, UpdatedUtc)
-                      VALUES (?, 'won', 'custom/won.png', '2026-02-02T00:00:00Z', 1, '');",
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, UnlockedIconPath, UnlockTimeUtc, CapstoneOrder, UpdatedUtc)
+                      VALUES (?, 'won', 'custom/won.png', '2026-02-02T00:00:00Z', 0, '');",
                     GameId);
                 db.ExecuteNonQuery(
-                    @"INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, Category, UpdatedUtc)
+                    @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, Category, UpdatedUtc)
                       VALUES (?, 'custom:mine', 'Mine', 1, 1, 'Side', '');",
                     GameId);
-                db.ExecuteNonQuery("INSERT INTO GameCustomState (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
-                db.ExecuteNonQuery("INSERT INTO AchievementCategories (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, CapstonesMaterialized, ExcludedFromSummaries) VALUES (?, 1, 1);", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerCategories (PlayniteGameId, Category, Kind) VALUES (?, 'DLC One', 'DLC');", GameId);
                 db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
 
                 var rows = db.Load<GapRow>("SELECT * FROM " + AchievementLayerSql.UserViewName + ";").ToList();
@@ -218,6 +223,223 @@ namespace PlayniteAchievements.SqlNado.Tests
                 Assert.AreEqual("Mine", mine.DisplayName);
                 Assert.AreEqual(1, mine.Unlocked);
             });
+        }
+
+        private static readonly DateTime Authored1 = new DateTime(2025, 3, 1, 10, 30, 0, DateTimeKind.Utc);
+        private static readonly DateTime Authored2 = new DateTime(2025, 4, 2, 11, 0, 0, DateTimeKind.Utc);
+
+        [TestMethod]
+        public void AuthoredAchievements_ResolveTheUsersOverrides_AsTheProjectionDoes()
+        {
+            WithDatabase(db =>
+            {
+                foreach (var manualLink in new[] { false, true })
+                {
+                    var gameId = Guid.NewGuid();
+                    var data = GameCustomDataNormalizer.NormalizeInternal(new GameCustomDataFile
+                    {
+                        PlayniteGameId = gameId,
+                        ManualLink = manualLink ? new ManualAchievementLink { SourceKey = "Steam", SourceGameId = "1" } : null,
+                        CapstonesMaterialized = true,
+                        Capstones = new List<CapstoneAssignment> { new CapstoneAssignment { ApiName = "custom:three" } },
+                        GoalAchievementApiNames = new List<string> { "custom:two" },
+                        AchievementCategoryKinds = new Dictionary<string, string> { ["Story"] = "Base", ["Side"] = "None" },
+                        AchievementCategoryOrder = new List<string> { "Side", "Story" },
+                        AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData> { ["Story"] = new CategoryImageOverrideData { Art = "D:/art/story.png" } },
+                        AchievementOverrides = new Dictionary<string, AchievementOverride>
+                        {
+                            ["custom:one"] = new AchievementOverride { DisplayName = "Renamed", ClearDescription = true, Category = "Story", UnlockTimeUtc = Authored2, UnlockedIconPath = "D:/icons/one.png" },
+                            ["custom:two"] = new AchievementOverride { Hidden = false, Note = "note", Tags = "Missable", Points = 7 },
+                            ["custom:three"] = new AchievementOverride { ClearUnlockTime = true, ClearTrophyType = true }
+                        },
+                        CustomAchievements = new List<CustomAchievementDefinition>
+                        {
+                            new CustomAchievementDefinition
+                            {
+                                Id = "one", DisplayName = "One", Description = "Desc", Unlocked = true, UnlockTimeUtc = Authored1, Points = 5, ScaledPoints = 9,
+                                Category = "Side", CategoryKind = "DLC", TrophyType = "gold", Rarity = "Rare", GlobalPercentUnlocked = 3.5, LockedIconPath = "D:/icons/one.locked.png"
+                            },
+                            new CustomAchievementDefinition { Id = "two", DisplayName = "Two", Hidden = true, IsCapstone = true, Tags = "Collectable", ProgressNum = 1, ProgressDenom = 4, Category = "Side" },
+                            new CustomAchievementDefinition { Id = "three", DisplayName = "Three", Unlocked = true, UnlockTimeUtc = Authored1, TrophyType = "platinum", IsAutoCapstone = true, IsWholeGameAutoCapstone = true }
+                        }
+                    }, gameId);
+                    Insert(db, GameCustomLayer.ToRows(data, path => path));
+
+                    var actual = db.LoadObjects(
+                            "SELECT ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, Tags, CategoryKind, " +
+                            "TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, Unlocked, UnlockTimeUtc, ProgressNum, ProgressDenom, Note, IsGoal, " +
+                            "CategoryOrder, CategoryArtPath FROM " + AchievementLayerSql.UserViewName + " WHERE PlayniteGameId = ? ORDER BY ApiName;",
+                            gameId.ToString("D"))
+                        .Select(values => string.Join("|", values.Select(value => Convert.ToString(value, CultureInfo.InvariantCulture))))
+                        .ToList();
+
+                    CollectionAssert.AreEqual(Projected(data), actual, "manual link: " + manualLink);
+                }
+            });
+        }
+
+        /// <summary>What the plugin's C# projection shows for each authored achievement, in the view's columns.</summary>
+        private static List<string> Projected(GameCustomDataFile data) =>
+            CustomAchievementProjectionService.ProjectAchievements(data.PlayniteGameId, data.CustomAchievements)
+                .OrderBy(detail => detail.ApiName, StringComparer.Ordinal)
+                .Select(detail =>
+                {
+                    AchievementOverride entry = null;
+                    data.AchievementOverrides?.TryGetValue(detail.ApiName, out entry);
+                    detail.CustomLayer = entry?.ToLayer();
+                    AchievementLayers.Resolve(detail);
+                    entry?.ApplyUnlockTimeTo(detail, data.ManualLink != null);
+                    var category = CategoryPathHelper.NormalizePath(detail.Category);
+                    var order = data.AchievementCategoryOrder?.IndexOf(category) ?? -1;
+                    CategoryImageOverrideData art = null;
+                    data.AchievementCategoryImageOverrides?.TryGetValue(category, out art);
+                    return string.Join("|", new object[]
+                    {
+                        detail.ApiName, detail.DisplayName, detail.Description, entry?.UnlockedIconPath ?? detail.UnlockedIconPath,
+                        entry?.LockedIconPath ?? detail.LockedIconPath, detail.Points, detail.ScaledPoints, category, detail.Tags,
+                        CategoryKindHelper.ResolveEffective(CategoryEditor.ResolveStoredCategoryKind(data.AchievementCategoryKinds, category), detail.CategoryKind),
+                        detail.TrophyType, detail.Hidden ? 1 : 0,
+                        (data.CapstonesMaterialized ? data.Capstones.Any(capstone => capstone.Matches(detail.ApiName)) : detail.IsCapstone) ? 1 : 0,
+                        detail.GlobalPercentUnlocked, detail.Rarity, detail.Unlocked ? 1 : 0, detail.UnlockTimeUtc?.ToString("O", CultureInfo.InvariantCulture),
+                        detail.ProgressNum, detail.ProgressDenom, entry?.Note, data.GoalAchievementApiNames?.Contains(detail.ApiName) == true ? 1 : 0,
+                        order >= 0 ? (object)order : null, art?.Art
+                    }.Select(value => Convert.ToString(value, CultureInfo.InvariantCulture)));
+                })
+                .ToList();
+
+        private static void Insert(SQLiteDatabase db, GameCustomLayerRows rows)
+        {
+            var state = rows.State;
+            db.ExecuteNonQuery(
+                "INSERT INTO CustomLayerGames (" + CustomGameStateRow.Columns + ") VALUES (?, ?, ?, ?, ?, ?, ?);",
+                state.PlayniteGameId, state.CapstonesMaterialized, state.HasManualLink, state.ExcludedFromSummaries,
+                state.ExcludedFromRefreshes, state.UseSeparateLockedIcons, state.SettingsJson);
+            var columns = CustomAchievementRow.Columns.Split(',').Length;
+            foreach (var row in rows.Achievements)
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO CustomLayerAchievements (PlayniteGameId, " + CustomAchievementRow.Columns + ", UpdatedUtc) VALUES (" +
+                    string.Join(", ", Enumerable.Repeat("?", columns + 2)) + ");",
+                    new object[] { row.PlayniteGameId }.Concat(row.Values()).Concat(new object[] { string.Empty }).ToArray());
+            }
+
+            foreach (var row in rows.Categories)
+            {
+                db.ExecuteNonQuery(
+                    "INSERT INTO CustomLayerCategories (" + CustomCategoryRow.Columns + ") VALUES (?, ?, ?, ?, ?);",
+                    row.PlayniteGameId, row.Category, row.Kind, row.SortIndex, row.ImagePath);
+            }
+        }
+
+        private sealed class AllUsersRow
+        {
+            public string ApiName { get; set; }
+            public long? UserId { get; set; }
+            public long IsCurrentUser { get; set; }
+            public long Unlocked { get; set; }
+            public string UnlockTimeUtc { get; set; }
+            public long IsAuthored { get; set; }
+        }
+
+        [TestMethod]
+        public void AllUsersView_GivesFriendsTheirOwnUnlockTimes_AndTheCurrentUserTheirOverrides()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+
+                var rows = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " ORDER BY IsCurrentUser, " + AchievementLayerSql.DisplayOrderSql + ";").ToList();
+
+                var friend = rows.Where(row => row.IsCurrentUser == 0).ToList();
+                CollectionAssert.AreEqual(new[] { "won", "open" }, friend.Select(row => row.ApiName).ToList(), "the friend's rows in display order");
+                Assert.IsTrue(friend.All(row => row.UserId == 2 && row.IsAuthored == 0), "authored achievements are the current user's only");
+                Assert.AreEqual("2024-05-05T00:00:00Z", friend[0].UnlockTimeUtc, "the friend's own time, not the user's override");
+                Assert.AreEqual("2024-06-06T00:00:00Z", friend[1].UnlockTimeUtc, "the user's clear does not apply to friends");
+
+                var mine = rows.Where(row => row.IsCurrentUser == 1).ToList();
+                CollectionAssert.AreEqual(new[] { "won", "open", "custom:mine" }, mine.Select(row => row.ApiName).ToList());
+                CollectionAssert.AreEqual(new long?[] { 1, 1, null }, mine.Select(row => row.UserId).ToList(), "the account's id; authored rows have none");
+                Assert.AreEqual("2026-02-02T00:00:00Z", mine[0].UnlockTimeUtc, "the user's override");
+                Assert.IsNull(mine[1].UnlockTimeUtc, "the user's clear");
+                Assert.AreEqual(1, mine[2].IsAuthored);
+            });
+        }
+
+        [TestMethod]
+        public void AllUsersView_SkipsUnlockTimeOverrides_ForAManuallyLinkedGame()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, HasManualLink) VALUES (?, 1);", GameId);
+
+                var mine = db.Load<AllUsersRow>("SELECT * FROM " + AchievementLayerSql.AllUsersViewName + " WHERE IsCurrentUser = 1 AND IsAuthored = 0 ORDER BY " + AchievementLayerSql.DisplayOrderSql + ";").ToList();
+
+                CollectionAssert.AreEqual(
+                    new[] { "2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z" },
+                    mine.Select(row => row.UnlockTimeUtc).ToList(),
+                    "the recorded times, neither the override nor the clear");
+            });
+        }
+
+        [TestMethod]
+        public void UserView_MatchesThePreviousDefinition()
+        {
+            WithDatabase(db =>
+            {
+                SeedUnlocksAndOverrides(db);
+
+                // A second current-user account on another provider for the same library game, and a
+                // friend's game outside the library.
+                db.ExecuteNonQuery("INSERT INTO Users (Id, IsCurrentUser) VALUES (3, 1);");
+                db.ExecuteNonQuery("INSERT INTO Games (Id, PlayniteGameId, GameName, ProviderKey) VALUES (2, '" + GameId + "', 'Game', 'Exophase'), (3, NULL, 'Other', 'Steam');");
+                db.ExecuteNonQuery("INSERT INTO UserGameProgress (Id, UserId, GameId) VALUES (3, 3, 2), (4, 2, 3);");
+                db.ExecuteNonQuery(
+                    @"INSERT INTO PlatformDefinitions (GameId, ApiName, DisplayName, MetadataOrder, CreatedUtc, UpdatedUtc)
+                      VALUES (2, 'exo', 'Exo', 1, '', ''), (3, 'other', 'Other', NULL, '', '');");
+                db.ExecuteNonQuery(
+                    "INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc) SELECT 3, Id, 1, '2023-01-01T00:00:00Z' FROM PlatformDefinitions WHERE ApiName = 'exo';");
+                db.ExecuteNonQuery("INSERT INTO AchievementCaptures (PlayniteGameId, ApiName, CleanPath) VALUES (?, 'won', 'C:/captures/won.png');", GameId);
+                db.ExecuteNonQuery("INSERT INTO CustomLayerGames (PlayniteGameId, ExcludedFromSummaries) VALUES (?, 1);", GameId);
+                CollectionAssert.DoesNotContain(
+                    db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", AchievementLayerSql.AllUsersViewName).Select(row => row.Sql).ToList(),
+                    "DisplayOrder",
+                    "the all-users view has no window");
+                db.ExecuteNonQuery(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "SqlNado", "resolved-achievements-before-all-users.sql")));
+
+                string Columns(string view) => string.Join(",", db.Load<SqlRow>("SELECT name AS Sql FROM pragma_table_info(?);", view).Select(row => row.Sql));
+                Assert.AreEqual(Columns("ResolvedAchievementsBefore"), Columns(AchievementLayerSql.UserViewName));
+
+                long Count(string sql) => db.ExecuteScalar<long>("SELECT COUNT(*) FROM (" + sql + ");");
+                Assert.AreEqual(4, Count("SELECT * FROM " + AchievementLayerSql.UserViewName), "won, open and exo from two accounts, and the authored one");
+                Assert.AreEqual(Count("SELECT * FROM ResolvedAchievementsBefore"), Count("SELECT * FROM " + AchievementLayerSql.UserViewName));
+                Assert.AreEqual(0, Count("SELECT * FROM ResolvedAchievementsBefore EXCEPT SELECT * FROM " + AchievementLayerSql.UserViewName));
+                Assert.AreEqual(0, Count("SELECT * FROM " + AchievementLayerSql.UserViewName + " EXCEPT SELECT * FROM ResolvedAchievementsBefore"));
+            });
+        }
+
+        /// <summary>
+        /// The current user (UserGameProgress 1) and a friend (2) both unlocked "won" and "open";
+        /// the user overrode the time of "won", cleared the time of "open", and authored one more.
+        /// </summary>
+        private static void SeedUnlocksAndOverrides(SQLiteDatabase db)
+        {
+            Definition(db, "won", "Won", null, null, "Default", null, null, null, "Common");
+            Definition(db, "open", "Open", null, null, "Default", null, null, null, "Common");
+            db.ExecuteNonQuery(
+                @"INSERT INTO UserAchievements (UserGameProgressId, AchievementDefinitionId, Unlocked, UnlockTimeUtc)
+                  SELECT 1, Id, 1, '2025-01-01T00:00:00Z' FROM PlatformDefinitions
+                  UNION ALL SELECT 2, Id, 1, CASE ApiName WHEN 'won' THEN '2024-05-05T00:00:00Z' ELSE '2024-06-06T00:00:00Z' END FROM PlatformDefinitions;");
+            db.ExecuteNonQuery(
+                @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, UnlockTimeUtc, Cleared, UpdatedUtc)
+                  VALUES (?, 'won', '2026-02-02T00:00:00Z', 0, ''), (?, 'open', NULL, ?, '');",
+                GameId,
+                GameId,
+                (long)AchievementField.UnlockTime);
+            db.ExecuteNonQuery(
+                @"INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, IsAuthored, Unlocked, UnlockTimeUtc, UpdatedUtc)
+                  VALUES (?, 'custom:mine', 'Mine', 1, 1, '2025-05-05T00:00:00Z', '');",
+                GameId);
         }
 
         private sealed class SqlRow
@@ -261,7 +483,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     Assert.AreEqual("table", TypeOf("PlatformDefinitions"));
                     Assert.AreEqual("view", TypeOf("AchievementDefinitions"));
                     Assert.AreEqual("Borrowed", db.ExecuteScalar<string>("SELECT DisplayName FROM AchievementDefinitions WHERE ApiName = 'a';"));
-                    Assert.AreEqual("22", db.ExecuteScalar<string>("SELECT Value FROM CacheMetadata WHERE Key = 'schema_version';"));
+                    Assert.AreEqual(SqlNadoSchemaManager.SchemaVersion.ToString(), db.ExecuteScalar<string>("SELECT Value FROM CacheMetadata WHERE Key = 'schema_version';"));
 
                     // The metadata layer's foreign key and delete trigger follow the renamed table.
                     db.ExecuteNonQuery("DELETE FROM PlatformDefinitions WHERE ApiName = 'a';");
@@ -271,6 +493,74 @@ namespace PlayniteAchievements.SqlNado.Tests
                 var backups = Directory.GetDirectories(dir, "db-schema-*", SearchOption.AllDirectories);
                 Assert.AreEqual(1, backups.Length, "one backup, made before the rename");
                 Assert.IsTrue(File.Exists(Path.Combine(backups[0], "achievement_cache.db")));
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
+        [TestMethod]
+        public void Start_KeepsCurrentViews_AndRecreatesChangedOrRetiredOnes()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-views-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            var schema = new SqlNadoSchemaManager(null, path, dir);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db), "a start after this one leaves the views alone");
+
+                    db.ExecuteNonQuery("DROP VIEW " + AchievementLayerSql.UserViewName + ";");
+                    db.ExecuteNonQuery("CREATE VIEW " + AchievementLayerSql.UserViewName + " AS SELECT 1 AS Id;");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a changed view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+
+                    db.ExecuteNonQuery("DROP VIEW " + AchievementLayerSql.AllUsersViewName + ";");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a missing view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+
+                    db.ExecuteNonQuery("CREATE VIEW ResolvedDefinitions AS SELECT 1 AS Id;");
+                    Assert.IsFalse(AchievementLayerSql.ViewsAreCurrent(db), "a retired view");
+                    schema.EnsureSchema(db);
+                    Assert.IsTrue(AchievementLayerSql.ViewsAreCurrent(db));
+                    Assert.AreEqual(0L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM sqlite_master WHERE name = 'ResolvedDefinitions';"));
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch (IOException) { }
+            }
+        }
+
+        [TestMethod]
+        public void BlankCategories_AreBackfilledOnUpgrade_Only()
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "playach-backfill-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SqlNadoSchemaManager.DatabaseFileName);
+            var schema = new SqlNadoSchemaManager(null, path, dir);
+            try
+            {
+                using (var db = Open(path))
+                {
+                    schema.EnsureSchema(db);
+                    db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
+                    Definition(db, "a", "A", null, null, " ", null, null, null, "Common");
+                    string Category() => db.ExecuteScalar<string>("SELECT Category FROM PlatformDefinitions WHERE ApiName = 'a';");
+
+                    schema.EnsureSchema(db);
+                    Assert.AreEqual(" ", Category(), "a current database is not scanned");
+
+                    db.ExecuteNonQuery("UPDATE CacheMetadata SET Value = '23' WHERE Key = 'schema_version';");
+                    schema.EnsureSchema(db);
+                    Assert.AreEqual("Default", Category());
+                }
             }
             finally
             {
@@ -293,8 +583,8 @@ namespace PlayniteAchievements.SqlNado.Tests
                         .Select(row => row.Sql)
                         .ToList();
 
-                    // Custom data's mirror, the capture index and the schema's own bookkeeping.
-                    var kept = new[] { "CacheMetadata", "AchievementOverrides", "GameCustomState", "AchievementCategories", "AchievementCaptures", "sqlite_sequence" };
+                    // Custom data, the capture index and the schema's own bookkeeping.
+                    var kept = new[] { "CacheMetadata", "CustomLayerAchievements", "CustomLayerGames", "CustomLayerCategories", "AchievementCaptures", "sqlite_sequence" };
                     CollectionAssert.AreEquivalent(
                         tables,
                         SqlNadoSchemaManager.PlatformAndMetadataTables.Concat(kept).ToList(),
@@ -320,7 +610,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     new SqlNadoSchemaManager(null, path, dir).EnsureSchema(db);
                     db.ExecuteNonQuery("CREATE TABLE GameCustomData (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
                     db.ExecuteNonQuery("INSERT INTO GameCustomData VALUES ('g', '{}', '');");
-                    db.ExecuteNonQuery("INSERT INTO AchievementOverrides (PlayniteGameId, ApiName, DisplayName, UpdatedUtc) VALUES ('g', 'a', 'Renamed', '');");
+                    db.ExecuteNonQuery("INSERT INTO CustomLayerAchievements (PlayniteGameId, ApiName, DisplayName, UpdatedUtc) VALUES ('g', 'a', 'Renamed', '');");
                     db.ExecuteNonQuery("INSERT INTO Games (Id, ProviderKey, FirstSeenUtc, LastUpdatedUtc) VALUES (1, 'Steam', '', '');");
                     Definition(db, "a", "Platform name", null, null, "Default", null, null, null, "Common");
                     Metadata(db, "a", displayName: "Borrowed");
@@ -333,7 +623,7 @@ namespace PlayniteAchievements.SqlNado.Tests
                     }
 
                     Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM GameCustomData;"));
-                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM AchievementOverrides;"));
+                    Assert.AreEqual(1L, db.ExecuteScalar<long>("SELECT COUNT(*) FROM CustomLayerAchievements;"));
                 }
             }
             finally
@@ -413,42 +703,9 @@ namespace PlayniteAchievements.SqlNado.Tests
                     db.ExecuteNonQuery(@"CREATE TABLE UserAchievements (
                         Id INTEGER PRIMARY KEY, UserGameProgressId INTEGER NOT NULL, AchievementDefinitionId INTEGER NOT NULL,
                         Unlocked INTEGER NOT NULL, UnlockTimeUtc TEXT NULL, ProgressNum INTEGER NULL, ProgressDenom INTEGER NULL);");
-                    db.ExecuteNonQuery(@"CREATE TABLE AchievementOverrides (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
-                        ApiName TEXT NOT NULL COLLATE NOCASE,
-                        DisplayName TEXT NULL,
-                        Description TEXT NULL,
-                        Points INTEGER NULL,
-                        TrophyType TEXT NULL COLLATE NOCASE,
-                        Category TEXT NULL,
-                        Tags TEXT NULL,
-                        Hidden INTEGER NULL,
-                        Cleared INTEGER NOT NULL DEFAULT 0,
-                        Note TEXT NULL,
-                        GoalOrder INTEGER NULL,
-                        CustomOrder INTEGER NULL,
-                        UnlockedIconPath TEXT NULL,
-                        LockedIconPath TEXT NULL,
-                        UnlockTimeUtc TEXT NULL,
-                        CapstoneAssigned INTEGER NOT NULL DEFAULT 0,
-                        IsAuthored INTEGER NOT NULL DEFAULT 0,
-                        Unlocked INTEGER NOT NULL DEFAULT 0,
-                        ProgressNum INTEGER NULL,
-                        ProgressDenom INTEGER NULL,
-                        ScaledPoints INTEGER NULL,
-                        CategoryKind TEXT NULL,
-                        GlobalPercentUnlocked REAL NULL,
-                        Rarity TEXT NULL,
-                        IsCapstone INTEGER NOT NULL DEFAULT 0,
-                        IsFiltered INTEGER NOT NULL DEFAULT 0,
-                        IsSummaryFiltered INTEGER NOT NULL DEFAULT 0,
-                        UpdatedUtc TEXT NOT NULL,
-                        UNIQUE (PlayniteGameId, ApiName));");
+                    AchievementLayerSql.EnsureCustomLayerTables(db);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateTriggerSql);
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateGameStateTableSql);
-                    db.ExecuteNonQuery(AchievementLayerSql.CreateCategoriesTableSql);
                     db.ExecuteNonQuery(AchievementLayerSql.CreateCapturesTableSql);
                     foreach (var sql in AchievementLayerSql.RecreateViewSql())
                     {

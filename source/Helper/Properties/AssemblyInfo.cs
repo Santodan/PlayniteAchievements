@@ -9,6 +9,6 @@ using System.Reflection;
 [assembly: AssemblyCopyright("Copyright (c) Justin Delano")]
 
 // Kept equal to Version in source/extension.yaml; bumped with it at release.
-[assembly: AssemblyVersion("4.3.0.0")]
-[assembly: AssemblyFileVersion("4.3.0.0")]
-[assembly: AssemblyInformationalVersion("4.3.0")]
+[assembly: AssemblyVersion("4.3.1.0")]
+[assembly: AssemblyFileVersion("4.3.1.0")]
+[assembly: AssemblyInformationalVersion("4.3.1")]

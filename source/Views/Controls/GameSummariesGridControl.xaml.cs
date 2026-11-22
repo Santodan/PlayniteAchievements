@@ -679,6 +679,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            _ownerDisposes = GridLifetime.GetOwnerDisposes(this);
             UpdateControlBarOptions();
             if (_isAttached)
             {
@@ -691,8 +692,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
-            // Loaded runs in the dispatcher pass after the first layout, so this cost lands
-            // outside the host's Showcase.Widget.Layout scope; it is timed separately.
+            // Loaded runs in the dispatcher pass after the first layout; it is timed separately.
             using var perf = Common.PerfScope.Start(
                 Logger,
                 "GameGrid.Loaded",
@@ -827,9 +827,15 @@ namespace PlayniteAchievements.Views.Controls
 
         private bool _templateApplied;
 
+        // Read at Loaded: by Unloaded the inherited value has left with the tree.
+        private bool _ownerDisposes;
+
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            Dispose();
+            if (!_ownerDisposes)
+            {
+                Dispose();
+            }
         }
 
         private void RarityAppearanceHelper_AppearanceChanged(object sender, EventArgs e)

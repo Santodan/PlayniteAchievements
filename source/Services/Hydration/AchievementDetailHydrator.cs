@@ -10,47 +10,15 @@ using PlayniteAchievements.Services.GameCustomData;
 namespace PlayniteAchievements.Services.Hydration
 {
     /// <summary>
-    /// Hydrates AchievementDetail with non-persisted properties derived from plugin settings.
+    /// Hydrates AchievementDetail with non-persisted properties derived from custom data.
     /// </summary>
-    public class AchievementDetailHydrator
+    public static class AchievementDetailHydrator
     {
-        // The settings wrapper, not its PersistedSettings: CancelEdit replaces the
-        // Persisted instance, and this hydrator outlives a settings dialog.
-        private readonly PlayniteAchievementsSettings _settingsHost;
-
-        public AchievementDetailHydrator(PlayniteAchievementsSettings settings)
-        {
-            _settingsHost = settings ?? throw new ArgumentNullException(nameof(settings));
-        }
-
-        private PersistedSettings Persisted => _settingsHost.Persisted;
-
-        /// <summary>
-        /// Hydrates multiple AchievementDetail instances and applies manual capstone
-        /// override from settings.
-        /// </summary>
-        internal void HydrateAllWithCapstoneOverride(
-            IEnumerable<AchievementDetail> details,
-            Guid playniteGameId,
-            string providerKey,
-            ResolvedGameCustomData customData = null)
-        {
-            if (details == null)
-            {
-                return;
-            }
-
-            ApplyOverlays(
-                details,
-                providerKey,
-                customData ?? GameCustomDataLookup.ResolveGameCustomData(playniteGameId, Persisted));
-        }
-
         /// <summary>
         /// Applies one game's resolved custom data to its achievements: default order index,
         /// per-achievement overrides, category and category type, filters, note, goal state and
-        /// capstones. The store-free core of <see cref="HydrateAllWithCapstoneOverride"/>, for
-        /// callers that already hold the resolved record, such as a package preview.
+        /// capstones. Store-free, for callers that already hold the resolved record, such as a
+        /// package preview.
         /// </summary>
         internal static void ApplyOverlays(
             IEnumerable<AchievementDetail> details,

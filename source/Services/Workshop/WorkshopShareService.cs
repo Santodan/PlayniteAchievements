@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Services.Workshop
                     }
 
                     var name = _plugin.PlayniteApi?.Database?.Games?.Get(data.PlayniteGameId)?.Name
-                               ?? _plugin.AchievementDataService?.GetGameAchievementData(data.PlayniteGameId)?.GameName;
+                               ?? _plugin.AchievementDataService?.GetGameHeader(data.PlayniteGameId)?.GameName;
                     if (string.IsNullOrWhiteSpace(name))
                     {
                         continue;

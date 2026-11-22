@@ -180,8 +180,55 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        /// <summary>
+        /// Saves the tagging settings once they are written to the library (Apply and Sync, Remove
+        /// All), so a Cancel cannot restore names and ids the library no longer matches. While a
+        /// settings window is open they go into its edit snapshot and are written to disk when the
+        /// window closes, by Save or Cancel; otherwise they are written now.
+        /// </summary>
+        public void SaveTaggingSettings()
+        {
+            var tagging = Settings?.Persisted?.TaggingSettings;
+            if (tagging == null)
+            {
+                return;
+            }
+
+            if (_editingClone?.Persisted != null)
+            {
+                _editingClone.Persisted.TaggingSettings = tagging.Clone();
+            }
+
+            SaveSurvivingCancel();
+        }
+
+        /// <summary>
+        /// Applies <paramref name="update"/> as <see cref="UpdatePersistedIncludingEditSnapshot"/>
+        /// does, then saves it: now when no settings window is open, otherwise when the window
+        /// closes, by Save or Cancel.
+        /// </summary>
+        public void UpdatePersistedAndSave(Action<PersistedSettings> update)
+        {
+            UpdatePersistedIncludingEditSnapshot(update);
+            SaveSurvivingCancel();
+        }
+
+        private void SaveSurvivingCancel()
+        {
+            if (_editingClone == null)
+            {
+                _plugin.PersistSettingsForUi();
+            }
+            else
+            {
+                _saveOnCancel = true;
+            }
+        }
+
         public void BeginEdit()
         {
+            _saveOnCancel = false;
+
             // Only persisted settings need an edit snapshot; runtime/theme data can be large.
             _editingClone = new PlayniteAchievementsSettings(_plugin);
             _editingClone.CopyPersistedFrom(Settings);
@@ -208,6 +255,12 @@ namespace PlayniteAchievements.ViewModels
             _editingClone = null;
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+
+            if (_saveOnCancel)
+            {
+                _saveOnCancel = false;
+                _plugin.SavePluginSettings(Settings);
+            }
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
         }
@@ -215,6 +268,7 @@ namespace PlayniteAchievements.ViewModels
         public void EndEdit()
         {
             _editingClone = null;
+            _saveOnCancel = false;
             _plugin.ProviderRegistry?.CommitEditSession(false);
             _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
 
@@ -226,8 +280,12 @@ namespace PlayniteAchievements.ViewModels
             GameCustomDataStore?.SyncRuntimeCaches();
             ApplyThemeResources();
 
+            // Provider settings (colors, names) are baked into the Overview snapshot and change
+            // without a persisted-settings property event, so a settings window save re-reads it.
+            _plugin.InvalidateStartPageDataForUi("settings window saved");
+
             // Notify listeners that settings have been saved (e.g., to refresh provider status in landing page)
-            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            PlayniteAchievementsPlugin.NotifySettingsSaved(settingsWindow: true);
         }
 
         public bool VerifySettings(out List<string> errors)
@@ -252,6 +310,7 @@ namespace PlayniteAchievements.ViewModels
             var categoryModeLabel = L("LOCPlayAch_CategorySummaries_ToggleToolTip");
             var testUnlockLabel = L("LOCPlayAch_Hotkeys_FireTestNotification");
             var workshopLabel = L("LOCPlayAch_Workshop_Title");
+            var editorLabel = L("LOCPlayAch_Menu_AchievementEditor");
             var invalidMessage = L("LOCPlayAch_Hotkeys_InvalidShortcut");
             var duplicateMessage = L("LOCPlayAch_Hotkeys_DuplicateShortcut");
 
@@ -262,6 +321,7 @@ namespace PlayniteAchievements.ViewModels
             var categoryModeValid = TryValidateHotkey(categoryModeLabel, persisted.CategoryModeHotkey, invalidMessage, errors, out var categoryModeGesture);
             var testUnlockValid = TryValidateHotkey(testUnlockLabel, persisted.TestUnlockHotkey, invalidMessage, errors, out var testUnlockGesture);
             var workshopValid = TryValidateHotkey(workshopLabel, persisted.WorkshopHotkey, invalidMessage, errors, out var workshopGesture);
+            var editorValid = TryValidateHotkey(editorLabel, persisted.AchievementEditorHotkey, invalidMessage, errors, out var editorGesture);
 
             var assignedGestures = new List<AchievementHotkeyGesture>();
             AddDuplicateHotkeyError(viewValid, viewGesture, assignedGestures, duplicateMessage, errors);
@@ -271,6 +331,7 @@ namespace PlayniteAchievements.ViewModels
             AddDuplicateHotkeyError(categoryModeValid, categoryModeGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(testUnlockValid, testUnlockGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(workshopValid, workshopGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(editorValid, editorGesture, assignedGestures, duplicateMessage, errors);
         }
 
         private void ApplyThemeResources()
@@ -336,5 +397,9 @@ namespace PlayniteAchievements.ViewModels
         }
 
         private PlayniteAchievementsSettings _editingClone;
+
+        // Set when settings already applied to the library were copied into the edit snapshot,
+        // so a Cancel still writes them to disk.
+        private bool _saveOnCancel;
     }
 }

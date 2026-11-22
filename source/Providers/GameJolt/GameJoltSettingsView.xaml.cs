@@ -34,9 +34,6 @@ namespace PlayniteAchievements.Providers.GameJolt
             ConnectionLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_GameJolt"));
-            AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
-                ResourceProvider.GetString("LOCPlayAch_Provider_GameJolt"));
         }
 
         public override void Initialize(IProviderSettings settings)

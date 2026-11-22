@@ -17,6 +17,20 @@
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/NotificationResources.xaml"/>
     </ResourceDictionary.MergedDictionaries>
+    <!-- The achievement icon, shared by the front icon and the glow layers behind it: rounded like
+         the plugin's other achievement icons, swapped for the completed-game badge on a completion,
+         which keeps its own shape. -->
+    <Style x:Key="ToastIconStyle" TargetType="Image">
+        <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
+        <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+        <Setter Property="helpers:RoundedClip.Radius" Value="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
+                <Setter Property="helpers:RoundedClip.Radius" Value="0"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <DataTemplate x:Key="PlayAch.Template.AchievementToast"
                   DataType="{x:Type vm:AchievementToastViewModel}">
         <!-- The card itself is controls:ToastCard: the rays, glow, surface and background, arranged so
@@ -131,7 +145,19 @@
                                                  IsActive="{Binding AnimateRarityGlows}"
                                                  PhaseLock="{Binding IsPreview}"
                                                  SubjectUri="{Binding IconPath}"
-                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                 Visibility="{Binding ShowRayBurst, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <!-- Follows the front icon's rounding; the completion badge keeps its own shape. -->
+                            <controls:RarityRayBurst.Style>
+                                <Style TargetType="controls:RarityRayBurst">
+                                    <Setter Property="CornerRadiusPx" Value="{DynamicResource PlayAch.Radius.AchievementIcon}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
+                                            <Setter Property="CornerRadiusPx" Value="0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </controls:RarityRayBurst.Style>
+                        </controls:RarityRayBurst>
                         <!-- Completion's other half: game and category art stack two copies, one glow
                              thrown from each corner, and it is the pair that reads as the completion
                              gradient. Only shown for completion, so a normal unlock is unaffected.
@@ -161,21 +187,17 @@
                              completed-game badge and the completed glow. The glow lives on this
                              backing layer (a crisp front copy sits on top); it renders un-cached so
                              the halo always appears once the async icon loads, and the pulse fades
-                             this layer's opacity. -->
-                        <Image Stretch="Uniform"
-                               helpers:ToastLayer.Role="Underlay"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               helpers:AsyncImage.DecodePixel="160"
-                               helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}"
-                               IsHitTestVisible="False">
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
-                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+                             this layer's opacity. The effect sits on the wrapper and the rounding
+                             clip on the picture inside, so the glow is cast from the rounded icon
+                             and the clip never cuts the blur. -->
+                        <Border helpers:ToastLayer.Role="Underlay"
+                                helpers:RarityGlowPulse.PhaseLock="{Binding IsPreview}"
+                                IsHitTestVisible="False">
+                            <Border.Style>
+                                <Style TargetType="Border">
                                     <Setter Property="Effect" Value="{Binding RarityGlowEffect}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
                                             <Setter Property="Effect" Value="{Binding CompletedGlowEffect}"/>
                                         </DataTrigger>
                                         <!-- Fade in/out pulse when AnimateRarityGlows is on. -->
@@ -184,50 +206,43 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Image.Style>
-                        </Image>
+                            </Border.Style>
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   helpers:AsyncImage.DecodePixel="160"
+                                   Style="{StaticResource ToastIconStyle}"/>
+                        </Border>
                         <!-- Edge that comes with the rays: the same drop shadow as the halo above at a
                              small blur, so it reads as a line along the artwork. A blur of the picture
                              itself, so it hugs the alpha whatever shape it is. -->
-                        <Image Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               helpers:AsyncImage.DecodePixel="160"
-                               IsHitTestVisible="False">
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
-                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
+                        <Border IsHitTestVisible="False">
+                            <Border.Style>
+                                <Style TargetType="Border">
                                     <Setter Property="Effect" Value="{Binding RarityEdgeEffect}"/>
                                     <Style.Triggers>
+                                        <!-- The effect has to swap too. Swapping only the picture
+                                             left a rarity-coloured edge around a completion glow. -->
                                         <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
-                                            <!-- The effect has to swap too. Swapping only the picture
-                                                 left a rarity-coloured edge around a completion glow. -->
                                             <Setter Property="Effect" Value="{Binding CompletedEdgeEffect}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Image.Style>
-                        </Image>
-                        <!-- Front icon: crisp, no glow. -->
+                            </Border.Style>
+                            <Image Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   helpers:AsyncImage.DecodePixel="160"
+                                   Style="{StaticResource ToastIconStyle}"/>
+                        </Border>
+                        <!-- Front icon: crisp, no glow. Rounded like the plugin's other achievement
+                             icons; the completion badge that replaces it keeps its own shape. -->
                         <Image Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"
-                               helpers:AsyncImage.DecodePixel="160">
-                            <Image.Style>
-                                <Style TargetType="Image">
-                                    <Setter Property="helpers:AsyncImage.Uri" Value="{Binding IconImage}"/>
-                                    <Setter Property="helpers:AsyncImage.PhaseLock" Value="{Binding IsPreview}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsGameCompleted}" Value="True">
-                                            <Setter Property="helpers:AsyncImage.Uri" Value="{Binding ToastCompletedBadgeSource}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Image.Style>
-                        </Image>
+                               helpers:AsyncImage.DecodePixel="160"
+                               Style="{StaticResource ToastIconStyle}"/>
                         <!-- Hardcore RetroAchievements unlocks: crisp rarity border instead of glow. -->
                         <Border Margin="-2"
                                 BorderThickness="2"
+                                CornerRadius="{DynamicResource PlayAch.CornerRadius.AchievementIcon}"
                                 Background="Transparent"
                                 BorderBrush="{Binding IconBorderBrush}"
                                 Visibility="{Binding ShowShineBorder, Converter={StaticResource BooleanToVisibilityConverter}}"/>

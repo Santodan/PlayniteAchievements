@@ -22,6 +22,50 @@ namespace PlayniteAchievements.Models.Settings
             public const string StartPageRecent = "StartPageRecent";
             public const string StartPageFriendAchievements = "StartPageFriendAchievements";
             public const string DesktopTheme = "DesktopTheme";
+
+            /// <summary>
+            /// The surface whose saved Compare pick <paramref name="surfaceKey"/> uses. The
+            /// grids of one window share a pick, kept under the window's first grid; every other
+            /// surface keeps its own.
+            /// </summary>
+            public static string CompareGroup(string surfaceKey)
+            {
+                switch (surfaceKey)
+                {
+                    case OverviewSelectedGame:
+                        return OverviewRecent;
+                    case FriendsOverviewSelectedFriend:
+                    case FriendsOverviewSelectedGame:
+                    case FriendsOverviewSelectedFriendGame:
+                        return FriendsOverviewRecent;
+                    case ViewFriendsAchievementsSelectedFriend:
+                        return ViewFriendsAchievements;
+                    default:
+                        return surfaceKey;
+                }
+            }
+
+            /// <summary>Every surface whose Compare pick is kept under <paramref name="groupKey"/>.</summary>
+            public static IReadOnlyList<string> CompareGroupMembers(string groupKey)
+            {
+                switch (groupKey)
+                {
+                    case OverviewRecent:
+                        return new[] { OverviewRecent, OverviewSelectedGame };
+                    case FriendsOverviewRecent:
+                        return new[]
+                        {
+                            FriendsOverviewRecent,
+                            FriendsOverviewSelectedFriend,
+                            FriendsOverviewSelectedGame,
+                            FriendsOverviewSelectedFriendGame
+                        };
+                    case ViewFriendsAchievements:
+                        return new[] { ViewFriendsAchievements, ViewFriendsAchievementsSelectedFriend };
+                    default:
+                        return new[] { groupKey };
+                }
+            }
         }
 
         public static class GameSummaries
@@ -45,6 +89,9 @@ namespace PlayniteAchievements.Models.Settings
         public static class ManageAchievements
         {
             public const string Editor = "ManageAchievementsEditor";
+
+            /// <summary>The library editor's grid, which adds a Game column to the per-game one.</summary>
+            public const string LibraryEditor = "LibraryAchievementEditor";
         }
 
         public static class CategorySummaries
@@ -1382,6 +1429,7 @@ namespace PlayniteAchievements.Models.Settings
             Ensure(_categorySummaries, GridOptionKeys.CategorySummaries.DesktopTheme, CreateDefaultCategorySummaries);
 
             Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.Editor, () => new ManageAchievementsGridOptions());
+            Ensure(_manageAchievements, GridOptionKeys.ManageAchievements.LibraryEditor, () => new ManageAchievementsGridOptions());
 
             RefreshOptionSubscriptions();
         }

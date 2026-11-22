@@ -42,7 +42,7 @@
                                     Focusable="False"
                                     Visibility="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}, Path=HeadersVisibility, Converter={x:Static DataGrid.HeadersVisibilityConverter}, ConverterParameter={x:Static DataGridHeadersVisibility.All}}"/>
 
-                            <DataGridColumnHeadersPresenter x:Name="PART_ColumnHeadersPresenter"
+                            <controls:StylePinnedDataGridColumnHeadersPresenter x:Name="PART_ColumnHeadersPresenter"
                                                             Grid.Column="1"
                                                             ClipToBounds="False"
                                                             Visibility="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}, Path=HeadersVisibility, Converter={x:Static DataGrid.HeadersVisibilityConverter}, ConverterParameter={x:Static DataGridHeadersVisibility.Column}}"/>
@@ -95,6 +95,9 @@
          apply to every matching control in the Playnite process, including other plugins. -->
     <Style x:Key="PlayAch.DataGrid.BaseStyle" TargetType="{x:Type DataGrid}">
         <Setter Property="helpers:DataGridColumnGripperBehavior.IsEnabled" Value="True"/>
+        <!-- Makes each row's ItemsControl.AlternationIndex its item index, so the row templates
+             can leave the separator off the first row. -->
+        <Setter Property="AlternationCount" Value="2147483647"/>
         <Style.Triggers>
             <Trigger Property="helpers:DataGridHoverScrollBarBehavior.IsEnabled"
                      Value="True">
@@ -290,6 +293,72 @@
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
     </Style>
 
+    <!-- A cell of a row a paged list has not loaded yet (AchievementDisplayItem.IsPlaceholder): a
+         shape where the column's content goes, picked by the column's PlaceholderCell.Shape. The
+         cell's content is not built until the row loads, so a placeholder row costs little. -->
+    <ControlTemplate x:Key="PlayAch.PlaceholderCellTemplate" TargetType="DataGridCell">
+        <Border Background="{TemplateBinding Background}"
+                Padding="{TemplateBinding Padding}"
+                SnapsToDevicePixels="True">
+            <Border.Resources>
+                <helpers:ImplicitStyleMirror/>
+            </Border.Resources>
+            <Grid VerticalAlignment="Center" Opacity="{StaticResource PlayAch.Opacity.Skeleton}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*"/>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Border x:Name="Bar" Grid.ColumnSpan="2" Height="10" CornerRadius="5"
+                        Background="{DynamicResource PlayAch.Brush.Text}"/>
+                <Border x:Name="Line" Grid.Row="1" Grid.ColumnSpan="3" Height="8" CornerRadius="4" Margin="0,10,0,0"
+                        Background="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+                <Border x:Name="ShortLine" Grid.Row="2" Grid.ColumnSpan="2" Height="8" CornerRadius="4" Margin="0,6,0,0"
+                        Background="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+                <Viewbox x:Name="Block" Grid.ColumnSpan="3" Grid.RowSpan="3" MaxWidth="56" MaxHeight="56" Visibility="Collapsed">
+                    <Border Width="10" Height="10" CornerRadius="1.5" Background="{DynamicResource PlayAch.Brush.Text}"/>
+                </Viewbox>
+                <Ellipse x:Name="Dot" Grid.ColumnSpan="3" Grid.RowSpan="3" Width="16" Height="16"
+                         Fill="{DynamicResource PlayAch.Brush.Text}" Visibility="Collapsed"/>
+            </Grid>
+        </Border>
+        <ControlTemplate.Triggers>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Lines">
+                <Setter TargetName="Bar" Property="Grid.ColumnSpan" Value="1"/>
+                <Setter TargetName="Bar" Property="Height" Value="12"/>
+                <Setter TargetName="Bar" Property="CornerRadius" Value="6"/>
+                <Setter TargetName="Line" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="ShortLine" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Block">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Block" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="Dot">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+                <Setter TargetName="Dot" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="helpers:PlaceholderCell.Shape" Value="None">
+                <Setter TargetName="Bar" Property="Visibility" Value="Collapsed"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- A region whose data has not landed (a score card, a Showcase widget): one block the size
+         of its content, in the placeholder cells' tint. -->
+    <Style x:Key="PlayAch.Skeleton.Block" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Skeleton}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource PlayAch.Radius.Layout}"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
+    </Style>
+
     <!-- DataGrid Cell Style -->
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent"/>
@@ -306,12 +375,23 @@
                     <Border Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="helpers:PlaceholderCell.Shape"
+                Value="{Binding Column.(helpers:PlaceholderCell.Shape), RelativeSource={RelativeSource Self}}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                <Setter Property="Template" Value="{StaticResource PlayAch.PlaceholderCellTemplate}"/>
+                <Setter Property="ToolTip" Value="{x:Null}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ManageAchievementsDataGridCellStyle"
@@ -333,6 +413,9 @@
                 <ControlTemplate TargetType="DataGridCell">
                     <Border Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="Stretch"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
@@ -357,6 +440,9 @@
                             Padding="{TemplateBinding Padding}"
                             ClipToBounds="{TemplateBinding ClipToBounds}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                     </Border>
@@ -477,7 +563,7 @@
                                   Width="10"
                                   Height="8"
                                   Data="M 0,4 L 3.5,7.5 L 10,0"
-                                  Stroke="White"
+                                  Stroke="{DynamicResource PlayAch.Brush.Text}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -543,15 +629,19 @@
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                       <Grid>
                         <!-- Separator behind the cells rather than as this Border's own border: a
                              border insets the content by its thickness, leaving a one-pixel break
                              in anything a cell draws to the row edge. The category tree connectors
                              run the full height of every row and have to cross it unbroken.
-                             BorderThickness is left unbound for the same reason. -->
+                             BorderThickness is left unbound for the same reason. It sits on the
+                             top edge and the first row hides it, so lines fall only between rows. -->
                         <Rectangle x:Name="DGR_Separator"
                                    Height="1"
-                                   VerticalAlignment="Bottom"
+                                   VerticalAlignment="Top"
                                    Fill="{TemplateBinding BorderBrush}"
                                    SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
@@ -564,7 +654,8 @@
                                 <RowDefinition Height="Auto"/>
                             </SelectiveScrollingGrid.RowDefinitions>
 
-                            <DataGridCellsPresenter Grid.Column="1"
+                            <controls:StylePinnedDataGridCellsPresenter x:Name="DGR_Cells"
+                                                    Grid.Column="1"
                                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                                     SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
 
@@ -580,6 +671,13 @@
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                            <Setter TargetName="DGR_Separator" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <!-- An unloaded row's skeleton cells shimmer as one band across the row. -->
+                        <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                            <Setter TargetName="DGR_Cells" Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
@@ -656,15 +754,11 @@
     <!-- Shared selector button + menu item styles (overview/view-achievements/manage-achievements) -->
     <Style x:Key="AchievementSelectorButtonStyle"
            TargetType="Button"
-           BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Button.Border}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+           BasedOn="{StaticResource PlayAch.InputChrome.BaseStyle}">
         <Setter Property="Padding" Value="10,4"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Focusable" Value="True"/>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -672,7 +766,8 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4">
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
+                            SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -698,17 +793,12 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Border" Property="Opacity" Value="0.55"/>
+                            <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -722,7 +812,6 @@
     <Style x:Key="AchievementSelectorButtonConnectedRightStyle"
            TargetType="Button"
            BasedOn="{StaticResource AchievementSelectorButtonStyle}">
-        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -730,7 +819,8 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4,0,0,4">
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout.Left}"
+                            SnapsToDevicePixels="True">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -756,17 +846,12 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Selection}"/>
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Border" Property="Opacity" Value="0.55"/>
+                            <Setter TargetName="Border" Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -788,7 +873,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="5"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <DockPanel>
@@ -832,7 +917,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="5"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <DockPanel>
@@ -881,7 +966,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="3">
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                             <Grid MinWidth="150">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="22"/>
@@ -931,7 +1016,7 @@
                             <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                     BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                     BorderThickness="1"
-                                    CornerRadius="5"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="4"
                                     SnapsToDevicePixels="True">
                                 <!-- Same scroll cap as the menu itself: a submenu listing every
@@ -1014,7 +1099,7 @@
                                 Background="{DynamicResource PlayAch.Brush.Control.Background}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
-                                CornerRadius="3"/>
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"/>
                         <Path x:Name="CheckMark"
                               Data="M 3.5 8 L 6.5 11 L 12.5 5"
                               Stroke="{DynamicResource PlayAch.Brush.Accent}"
@@ -1060,7 +1145,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid MinWidth="120"
                               Margin="4,0,10,0">
@@ -1091,12 +1176,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>
@@ -1142,7 +1227,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="Transparent"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="3"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Grid MinWidth="120"
                               Margin="4,0,10,0">
@@ -1198,12 +1283,12 @@
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                             <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
-                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>

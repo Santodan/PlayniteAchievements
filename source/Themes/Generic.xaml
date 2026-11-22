@@ -164,7 +164,7 @@
                                     <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
                                             BorderBrush="{DynamicResource PlayAch.Brush.PopupBorder}"
                                             BorderThickness="1"
-                                            CornerRadius="4"
+                                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                             Padding="8">
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

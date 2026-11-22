@@ -84,7 +84,6 @@ namespace PlayniteAchievements.Tests.ViewModels
                 apply,
                 "entry.AffectsSummaryData",
                 "A reversal has to report what the original write reported.");
-            StringAssert.Contains(apply, "entry.AffectsOverrideMirror");
         }
 
         [TestMethod]
@@ -104,7 +103,7 @@ namespace PlayniteAchievements.Tests.ViewModels
                 "public void SetCapstoneForSelection(bool isCapstone)",
                 "public void SetGoalForSelection(bool isGoal)",
                 "public void SetFilterScopeForSelection(AchievementFilterScope scope)",
-                "private void Row_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)",
+                "private void RowPropertyChangedCore(object sender, System.ComponentModel.PropertyChangedEventArgs e)",
                 "private void BulkRow_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)"
             })
             {
@@ -150,8 +149,8 @@ namespace PlayniteAchievements.Tests.ViewModels
             StringAssert.Contains(handler, "_isApplyingUndo");
             StringAssert.Contains(
                 handler,
-                "e.PlayniteGameId != _gameId",
-                "Another game's write is not this editor's history.");
+                "!IsGameInScope(e.PlayniteGameId)",
+                "Another game's write is not this editor's history unless the editor lists every game.");
         }
 
         [TestMethod]

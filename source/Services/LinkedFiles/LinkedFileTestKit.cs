@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
     internal static class LinkedFileTestKit
     {
         /// <summary>Shows the developer menu item. Turn off before a release build.</summary>
-        public const bool Enabled = false;
+        public static readonly bool Enabled = false;
 
         public const string GameName = "PA Linked File Test";
 
@@ -54,7 +54,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             report.AppendLine("Test game: " + game.Name + " (" + game.Id + ")");
 
             // Every run starts from four locked achievements so the results repeat.
-            store.Update(game.Id, record => record.LinkedFile = null, affectsSummaryData: false, affectsOverrideMirror: false);
+            store.Update(game.Id, record => record.LinkedFile = null, affectsSummaryData: false);
             overrides.SetCustomAchievements(
                 game.Id,
                 Achievements.Select(item => new CustomAchievementDefinition { Id = item.Id, DisplayName = item.Name }).ToList());
@@ -97,8 +97,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             store.Update(
                 game.Id,
                 record => record.LinkedFile = new LinkedFileLink { FilePath = csv.Path, Schema = csv.Schema.Clone() },
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
+                affectsSummaryData: false);
             var applied = sync.SyncGame(game.Id, LinkedFileSyncReason.UserRequest);
             report.AppendLine();
             report.AppendLine("Linked " + Path.GetFileName(csv.Path) + " and applied it: " + applied.Summarize());
@@ -163,11 +162,11 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
         private static LinkedFileSchema Mapping(LinkedFileFormat format, params (string Column, LinkedFileField Field)[] columns)
         {
-            return new LinkedFileSchema
+            return LinkedFileSchema.Normalize(new LinkedFileSchema
             {
                 Format = format,
                 Columns = columns.Select(column => new LinkedFileColumnMapping { Column = column.Column, Field = column.Field }).ToList()
-            };
+            });
         }
 
         private static List<SampleFile> WriteSampleFiles(string folder)

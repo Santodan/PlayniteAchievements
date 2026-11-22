@@ -13,8 +13,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         private Func<bool> _showLinkedFileDialog;
         private RelayCommand _openLinkedFileCommand;
         private LinkedFileLink _linkedFile;
-        private bool _canLinkFile;
-        private bool _hasCachedAchievements = true;
 
         /// <summary>Opens the Link File window; true when the link changed. Set by the host.</summary>
         internal Func<bool> ShowLinkedFileDialog
@@ -28,29 +26,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         public RelayCommand OpenLinkedFileCommand =>
-            _openLinkedFileCommand ??= new RelayCommand(_ => OpenLinkedFileDialog(), _ => CanLinkFile && _showLinkedFileDialog != null);
-
-        /// <summary>
-        /// A file can be linked to a custom-tracked game, one with custom achievements, or one
-        /// with no achievements yet, where the file's rows become custom achievements.
-        /// </summary>
-        public bool CanLinkFile
-        {
-            get => _canLinkFile;
-            private set
-            {
-                if (SetValueAndReturn(ref _canLinkFile, value))
-                {
-                    OnPropertyChanged(nameof(ShowLinkFileButton));
-                    OpenLinkedFileCommand.RaiseCanExecuteChanged();
-                }
-            }
-        }
+            _openLinkedFileCommand ??= new RelayCommand(_ => OpenLinkedFileDialog(), _ => _showLinkedFileDialog != null);
 
         public bool HasLinkedFile => _linkedFile != null;
 
+        /// <summary>
+        /// Whether the link buttons show: a host that opens the Link File window, over one game.
+        /// The library editor across games links nothing.
+        /// </summary>
+        private bool CanLinkFile => _showLinkedFileDialog != null && AllowsSingleGameFeatures;
+
         /// <summary>The plain Link File button; a linked game shows Edit Linked File instead.</summary>
         public bool ShowLinkFileButton => CanLinkFile && !HasLinkedFile;
+
+        /// <summary>The Edit Linked File button, for a linked game.</summary>
+        public bool ShowEditLinkedFileButton => CanLinkFile && HasLinkedFile;
 
         /// <summary>Marks the Edit Linked File button with a warning when the link cannot be read.</summary>
         public bool LinkedFileHasProblem => LinkedFileStatusText.HasProblem(_linkedFile);
@@ -67,9 +57,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             var record = _gameCustomDataStore?.LoadOrDefault(_gameId);
             _linkedFile = record?.LinkedFile;
-            CanLinkFile = LinkedFileSyncService.IsEligible(record) || !_hasCachedAchievements;
+            OpenLinkedFileCommand.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(HasLinkedFile));
             OnPropertyChanged(nameof(ShowLinkFileButton));
+            OnPropertyChanged(nameof(ShowEditLinkedFileButton));
             OnPropertyChanged(nameof(LinkedFileHasProblem));
             OnPropertyChanged(nameof(LinkedFileToolTip));
         }

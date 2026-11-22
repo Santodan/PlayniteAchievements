@@ -13,26 +13,19 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- A recessed panel-colored card grouping one logical area of the editor. Sits inside
-                 the host section's raised Surface, so a Panel fill + hairline border reads as a
-                 distinct sub-area without nesting another section card. -->
+            <!-- One logical area of the editor, laid out like a settings section: no fill or border,
+                 headed by an EditorGroupHeaderStyle title and an accent rule. -->
             <Style x:Key="EditorCardStyle" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
-                <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-                <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Card}"/>
-                <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.CardPadding}"/>
-                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Xl}"/>
             </Style>
 
-            <!-- Primary label for a group inside a card. -->
-            <Style x:Key="EditorGroupHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SubSectionHeaderStyle}">
-                <Setter Property="Margin" Value="0,0,0,8"/>
-            </Style>
+            <!-- Title of an editor area, the same as a settings section header. -->
+            <Style x:Key="EditorGroupHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionHeaderStyle}"/>
 
             <!-- Secondary label for a nested sub-group within a card (e.g. Font family under
                  Text lines, or Name line offset under Size). -->
@@ -85,6 +78,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <UniformGrid Columns="2">
                     <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastShowHeader}"
                               IsChecked="{Binding Surface.ShowHeader}"/>
@@ -369,6 +363,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ToastRarityColoredName}"
                           IsChecked="{Binding Surface.RarityColoredName}"/>
                 <Grid HorizontalAlignment="Left">
@@ -473,6 +468,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Common_Size}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <Grid HorizontalAlignment="Left">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" MinWidth="90"/>
@@ -682,6 +678,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextLines}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_TextLinesHint}"
                            Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"
@@ -987,6 +984,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImages}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BadgeImagesHint}"
                            Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"
@@ -1253,6 +1251,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_BackgroundImage}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                 <!-- Blurred background: a live blur of the game behind the card (Strength) under a
                      tint of the theme surface (Opacity); replaces the image while on. The preview
@@ -1381,6 +1380,7 @@
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTexts}"
                            Style="{StaticResource EditorGroupHeaderStyle}"/>
+                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Style_HeaderTextsHint}"
                            Style="{StaticResource MutedTextStyle}"
                            TextWrapping="Wrap"

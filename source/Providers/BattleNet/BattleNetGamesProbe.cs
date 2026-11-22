@@ -33,10 +33,14 @@ namespace PlayniteAchievements.Providers.BattleNet
         /// <summary>Hardcoded gate for the probe menu item. Turn off before a release.</summary>
         internal static readonly bool Enabled = false;
 
+        /// <summary>Limits the run to the Forever rounds and its catalog dump.</summary>
+        private static readonly bool ForeverOnly = true;
+
         internal const string ZipName = "battlenet-probe.zip";
 
         private const string LogPrefix = "[BattleNet/GamesProbe]";
         private const string Locale = "en_US";
+        private const string DumpLocale = "de_DE";
         private const int MaxSavedBytes = 4 * 1024 * 1024;
 
         /// <summary>
@@ -77,6 +81,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             report.AppendLine($"region={region}, credentials={BattleNetGameSupport.HasApiCredentials(settings)}, oauth={BattleNetGameSupport.HasOAuthSession(settings)}");
             report.AppendLine();
 
+            CatalogDump foreverDump = null;
             try
             {
                 if (!BattleNetGameSupport.HasApiCredentials(settings))
@@ -102,11 +107,17 @@ namespace PlayniteAchievements.Providers.BattleNet
                         if (!string.IsNullOrWhiteSpace(token))
                         {
                             var ctx = new ProbeContext(http, folder, report, settings, token);
-                            await RunSc2Async(ctx, region, ct).ConfigureAwait(false);
-                            foreach (var version in WowVersions)
+                            if (!ForeverOnly)
+                            {
+                                await RunSc2Async(ctx, region, ct).ConfigureAwait(false);
+                            }
+
+                            foreach (var version in WowVersions.Where(v => !ForeverOnly || v[0] == "forever"))
                             {
                                 await RunWowVersionAsync(ctx, region, version[0], version[1], ct).ConfigureAwait(false);
                             }
+
+                            foreverDump = ctx.ForeverDump;
                         }
                     }
                 }
@@ -131,6 +142,15 @@ namespace PlayniteAchievements.Providers.BattleNet
             catch (Exception ex)
             {
                 report.AppendLine($"Data for Azeroth round stopped: {ex.GetType().Name}: {ex.Message}");
+            }
+
+            try
+            {
+                ReportForeverDuplicates(foreverDump, folder, report);
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Forever duplicate analysis stopped: {ex.GetType().Name}: {ex.Message}");
             }
 
             report.AppendLine();
@@ -284,6 +304,11 @@ namespace PlayniteAchievements.Providers.BattleNet
             {
                 await ctx.GetAsync($"{host}/data/wow/achievement/{firstAchievementId.Value}?namespace={staticNs}&locale={Locale}", $"wow-{label}-achievement-sample.json", ct).ConfigureAwait(false);
                 await ctx.GetAsync($"{host}/data/wow/media/achievement/{firstAchievementId.Value}?namespace={staticNs}", $"wow-{label}-achievement-media-sample.json", ct).ConfigureAwait(false);
+            }
+
+            if (label == "forever")
+            {
+                ctx.ForeverDump = await DumpWowCatalogAsync(ctx, host, label, staticNs, achievementIndex, categoryIndex, ct).ConfigureAwait(false);
             }
 
             var realms = await ctx.GetAsync($"{host}/data/wow/realm/index?namespace={dynamicNs}&locale={Locale}", $"wow-{label}-realm-index.json", ct).ConfigureAwait(false);
@@ -454,6 +479,235 @@ namespace PlayniteAchievements.Providers.BattleNet
             return new List<Tuple<string, string>>();
         }
 
+        // --- Catalog dump and duplicate analysis ---
+
+        /// <summary>Every category and achievement resource of one version's static catalog.</summary>
+        private sealed class CatalogDump
+        {
+            public Dictionary<int, JObject> Achievements { get; } = new Dictionary<int, JObject>();
+            public Dictionary<int, JObject> Categories { get; } = new Dictionary<int, JObject>();
+            public HashSet<int> IndexIds { get; } = new HashSet<int>();
+        }
+
+        /// <summary>
+        /// Saves every category and achievement resource the version's indexes list, in the locale a
+        /// German report used, so the duplicate analysis can compare full resources.
+        /// </summary>
+        private static async Task<CatalogDump> DumpWowCatalogAsync(
+            ProbeContext ctx, string host, string label, string staticNs, string achievementIndex, string categoryIndex, CancellationToken ct)
+        {
+            var dump = new CatalogDump();
+            ctx.Report.AppendLine($"-- {label} catalog dump ({DumpLocale})");
+
+            var categoryRoot = TryParse(categoryIndex);
+            var categoryIds = new[] { "categories", "root_categories", "guild_categories" }
+                .SelectMany(key => (categoryRoot?[key] as JArray) ?? new JArray())
+                .Select(c => c?.Value<int?>("id") ?? 0)
+                .Where(id => id > 0)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+            foreach (var id in categoryIds)
+            {
+                ct.ThrowIfCancellationRequested();
+                var root = TryParse(await ctx.GetAsync(
+                    $"{host}/data/wow/achievement-category/{id}?namespace={staticNs}&locale={DumpLocale}",
+                    $"wow-{label}-category-{id}.json",
+                    ct).ConfigureAwait(false));
+                if (root != null)
+                {
+                    dump.Categories[id] = root;
+                }
+            }
+
+            foreach (var id in ((TryParse(achievementIndex)?["achievements"] as JArray) ?? new JArray())
+                .Select(a => a?.Value<int?>("id") ?? 0)
+                .Where(id => id > 0)
+                .Distinct()
+                .OrderBy(id => id))
+            {
+                ct.ThrowIfCancellationRequested();
+                dump.IndexIds.Add(id);
+                var root = TryParse(await ctx.GetAsync(
+                    $"{host}/data/wow/achievement/{id}?namespace={staticNs}&locale={DumpLocale}",
+                    $"wow-{label}-achievement-{id}.json",
+                    ct).ConfigureAwait(false));
+                if (root != null)
+                {
+                    dump.Achievements[id] = root;
+                }
+            }
+
+            ctx.Report.AppendLine($"dumped categories={dump.Categories.Count}/{categoryIds.Count}, achievements={dump.Achievements.Count}/{dump.IndexIds.Count}");
+            return dump;
+        }
+
+        /// <summary>
+        /// Compares achievements that share a name, and splits every catalog field by whether Data for
+        /// Azeroth rates the achievement, to find a field that separates the rated set from the rest.
+        /// </summary>
+        private static void ReportForeverDuplicates(CatalogDump dump, string folder, StringBuilder report)
+        {
+            report.AppendLine("===== Forever duplicate analysis");
+            if (dump == null || dump.Achievements.Count == 0)
+            {
+                report.AppendLine("skipped: no Forever achievement resources were fetched");
+                report.AppendLine();
+                return;
+            }
+
+            HashSet<int> rated = null;
+            var rarityFile = Path.Combine(folder, "dfa-forever-achievementsrarity.json");
+            if (File.Exists(rarityFile))
+            {
+                var map = TryParse(File.ReadAllText(rarityFile))?["achievements"] as JObject;
+                if (map != null)
+                {
+                    rated = new HashSet<int>(map.Properties()
+                        .Select(p => int.TryParse(p.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0)
+                        .Where(id => id > 0));
+                }
+            }
+
+            string RatedLabel(int id) => rated == null ? "rarity?" : rated.Contains(id) ? "rated" : "UNRATED";
+
+            var listedBy = new Dictionary<int, List<int>>();
+            foreach (var category in dump.Categories)
+            {
+                foreach (var id in ((category.Value["achievements"] as JArray) ?? new JArray()).Select(a => a?.Value<int?>("id") ?? 0).Where(id => id > 0))
+                {
+                    if (!listedBy.TryGetValue(id, out var list))
+                    {
+                        listedBy[id] = list = new List<int>();
+                    }
+
+                    list.Add(category.Key);
+                }
+            }
+
+            report.AppendLine(
+                $"achievements={dump.Achievements.Count}, indexIds={dump.IndexIds.Count}, " +
+                $"indexIdsNoCategoryLists={dump.IndexIds.Count(id => !listedBy.ContainsKey(id))}, " +
+                $"categoryListedIdsNotInIndex={listedBy.Keys.Count(id => !dump.IndexIds.Contains(id))}, " +
+                $"listedByMoreThanOneCategory={listedBy.Count(p => p.Value.Count > 1)}");
+            report.AppendLine(rated == null
+                ? "rarity: no dfa-forever-achievementsrarity.json, so rated/unrated splits are unavailable"
+                : $"rarity: rated={dump.IndexIds.Count(rated.Contains)} of {dump.IndexIds.Count}, ratedIdsNotInIndex={rated.Count(id => !dump.IndexIds.Contains(id))}");
+
+            report.AppendLine("-- categories (id | name | parent | listed | rated)");
+            foreach (var category in dump.Categories.OrderBy(c => c.Key))
+            {
+                var ids = ((category.Value["achievements"] as JArray) ?? new JArray()).Select(a => a?.Value<int?>("id") ?? 0).ToList();
+                report.AppendLine(
+                    $"  {category.Key} | {category.Value.Value<string>("name")} | " +
+                    $"{category.Value["parent_category"]?.Value<int?>("id")} {category.Value["parent_category"]?.Value<string>("name")} | " +
+                    $"{ids.Count} | {(rated == null ? "?" : ids.Count(rated.Contains).ToString(CultureInfo.InvariantCulture))}");
+            }
+
+            // Achievements sharing a name, with every leaf value that differs inside the group.
+            var groups = dump.Achievements
+                .GroupBy(a => (a.Value.Value<string>("name") ?? string.Empty).Trim().ToLowerInvariant())
+                .Where(g => g.Key.Length > 0 && g.Count() > 1)
+                .OrderBy(g => g.Min(a => a.Key))
+                .ToList();
+            report.AppendLine($"-- same-name groups={groups.Count}, achievements in them={groups.Sum(g => g.Count())}");
+            foreach (var group in groups)
+            {
+                report.AppendLine($"[{group.First().Value.Value<string>("name")}]");
+                foreach (var member in group.OrderBy(a => a.Key))
+                {
+                    var a = member.Value;
+                    report.AppendLine(
+                        $"  {member.Key} {RatedLabel(member.Key)} category={a["category"]?.Value<int?>("id")} {a["category"]?.Value<string>("name")} " +
+                        $"listedBy={(listedBy.TryGetValue(member.Key, out var by) ? string.Join("/", by) : "none")} " +
+                        $"display_order={a.Value<int?>("display_order")} desc=\"{a.Value<string>("description")}\"");
+                }
+
+                var flattened = group.ToDictionary(a => a.Key, a => Flatten(a.Value));
+                var paths = flattened.Values.SelectMany(f => f.Keys).Distinct().OrderBy(p => p, StringComparer.Ordinal);
+                foreach (var path in paths)
+                {
+                    var values = group.OrderBy(a => a.Key)
+                        .Select(a => flattened[a.Key].TryGetValue(path, out var v) ? v : "<absent>")
+                        .ToList();
+                    if (values.Distinct().Count() > 1 && path != "id" && path != "description")
+                    {
+                        report.AppendLine($"    {path}: {string.Join(" | ", values)}");
+                    }
+                }
+            }
+
+            // Each structural feature, counted over rated and unrated achievements across the catalog.
+            if (rated != null)
+            {
+                var split = new Dictionary<string, int[]>(StringComparer.Ordinal);
+                foreach (var achievement in dump.Achievements)
+                {
+                    var slot = rated.Contains(achievement.Key) ? 0 : 1;
+                    foreach (var feature in Features(achievement.Value, listedBy.ContainsKey(achievement.Key)))
+                    {
+                        if (!split.TryGetValue(feature, out var counts))
+                        {
+                            split[feature] = counts = new int[2];
+                        }
+
+                        counts[slot]++;
+                    }
+                }
+
+                var ratedTotal = dump.Achievements.Keys.Count(rated.Contains);
+                report.AppendLine($"-- feature split over the catalog (rated total={ratedTotal}, unrated total={dump.Achievements.Count - ratedTotal}); rated | unrated | feature");
+                foreach (var entry in split.OrderByDescending(e => Math.Abs(e.Value[0] - e.Value[1])).ThenBy(e => e.Key, StringComparer.Ordinal))
+                {
+                    report.AppendLine($"  {entry.Value[0]} | {entry.Value[1]} | {entry.Key}");
+                }
+            }
+
+            report.AppendLine();
+        }
+
+        /// <summary>Leaf values of a resource by JSON path, without links.</summary>
+        private static Dictionary<string, string> Flatten(JObject root)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var leaf in root.Descendants().OfType<JValue>())
+            {
+                var path = leaf.Path;
+                if (path.StartsWith("_links", StringComparison.Ordinal) || path.EndsWith(".href", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                result[path] = leaf.Type == JTokenType.Null ? "null" : leaf.ToString(Formatting.None);
+            }
+
+            return result;
+        }
+
+        /// <summary>Presence and small-value features of an achievement resource, without ids or text.</summary>
+        private static IEnumerable<string> Features(JObject a, bool listedByCategory)
+        {
+            yield return $"listed by a category={listedByCategory}";
+            foreach (var property in a.Properties())
+            {
+                yield return $"has {property.Name}";
+            }
+
+            var criteria = a["criteria"] as JObject;
+            foreach (var property in criteria?.Properties() ?? Enumerable.Empty<JProperty>())
+            {
+                yield return $"has criteria.{property.Name}";
+            }
+
+            yield return $"is_account_wide={a.Value<bool?>("is_account_wide")}";
+            yield return $"points={a.Value<int?>("points")}";
+            yield return $"criteria.amount={criteria?.Value<long?>("amount")}";
+            yield return $"criteria.operator.type={criteria?["operator"]?.Value<string>("type")}";
+            yield return $"child criteria={(criteria?["child_criteria"] as JArray)?.Count ?? 0}";
+            yield return $"reward_description present={!string.IsNullOrWhiteSpace(a.Value<string>("reward_description"))}";
+            yield return $"category.id={a["category"]?.Value<int?>("id")}";
+        }
+
         // --- Data for Azeroth ---
 
         private static async Task RunDataForAzerothAsync(IPlayniteAPI api, ILogger logger, string folder, StringBuilder report, CancellationToken ct)
@@ -481,7 +735,7 @@ namespace PlayniteAchievements.Providers.BattleNet
             {
                 http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-                foreach (var version in DfaVersions)
+                foreach (var version in DfaVersions.Where(v => !ForeverOnly || v == "forever"))
                 {
                     var url = $"{DataForAzerothClient.BaseUrl}{version}/dynamic/index.json";
                     report.AppendLine($"-- {url}");
@@ -629,6 +883,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             public StringBuilder Report { get; }
 
             public BattleNetSettings Settings { get; }
+
+            public CatalogDump ForeverDump { get; set; }
 
             /// <summary>
             /// GETs a Blizzard URL with the client token (or the given user token), logs a one-line

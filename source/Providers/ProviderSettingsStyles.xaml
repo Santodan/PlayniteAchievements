@@ -15,7 +15,26 @@
 
     <Style x:Key="ProviderHeaderPanelStyle" TargetType="StackPanel">
         <Setter Property="Orientation" Value="Horizontal"/>
+    </Style>
+
+    <!-- The page's top row: the platform icon and title, with the enable toggle at the right. -->
+    <Style x:Key="ProviderHeaderRowStyle" TargetType="DockPanel">
+        <Setter Property="LastChildFill" Value="True"/>
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+    </Style>
+
+    <Style x:Key="ProviderEnableTogglePanelStyle" TargetType="StackPanel">
+        <Setter Property="DockPanel.Dock" Value="Right"/>
+        <Setter Property="Orientation" Value="Horizontal"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Left.Md}"/>
+    </Style>
+
+    <Style x:Key="ProviderEnableLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Sm}"/>
     </Style>
 
     <Style x:Key="ProviderTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
@@ -25,20 +44,14 @@
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
     </Style>
 
-    <Style x:Key="ProviderTitleOnlyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ProviderTitleTextStyle}">
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
-    </Style>
-
     <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
 
 
     <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
 
-    <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
+    <Style x:Key="SectionAccentRuleStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionAccentRuleStyle}"/>
 
-    <Style x:Key="ProviderEnableToggleBorderStyle" TargetType="Border" BasedOn="{StaticResource SectionBorderStyle}">
-        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
-    </Style>
+    <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
 
     <Style x:Key="ProviderHelpTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
         <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
@@ -63,26 +76,11 @@
         </Style.Triggers>
     </Style>
 
+    <!-- The sign-in status block: no box of its own; the status icon's color carries the state. -->
     <Style x:Key="AuthStatusBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
-        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.StatusPadding}"/>
-        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                         Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsAuthStatusSuccess, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                         Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsAuthStatusChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                         Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
-            </DataTrigger>
-        </Style.Triggers>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
     </Style>
 
     <Style x:Key="AuthStatusIconStyle" TargetType="TextBlock">
@@ -143,18 +141,11 @@
         </Style.Triggers>
     </Style>
 
+    <!-- A local configuration status block: no box of its own; the status icon's color carries the state. -->
     <Style x:Key="ProviderConfigStatusBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
-        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
-        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.StatusPadding}"/>
-        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                         Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-            </DataTrigger>
-        </Style.Triggers>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
     </Style>
 
     <Style x:Key="ProviderConfigStatusIconStyle" TargetType="TextBlock">

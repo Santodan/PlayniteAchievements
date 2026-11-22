@@ -33,7 +33,7 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-        <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.32}"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -45,7 +45,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="4">
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}">
                         <ContentPresenter Margin="{TemplateBinding Padding}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
@@ -69,7 +69,7 @@
                     <Condition Binding="{Binding IsModern}" Value="True"/>
                     <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.42}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
             </MultiDataTrigger>
             <MultiDataTrigger>
@@ -77,7 +77,7 @@
                     <Condition Binding="{Binding IsModern}" Value="True"/>
                     <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.54}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
             </MultiDataTrigger>
             <DataTrigger Binding="{Binding IsModern}" Value="False">
@@ -85,24 +85,6 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                 <Setter Property="Foreground" Value="White"/>
             </DataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsModern}" Value="False"/>
-                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.MigrationAccent}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.MigrationAccent}"/>
-                <Setter Property="Foreground" Value="White"/>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsModern}" Value="False"/>
-                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.MigrationAccentPressed}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.MigrationAccentPressed}"/>
-                <Setter Property="Foreground" Value="White"/>
-            </MultiDataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -115,7 +97,7 @@
                     <Condition Binding="{Binding IsModern}" Value="False"/>
                     <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.42}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Hover}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
             </MultiDataTrigger>
             <MultiDataTrigger>
@@ -123,7 +105,7 @@
                     <Condition Binding="{Binding IsModern}" Value="False"/>
                     <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
                 </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.54}"/>
+                <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Button.Background.Pressed}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
             </MultiDataTrigger>
             <DataTrigger Binding="{Binding IsModern}" Value="True">
@@ -131,24 +113,6 @@
                 <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Accent}"/>
                 <Setter Property="Foreground" Value="White"/>
             </DataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsModern}" Value="True"/>
-                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.MigrationAccent}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.MigrationAccent}"/>
-                <Setter Property="Foreground" Value="White"/>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsModern}" Value="True"/>
-                    <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{StaticResource PlayAch.Brush.MigrationAccentPressed}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.MigrationAccentPressed}"/>
-                <Setter Property="Foreground" Value="White"/>
-            </MultiDataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -158,8 +122,8 @@
         <Setter Property="Width" Value="46"/>
         <Setter Property="Height" Value="22"/>
         <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Background" Value="{StaticResource PlayAch.Brush.Overlay.Shade.22}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Input.Background}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Input.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Template">
             <Setter.Value>

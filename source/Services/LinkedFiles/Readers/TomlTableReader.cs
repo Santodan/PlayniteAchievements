@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
             var nodes = JsonTableReader.SelectPath(root, schema.RootPath);
             if (nodes.Count == 0)
             {
-                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "Nothing was found at the rows path.", rowPaths: rowPaths);
+                return LinkedFileReadResult.Failed(LinkedFileReadStatus.SchemaInvalid, "The achievement list was not found in the file.", rowPaths: rowPaths);
             }
 
             return LinkedFileReadResult.Ok(JsonTableReader.ToTable(nodes), rowPaths: rowPaths);

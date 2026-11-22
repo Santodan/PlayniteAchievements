@@ -15,21 +15,33 @@ namespace PlayniteAchievements.Services.Cache
     /// </remarks>
     internal interface ICacheReadOptimizations
     {
-        List<GameAchievementData> LoadAllGameDataFast();
-
         /// <summary>
         /// Every cached game with its identity (name, provider, ids) and no achievements, for
         /// lookups that would otherwise read every achievement in the library.
         /// </summary>
         List<GameAchievementData> LoadAllGameHeadersFast();
 
-        CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
+        /// <inheritdoc cref="Database.SummaryCacheReader.Load"/>
+        CachedSummaryData LoadCachedSummaryDataFast(
+            int limit,
+            IEnumerable<Guid> excludedGameIds,
+            Func<Guid, CachedGameSummaryData> authoredGame,
+            bool days = true);
+
+        /// <summary>Reads resolved achievement rows, totals and keys.</summary>
+        Database.AchievementReadService Reads { get; }
+
+        /// <summary>One change event per write batch, for read models.</summary>
+        AchievementDataFeed Feed { get; }
+
+        /// <summary>The current user's rows of <paramref name="keys"/> in their order, or of every row the query reads (null keys), as the summary maps them.</summary>
+        List<CachedRecentUnlockData> LoadRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
 
         /// <summary>
-        /// One game's contribution, for patching a cached whole-library summary rather than
-        /// re-reading every row. Always unbounded, matching the overview's own request.
+        /// The rows of <paramref name="keys"/> in their order with the provider values of their
+        /// platform rows, for the achievement editor, with every stored icon path made absolute.
         /// </summary>
-        CachedSummaryData LoadCachedSummaryDataForGameFast(Guid playniteGameId);
+        Database.EditorRowsRead LoadEditorRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
 
         /// <summary>
         /// Games the current user's cache records as having no achievements at all.
@@ -41,28 +53,6 @@ namespace PlayniteAchievements.Services.Cache
         /// in the library, before a single provider call.
         /// </remarks>
         HashSet<Guid> GetNoAchievementGameIds();
-
-        /// <summary>
-        /// Which of the asked-for ApiNames the current user has unlocked, per game.
-        /// </summary>
-        /// <remarks>
-        /// For the stored-capstone correction on a bounded summary read, which holds only the most
-        /// recent unlocks and so cannot say whether an older capstone was earned.
-        /// </remarks>
-        Dictionary<Guid, HashSet<string>> LoadUnlockedApiNamesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted);
-
-        /// <summary>
-        /// The asked-for achievements as the tallies counted them, per game and ApiName, plus the
-        /// provider capstones of <paramref name="providerCapstoneGames"/>, for applying the user's
-        /// tag and capstone edits to the summary's tallies. Null on failure.
-        /// </summary>
-        Dictionary<Guid, Dictionary<string, Models.Achievements.AchievementTallyState>> LoadAchievementTallyStatesFast(
-            IReadOnlyDictionary<Guid, HashSet<string>> wanted,
-            ISet<Guid> providerCapstoneGames = null);
-
-        /// <summary>One game's provider tallies, read on its own; null on failure.</summary>
-        Models.Achievements.AchievementTally[] LoadTalliesForGameFast(Guid playniteGameId);
 
         /// <summary>Games whose cached achievements carry the tag <paramref name="tagKey"/>; empty on failure.</summary>
         HashSet<Guid> GetGameIdsWithTag(string tagKey);

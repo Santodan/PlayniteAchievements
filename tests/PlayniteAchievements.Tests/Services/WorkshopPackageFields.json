@@ -287,6 +287,8 @@
       "Delimiter": "value",
       "Format": "value",
       "HasHeader": "value",
+      "MatchBy": "value",
+      "MatchColumn": "value",
       "Name": "value",
       "RootPath": "value",
       "RowElementPath": "value",

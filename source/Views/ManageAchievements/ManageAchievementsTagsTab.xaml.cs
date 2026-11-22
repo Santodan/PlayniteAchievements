@@ -44,8 +44,7 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 definitions => store.Update(
                     gameId,
                     customData => customData.AchievementTags = definitions.Count > 0 ? definitions.ToList() : null,
-                    affectsSummaryData: false,
-                    affectsOverrideMirror: false),
+                    affectsSummaryData: false),
                 value => PlayniteAchievementsPlugin.Instance?.PickColor(Window.GetWindow(this), value),
                 definition => MakeGlobal(definition, gameId, store, settings, saveSettings),
                 fetched);

@@ -148,6 +148,25 @@ namespace PlayniteAchievements.Tests.Providers
             Assert.IsNull(ExophaseGameNameMatcher.SelectBestSearchMatch("Demon's Souls", games, "ps3"));
         }
 
+        [DataTestMethod]
+        [DataRow("vita", "psvita")]
+        [DataRow("psvita", "vita")]
+        [DataRow("ps-vita", "ps-vita")]
+        [DataRow("ps-vita", "psvita")]
+        public void SelectBestSearchMatch_VitaSpellingsMatchEachOther(string rowPlatform, string target)
+        {
+            var games = new[]
+            {
+                SearchRow("Gravity Rush", "gravity-rush-ps4", "ps4"),
+                SearchRow("Gravity Rush", "gravity-rush-psvita", rowPlatform)
+            };
+
+            var match = ExophaseGameNameMatcher.SelectBestSearchMatch("Gravity Rush", games, target);
+
+            Assert.IsNotNull(match);
+            StringAssert.Contains(match.EndpointAwards, "/game/gravity-rush-psvita/");
+        }
+
         [TestMethod]
         public void SelectBestSearchMatch_NoPlatformData_TieYieldsNull()
         {

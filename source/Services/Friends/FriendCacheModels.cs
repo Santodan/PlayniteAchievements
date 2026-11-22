@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Services.Friends
     }
 
     /// <summary>
-    /// Scope carried by <see cref="IFriendCacheManager.FriendCacheInvalidated"/>. IsFull means
+    /// The friend side of one change of <see cref="Cache.AchievementDataFeed"/>. IsFull means
     /// "everything may have changed" (unscoped writes, clears, or an overflowing change set) and
     /// Changes is empty; consumers must fall back to a full rebuild.
     /// </summary>
@@ -323,9 +323,7 @@ namespace PlayniteAchievements.Services.Friends
     {
         public List<FriendSummaryItem> Friends { get; set; } = new List<FriendSummaryItem>();
         public List<FriendGameSummaryItem> Games { get; set; } = new List<FriendGameSummaryItem>();
-        public List<FriendAchievementDisplayItem> RecentUnlocks { get; set; } = new List<FriendAchievementDisplayItem>();
         public List<FriendAchievementDisplayItem> AllAchievements { get; set; } = new List<FriendAchievementDisplayItem>();
-        public List<FriendAchievementDisplayItem> AllUnlockedAchievements { get; set; } = new List<FriendAchievementDisplayItem>();
         public List<FriendGameLinkItem> FriendGameLinks { get; set; } = new List<FriendGameLinkItem>();
     }
 
@@ -349,7 +347,8 @@ namespace PlayniteAchievements.Services.Friends
 
     internal interface IFriendCacheManager
     {
-        event EventHandler<FriendCacheInvalidatedEventArgs> FriendCacheInvalidated;
+        /// <summary>Every friend read: the lists, and rows, keys and totals; null for none.</summary>
+        IFriendsOverviewReads FriendReads { get; }
 
         IFriendCacheInvalidationBatch BeginFriendCacheInvalidationBatch();
 
@@ -443,33 +442,6 @@ namespace PlayniteAchievements.Services.Friends
         IReadOnlyDictionary<string, FriendOwnershipRecency> LoadFriendOwnershipRecency(
             string providerKey,
             string externalUserId);
-
-        FriendsOverviewData LoadFriendsOverviewData(int recentLimit);
-
-        /// <summary>
-        /// Loads the friends/games/links lists in full plus achievement rows for only the given
-        /// scopes, for incremental snapshot patching. Derived lists stay empty; the caller
-        /// splices and re-derives. A scope naming a friend and no game loads that friend's
-        /// unlocked rows for all their games. See SqlNadoCacheStore.LoadFriendsOverviewPatchData.
-        /// </summary>
-        FriendsOverviewData LoadFriendsOverviewPatchData(IReadOnlyList<FriendCacheChange> reloadScopes);
-
-        FriendsOverviewData LoadFriendGameAchievementData(Guid playniteGameId);
-
-        /// <summary>
-        /// Distinct PlayniteGameIds any active friend has cached progress for. Cheap
-        /// availability index consumed by the compare-friend dropdown so it can show
-        /// synchronously with the control bar instead of waiting on the per-game row load.
-        /// </summary>
-        IReadOnlyCollection<Guid> LoadFriendDataPlayniteGameIds();
-
-        /// <summary>
-        /// Loads every friend's achievement rows (locked included) for one game identified by
-        /// provider scope, supporting provider-only games without a PlayniteGameId. Used by the
-        /// friend+game pair comparison to materialize locked rows on demand; the overview
-        /// snapshot itself carries unlocked rows only.
-        /// </summary>
-        FriendsOverviewData LoadFriendGameAchievementData(FriendCacheChange gameScope);
 
         // Current-user games (with the servicing provider label stored at scan time) used to resolve a
         // friend's games against the local library without re-deriving platform from Source/Platform.

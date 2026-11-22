@@ -24,7 +24,7 @@
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="Cell"
                                     Margin="2"
-                                    CornerRadius="4"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     BorderThickness="1"
                                     BorderBrush="Transparent"
                                     Background="Transparent">
@@ -107,7 +107,7 @@
                         <Border Background="{DynamicResource PlayAch.Brush.Panel}"
                                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                                 BorderThickness="1"
-                                CornerRadius="4"
+                                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 Padding="4">
                             <ScrollViewer x:Name="GlyphScroller" Focusable="False" CanContentScroll="True">
                                 <ItemsPresenter/>

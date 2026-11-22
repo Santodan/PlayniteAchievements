@@ -17,10 +17,12 @@ namespace PlayniteAchievements.Common
     /// described as hard-locked. This measures the symptom instead of a hypothesis about it.
     ///
     /// A background timer posts an empty callback to the dispatcher and times the round trip. The
-    /// dispatcher runs it as soon as it is free, so the round trip is the queueing delay plus
-    /// whatever ran ahead of it -- which is exactly what the user experiences as a freeze. Posted
-    /// at Background priority so it measures the delay ordinary UI work would see, and never
-    /// jumps ahead of input or rendering.
+    /// dispatcher runs it once the work at or above its priority is done, so the round trip is
+    /// how long the thread could neither paint nor take input -- which is what the user
+    /// experiences as a freeze. Posted at Loaded priority, the lowest the dispatcher runs while
+    /// input is pending: it waits behind layout and rendering but not behind input. A Background
+    /// probe waits until no input is pending, so a scrollbar drag or any steady mouse movement
+    /// held it back for over a second while frames kept painting.
     /// </remarks>
     internal static class UiStallWatchdog
     {
@@ -93,7 +95,7 @@ namespace PlayniteAchievements.Common
 
             try
             {
-                _ = dispatcher.BeginInvoke(new Action(OnProbeRan), DispatcherPriority.Background);
+                _ = dispatcher.BeginInvoke(new Action(OnProbeRan), DispatcherPriority.Loaded);
             }
             catch
             {

@@ -134,6 +134,18 @@ namespace PlayniteAchievements.Providers.Tests
                 ExophaseApiClient.BuildSearchUrl("game", "psvita"));
         }
 
+        [DataTestMethod]
+        [DataRow("gravity-rush-psvita", "psvita")]
+        [DataRow("gravity-rush-psvita", null)]
+        [DataRow("yomawari-night-alone-ps-vita", "ps-vita")]
+        [DataRow("yomawari-night-alone-ps-vita", null)]
+        public void BuildUrlFromSlug_VitaPageIsATrophyPage(string slug, string platformHint)
+        {
+            Assert.AreEqual(
+                $"https://www.exophase.com/game/{slug}/trophies/",
+                ExophaseApiClient.BuildUrlFromSlug(slug, platformHint));
+        }
+
         [TestMethod]
         public void BuildSearchUrl_Xbox360_RoutesThroughXboxArchiveWithPlatformId()
         {

@@ -40,12 +40,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // lists only authored ones. Everything else about the two surfaces is identical, so they
         // share this view model rather than duplicating its editing affordances.
         private readonly bool _includeProviderAchievements;
-        private readonly Guid _gameId;
-        private readonly string _gameIdText;
+
+        // The game the single-game paths act on: the window's game, the one game the library
+        // editor's filter narrows to, or the game of the rows a multi-game gesture is writing.
+        // Every per-game write and lookup reads it through _gameId.
+        private Guid _activeGameId;
+        private string _activeGameIdText;
+        private Guid _gameId => _activeGameId;
+        private string _gameIdText => _activeGameIdText;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ManagedCustomIconService _managedCustomIconService;
-        private readonly ManageAchievementsDataSnapshotProvider _gameDataSnapshotProvider;
+        private ManageAchievementsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly CustomProviderStore _customProviderStore;
@@ -147,10 +153,54 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             System.Windows.Input.ICommand importFromWorkshop = null,
             System.Windows.Input.ICommand shareToWorkshop = null,
             Action<Action<CustomAchievementTextImportResult>, Action<string>, Action> importPortable = null)
+            : this(
+                EditorScope.ForGame(gameId),
+                null,
+                achievementOverridesService,
+                gameCustomDataStore,
+                managedCustomIconService,
+                gameDataSnapshotProvider,
+                settings,
+                logger,
+                customProviderStore,
+                pickColor,
+                showEditor,
+                includeProviderAchievements,
+                manualLinkApplier,
+                showManualLinkDialog,
+                unlinkManualTracking,
+                exportAllCustomData,
+                importFromWorkshop,
+                shareToWorkshop,
+                importPortable)
+        {
+        }
+
+        private ManageAchievementsEditorViewModel(
+            EditorScope scope,
+            EditorLibrarySources librarySources,
+            AchievementOverridesService achievementOverridesService,
+            GameCustomDataStore gameCustomDataStore,
+            ManagedCustomIconService managedCustomIconService,
+            ManageAchievementsDataSnapshotProvider gameDataSnapshotProvider,
+            PlayniteAchievementsSettings settings,
+            ILogger logger,
+            CustomProviderStore customProviderStore = null,
+            Func<string, string> pickColor = null,
+            Func<CustomProviderEditorViewModel, CustomProviderEditorResult> showEditor = null,
+            bool includeProviderAchievements = false,
+            Action<Guid> manualLinkApplier = null,
+            Func<bool> showManualLinkDialog = null,
+            Action unlinkManualTracking = null,
+            System.Windows.Input.ICommand exportAllCustomData = null,
+            System.Windows.Input.ICommand importFromWorkshop = null,
+            System.Windows.Input.ICommand shareToWorkshop = null,
+            Action<Action<CustomAchievementTextImportResult>, Action<string>, Action> importPortable = null)
         {
             _includeProviderAchievements = includeProviderAchievements;
-            _gameId = gameId;
-            _gameIdText = gameId.ToString("D");
+            Scope = scope ?? throw new ArgumentNullException(nameof(scope));
+            _librarySources = librarySources;
+            SetActiveGame(scope.SingleGameId ?? Guid.Empty);
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
             _gameCustomDataStore = gameCustomDataStore ?? throw new ArgumentNullException(nameof(gameCustomDataStore));
             _managedCustomIconService = managedCustomIconService;
@@ -202,7 +252,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             TypeFilter = BuildTypeFilter();
             CustomizationFilter = BuildCustomizationFilter();
             StateFilter = BuildStateFilter();
-            AssignableCategoryOptions = new ObservableCollection<string>();
+            AssignableCategoryOptions = new BulkObservableCollection<string>();
             TagSelectionOptions = new ObservableCollection<TagSelectionOption>(
                 AchievementTagRegistry.GetAssignableKeys(_gameId).Select(type =>
                     new TagSelectionOption(type, ManageAchievementsCategoryViewModel.GetTagDisplayName(type, _gameId))));
@@ -211,14 +261,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 option.PropertyChanged += TypeSelectionOption_PropertyChanged;
             }
 
-            AddCommand = new RelayCommand(_ => AddRow(), _ => !IsSaving);
-            DuplicateCommand = new RelayCommand(_ => DuplicateSelected(), _ => HasSelection && !IsSaving);
+            AddCommand = new RelayCommand(_ => AddRow(), _ => !IsSaving && !IsPagedMode);
+            DuplicateCommand = new RelayCommand(_ => DuplicateSelected(), _ => HasSelection && !IsSaving && !IsPagedMode);
             // Only an authored achievement can be deleted: a provider one would come straight back
             // on the next refresh, so removing it from the list would be a lie. A mixed selection
             // therefore disables delete rather than silently skipping the provider rows.
             DeleteCommand = new RelayCommand(
                 _ => DeleteSelected(),
-                _ => HasSelection && ResolveSelectionTargets().All(row => !row.IsProviderRow) && !IsSaving);
+                _ => HasSelection && ResolveSelectionTargets().All(row => !row.IsProviderRow) && !IsSaving && !IsPagedMode);
             // Only a customized provider achievement has values to go back to. An authored one has
             // no provider behind it, so reverting it would only clear the user's own data.
             RevertCommand = new RelayCommand(
@@ -228,8 +278,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             UnlinkManualTrackingCommand = new RelayCommand(
                 _ => UnlinkManualTracking(),
                 _ => IsManuallyTrackedGame && _unlinkManualTracking != null && !IsSaving);
-            ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => _importPortable != null && !IsSaving);
-            ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving);
+            ImportFileCommand = new RelayCommand(_ => ImportFile(), _ => _importPortable != null && !IsSaving && !IsPagedMode);
+            ExportTemplateCommand = new RelayCommand(_ => ExportTemplate(), _ => !IsSaving && !IsPagedMode);
             // The whole-game export is the Overview tab's; its own gate says whether the game has
             // anything to export, so its changes are relayed here.
             ExportAllCustomDataCommand = new RelayCommand(
@@ -249,9 +299,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _shareToWorkshop.CanExecuteChanged += ExportAllCustomData_CanExecuteChanged;
                 }
             }
-            ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving);
-            ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving);
-            AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving);
+            ResetCommand = new RelayCommand(_ => ResetRows(), _ => HasRows && !IsSaving && !IsPagedMode);
+            ResetOrderCommand = new RelayCommand(_ => ResetOrder(), _ => HasCustomOrder && !IsSaving && !IsPagedMode);
+            AutoCapstoneCommand = new RelayCommand(_ => _ = ApplyAutoCapstoneAsync(), _ => HasRows && !IsSaving && !IsPagedMode);
             ToggleAllTitlesRevealCommand = new RelayCommand(_ => ToggleAllTitlesReveal());
             ToggleAllDescriptionsRevealCommand = new RelayCommand(_ => ToggleAllDescriptionsReveal());
             ToggleAllTrophiesRevealCommand = new RelayCommand(_ => ToggleAllTrophiesReveal());
@@ -259,7 +309,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ToggleAllRaritiesRevealCommand = new RelayCommand(_ => ToggleAllRaritiesReveal());
             CycleAllIconStagesCommand = new RelayCommand(_ => CycleAllIconStages());
 
-            ReloadData();
+            if (Scope.IsLibrary)
+            {
+                InitializeLibraryScope();
+            }
+            else
+            {
+                ReloadData();
+            }
         }
 
         public event EventHandler CustomAchievementsSaved;
@@ -547,12 +604,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 newValue = RetainIconValue(newValue);
             }
 
-            _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent);
+            var gameId = row.GameId ?? _gameId;
+            RememberHistoryRow(gameId, row);
+            _undoJournal.RecordRowValue(row.OriginalApiName, propertyName, oldValue, newValue, intent, gameId);
         }
 
         private void GameCustomDataStore_CustomDataWritten(object sender, GameCustomDataWrittenEventArgs e)
         {
-            if (e == null || e.PlayniteGameId != _gameId || _isDetached)
+            if (e == null || !IsGameInScope(e.PlayniteGameId) || _isDetached)
             {
                 return;
             }
@@ -568,10 +627,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // A read of the linked file writes its status here; the header chip follows it.
-            if (!ReferenceEquals(e.Previous?.LinkedFile, e.Persisted?.LinkedFile))
+            if (e.PlayniteGameId == _gameId &&
+                !ReferenceEquals(e.Previous?.LinkedFile, e.Persisted?.LinkedFile))
             {
                 RefreshLinkedFileState();
             }
+
+            NoteGameWritten(e.PlayniteGameId);
 
             if (_isApplyingUndo)
             {
@@ -583,9 +645,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 e.Previous,
                 e.Persisted,
                 e.AffectsSummaryData,
-                e.AffectsOverrideMirror,
                 _currentUndoIntent,
-                _currentUndoApiNames);
+                _currentUndoApiNames,
+                e.PlayniteGameId);
 
             RestartUndoStepTimer();
             RaiseHistoryState();
@@ -690,27 +752,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.Write", thresholdMs: 10))
                 {
-                    _gameCustomDataStore.Update(
-                    _gameId,
-                    data =>
+                    // One update per game the step wrote, in reverse when undoing for the same
+                    // reason the facets within a game are.
+                    var games = reverse ? entry.GameFacets.Reverse() : entry.GameFacets;
+                    foreach (var game in games)
                     {
-                        // Reverse order when undoing: a gesture that wrote several facets in turn
-                        // may have derived a later one from an earlier one.
-                        var facets = reverse ? entry.Facets.Reverse() : entry.Facets;
-                        foreach (var patch in facets)
+                        _gameCustomDataStore.Update(
+                        game.GameId == Guid.Empty ? _gameId : game.GameId,
+                        data =>
                         {
-                            if (reverse)
+                            // Reverse order when undoing: a gesture that wrote several facets in turn
+                            // may have derived a later one from an earlier one.
+                            var facets = reverse ? game.Facets.Reverse() : game.Facets;
+                            foreach (var patch in facets)
                             {
-                                patch.ApplyBefore(data);
+                                if (reverse)
+                                {
+                                    patch.ApplyBefore(data);
+                                }
+                                else
+                                {
+                                    patch.ApplyAfter(data);
+                                }
                             }
-                            else
-                            {
-                                patch.ApplyAfter(data);
-                            }
-                        }
-                    },
-                    entry.AffectsSummaryData,
-                    entry.AffectsOverrideMirror);
+                        },
+                        entry.AffectsSummaryData);
+                    }
                 }
             }
             catch (Exception ex)
@@ -739,7 +806,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // A full reload re-hydrates the game and rebuilds every row, which is most of what
                 // a press of the shortcut costs. It is only needed when the step moved something
                 // the rows cannot be re-seeded from in place.
-                if (RequiresReloadAfterHistoryStep(entry, out var reloadForcedBy))
+                if (IsPagedMode)
+                {
+                    RefreshPagedRows();
+                }
+                else if (RequiresReloadAfterHistoryStep(entry, out var reloadForcedBy))
                 {
                     using (Common.PerfScope.Start(
                         _logger,
@@ -769,7 +840,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             if (entry.ArtRestores.Count > 0)
             {
                 ApplyRowValueStep(
-                    new EditorUndoEntry(entry.LabelKey, null, false, false, null, entry.ArtRestores),
+                    new EditorUndoEntry(entry.LabelKey, null, false, null, entry.ArtRestores),
                     reverse);
             }
 
@@ -894,10 +965,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void ApplyRowValueStep(EditorUndoEntry entry, bool reverse)
         {
-            var byApiName = AchievementRows
-                .Where(row => row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
-                .GroupBy(row => row.OriginalApiName, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            // Rows by game and API name: the loaded rows first, then the rows the history itself
+            // kept for the changes it holds, which a paged list may have dropped since.
+            var byKey = new Dictionary<string, AchievementEditorRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in EditableRows)
+            {
+                if (row != null && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                {
+                    var key = HistoryRowKey(row.GameId ?? _gameId, row.OriginalApiName);
+                    if (!byKey.ContainsKey(key))
+                    {
+                        byKey[key] = row;
+                    }
+                }
+            }
 
             // Set while the values go back, so the writes this causes are not recorded as a new
             // step and the gesture label is left alone.
@@ -917,8 +998,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var previousApplyingBulk = _isApplyingBulk;
             _isApplyingBulk = true;
             _isTogglingReveal = true;
-            _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
-            _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            BeginWriteBatch();
             var touchedAuthoredRow = false;
 
             // Icons do not go through the field batch: they are stored as their own maps, and
@@ -927,6 +1007,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // what the forward path already does through ApplyIconEditAcrossSelection.
             var unlockedIconRows = new List<AchievementEditorRow>();
             var lockedIconRows = new List<AchievementEditorRow>();
+            var stepStartGame = _activeGameId;
             try
             {
                 using (Common.PerfScope.Start(_logger, "Editor.HistoryStep.RowValues", thresholdMs: 5))
@@ -941,13 +1022,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         var lookupKey = isIdChange
                             ? CustomAchievementProjectionService.BuildApiName((reverse ? change.NewValue : change.OldValue) as string) ?? change.ApiName
                             : change.ApiName;
+                        var changeGameId = change.GameId == Guid.Empty ? _gameId : change.GameId;
                         if (lookupKey == null ||
-                            !byApiName.TryGetValue(lookupKey, out var row) ||
+                            !TryFindHistoryRow(byKey, changeGameId, lookupKey, out var row) ||
                             !UndoableRowFields.TryGetValue(change.PropertyName, out var property) ||
                             property == null)
                         {
                             continue;
                         }
+
+                        // A multi-game step writes each change through its own game.
+                        EnterGame(changeGameId);
 
                         if (isIdChange)
                         {
@@ -966,14 +1051,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         if (change.PropertyName == nameof(AchievementEditorRow.UnlockedIconPath))
                         {
                             unlockedIconRows.Add(row);
-                            touchedAuthoredRow |= !row.IsProviderRow;
+                            touchedAuthoredRow |= !row.IsProviderRow && !IsPagedMode;
                             continue;
                         }
 
                         if (change.PropertyName == nameof(AchievementEditorRow.LockedIconPath))
                         {
                             lockedIconRows.Add(row);
-                            touchedAuthoredRow |= !row.IsProviderRow;
+                            touchedAuthoredRow |= !row.IsProviderRow && !IsPagedMode;
                             continue;
                         }
 
@@ -985,6 +1070,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         if (row.IsProviderRow)
                         {
                             PersistProviderRowField(row, change.PropertyName);
+                        }
+                        else if (IsPagedMode)
+                        {
+                            PersistAuthoredRowDefinition(row);
                         }
                         else
                         {
@@ -1015,6 +1104,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
                 finally
                 {
+                    EnterGame(stepStartGame);
                     _isApplyingUndo = false;
                     _isApplyingBulk = previousApplyingBulk;
                     _isTogglingReveal = false;
@@ -1170,7 +1260,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public BulkObservableCollection<AchievementEditorRow> AchievementRows { get; }
 
         /// <summary>Every category the Category tab shows, in tree order, for the details picker.</summary>
-        public ObservableCollection<string> AssignableCategoryOptions { get; }
+        public BulkObservableCollection<string> AssignableCategoryOptions { get; }
 
         /// <summary>Category-type toggles for the selected row; changes persist immediately.</summary>
         public Guid GameId => _gameId;
@@ -1310,7 +1400,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>The rows the grid is currently showing, in grid order.</summary>
         private IEnumerable<AchievementEditorRow> VisibleRows =>
-            AchievementRows.Where(row => row != null && MatchesFilter(row));
+            IsPagedMode
+                // The paged rows are filtered in the query already.
+                ? EditableRows
+                : AchievementRows.Where(row => row != null && MatchesFilter(row));
 
         private void ToggleAllTitlesReveal() =>
             ToggleAllReveal(row => row.CanRevealTitle, row => row.IsTitleRevealed, (row, value) => row.IsTitleRevealed = value);
@@ -1642,7 +1735,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             private set => SetValue(ref _bulkRow, value);
         }
 
-        public bool IsBulkEditing => _selectedRows.Count > 1;
+        public bool IsBulkEditing => BulkSelectionCount > 1;
 
         /// <summary>
         /// Whether the details pane is showing. Deliberately not persisted: folding it away is a
@@ -1655,7 +1748,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             set => SetValue(ref _isDetailsPaneExpanded, value);
         }
 
-        public int BulkSelectionCount => _selectedRows.Count;
+        public int BulkSelectionCount => IsAllMatchingSelected ? _allMatchingCount : _selectedRows.Count;
 
         public bool HasEditTarget => EditTarget != null;
 
@@ -1680,18 +1773,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 context: "rows=" + AchievementRows.Count);
 
             var incoming = (rows ?? Enumerable.Empty<AchievementEditorRow>())
-                .Where(row => row != null)
+                .Where(row => row != null && !row.IsPlaceholder)
                 .ToList();
 
             // The grid re-reports the same selection while it processes a collection reset and
             // again after a view refresh. Each report otherwise raises EditTarget and re-seeds the
             // whole details pane, which is most of the cost of one edit.
-            if (incoming.Count == _selectedRows.Count &&
+            var wasAllMatching = IsAllMatchingSelected;
+            if (!wasAllMatching &&
+                incoming.Count == _selectedRows.Count &&
                 !incoming.Where((row, index) => !ReferenceEquals(row, _selectedRows[index])).Any())
             {
                 return;
             }
 
+            _allMatchingQuery = null;
+            ApplySelection(incoming);
+            if (wasAllMatching)
+            {
+                OnPropertyChanged(nameof(IsAllMatchingSelected));
+            }
+        }
+
+        /// <summary>Takes <paramref name="incoming"/> as the selection and re-seeds the details pane from it.</summary>
+        private void ApplySelection(IReadOnlyList<AchievementEditorRow> incoming)
+        {
             _selectedRows.Clear();
             foreach (var row in incoming)
             {
@@ -1722,7 +1828,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _bulkRow.PropertyChanged -= BulkRow_PropertyChanged;
             }
 
-            if (_selectedRows.Count <= 1)
+            if (_selectedRows.Count == 0 || BulkSelectionCount <= 1)
             {
                 BulkRow = null;
                 return;
@@ -1737,6 +1843,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // provider row in the selection locks rarity, unlock status and progress for all of it.
             row.IsProviderRow = _selectedRows.Any(r => r.IsProviderRow);
             row.IsBulkRow = true;
+            row.IsListEditLocked = IsPagedMode;
             // Rebuilt on every selection change, so the game-level flag has to be stamped here too;
             // without it the proxy refuses unlock edits on a manually tracked game.
             row.IsManuallyTrackedGame = IsManuallyTrackedGame;
@@ -1763,10 +1870,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // the selection, leaving one capstone and no sign of which.
             row.AllowBulkCapstone = SelectionCategoriesAreDistinct();
             row.SetCapstoneStateFromSource(SharedCapstone(), null, null, null);
+            // Stamped before the proxy is listened to: its setter announces the tags' display.
+            row.GameId = _gameId;
             row.SuppressNotifications = false;
 
             row.PropertyChanged += BulkRow_PropertyChanged;
-            row.GameId = _gameId;
             BulkRow = row;
         }
 
@@ -1829,7 +1937,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void SyncBulkRowFromSelection()
         {
-            if (_bulkRow == null || _selectedRows.Count <= 1)
+            // Over every match the pane is re-seeded once the whole gesture has run.
+            if (_isApplyingAllMatching)
+            {
+                return;
+            }
+
+            if (_bulkRow == null || _selectedRows.Count == 0 || BulkSelectionCount <= 1)
             {
                 SyncTypeOptionsToEditTarget();
                 return;
@@ -2004,6 +2118,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public void ReloadData()
         {
+            if (IsPagedMode)
+            {
+                RefreshPagedRows();
+                return;
+            }
+
             using var reloadScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.ReloadData",
@@ -2378,13 +2498,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             _isRegisteredOpen = visible;
+
+            // The game the editor lists whole; across games it holds no game's whole list, and
+            // its per-achievement writes cannot overwrite a background write.
             if (visible)
             {
-                OpenEditorRegistry.Open(_gameId);
+                _registeredGameId = IsPagedMode ? Guid.Empty : _gameId;
+                if (_registeredGameId != Guid.Empty)
+                {
+                    OpenEditorRegistry.Open(_registeredGameId);
+                }
             }
-            else
+            else if (_registeredGameId != Guid.Empty)
             {
-                OpenEditorRegistry.Close(_gameId);
+                OpenEditorRegistry.Close(_registeredGameId);
+                _registeredGameId = Guid.Empty;
             }
         }
 
@@ -2394,22 +2522,30 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // Renamed or deleted tags re-read their names on every row; raised off the UI thread.
         private void OnTagsChanged(object sender, AchievementTagsChangedEventArgs e)
         {
-            if (e?.GameId != null && e.GameId != _gameId)
+            if (e?.GameId != null && !IsGameInScope(e.GameId.Value))
             {
                 return;
             }
 
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
             {
-                TagSelectionOption.Sync(
-                    TagSelectionOptions,
-                    AchievementTagRegistry.GetAssignableKeys(_gameId),
-                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId),
-                    option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
+                if (IsLibraryScope)
+                {
+                    SyncLibraryTagOptions(force: true);
+                }
+                else
+                {
+                    TagSelectionOption.Sync(
+                        TagSelectionOptions,
+                        AchievementTagRegistry.GetAssignableKeys(_gameId),
+                        key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId),
+                        option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
+                }
+
                 // A tag created from a search is already on the selection; its new option has to
                 // show that.
                 SyncTypeOptionsToEditTarget();
-                foreach (var row in AchievementRows.ToList())
+                foreach (var row in EditableRows.ToList())
                 {
                     row?.RefreshTags();
                 }
@@ -2453,6 +2589,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // history could introduce.
             _gameCustomDataStore.CustomDataWritten -= GameCustomDataStore_CustomDataWritten;
             _undoJournal.Clear();
+            DisposePagedRows();
             if (!_isDetached)
             {
                 _isDetached = true;
@@ -2487,7 +2624,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             RefreshManualTrackingState(rawData);
             RebuildCustomProviderOptions();
 
-            _hasCachedAchievements = rawData?.Achievements?.Count > 0;
             RefreshLinkedFileState();
         }
 
@@ -2688,6 +2824,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void AddRow()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             MarkUndoIntent(EditorEditIntent.Command("Add", "LOCPlayAch_Common_Add"));
 
             var row = AchievementEditorRow.CreateNew(AchievementRows.Count + 1);
@@ -2727,6 +2868,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void DuplicateSelected()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             MarkUndoIntent(EditorEditIntent.Command("Duplicate", "LOCPlayAch_Common_Duplicate"));
 
             var targets = ResolveSelectionTargets();
@@ -2764,6 +2910,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetCategoryForSelection(string categoryLabel)
         {
+            if (DeferToAllMatching(() => SetCategoryForSelection(categoryLabel)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetCategoryForSelection",
@@ -2782,7 +2933,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var normalized = AchievementCategoryHelper.NormalizeCategory(categoryLabel);
             StageAcross(targets, row => row.CategoryLabel = normalized);
-            PersistCategoryAssignmentsFromRows();
+            PersistAssignments(targets);
             SyncBulkRowFromSelection();
         }
 
@@ -2799,6 +2950,23 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public string CreateAndAssignCategory(string leafName)
         {
+            // Across games there is no one game to write the category's order into, so it is
+            // created by filing the selection in it; without a selection there is nothing to file.
+            if (IsPagedMode)
+            {
+                var name = CategoryPathHelper.SanitizeSegment(leafName);
+                if (string.IsNullOrWhiteSpace(name) || ResolveSelectionTargets().Count == 0)
+                {
+                    return null;
+                }
+
+                var known = AssignableCategoryOptions
+                    .FirstOrDefault(option => CategoryPathHelper.IsSame(option, name));
+                var assigned = string.IsNullOrWhiteSpace(known) ? name : known;
+                SetCategoryForSelection(assigned);
+                return assigned;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.CreateAndAssignCategory",
@@ -2885,6 +3053,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         public void SetTagsForSelection(IEnumerable<string> tags)
         {
+            var tagList = tags?.ToList();
+            if (DeferToAllMatching(() => SetTagsForSelection(tagList)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetTagsForSelection",
@@ -2908,8 +3082,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         .Where(tag => !string.IsNullOrWhiteSpace(tag))));
 
             StageAcross(targets, row => row.TagsValue =
-                AchievementTagHelper.OverrideOrNull(normalized, row.ProviderTagsValue));
-            PersistCategoryAssignmentsFromRows();
+                AchievementTagHelper.OverrideOrNull(WithUnofferedTags(row, normalized), row.ProviderTagsValue));
+            PersistAssignments(targets);
             SyncBulkRowFromSelection();
         }
 
@@ -2919,6 +3093,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void CreateAndAssignTag(string name)
         {
+            // Over every match each chunk finds the tag the first chunk created in its game.
+            if (IsPagedMode)
+            {
+                if (!DeferToAllMatching(() => CreateAndAssignTagAcrossGames(name)))
+                {
+                    CreateAndAssignTagAcrossGames(name);
+                }
+
+                return;
+            }
+
             var key = _achievementOverridesService.CreateGameTag(_gameId, name);
             if (!string.IsNullOrWhiteSpace(key))
             {
@@ -2933,6 +3118,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetTagForSelection(string tag, bool isSelected)
         {
+            if (DeferToAllMatching(() => SetTagForSelection(tag, isSelected)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetTagForSelection",
@@ -2960,7 +3150,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     normalizedType,
                     isSelected),
                 row.ProviderTagsValue));
-            PersistCategoryAssignmentsFromRows();
+            PersistAssignments(targets);
             SyncBulkRowFromSelection();
         }
 
@@ -2981,6 +3171,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 thresholdMs: 10,
                 context: "rows=" + AchievementRows.Count);
 
+            // Over every match a capstone can only be cleared: setting one needs the rows in
+            // distinct categories, which no selection that large is.
+            if (IsAllMatchingSelected && !_isApplyingAllMatching)
+            {
+                if (!isCapstone)
+                {
+                    DeferToAllMatching(() => SetCapstoneForSelection(false));
+                }
+
+                return;
+            }
+
             MarkUndoIntent(EditorEditIntent.Command("Capstone", "LOCPlayAch_Dynamic_Capstone"));
 
             var targets = ResolveSelectionTargets();
@@ -2995,7 +3197,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            if (!SelectionCategoriesAreDistinct())
+            // A chunk of a clear over every match may hold rows of one category; clearing does
+            // not displace anything.
+            if (!_isApplyingAllMatching && !SelectionCategoriesAreDistinct())
             {
                 return;
             }
@@ -3042,7 +3246,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             StageAcross(targets, row => row.IsGoal = isGoal);
-            PersistGoalsFromRows();
+            if (IsPagedMode)
+            {
+                _achievementOverridesService.SetAchievementGoal(GameOf(targets[0]), targets[0].OriginalApiName, isGoal);
+                RaiseAssignmentsChanged();
+                KeepEditedRow(targets[0]);
+            }
+            else
+            {
+                PersistGoalsFromRows();
+            }
+
             SyncBulkRowFromSelection();
         }
 
@@ -3051,6 +3265,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public void SetFilterScopeForSelection(AchievementFilterScope scope)
         {
+            if (DeferToAllMatching(() => SetFilterScopeForSelection(scope)))
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.SetFilterScopeForSelection",
@@ -3066,7 +3285,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             StageAcross(targets, row => row.SetFilterScopeFromSource(scope));
-            PersistFiltersFromRows();
+            PersistFilters(targets);
             SyncBulkRowFromSelection();
         }
 
@@ -3083,34 +3302,67 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void RevertSelected()
         {
+            // Over every match it is confirmed once, for the count matched, then reverts what
+            // each chunk holds that carries a customization.
+            if (IsAllMatchingSelected && !_isApplyingAllMatching)
+            {
+                if (ConfirmRevert(_allMatchingCount, null))
+                {
+                    DeferToAllMatching(RevertSelectionTargets);
+                }
+
+                return;
+            }
+
             var targets = ResolveSelectionTargets()
                 .Where(row => IsRevertible(row) && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
-            if (targets.Count == 0)
+            if (targets.Count == 0 || !ConfirmRevert(targets.Count, targets[0].DisplayName))
             {
                 return;
             }
 
-            var message = targets.Count == 1
+            RevertTargets(targets);
+        }
+
+        private void RevertSelectionTargets()
+        {
+            var targets = ResolveSelectionTargets()
+                .Where(row => IsRevertible(row) && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            if (targets.Count > 0)
+            {
+                RevertTargets(targets);
+            }
+        }
+
+        private static bool ConfirmRevert(int count, string singleName)
+        {
+            var message = count == 1 && singleName != null
                 ? string.Format(
                     L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSingle", "Revert \"{0}\" to the provider's values?"),
-                    targets[0].DisplayName)
+                    singleName)
                 : string.Format(
                     L("LOCPlayAch_ManageAchievements_Editor_RevertConfirmSelected", "Revert {0} achievements to the provider's values?"),
-                    targets.Count);
-            if (ShowConfirmation(
+                    count);
+            return ShowConfirmation(
                     message,
                     L("LOCPlayAch_ManageAchievements_Editor_Revert", "Revert"),
                     MessageBoxButton.YesNo,
-                    MessageBoxImage.Question) != MessageBoxResult.Yes)
-            {
-                return;
-            }
+                    MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
 
-
+        private void RevertTargets(IReadOnlyList<AchievementEditorRow> targets)
+        {
             MarkUndoIntent(
                 EditorEditIntent.Atomic("Revert", "LOCPlayAch_ManageAchievements_Editor_Revert"),
                 targets.Select(row => row.OriginalApiName));
+            if (IsPagedMode)
+            {
+                RevertAcrossGames(targets);
+                return;
+            }
+
             ResetCustomizations(targets, deleteAuthored: false);
         }
 
@@ -3123,6 +3375,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void ResetRows()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             if (ShowConfirmation(
                     L("LOCPlayAch_ManageAchievements_Custom_ResetConfirm", "Reset all achievement customization for this game?"),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
@@ -3303,6 +3560,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     return;
                 }
 
+                // A capstone source chosen since the game's last refresh has given it nothing yet,
+                // so the game is refreshed first and the capstone takes that source's platinum.
+                if (authoring.AwaitsCapstoneSource(_gameId))
+                {
+                    await RefreshForAutoCapstoneAsync().ConfigureAwait(true);
+                }
+
                 // An auto capstone standing for the same thing is brought up to date rather than
                 // joined by a second one.
                 var existing = AchievementRows.FirstOrDefault(row =>
@@ -3343,6 +3607,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     ApplyAutoCapstoneDerivation(existing);
                     RefreshComputedState();
                     await SaveAsync().ConfigureAwait(true);
+
+                    // Art and text the plugin wrote follow the platinum the last refresh recorded.
+                    await authoring.RefreshArtFromEditorAsync(_gameId).ConfigureAwait(true);
+                    _gameDataSnapshotProvider?.Invalidate();
+                    ReloadData();
+                    existing = FindRow(existing.OriginalApiName) ?? existing;
                     SetCapstoneForRow(existing, true);
                     SelectRowAndScrollTo(existing);
                     SetStatus(null, false);
@@ -3390,6 +3660,32 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _logger?.Error(ex, $"Failed applying the automatic capstone for gameId={_gameId}.");
                 SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
             }
+        }
+
+        /// <summary>
+        /// Saves the rows, refreshes the game so its metadata sources record their platinum, and
+        /// reads the rows back.
+        /// </summary>
+        private async Task RefreshForAutoCapstoneAsync()
+        {
+            var entryPoint = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (entryPoint == null)
+            {
+                return;
+            }
+
+            await SaveAsync().ConfigureAwait(true);
+            await entryPoint.ExecuteAsync(
+                    new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = _gameId,
+                        SurfaceUserNotices = true
+                    },
+                    Services.Refresh.RefreshExecutionPolicy.ProgressWindow(_gameId))
+                .ConfigureAwait(true);
+            _gameDataSnapshotProvider?.Invalidate();
+            ReloadData();
         }
 
         private AchievementEditorRow FindRow(string apiName)
@@ -3526,6 +3822,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void ResetOrder()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.ResetOrder",
@@ -3593,6 +3894,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void DeleteSelected()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             MarkUndoIntent(EditorEditIntent.Command("Delete", "LOCPlayAch_Common_Delete"));
 
             var targets = ResolveSelectionTargets()
@@ -3676,6 +3982,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private async Task SaveAsync()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.Save",
@@ -3836,8 +4147,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string value,
             string fileStem,
             AchievementIconVariant variant,
-            ICollection<string> errors)
+            ICollection<string> errors,
+            string gameIdText = null)
         {
+            gameIdText = gameIdText ?? _gameIdText;
             var normalized = NormalizeText(value);
             if (string.IsNullOrWhiteSpace(normalized))
             {
@@ -3845,8 +4158,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
 
             // A borrowed file, such as an auto capstone's platinum, stays where its source keeps it.
-            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, _gameIdText) ||
-                AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalized, _gameIdText))
+            if (_managedCustomIconService.IsManagedCustomIconPath(normalized, gameIdText) ||
+                AchievementIconCachePathBuilder.IsMetadataSourceIconPath(normalized, gameIdText))
             {
                 return normalized;
             }
@@ -3858,7 +4171,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     await _managedCustomIconService
                         .MaterializeCustomIconAsync(
                             normalized,
-                            _gameIdText,
+                            gameIdText,
                             fileStem,
                             variant,
                             CancellationToken.None,
@@ -3867,7 +4180,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Warn(ex, $"Failed caching custom achievement icon URL '{normalized}' for gameId={_gameId}.");
+                    _logger?.Warn(ex, $"Failed caching custom achievement icon URL '{normalized}' for gameId={gameIdText}.");
                 }
 
                 return normalized;
@@ -3882,7 +4195,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var managedPath = await _managedCustomIconService
                 .MaterializeCustomIconAsync(
                     normalized,
-                    _gameIdText,
+                    gameIdText,
                     fileStem,
                     variant,
                     CancellationToken.None,
@@ -4271,7 +4584,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, ordered);
+            // One reset rather than an add or remove per label: every change rebuilds the pickers
+            // bound to the list, and the library editor narrowing to one game drops thousands of
+            // labels at once, which took 28 seconds removed one at a time.
+            AssignableCategoryOptions.ReplaceAll(ordered);
 
             // The category filter holds its own copy of this list, and only a full reload used to
             // retake it: a category created, renamed or first filed here stayed out of the filter
@@ -4290,6 +4606,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isSyncingTypeOptions = true;
             try
             {
+                SyncLibraryTagOptions();
+
                 // The pane's other controls bind EditTarget, so seeding these from SelectedRow left
                 // the type ticks describing one row while the button beside them described the
                 // whole selection.
@@ -4503,6 +4821,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void SetCapstonesForRows(IReadOnlyList<AchievementEditorRow> rows, bool isCapstone)
         {
+            // One write per game the rows belong to.
+            foreach (var game in (rows ?? Array.Empty<AchievementEditorRow>()).Where(row => row != null).GroupBy(GameOf).ToList())
+            {
+                var previousGame = EnterGame(game.Key);
+                try
+                {
+                    SetCapstonesForGameRows(game.ToList(), isCapstone);
+                    KeepEditedRows(game);
+                }
+                finally
+                {
+                    EnterGame(previousGame);
+                }
+            }
+        }
+
+        private void SetCapstonesForGameRows(IReadOnlyList<AchievementEditorRow> rows, bool isCapstone)
+        {
             var edits = new List<(string ApiName, bool IsCapstone)>();
             AchievementEditorRow lastRow = null;
             foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
@@ -4547,6 +4883,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         }
 
         private void SetCapstoneForRow(AchievementEditorRow row, bool isCapstone)
+        {
+            var previousGame = EnterGame(GameOf(row));
+            try
+            {
+                SetCapstoneForRowCore(row, isCapstone);
+                KeepEditedRow(row);
+            }
+            finally
+            {
+                EnterGame(previousGame);
+            }
+        }
+
+        private void SetCapstoneForRowCore(AchievementEditorRow row, bool isCapstone)
         {
             var apiName = NormalizeText(row?.OriginalApiName);
             if (string.IsNullOrWhiteSpace(apiName))
@@ -4679,6 +5029,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            ApplyRowDisplaySettings(row, useSeparateLockedIcons ?? ResolveUseSeparateLockedIcons());
+            StampListedGame(row);
+            row.PropertyChanged -= Row_PropertyChanged;
+            row.PropertyChanged += Row_PropertyChanged;
+            row.RevealStateChanged -= Row_RevealStateChanged;
+            row.RevealStateChanged += Row_RevealStateChanged;
+
+            // The value a field is about to replace only exists inside the setter, so the history
+            // is told from there rather than reconstructing it afterwards.
+            row.ValueChanging = RecordRowValueChange;
+        }
+
+        /// <summary>
+        /// Stamps the display settings a row masks by. Apart from <see cref="AttachRow"/> so a row
+        /// read off the UI thread carries them before it is compared with the row it updates.
+        /// </summary>
+        private void ApplyRowDisplaySettings(AchievementEditorRow row, bool useSeparateLockedIcons)
+        {
             // Icon masking follows the same display settings as the achievement grids, so a
             // locked or hidden custom row masks its icon until clicked.
             row.ShowHiddenIcon = _settings?.Persisted?.ShowHiddenIcon ?? false;
@@ -4693,16 +5061,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             row.ShowLockedPoints = _settings?.Persisted?.ShowLockedPoints ?? true;
             row.ShowHiddenRarity = _settings?.Persisted?.ShowHiddenRarity ?? true;
             row.ShowLockedRarity = _settings?.Persisted?.ShowLockedRarity ?? true;
-            row.UseSeparateLockedIcons = useSeparateLockedIcons
-                ?? ResolveUseSeparateLockedIcons();
-            row.PropertyChanged -= Row_PropertyChanged;
-            row.PropertyChanged += Row_PropertyChanged;
-            row.RevealStateChanged -= Row_RevealStateChanged;
-            row.RevealStateChanged += Row_RevealStateChanged;
-
-            // The value a field is about to replace only exists inside the setter, so the history
-            // is told from there rather than reconstructing it afterwards.
-            row.ValueChanging = RecordRowValueChange;
+            row.UseSeparateLockedIcons = useSeparateLockedIcons;
         }
 
         private void Row_RevealStateChanged(object sender, EventArgs e)
@@ -4720,6 +5079,25 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            if (!IsPagedMode)
+            {
+                RowPropertyChangedCore(sender, e);
+                return;
+            }
+
+            var previousGame = EnterGame(GameOf(sender as AchievementEditorRow));
+            try
+            {
+                RowPropertyChangedCore(sender, e);
+            }
+            finally
+            {
+                EnterGame(previousGame);
+            }
+        }
+
+        private void RowPropertyChangedCore(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
             // CommitRowsInPlace writes Id and both icon paths back into every row and re-baselines
             // it, so each row raises several changes that would otherwise land here and run a whole
             // RefreshComputedState (a validation pass plus two collection-wide signature builds)
@@ -4835,6 +5213,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 // would silently drop a note taken on a custom achievement.
                 if (PersistSharedFacet(editedRow, e.PropertyName))
                 {
+                    KeepEditedRow(editedRow);
                     return;
                 }
 
@@ -4843,6 +5222,27 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 if (editedRow.IsProviderRow)
                 {
                     PersistProviderRowField(editedRow, e.PropertyName);
+                    KeepEditedRow(editedRow);
+                    return;
+                }
+
+                // Across games only this definition is written; the game's others are not loaded.
+                // A picked icon is copied into the managed cache first, as the whole save does.
+                if (IsPagedMode)
+                {
+                    if (e.PropertyName == nameof(AchievementEditorRow.UnlockedIconPath) ||
+                        e.PropertyName == nameof(AchievementEditorRow.LockedIconPath))
+                    {
+                        _ = ApplyIconEditAsync(
+                            new[] { editedRow },
+                            e.PropertyName == nameof(AchievementEditorRow.UnlockedIconPath)
+                                ? AchievementIconVariant.Unlocked
+                                : AchievementIconVariant.Locked);
+                        return;
+                    }
+
+                    PersistAuthoredRowDefinition(editedRow);
+                    KeepEditedRow(editedRow);
                     return;
                 }
             }
@@ -4856,7 +5256,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void RefreshComputedState()
         {
-            HasRows = AchievementRows.Count > 0;
+            HasRows = (_pagedRows?.Count ?? AchievementRows.Count) > 0;
             var errors = new List<string>();
             _ = BuildValidatedDefinitions(out _, out errors);
             HasValidationErrors = errors.Count > 0;
@@ -4906,9 +5306,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     case nameof(AchievementEditorRow.AchievementNote):
                         // Collected while a selection gesture is open, so writing a note across
                         // a selection costs one store update rather than one per row.
-                        if (_batchedNoteWrites != null)
+                        if (_writeBatches != null)
                         {
-                            _batchedNoteWrites[apiName] = row.AchievementNote;
+                            BatchFor(_gameId).Notes[apiName] = row.AchievementNote;
                             return true;
                         }
 
@@ -4924,7 +5324,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     // FilterScope sets both flags at once and raises this after them, so persisting
                     // on the scope alone writes the game's filter lists once per change.
                     case nameof(AchievementEditorRow.FilterScope):
-                        PersistFiltersFromRows();
+                        PersistFilters(new[] { row });
                         return true;
 
                     case nameof(AchievementEditorRow.IsFiltered):
@@ -5067,6 +5467,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             string targetApiName,
             bool insertAfterTarget)
         {
+            if (RefuseInPagedMode())
+            {
+                return false;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.MoveItemsByApiName",
@@ -5104,6 +5509,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
         {
+            if (RefuseInPagedMode())
+            {
+                return false;
+            }
+
             using var perfScope = Common.PerfScope.Start(
                 _logger,
                 "Editor.MoveItemsToEndByApiName",
@@ -5371,6 +5781,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void PersistCurrentOrder()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             try
             {
                 var ordered = AchievementRows
@@ -5397,6 +5812,28 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// (categories, filters, goals) are staged across the rows and written once, because each
         /// of their setters rewrites the game's whole map or list.
         /// </remarks>
+        /// <summary>The proxy fields <see cref="BulkRow_PropertyChanged"/> applies to the selection.</summary>
+        private static readonly HashSet<string> BulkAppliedFields = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(AchievementEditorRow.CategoryLabel),
+            nameof(AchievementEditorRow.TagsValue),
+            nameof(AchievementEditorRow.FilterScope),
+            nameof(AchievementEditorRow.IsGoal),
+            nameof(AchievementEditorRow.Unlocked),
+            nameof(AchievementEditorRow.UnlockedIconPath),
+            nameof(AchievementEditorRow.LockedIconPath),
+            nameof(AchievementEditorRow.DisplayName),
+            nameof(AchievementEditorRow.Description),
+            nameof(AchievementEditorRow.PointsText),
+            nameof(AchievementEditorRow.TrophyType),
+            nameof(AchievementEditorRow.AchievementNote),
+            nameof(AchievementEditorRow.Hidden),
+            nameof(AchievementEditorRow.ProgressNumText),
+            nameof(AchievementEditorRow.ProgressDenomText),
+            nameof(AchievementEditorRow.UnlockTime),
+            nameof(AchievementEditorRow.RarityInput)
+        };
+
         private void BulkRow_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
             // The bulk editor: one gesture writes the same field across every selected row, so
@@ -5415,8 +5852,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // Only the fields the switch below applies are edits. The proxy also raises display
+            // properties (its tags' names, its reveal state), and across every match a deferred
+            // non-edit still ran a whole apply, whose re-seeded proxy raised them again.
             var property = e?.PropertyName;
-            if (string.IsNullOrEmpty(property))
+            if (string.IsNullOrEmpty(property) || !BulkAppliedFields.Contains(property))
+            {
+                return;
+            }
+
+            if (DeferToAllMatching(() => BulkRow_PropertyChanged(sender, e)))
             {
                 return;
             }
@@ -5432,14 +5877,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 {
                     case nameof(AchievementEditorRow.CategoryLabel):
                         StageAcrossSelection(row => row.CategoryLabel = bulk.CategoryLabel);
-                        PersistCategoryAssignmentsFromRows();
+                        PersistAssignments(_selectedRows.ToList());
                         return;
 
                     case nameof(AchievementEditorRow.TagsValue):
                         StageAcrossSelection(row => row.TagsValue = bulk.TagsValue == null
                             ? null
-                            : AchievementTagHelper.OverrideOrNull(bulk.TagsValue, row.ProviderTagsValue));
-                        PersistCategoryAssignmentsFromRows();
+                            : AchievementTagHelper.OverrideOrNull(WithUnofferedTags(row, bulk.TagsValue), row.ProviderTagsValue));
+                        PersistAssignments(_selectedRows.ToList());
                         return;
 
                     case nameof(AchievementEditorRow.FilterScope):
@@ -5451,7 +5896,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         }
 
                         StageAcrossSelection(row => row.SetFilterScopeFromSource(bulk.FilterScope));
-                        PersistFiltersFromRows();
+                        PersistFilters(_selectedRows.ToList());
                         return;
 
                     case nameof(AchievementEditorRow.IsGoal):
@@ -5590,7 +6035,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 targets.Select(row => row.OriginalApiName));
             StageAcross(targets, apply);
             _ = ApplyIconEditAsync(targets, variant);
-            if (targets.Any(row => !row.IsProviderRow))
+
+            // Across games ApplyIconEditAsync writes each authored row's own definition.
+            if (!IsPagedMode && targets.Any(row => !row.IsProviderRow))
             {
                 RefreshComputedState();
                 _ = SaveAsync();
@@ -5638,12 +6085,17 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // of the store writes. This is the same suppression the reveal-all commands already
             // use, and the single refresh afterwards leaves the header in the same state.
             _isTogglingReveal = true;
-            _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
-            _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            BeginWriteBatch();
+            var gestureGame = _activeGameId;
+
+            // Across games an authored row writes its own definition as the loop reaches it;
+            // the store batch folds those writes and the flush below into one transaction.
+            using (IsPagedMode ? _gameCustomDataStore?.BeginBatch() : null)
             try
             {
                 foreach (var row in _selectedRows)
                 {
+                    EnterGame(GameOf(row));
                     apply(row);
                     if (PersistSharedFacet(row, propertyName))
                     {
@@ -5654,18 +6106,24 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     {
                         PersistProviderRowField(row, propertyName);
                     }
+                    else if (IsPagedMode)
+                    {
+                        PersistAuthoredRowDefinition(row);
+                    }
                 }
             }
             finally
             {
+                EnterGame(gestureGame);
                 _isTogglingReveal = false;
                 FlushBatchedFieldWrites();
             }
 
+            KeepEditedRows(_selectedRows);
             RefreshRevealHeaderState();
 
             // Authored rows are stored as one definition list, so a single save covers all of them.
-            if (_selectedRows.Any(row => !row.IsProviderRow))
+            if (!IsPagedMode && _selectedRows.Any(row => !row.IsProviderRow))
             {
                 RefreshComputedState();
                 _ = SaveAsync();
@@ -5689,6 +6147,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void PersistCategoryAssignmentsFromRows()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             PersistAssignmentMaps(
                 BuildAssignmentMap(row => row.CategoryLabel),
                 BuildAssignmentMap(row => row.TagsValue, keepEmpty: true));
@@ -5705,6 +6168,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void PersistIconOverridesFromRows(IReadOnlyList<AchievementEditorRow> changedRows = null)
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             // The maps are written whole, so rebuilding them without the provider baseline would
             // both stamp every provider icon in as an override and drop the real ones already
             // stored. Refusing the write leaves the stored icons alone.
@@ -5772,6 +6240,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private async Task ApplyIconEditAsync(IReadOnlyList<AchievementEditorRow> rows, AchievementIconVariant variant)
         {
+            // Read once: the Game filter can change while the copies below are awaited.
+            var paged = IsPagedMode;
+            var stemsByGame = paged ? new Dictionary<Guid, IReadOnlyDictionary<string, string>>() : null;
+            var authored = new List<AchievementEditorRow>();
             var errors = new List<string>();
             // Both the set and the clear count as moved: clearing has to carry the provider's own
             // art back into the cached rows, which nothing else would do.
@@ -5780,6 +6252,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 if (row == null || !row.IsProviderRow)
                 {
+                    if (paged && row != null)
+                    {
+                        authored.Add(row);
+                    }
+
                     continue;
                 }
 
@@ -5813,12 +6290,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(row.IconFileStem))
+                // Across games the row's game is named outright: other rows' writes move the
+                // active game while this one awaits its copy.
+                var fileStem = paged ? ResolvePagedIconFileStem(row, stemsByGame) : row.IconFileStem;
+                if (string.IsNullOrWhiteSpace(fileStem))
                 {
                     continue;
                 }
 
-                var materialized = await MaterializeIconSourceAsync(current, row.IconFileStem, variant, errors)
+                var materialized = await MaterializeIconSourceAsync(
+                        current,
+                        fileStem,
+                        variant,
+                        errors,
+                        paged ? GameOf(row).ToString("D") : null)
                     .ConfigureAwait(true);
 
                 if (!string.Equals(materialized, current, StringComparison.Ordinal))
@@ -5829,9 +6314,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 touched.Add(row);
             }
 
+            if (paged)
+            {
+                await PersistAuthoredIconsAcrossGamesAsync(authored, variant, errors).ConfigureAwait(true);
+            }
+
             if (errors.Count > 0)
             {
                 SetStatus(string.Join(Environment.NewLine, errors.Take(8)), true);
+            }
+
+            if (paged)
+            {
+                PersistIconOverridesAcrossGames(touched);
+                return;
             }
 
             PersistIconOverridesFromRows(touched);
@@ -5841,7 +6337,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// Announces the provider rows whose icon this edit moved. Authored rows keep their icons on
         /// their own definition and reach the cache through the save, so they are left out.
         /// </summary>
-        private void RaiseIconOverridesSaved(IReadOnlyList<AchievementEditorRow> changedRows, bool editorRowsStale = false)
+        private void RaiseIconOverridesSaved(
+            IReadOnlyList<AchievementEditorRow> changedRows,
+            bool editorRowsStale = false,
+            Guid gameId = default)
         {
             if (changedRows == null || changedRows.Count == 0)
             {
@@ -5859,7 +6358,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            IconOverridesSaved?.Invoke(this, new IconOverridesSavedEventArgs(apiNames, editorRowsStale));
+            IconOverridesSaved?.Invoke(this, new IconOverridesSavedEventArgs(apiNames, editorRowsStale, gameId));
         }
 
         private static string ReadIcon(AchievementEditorRow row, AchievementIconVariant variant) =>
@@ -5882,6 +6381,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void PersistGoalsFromRows()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             _achievementOverridesService.SetGoalAchievements(_gameId, BuildGoalApiNames());
             RaiseAssignmentsChanged();
         }
@@ -5967,6 +6471,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void StageManualUnlocks()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             if (!IsManuallyTrackedGame)
             {
                 return;
@@ -6367,11 +6876,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     _selectedTypeFilters,
                     _typeFilterOptions,
                     ResourceProvider.GetString("LOCPlayAch_Common_Tags"),
-                    key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId)),
+                    TagFilterName),
                 () => _typeFilterOptions,
                 option => _selectedTypeFilters.Contains(option),
                 (option, isSelected) => ToggleFilter(_selectedTypeFilters, option, isSelected),
-                getDisplayLabel: key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId))
+                getDisplayLabel: TagFilterName)
             {
                 MinWidth = 140
             };
@@ -6493,6 +7002,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private void NotifyFilterChanged()
         {
+            if (IsPagedMode)
+            {
+                ApplyPagedFilters();
+            }
+
             OnPropertyChanged(nameof(IsFiltering));
             // The header toggles summarize the rows on screen, and the filter decides which those
             // are.
@@ -6512,6 +7026,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </remarks>
         private void RebuildFilterOptions()
         {
+            // Across games the choices come from the database (LoadLibraryFilterOptions), and the
+            // rows offer none, so rebuilding from them here would drop every tick.
+            if (IsPagedMode)
+            {
+                return;
+            }
+
             _categoryFilterOptions = AssignableCategoryOptions
                 .Where(option => !string.IsNullOrWhiteSpace(option))
                 .ToList();
@@ -6744,11 +7265,39 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // deep clones of the game's record, three normalizations, a serialize, a SQLite open and
         // close, and for a mirrored field a delete and re-insert of every override row -- so a
         // selection of N rows used to pay all of that N times.
-        private List<(string ApiName, AchievementEditableField Field, object Value)> _batchedFieldWrites;
+        // Notes are collected in the same batch, apart from the fields because a note is not an
+        // AchievementEditableField and takes its own service call. One batch per game, so a
+        // gesture across the rows of several games still writes each game once.
+        private sealed class GameWriteBatch
+        {
+            public List<(string ApiName, AchievementEditableField Field, object Value)> Fields { get; } =
+                new List<(string ApiName, AchievementEditableField Field, object Value)>();
 
-        // Notes collected during the same batch. Kept separate because a note is not an
-        // AchievementEditableField and takes its own service call.
-        private Dictionary<string, string> _batchedNoteWrites;
+            public Dictionary<string, string> Notes { get; } =
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Null when no gesture is batching. Games in the order they were first written.
+        private Dictionary<Guid, GameWriteBatch> _writeBatches;
+        private List<Guid> _writeBatchOrder;
+
+        private void BeginWriteBatch()
+        {
+            _writeBatches = new Dictionary<Guid, GameWriteBatch>();
+            _writeBatchOrder = new List<Guid>();
+        }
+
+        private GameWriteBatch BatchFor(Guid gameId)
+        {
+            if (!_writeBatches.TryGetValue(gameId, out var batch))
+            {
+                batch = new GameWriteBatch();
+                _writeBatches[gameId] = batch;
+                _writeBatchOrder.Add(gameId);
+            }
+
+            return batch;
+        }
 
         /// <summary>
         /// Flushes the writes collected during a batch: one store update per distinct field and
@@ -6756,24 +7305,44 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void FlushBatchedFieldWrites()
         {
-            var pending = _batchedFieldWrites;
-            var pendingNotes = _batchedNoteWrites;
-            _batchedFieldWrites = null;
-            _batchedNoteWrites = null;
-
-            if (pendingNotes != null && pendingNotes.Count > 0)
+            var batches = _writeBatches;
+            var order = _writeBatchOrder;
+            _writeBatches = null;
+            _writeBatchOrder = null;
+            if (batches == null)
             {
-                _achievementOverridesService.SetAchievementNotes(_gameId, pendingNotes);
+                return;
             }
 
-            if (pending == null || pending.Count == 0)
+            // One store batch: a game's notes and fields land in one write, and a gesture across
+            // games in one transaction.
+            var wrote = false;
+            using (_gameCustomDataStore?.BeginBatch())
             {
-                if (pendingNotes != null && pendingNotes.Count > 0)
+                foreach (var gameId in order)
                 {
-                    RaiseAssignmentsChanged();
+                    wrote |= FlushGameWriteBatch(gameId, batches[gameId]);
                 }
+            }
 
-                return;
+            if (wrote)
+            {
+                RaiseAssignmentsChanged();
+            }
+        }
+
+        private bool FlushGameWriteBatch(Guid gameId, GameWriteBatch batch)
+        {
+            var pending = batch.Fields;
+            var pendingNotes = batch.Notes;
+            if (pendingNotes.Count > 0)
+            {
+                _achievementOverridesService.SetAchievementNotes(gameId, pendingNotes);
+            }
+
+            if (pending.Count == 0)
+            {
+                return pendingNotes.Count > 0;
             }
 
             // One store update for the whole batch, whatever mix of values it holds.
@@ -6785,14 +7354,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             // deep clone, three normalizations, a serialize, a SQLite write and a change cascade.
             // Undoing a rename across 641 rows was measured as 215 store writes over 42 seconds,
             // with a 5.8s UI freeze inside.
-            _achievementOverridesService.SetAchievementFieldOverrides(_gameId, pending);
-
-            RaiseAssignmentsChanged();
+            _achievementOverridesService.SetAchievementFieldOverrides(gameId, pending);
+            return true;
         }
 
         private void WriteProviderField(string apiName, AchievementEditableField field, object value)
         {
-            var key = apiName + " " + field;
+            var key = OverrideWriteKey(_gameId, apiName, field);
             if (_lastWrittenOverrides.TryGetValue(key, out var previous) && Equals(previous, value))
             {
                 return;
@@ -6801,9 +7369,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _lastWrittenOverrides[key] = value;
             // The dedupe above still runs per row, so a batch writes only the rows that
             // actually change -- the same set the unbatched path would have written.
-            if (_batchedFieldWrites != null)
+            if (_writeBatches != null)
             {
-                _batchedFieldWrites.Add((apiName, field, value));
+                BatchFor(_gameId).Fields.Add((apiName, field, value));
                 return;
             }
 
@@ -6821,23 +7389,57 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _lastWrittenOverrides.Clear();
             foreach (var row in AchievementRows)
             {
+                SeedOverrideWriteCache(row);
+            }
+        }
+
+        /// <summary>Seeds the write cache from one row, under the row's game.</summary>
+        /// <summary>Drops a row's entries from the write cache, for a row that is not kept.</summary>
+        private void ForgetOverrideWriteCache(AchievementEditorRow row)
+        {
+            var apiName = row?.OriginalApiName;
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return;
+            }
+
+            var gameId = GameOf(row);
+            foreach (var field in new[]
+                     {
+                         AchievementEditableField.DisplayName,
+                         AchievementEditableField.Description,
+                         AchievementEditableField.TrophyType,
+                         AchievementEditableField.UnlockTimeUtc,
+                         AchievementEditableField.Points,
+                         AchievementEditableField.Hidden
+                     })
+            {
+                _lastWrittenOverrides.Remove(OverrideWriteKey(gameId, apiName, field));
+            }
+        }
+
+        private void SeedOverrideWriteCache(AchievementEditorRow row)
+        {
+            {
                 var apiName = row?.OriginalApiName;
                 if (string.IsNullOrWhiteSpace(apiName) || !row.IsProviderRow)
                 {
-                    continue;
+                    return;
                 }
 
-                _lastWrittenOverrides[apiName + " " + AchievementEditableField.DisplayName] =
+                var gameId = GameOf(row);
+
+                _lastWrittenOverrides[OverrideWriteKey(gameId, apiName, AchievementEditableField.DisplayName)] =
                     NormalizeText(row.DisplayName);
-                _lastWrittenOverrides[apiName + " " + AchievementEditableField.Description] =
+                _lastWrittenOverrides[OverrideWriteKey(gameId, apiName, AchievementEditableField.Description)] =
                     NormalizeText(row.Description);
-                _lastWrittenOverrides[apiName + " " + AchievementEditableField.TrophyType] =
+                _lastWrittenOverrides[OverrideWriteKey(gameId, apiName, AchievementEditableField.TrophyType)] =
                     NormalizeText(row.TrophyType);
-                _lastWrittenOverrides[apiName + " " + AchievementEditableField.UnlockTimeUtc] =
+                _lastWrittenOverrides[OverrideWriteKey(gameId, apiName, AchievementEditableField.UnlockTimeUtc)] =
                     row.UnlockTime;
                 if (AchievementEditorFieldRules.TryParsePoints(row.PointsText, out var points))
                 {
-                    _lastWrittenOverrides[apiName + " " + AchievementEditableField.Points] = points;
+                    _lastWrittenOverrides[OverrideWriteKey(gameId, apiName, AchievementEditableField.Points)] = points;
                 }
             }
         }
@@ -6848,6 +7450,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void PersistFiltersFromRows()
         {
+            if (RefuseInPagedMode())
+            {
+                return;
+            }
+
             _achievementOverridesService.SetAchievementFilters(
                 _gameId,
                 BuildFilteredApiNames(),
@@ -7143,8 +7750,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        /// <summary>Only an authored row's key is the user's to change.</summary>
-        public bool CanEditApiName => !IsProviderRow && !IsBulkRow && !IsBlank;
+        /// <summary>
+        /// Only an authored row's key is the user's to change, and only where the editor lists its
+        /// game whole: a rename rewrites every reference the game holds to it.
+        /// </summary>
+        public bool CanEditApiName => !IsProviderRow && !IsBulkRow && !IsBlank && !IsListEditLocked;
 
         public bool HasApiName => !string.IsNullOrWhiteSpace(ApiNameResolved);
 
@@ -7664,12 +8274,63 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool IsBulkRow { get; set; }
 
+        /// <summary>The name of the game the row belongs to, for the library editor's Game column.</summary>
+        public string GameName
+        {
+            get => _gameName;
+            set => SetValue(ref _gameName, value);
+        }
+
+        private string _gameName;
+
+        /// <summary>The icon of the game the row belongs to, for the library editor's Game column.</summary>
+        public string GameIconPath
+        {
+            get => _gameIconPath;
+            set => SetValue(ref _gameIconPath, value);
+        }
+
+        private string _gameIconPath;
+
+        /// <summary>A row standing in for one the library editor has not read yet; it edits nothing.</summary>
+        public bool IsPlaceholder { get; set; }
+
         /// <summary>
-        /// Category, type, and capstone are ApiName-keyed custom data shared with the other tabs, so
-        /// they are only editable once the row has been saved and has an ApiName. The bulk proxy has
-        /// none of its own but every row it stands for does, so it qualifies.
+        /// Set on rows the library editor lists across games. An authored row's key is read-only
+        /// on them: renaming it moves every ApiName-keyed entry of the game, which needs the
+        /// game's other rows.
         /// </summary>
-        public bool CanEditAssignments => IsBulkRow || !string.IsNullOrWhiteSpace(OriginalApiName);
+        public bool IsListEditLocked
+        {
+            get => _isListEditLocked;
+            set
+            {
+                if (SetValueAndReturn(ref _isListEditLocked, value))
+                {
+                    OnPropertyChanged(nameof(CanEditApiName));
+                }
+            }
+        }
+
+        private bool _isListEditLocked;
+
+        /// <summary>Whether the row's icons can be changed: any row but a placeholder.</summary>
+        public bool CanEditIcons => !IsPlaceholder;
+
+        /// <summary>
+        /// Notes, goals and capstones are ApiName-keyed custom data, so they need a saved row with
+        /// an ApiName. The bulk proxy has none of its own but every row it stands for does.
+        /// </summary>
+        private bool HasAssignmentKey => IsBulkRow || !string.IsNullOrWhiteSpace(OriginalApiName);
+
+        /// <summary>
+        /// Category, tags and filters are ApiName-keyed custom data shared with the other tabs, so
+        /// they need an ApiName.
+        /// </summary>
+        public bool CanEditAssignments => HasAssignmentKey && !IsPlaceholder;
+
+        /// <summary>A note is stored per achievement, so any saved row takes one.</summary>
+        public bool CanEditNote => HasAssignmentKey && !IsPlaceholder;
 
         /// <summary>
         /// The capstone is one achievement per game, so it has no meaning for a multi-selection.
@@ -7681,13 +8342,13 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public bool AllowBulkCapstone { get; set; }
 
-        public bool CanEditCapstone => CanEditAssignments && (!IsBulkRow || AllowBulkCapstone);
+        public bool CanEditCapstone => HasAssignmentKey && !IsPlaceholder && (!IsBulkRow || AllowBulkCapstone);
 
         /// <summary>
         /// A goal is one achievement still to be earned, so the bulk proxy and an unlocked row both
         /// refuse it. Matches the row menu outside the editor, where unlocking retires a goal.
         /// </summary>
-        public bool CanEditGoal => CanEditAssignments && !IsBulkRow && !Unlocked;
+        public bool CanEditGoal => HasAssignmentKey && !IsPlaceholder && !IsBulkRow && !Unlocked;
 
         /// <summary>
         /// The icons the provider supplies, captured before any override is applied over them.
@@ -7964,6 +8625,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         {
             _providerBaselinesKnown = true;
         }
+
+        /// <summary>Whether the loader has stamped the provider's own values on the row.</summary>
+        public bool HasProviderBaselines => _providerBaselinesKnown;
 
         /// <summary>
         /// Every property the facets are computed from. A change to one of these recomputes them;
@@ -8244,6 +8908,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// column's lock fill and tooltip alongside Missable.
         /// </summary>
         public bool IsUnobtainable => AchievementTagHelper.IsUnobtainable(EffectiveTagsValue);
+
+        /// <summary>
+        /// The color of the row's Missable or Unobtainable tag, whichever comes first with a color;
+        /// null when neither has one, where the status lock uses the missable red.
+        /// </summary>
+        public System.Windows.Media.Brush MissableStatusBrush =>
+            Tags.AchievementTagPresentation.FirstColoredBrush(EffectiveTagsValue, _gameId, AchievementTagHelper.IsSystemTag);
+
+        public bool HasMissableStatusBrush => MissableStatusBrush != null;
+
+        /// <summary>Muted completed gradient for the locked capstone padlock in the status column.</summary>
+        public System.Windows.Media.Brush CapstoneLockBrush =>
+            PlayniteAchievements.Models.Achievements.RarityAppearanceHelper.GetMutedCompletedGradientBrush(
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
+
         private Guid? _gameId;
 
         /// <summary>Re-reads tag names after the tag lists changed.</summary>
@@ -8255,6 +8934,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(TagChips));
             OnPropertyChanged(nameof(TagsButtonText));
             OnPropertyChanged(nameof(HasTagIcons));
+            OnPropertyChanged(nameof(MissableStatusBrush));
+            OnPropertyChanged(nameof(HasMissableStatusBrush));
         }
 
         /// <summary>The game the row belongs to, so its own tags resolve.</summary>

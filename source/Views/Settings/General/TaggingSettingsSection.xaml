@@ -1,6 +1,7 @@
 <UserControl x:Class="PlayniteAchievements.Views.Settings.General.TaggingSettingsSection"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
@@ -12,20 +13,21 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20">
+        <StackPanel Margin="20" Grid.IsSharedSizeScope="True">
 
             <!-- ================== TAGS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingHeader}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingDescription}"
                                Style="{StaticResource MutedTextStyle}"
@@ -38,8 +40,7 @@
 
                     <!-- Actions and the tag grids - only visible when tagging is enabled -->
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Grid.IsSharedSizeScope="True">
+                                Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}">
 
                         <!-- Action Buttons: section-level actions, not one setting's control. -->
                         <StackPanel Orientation="Horizontal" Margin="0">
@@ -77,9 +78,10 @@
 
             <!-- ================== FEATURES ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FeatureSyncHeader}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_FeatureSyncDescription}"
                                Style="{StaticResource MutedTextStyle}"
@@ -92,8 +94,7 @@
 
                     <!-- Actions and the feature grid - only visible when feature sync is enabled -->
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                Visibility="{Binding Persisted.TaggingSettings.EnableFeatureSync, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Grid.IsSharedSizeScope="True">
+                                Visibility="{Binding Persisted.TaggingSettings.EnableFeatureSync, Converter={StaticResource BooleanToVisibilityConverter}}">
 
                         <StackPanel Orientation="Horizontal" Margin="0">
                             <Button Content="{DynamicResource LOCPlayAch_Settings_ApplyAndSync}"
@@ -118,17 +119,17 @@
 
             <!-- ================== COMPLETION STATUS ================== -->
             <Border Style="{StaticResource SectionBorderStyle}">
-                <StackPanel Grid.IsSharedSizeScope="True">
+                <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Common_CompletionStatus}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_SetCompletionStatus}">
                         <CheckBox IsChecked="{Binding Persisted.TaggingSettings.SetCompletionStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     </controls:SettingRow>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.SettingRow.Indent}"
-                                Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Grid.IsSharedSizeScope="True">
+                                Visibility="{Binding Persisted.TaggingSettings.SetCompletionStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_Common_CompletionStatus}">
                             <ComboBox x:Name="CompletionStatusComboBox"
                                       MinWidth="200"

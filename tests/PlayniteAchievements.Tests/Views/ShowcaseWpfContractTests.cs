@@ -125,7 +125,7 @@ namespace PlayniteAchievements.Tests.Views
             StringAssert.Contains(code, "state.StatusPanel.Visibility");
             Assert.IsFalse(code.Contains("Widget drawer"));
             Assert.IsFalse(code.Contains("UnplaceWidget"));
-            StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Surface}");
+            StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Panel}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Border}");
             StringAssert.Contains(widgetXaml, "{DynamicResource PlayAch.Brush.Text}");
             Assert.IsFalse(widgetXaml.Contains("x:Name=\"GlyphText\""));
@@ -157,7 +157,7 @@ namespace PlayniteAchievements.Tests.Views
 
             StringAssert.Contains(plugin, "Games_ItemCollectionChanged");
             StringAssert.Contains(plugin, "Games_ItemUpdated");
-            StringAssert.Contains(plugin, "InvalidateStartPageData();");
+            StringAssert.Contains(plugin, "InvalidateStartPageData(\"");
             StringAssert.Contains(editor, "PlayniteUiProvider.CreateExtensionWindow");
             StringAssert.Contains(editor, "LOCPlayAch_Showcase_WidgetSettingsTitle");
             StringAssert.Contains(profileEditor, "LOCPlayAch_Common_Clear");
@@ -254,26 +254,6 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
-        public void RarestMosaic_LoadsTheFullUnlockedSnapshotWithoutDuplicatingAQuery()
-        {
-            var reader = ReadRepoFile(
-                "source",
-                "Services",
-                "Database",
-                "SummaryCacheReader.cs");
-            var builder = ReadRepoFile(
-                "source",
-                "Services",
-                "Overview",
-                "OverviewDataBuilder.cs");
-
-            StringAssert.Contains(reader, "includeAllUnlockedAchievements: requestedRecentLimit == 0");
-            StringAssert.Contains(reader, "result.Achievements = mappedAchievements");
-            StringAssert.Contains(builder, "snapshot.Achievements = MaterializeAchievements(");
-            StringAssert.Contains(builder, "item?.Unlocked == true && item.UnlockTimeUtc.HasValue");
-        }
-
-        [TestMethod]
         public void RarityMosaic_UsesTheReusableCompactItemContractWithoutAThemeListAncestor()
         {
             var itemXaml = ReadRepoFile(
@@ -286,6 +266,11 @@ namespace PlayniteAchievements.Tests.Views
                 "Views",
                 "Controls",
                 "AchievementCompactItemControl.xaml.cs");
+            // The tile's styles live in a dictionary every tile shares.
+            var itemStyles = ReadRepoFile(
+                "source",
+                "Resources",
+                "AchievementControlStyles.xaml");
             var mosaicViewModel = ReadRepoFile(
                 "source",
                 "ViewModels",
@@ -299,10 +284,12 @@ namespace PlayniteAchievements.Tests.Views
                 "ShowcaseWidgetTemplates.xaml");
 
             Assert.IsFalse(itemXaml.Contains("AncestorType=modern:AchievementCompactListControlBase"));
+            Assert.IsFalse(itemStyles.Contains("AncestorType=modern:AchievementCompactListControlBase"));
             StringAssert.Contains(itemCode, "ShowRarityGlowProperty");
             StringAssert.Contains(itemCode, "AnimateRarityGlowsProperty");
             StringAssert.Contains(itemCode, "UseLargeRarityGlowProperty");
-            StringAssert.Contains(itemXaml, "Converter=\"{StaticResource RarityGlowForTiers}\" ConverterParameter=\"20\"");
+            StringAssert.Contains(itemXaml, "Style=\"{StaticResource PlayAch.CompactItem.SoftGlow}\"");
+            StringAssert.Contains(itemStyles, "Converter=\"{StaticResource RarityGlowForTiers}\" ConverterParameter=\"20\"");
             StringAssert.Contains(mosaicViewModel, "GetMosaicShowRarityGlow");
             StringAssert.Contains(mosaicViewModel, "AnimateRarityGlows");
             StringAssert.Contains(widgetTemplates, "AchievementCompactItemControl");

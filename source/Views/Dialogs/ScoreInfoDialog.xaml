@@ -71,8 +71,8 @@
                         Grid.Column="0"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="14"
                         Margin="0,0,8,12">
                     <StackPanel>
@@ -94,8 +94,8 @@
                         Grid.Column="1"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="14"
                         Margin="8,0,0,12">
                     <StackPanel>
@@ -118,8 +118,8 @@
                         Grid.ColumnSpan="2"
                         BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                         BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                        Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Background="{DynamicResource PlayAch.Brush.Panel}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="14">
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LOCPlayAch_Score_Info_LevelsTitle}"

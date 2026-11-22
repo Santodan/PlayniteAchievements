@@ -101,6 +101,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableCategoryModeHotkey = source.EnableCategoryModeHotkey;
             target.EnableTestUnlockHotkey = source.EnableTestUnlockHotkey;
             target.EnableWorkshopHotkey = source.EnableWorkshopHotkey;
+            target.EnableAchievementEditorHotkey = source.EnableAchievementEditorHotkey;
             target.ViewAchievementsHotkey = source.ViewAchievementsHotkey;
             target.ManageAchievementsHotkey = source.ManageAchievementsHotkey;
             target.OverviewHotkey = source.OverviewHotkey;
@@ -108,6 +109,7 @@ namespace PlayniteAchievements.Models.Settings
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
             target.WorkshopHotkey = source.WorkshopHotkey;
+            target.AchievementEditorHotkey = source.AchievementEditorHotkey;
 
             target.HiddenManageSidebarStatGroups = source.HiddenManageSidebarStatGroups;
             target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;
@@ -242,6 +244,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ProgressColumnAlignmentDefaulted = source.ProgressColumnAlignmentDefaulted;
             target.InlineSurfaceTransparencySeeded = source.InlineSurfaceTransparencySeeded;
             target.CommonGlowTierCleared = source.CommonGlowTierCleared;
+            target.SurfaceOverrideMovedToPanel = source.SurfaceOverrideMovedToPanel;
             target.CategoryProgressColumnAlignmentDefaulted = source.CategoryProgressColumnAlignmentDefaulted;
             target.GridColumnHeaderAlignment = source.GridColumnHeaderAlignment;
             target.GridCellAlignment = source.GridCellAlignment;
@@ -250,6 +253,12 @@ namespace PlayniteAchievements.Models.Settings
             target.PlaytimeDisplayMode = source.PlaytimeDisplayMode;
             target.CategoryCompletionBadgeMode = source.CategoryCompletionBadgeMode;
             target.IconScaleMode = source.IconScaleMode;
+            target.CornerRoundingRadius = source.CornerRoundingRadius;
+            target.AchievementIconCornerRadius = source.AchievementIconCornerRadius;
+            target.RoundGameArtCorners = source.RoundGameArtCorners;
+            target.RoundAchievementIconCorners = source.RoundAchievementIconCorners;
+            target.RoundLayoutCorners = source.RoundLayoutCorners;
+            target.LayoutCornerRadius = source.LayoutCornerRadius;
             target.CategoryColumnDisplay = source.CategoryColumnDisplay;
             target.ProgressDetails = ProgressDetailOrder.Normalize(source.ProgressDetails);
             target.ProgressDetailShownCount = source.ProgressDetailShownCount;

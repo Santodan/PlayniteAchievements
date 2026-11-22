@@ -82,6 +82,92 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void FullRead_AfterASingleGameRead_HoldsEveryStoredRow()
+        {
+            var tempDir = CreateTempDirectory();
+            var (a, b, absent) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+            try
+            {
+                SaveCapstone(new GameCustomDataStore(tempDir), a, b);
+                var store = new GameCustomDataStore(tempDir);
+
+                Assert.IsTrue(store.TryLoad(a, out _));
+                Assert.IsFalse(store.TryLoad(absent, out _));
+
+                CollectionAssert.AreEquivalent(new[] { a, b }, StoredGames(store));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void FullRead_AfterASingleGameReadThatFollowsAnInvalidate_HoldsEveryStoredRow()
+        {
+            var tempDir = CreateTempDirectory();
+            var (a, b, legacy) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                SaveCapstone(store, a, b);
+                CollectionAssert.AreEquivalent(new[] { a, b }, StoredGames(store));
+
+                // The legacy migration saves many games at once and invalidates the cache.
+                store.MigrateLegacyConfig(LegacyExclusion(legacy));
+                Assert.IsTrue(store.TryLoad(a, out _));
+
+                CollectionAssert.AreEquivalent(new[] { a, b, legacy }, StoredGames(store));
+                CollectionAssert.AreEquivalent(new[] { legacy }, store.GetExcludedRefreshGameIds().ToList());
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void FullRead_TheCacheWasInvalidatedDuring_IsReadAgain()
+        {
+            var tempDir = CreateTempDirectory();
+            var (a, legacy) = (Guid.NewGuid(), Guid.NewGuid());
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                SaveCapstone(store, a);
+                var reads = 0;
+                store.AfterFullRead = () =>
+                {
+                    if (++reads == 1)
+                    {
+                        store.MigrateLegacyConfig(LegacyExclusion(legacy));
+                    }
+                };
+
+                CollectionAssert.AreEquivalent(new[] { a, legacy }, StoredGames(store));
+                Assert.AreEqual(2, reads);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        private static void SaveCapstone(GameCustomDataStore store, params Guid[] gameIds)
+        {
+            foreach (var gameId in gameIds)
+            {
+                store.Save(gameId, new GameCustomDataFile { PlayniteGameId = gameId, ManualCapstoneApiName = "capstone" });
+            }
+        }
+
+        private static List<Guid> StoredGames(GameCustomDataStore store) =>
+            store.QueryAll(rows => rows.Select(row => row.PlayniteGameId).ToList());
+
+        private static string LegacyExclusion(Guid gameId) =>
+            "{\"Persisted\":{\"ExcludedGameIds\":[\"" + gameId + "\"]}}";
+
+        [TestMethod]
         public void CustomDataChanged_RaisesForSaveAndDelete()
         {
             var tempDir = CreateTempDirectory();

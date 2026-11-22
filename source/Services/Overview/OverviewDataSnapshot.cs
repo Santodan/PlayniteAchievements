@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
@@ -10,30 +11,140 @@ namespace PlayniteAchievements.Services.Overview
 {
     public sealed class OverviewDataSnapshot
     {
-        public List<AchievementDisplayItem> Achievements { get; set; } = new List<AchievementDisplayItem>();
         public List<GameSummaryItem> GameSummaries { get; set; } = new List<GameSummaryItem>();
-        public List<AchievementDisplayItem> RecentAchievements { get; set; } = new List<AchievementDisplayItem>();
+
+        /// <summary>The unlocks of <see cref="GameSummaries"/>' games per game, day and tally facets.</summary>
+        public IReadOnlyList<UnlockFact> Unlocks { get; set; } = Array.Empty<UnlockFact>();
+
+        /// <summary>The unlocks of <see cref="GameSummaries"/>' games under the summary rules, for reading their rows.</summary>
+        internal Database.AchievementQuery UnlockQuery() =>
+            Database.AchievementQuery.CurrentUser.WithSummaryRules().WhereUnlocked(true).ForGames(
+                (GameSummaries ?? new List<GameSummaryItem>()).Where(game => game?.PlayniteGameId != null).Select(game => game.PlayniteGameId.Value));
 
         /// <summary>
-        /// Bounded pool of LOCKED achievements the Unlock Next mosaic draws from, kept out of
-        /// <see cref="Achievements"/> so the grid, the search indexes, and the other mosaic
-        /// sources keep seeing unlocked rows only. Empty unless some live widget asks for it;
-        /// <see cref="UnlockNextPoolBuilt"/> distinguishes "not requested" from "nothing found".
+        /// The current user's rows of every achievement pin the build saw, locked ones included,
+        /// whatever the summary rules leave out; read with the snapshot, off the UI thread.
+        /// </summary>
+        internal IReadOnlyList<AchievementDisplayItem> PinnedRows { get; set; } = Array.Empty<AchievementDisplayItem>();
+
+        /// <summary>The pins the build read, as <see cref="PinKeys"/> names them; a pin added since is not among them.</summary>
+        internal HashSet<string> PinKeysAtBuild { get; set; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Whether the build read every pin of <paramref name="showcase"/>.</summary>
+        internal bool HasSeenAchievementPins(ShowcaseSettings showcase) => PinKeys(showcase).IsSubsetOf(PinKeysAtBuild);
+
+        internal static List<PinnedAchievementReference> Pins(ShowcaseSettings showcase) =>
+            (showcase?.AchievementPinCollections ?? new List<PinnedAchievementCollection>())
+                .Where(collection => collection?.Pins != null)
+                .SelectMany(collection => collection.Pins)
+                .Where(pin => pin != null && pin.GameId != Guid.Empty && !string.IsNullOrWhiteSpace(pin.ApiName))
+                .ToList();
+
+        internal static HashSet<string> PinKeys(ShowcaseSettings showcase) =>
+            new HashSet<string>(Pins(showcase).Select(pin => pin.Key.ToUpperInvariant()), StringComparer.Ordinal);
+
+        /// <summary>
+        /// Bounded pool of locked achievements the Unlock Next mosaic draws from. Empty until a
+        /// shown widget asks for it (<see cref="RequestUnlockNextPool"/>);
+        /// <see cref="UnlockNextPoolBuilt"/> distinguishes "not read" from "nothing found".
         /// </summary>
         public List<AchievementDisplayItem> UnlockNextCandidates { get; set; } =
             new List<AchievementDisplayItem>();
 
-        /// <summary>
-        /// Whether this snapshot was built with the Unlock Next pool populated. A dashboard that
-        /// starts needing the pool triggers a rebuild off this flag.
-        /// </summary>
+        /// <summary>Whether the Unlock Next pool has been read.</summary>
         public bool UnlockNextPoolBuilt { get; set; }
 
-        /// <summary>
-        /// Locked rows per game the pool retained from each ranking. A widget asking for more per
-        /// game than this triggers a rebuild.
-        /// </summary>
+        /// <summary>Locked rows per game the pool retained from each ranking.</summary>
         public int UnlockNextPoolSlice { get; set; }
+
+        /// <summary>
+        /// Reads the Unlock Next pool at a depth (<see cref="UnlockNextCandidateSelector.SliceFor"/>)
+        /// off the UI thread; set by the build, null on derived views, which show no pool.
+        /// </summary>
+        internal Func<int, List<AchievementDisplayItem>> UnlockNextReader { get; set; }
+
+        private int _unlockNextReadingSlice;
+        private readonly List<Action> _unlockNextLanded = new List<Action>();
+
+        /// <summary>Whether a widget asking for <paramref name="maxPerGame"/> waits for a pool read.</summary>
+        internal bool NeedsUnlockNextRead(int maxPerGame) =>
+            UnlockNextReader != null &&
+            maxPerGame > 0 &&
+            !(UnlockNextPoolBuilt && UnlockNextPoolSlice >= UnlockNextCandidateSelector.SliceFor(maxPerGame));
+
+        /// <summary>
+        /// Reads the pool deep enough for <paramref name="maxPerGame"/>, once per depth, and runs
+        /// <paramref name="landed"/> on the calling thread's context after the pool is attached.
+        /// Disposing the result drops <paramref name="landed"/>, so a closed view is not held by a
+        /// kept snapshot. UI thread.
+        /// </summary>
+        internal IDisposable RequestUnlockNextPool(int maxPerGame, Action landed)
+        {
+            if (!NeedsUnlockNextRead(maxPerGame) || landed == null)
+            {
+                return null;
+            }
+
+            _unlockNextLanded.Add(landed);
+            var request = new LandedRequest(this, landed);
+            var slice = UnlockNextCandidateSelector.SliceFor(maxPerGame);
+            if (_unlockNextReadingSlice >= slice)
+            {
+                return request;
+            }
+
+            _unlockNextReadingSlice = slice;
+            var reader = UnlockNextReader;
+            var context = System.Threading.SynchronizationContext.Current;
+            System.Threading.Tasks.Task.Run(() => reader(slice)).ContinueWith(read =>
+            {
+                void Attach()
+                {
+                    // A deeper read asked for meanwhile attaches and notifies instead.
+                    if (slice < _unlockNextReadingSlice)
+                    {
+                        return;
+                    }
+
+                    UnlockNextCandidates = read.Exception == null && read.Result != null
+                        ? read.Result
+                        : new List<AchievementDisplayItem>();
+                    UnlockNextPoolBuilt = true;
+                    UnlockNextPoolSlice = slice;
+                    var notify = _unlockNextLanded.ToList();
+                    _unlockNextLanded.Clear();
+                    notify.ForEach(landedAction => landedAction());
+                }
+
+                if (context != null)
+                {
+                    context.Post(_ => Attach(), null);
+                }
+                else
+                {
+                    Attach();
+                }
+            }, System.Threading.Tasks.TaskScheduler.Default);
+            return request;
+        }
+
+        private sealed class LandedRequest : IDisposable
+        {
+            private OverviewDataSnapshot _snapshot;
+            private readonly Action _landed;
+
+            public LandedRequest(OverviewDataSnapshot snapshot, Action landed)
+            {
+                _snapshot = snapshot;
+                _landed = landed;
+            }
+
+            public void Dispose()
+            {
+                _snapshot?._unlockNextLanded.Remove(_landed);
+                _snapshot = null;
+            }
+        }
 
         /// <summary>
         /// Whether this snapshot was cut to the unlocks an achievement filter keeps, so its
@@ -60,53 +171,6 @@ namespace PlayniteAchievements.Services.Overview
         /// achievement counts. A count over the games' tallies applies it too.
         /// </summary>
         public Func<Models.Achievements.AchievementTally, bool> TallyFilter { get; set; }
-
-        /// <summary>
-        /// Every achievement pin (see <see cref="AchievementPinKey"/>) the build considered when it
-        /// hydrated locked pinned rows into <see cref="Achievements"/>. A pin added afterwards is
-        /// absent here, so its locked row was never hydrated; consumers rebuild off
-        /// <see cref="HasSeenAchievementPins"/>. A pin whose game data is unavailable stays in
-        /// the set, so it does not trigger a rebuild on every configuration change.
-        /// </summary>
-        public HashSet<string> AchievementPinKeysAtBuild { get; set; } =
-            new HashSet<string>(StringComparer.Ordinal);
-
-        public static string AchievementPinKey(Guid gameId, string apiName) =>
-            gameId.ToString("N") + "|" + (apiName ?? string.Empty).ToUpperInvariant();
-
-        /// <summary>Whether this snapshot's build already accounted for every current achievement pin.</summary>
-        public bool HasSeenAchievementPins(ShowcaseSettings showcase)
-        {
-            var collections = showcase?.AchievementPinCollections;
-            if (collections == null)
-            {
-                return true;
-            }
-
-            foreach (var collection in collections)
-            {
-                if (collection?.Pins == null)
-                {
-                    continue;
-                }
-
-                foreach (var pin in collection.Pins)
-                {
-                    if (pin == null || pin.GameId == Guid.Empty || string.IsNullOrWhiteSpace(pin.ApiName))
-                    {
-                        continue;
-                    }
-
-                    if (AchievementPinKeysAtBuild == null ||
-                        !AchievementPinKeysAtBuild.Contains(AchievementPinKey(pin.GameId, pin.ApiName)))
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
 
         /// <summary>
         /// Unlock counts per local calendar day (keys at 00:00, Kind Unspecified; compare by value),
@@ -259,7 +323,6 @@ namespace PlayniteAchievements.Services.Overview
             var list = games ?? Array.Empty<GameSummaryItem>();
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>(),
                 GameSummaries = new List<GameSummaryItem>(list),
                 UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)

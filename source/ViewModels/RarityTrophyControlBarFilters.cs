@@ -5,6 +5,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
@@ -134,14 +135,10 @@ namespace PlayniteAchievements.ViewModels
                 .Any(game => game?.HasTrophyPieChartData == true));
 
         /// <summary>
-        /// Offers the trophy types only while some row has a trophy type. True when that
+        /// Offers the trophy types only while <paramref name="hasTrophies"/>. True when that
         /// changed, so the bar's item visibility needs a refresh.
         /// </summary>
-        public bool UpdateRows(IEnumerable<AchievementDisplayItem> rows) =>
-            OfferTrophies((rows ?? Enumerable.Empty<AchievementDisplayItem>())
-                .Any(row => !string.IsNullOrWhiteSpace(row?.TrophyType)));
-
-        private bool OfferTrophies(bool hasTrophies)
+        internal bool OfferTrophies(bool hasTrophies)
         {
             if (hasTrophies == (TrophyOptions.Count > 0))
             {
@@ -170,26 +167,43 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool KeepsCompletions => !CapstoneJoinsTiers || _capstone || _rarities.Count == 0;
 
+        /// <summary>
+        /// <paramref name="query"/> narrowed to the rows both filters keep: Capstone narrows the
+        /// picked tiers, or with <see cref="CapstoneJoinsTiers"/> adds the capstones to them.
+        /// </summary>
+        internal AchievementQuery ApplyTo(AchievementQuery query)
+        {
+            if (_rarities.Count > 0)
+            {
+                query = query.WhereRarity(_rarities);
+            }
+
+            if (_capstone)
+            {
+                query = query.WhereCapstone(orRarity: CapstoneJoinsTiers);
+            }
+
+            return _trophies.Count > 0 ? query.WhereTrophy(_trophies) : query;
+        }
+
         /// <summary>True for a row both filters keep; every row while nothing is selected.</summary>
         public bool Matches(AchievementDisplayItem row) =>
-            MatchesRarity(row) && MatchesTrophy(row);
-
-        /// <summary>True for a row the Rarity filter keeps; every row while no tier or Capstone is picked.</summary>
-        public bool MatchesRarity(AchievementDisplayItem row) =>
-            row != null && MatchesRarity(row.Rarity, row.IsCapstone);
-
-        /// <summary>True for a row the Trophy filter keeps; every row while no trophy type is picked.</summary>
-        public bool MatchesTrophy(AchievementDisplayItem row) =>
             row != null &&
+            MatchesRarity(row.Rarity, row.IsCapstone) &&
             (_trophies.Count == 0 || _trophies.Contains((row.TrophyType ?? string.Empty).Trim()));
 
         /// <summary>
         /// True for a tally whose achievements both filters keep, locked ones included; every tally
         /// while nothing is selected. A tally of unknown tier matches no picked tier.
         /// </summary>
-        public bool Matches(AchievementTally tally) =>
-            MatchesRarity(tally.Rarity, tally.IsCapstone) &&
-            (_trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy)));
+        public bool Matches(AchievementTally tally) => MatchesRarity(tally) && MatchesTrophy(tally);
+
+        /// <summary>True for a tally the Rarity filter keeps; every tally while no tier or Capstone is picked.</summary>
+        public bool MatchesRarity(AchievementTally tally) => MatchesRarity(tally.Rarity, tally.IsCapstone);
+
+        /// <summary>True for a tally the Trophy filter keeps; every tally while no trophy type is picked.</summary>
+        public bool MatchesTrophy(AchievementTally tally) =>
+            _trophies.Count == 0 || (tally.Trophy != null && _trophies.Contains(tally.Trophy));
 
         private bool MatchesRarity(RarityTier? tier, bool isCapstone)
         {

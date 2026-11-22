@@ -220,7 +220,7 @@ namespace PlayniteAchievements.Services.LinkedFiles
         /// <summary>
         /// A first-guess mapping for a table: each column by its header when its cells fit that
         /// field, then the columns left over by their cells. One column per field; columns that
-        /// fit nothing are left out.
+        /// fit nothing are left out, as is the position column, which feeds no field.
         /// </summary>
         public static List<LinkedFileColumnMapping> Guess(LinkedFileTable table)
         {
@@ -268,7 +268,8 @@ namespace PlayniteAchievements.Services.LinkedFiles
 
             for (var index = 0; index < table.Columns.Count; index++)
             {
-                if (fields[index] != LinkedFileField.Ignore)
+                if (fields[index] != LinkedFileField.Ignore &&
+                    !string.Equals(table.Columns[index], LinkedFileSchema.PositionColumn, StringComparison.Ordinal))
                 {
                     mappings.Add(new LinkedFileColumnMapping { Column = table.Columns[index], Field = fields[index] });
                 }

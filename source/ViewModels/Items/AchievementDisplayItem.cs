@@ -246,6 +246,18 @@ namespace PlayniteAchievements.ViewModels.Items
             set => SetValue(ref _friendIsFavorite, value);
         }
 
+        private bool _isPlaceholder;
+
+        /// <summary>
+        /// Stands in for a row a paged list has not loaded yet; the cell style draws a shape in
+        /// each cell. Cleared when the row's read fills it in place.
+        /// </summary>
+        public bool IsPlaceholder
+        {
+            get => _isPlaceholder;
+            set => SetValue(ref _isPlaceholder, value);
+        }
+
         // --- Friend comparison (session-only; set by the hosting view model when a
         //     compare friend is selected, cleared when the selection changes) ---
 
@@ -306,8 +318,8 @@ namespace PlayniteAchievements.ViewModels.Items
 
         // The identity of the row's own side of the comparison: the signed-in user on the self
         // achievement grids, and the selected friend in the friends-overview pair view. Null when
-        // the row's provider has no cached avatar, which renders as an empty circle so both sides
-        // stay aligned.
+        // the row's provider has no cached avatar, which renders as a placeholder glyph in the
+        // avatar circle so both sides stay aligned.
         [DontSerialize]
         [IgnoreDataMember]
         public string ComparisonOwnerName
@@ -340,6 +352,7 @@ namespace PlayniteAchievements.ViewModels.Items
                 if (SetValueAndReturn(ref _comparisonUnlockTimeUtc, value))
                 {
                     OnPropertyChanged(nameof(ComparisonUnlockTimeLocal));
+                    OnPropertyChanged(nameof(ComparisonUnlockedWithoutDate));
                     OnPropertyChanged(nameof(ComparisonToolTip));
                 }
             }
@@ -354,10 +367,18 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 if (SetValueAndReturn(ref _comparisonUnlocked, value))
                 {
+                    OnPropertyChanged(nameof(ComparisonUnlockedWithoutDate));
                     OnPropertyChanged(nameof(ComparisonToolTip));
                 }
             }
         }
+
+        // The compare side has the achievement with no unlock time on record (a manual unlock
+        // without a date); the cell then reads Unlocked where the date would be.
+        [DontSerialize]
+        [IgnoreDataMember]
+        public bool ComparisonUnlockedWithoutDate =>
+            _comparisonUnlocked && !_comparisonUnlockTimeUtc.HasValue;
 
         [DontSerialize]
         [IgnoreDataMember]
@@ -403,7 +424,7 @@ namespace PlayniteAchievements.ViewModels.Items
 
             return unlockTimeLocal.HasValue
                 ? $"{name} · {unlockTimeLocal.Value.ToString("G", FormattingCulture.Current)}"
-                : name;
+                : $"{name} · {ResourceProvider.GetString("LOCPlayAch_Common_Unlocked")}";
         }
 
         public void ApplyComparison(
@@ -603,12 +624,17 @@ namespace PlayniteAchievements.ViewModels.Items
                     NotifyMaskStateChanged();
                     OnPropertyChanged(nameof(ShowUnlockDate));
                     OnPropertyChanged(nameof(ShowLockedProgress));
+                    OnPropertyChanged(nameof(UnlockedWithoutDate));
                     OnPropertyChanged(nameof(IsUnlock));
                 }
             }
         }
 
         public virtual bool ShowUnlockDate => Unlocked;
+
+        // Unlocked with no unlock time on record (a manual unlock without a date). In compare
+        // mode the cell reads Unlocked where the date would be.
+        public bool UnlockedWithoutDate => Unlocked && !UnlockTimeUtc.HasValue;
 
         public virtual bool ShowLockedProgress => !ShowUnlockDate;
 
@@ -1361,7 +1387,7 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
-        /// Rarity-based foreground brush for the achievement name: the completed color for capstone
+        /// Rarity-based foreground brush for the achievement name: the completed gradient for capstone
         /// achievements (which takes precedence), otherwise the rarity tier brush. Computed unconditionally;
         /// grids use it when their per-grid name color source is Rarity.
         /// </summary>
@@ -1371,10 +1397,15 @@ namespace PlayniteAchievements.ViewModels.Items
             {
                 var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
                 return IsCapstone
-                    ? RarityAppearanceHelper.GetCompletedBrush(persisted)
+                    ? RarityAppearanceHelper.GetCompletedGradientBrush(persisted)
                     : RarityAppearanceHelper.GetBrush(Rarity, persisted);
             }
         }
+
+        /// <summary>Muted completed gradient for the locked capstone padlock.</summary>
+        public System.Windows.Media.Brush CapstoneLockBrush =>
+            RarityAppearanceHelper.GetMutedCompletedGradientBrush(
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
 
         public System.Windows.Media.Brush RarityBrush
         {
@@ -1520,6 +1551,20 @@ namespace PlayniteAchievements.ViewModels.Items
             NotificationCapturePath = sourceItem.NotificationCapturePath;
             FramedCapturePath = sourceItem.FramedCapturePath;
             VideoCapturePath = sourceItem.VideoCapturePath;
+            IsPlaceholder = sourceItem.IsPlaceholder;
+        }
+
+        /// <summary>
+        /// Brings this row up to date from a new read of the same achievement, keeping what the
+        /// read does not carry: the reveal, and the capture marks and comparison stamped later.
+        /// </summary>
+        public virtual void RefreshFrom(AchievementDisplayItem fresh)
+        {
+            var revealed = IsRevealed;
+            var captures = (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath);
+            UpdateFrom(fresh);
+            IsRevealed = revealed;
+            (CleanCapturePath, NotificationCapturePath, FramedCapturePath, VideoCapturePath) = captures;
         }
 
         public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
@@ -1551,6 +1596,7 @@ namespace PlayniteAchievements.ViewModels.Items
             ShowFriendSpoilers = resolved.ShowFriendSpoilers;
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
+            OnPropertyChanged(nameof(CapstoneLockBrush));
         }
 
         /// <summary>
@@ -1859,43 +1905,6 @@ namespace PlayniteAchievements.ViewModels.Items
             return item;
         }
 
-        public static AchievementDisplayItem CreateRecent(
-            GameAchievementData gameData,
-            AchievementDetail achievement,
-            PlayniteAchievementsSettings settings,
-            string gameIconPath,
-            string gameCoverPath,
-            AppearanceSettingsSnapshot appearanceSettings = null,
-            CategoryPresentationMemo categoryMemo = null)
-        {
-            if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
-            {
-                return null;
-            }
-
-            var item = CreateBaseItem(
-                gameData,
-                achievement,
-                gameData?.PlayniteGameId,
-                ResolvePoints(achievement, gameData),
-                categoryMemo);
-            item.GameIconPath = gameIconPath;
-            item.GameCoverPath = gameCoverPath;
-            ApplyCategoryPresentation(
-                item,
-                gameData,
-                item.CategoryLabel,
-                achievement.ProviderCategory,
-                gameData?.PlayniteGameId,
-                categoryMemo);
-            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
-                settings,
-                gameData?.PlayniteGameId,
-                gameData?.UseSeparateLockedIconsWhenAvailable);
-            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
-            return item;
-        }
-
         public static bool IsAppearanceSettingPropertyName(string propertyName)
         {
             switch (NormalizePersistedPropertyName(propertyName))
@@ -2052,12 +2061,14 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(Rarity));
             OnPropertyChanged(nameof(GamerScore));
             OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(UnlockedWithoutDate));
             OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(IsGoal));
             OnPropertyChanged(nameof(GoalOrderIndex));
             OnPropertyChanged(nameof(DefaultOrderIndex));
             OnPropertyChanged(nameof(RarityBrush));
             OnPropertyChanged(nameof(RarityNameBrush));
+            OnPropertyChanged(nameof(CapstoneLockBrush));
             OnPropertyChanged(nameof(Hidden));
             OnPropertyChanged(nameof(IsUnlock));
             OnPropertyChanged(nameof(ApiName));
@@ -2088,6 +2099,7 @@ namespace PlayniteAchievements.ViewModels.Items
             OnPropertyChanged(nameof(UnlockTime));
             OnPropertyChanged(nameof(ShowUnlockDate));
             OnPropertyChanged(nameof(ShowLockedProgress));
+            OnPropertyChanged(nameof(UnlockedWithoutDate));
         }
 
         /// <summary>

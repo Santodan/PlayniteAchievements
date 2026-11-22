@@ -48,6 +48,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string DefaultCategoryModeHotkey = "C";
         public const string DefaultTestUnlockHotkey = "Ctrl+Alt+T";
         public const string DefaultWorkshopHotkey = "Ctrl+Alt+W";
+        public const string DefaultAchievementEditorHotkey = "Ctrl+Alt+E";
 
         /// <summary>
         /// Column key of the Progress column in game-summaries grids (matches the XAML ColumnKey and
@@ -163,6 +164,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableCategoryModeHotkey = true;
         private bool _enableTestUnlockHotkey = true;
         private bool _enableWorkshopHotkey = true;
+        private bool _enableAchievementEditorHotkey = true;
         private bool _enableCaptureTestFolder = false;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
@@ -171,6 +173,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _categoryModeHotkey = DefaultCategoryModeHotkey;
         private string _testUnlockHotkey = DefaultTestUnlockHotkey;
         private string _workshopHotkey = DefaultWorkshopHotkey;
+        private string _achievementEditorHotkey = DefaultAchievementEditorHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
@@ -220,6 +223,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _progressColumnAlignmentDefaulted = false;
         private bool _inlineSurfaceTransparencySeeded = true;
         private bool _commonGlowTierCleared = true;
+        private bool _surfaceOverrideMovedToPanel = true;
         private bool _categoryProgressColumnAlignmentDefaulted = true;
 
         private GridAlignment _gridColumnHeaderAlignment = GridAlignment.Center;
@@ -229,6 +233,12 @@ namespace PlayniteAchievements.Models.Settings
         private PlaytimeDisplayMode _playtimeDisplayMode = PlaytimeDisplayMode.HoursAndMinutes;
         private CategoryCompletionBadgeMode _categoryCompletionBadgeMode = CategoryCompletionBadgeMode.All;
         private IconScaleMode _iconScaleMode = IconScaleMode.Stretch;
+        private int _cornerRoundingRadius = 6;
+        private int? _achievementIconCornerRadius;
+        private bool _roundGameArtCorners;
+        private bool _roundAchievementIconCorners;
+        private bool _roundLayoutCorners = true;
+        private int _layoutCornerRadius = 4;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
         private int _progressDetailShownCount = ProgressDetailOrder.MinShownCount;
@@ -1183,6 +1193,15 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Enables the Achievement Editor shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableAchievementEditorHotkey
+        {
+            get => _enableAchievementEditorHotkey;
+            set => SetValue(ref _enableAchievementEditorHotkey, value);
+        }
+
+        /// <summary>
         /// Routes retriggered captures into the shared "Test" subfolder of the capture root instead of
         /// the game's own folder. The capture library hides that subfolder, so retriggers become
         /// throwaway test output rather than part of the game's collection.
@@ -1260,6 +1279,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _workshopHotkey;
             set => SetValue(ref _workshopHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that opens, focuses, or closes the Achievement Editor window. In-app only: it is
+        /// never registered as a global hotkey.
+        /// </summary>
+        public string AchievementEditorHotkey
+        {
+            get => _achievementEditorHotkey;
+            set => SetValue(ref _achievementEditorHotkey, NormalizeHotkeyText(value));
         }
 
         #endregion
@@ -2578,6 +2607,19 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// True when this config's Surface and Panel resource overrides use the current split:
+        /// Panel colors cards and containers, Surface colors inputs. Cards drew on Surface before,
+        /// so the migration moves a saved Surface override to Panel once, for configs whose JSON
+        /// lacks this flag. Defaults true because every config this build writes already uses the
+        /// split, so a Surface color chosen in the very first session is never moved.
+        /// </summary>
+        public bool SurfaceOverrideMovedToPanel
+        {
+            get => _surfaceOverrideMovedToPanel;
+            set => SetValue(ref _surfaceOverrideMovedToPanel, value);
+        }
+
+        /// <summary>
         /// True when the category summary Progress column alignment in this config is either the
         /// seeded Right default or the user's own choice, including a cleared override. The
         /// category options used to seed Right on the deserialization target, so earlier builds
@@ -2654,6 +2696,65 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _iconScaleMode;
             set => SetValue(ref _iconScaleMode, value);
+        }
+        /// <summary>
+        /// Corner radius in pixels for rounded game art and category art. Each surface caps it at
+        /// half its own shorter side.
+        /// </summary>
+        public int CornerRoundingRadius
+        {
+            get => _cornerRoundingRadius;
+            set => SetValue(ref _cornerRoundingRadius, Math.Max(0, value));
+        }
+
+        /// <summary>
+        /// Corner radius in pixels for rounded achievement icons. Settings saved while one radius
+        /// covered both kinds hold no value for it, so the first read takes CornerRoundingRadius
+        /// and keeps it; from then on the two are independent.
+        /// </summary>
+        public int AchievementIconCornerRadius
+        {
+            get
+            {
+                if (_achievementIconCornerRadius == null)
+                {
+                    _achievementIconCornerRadius = _cornerRoundingRadius;
+                }
+
+                return _achievementIconCornerRadius.Value;
+            }
+            set => SetValue(ref _achievementIconCornerRadius, Math.Max(0, value));
+        }
+
+        /// <summary>Whether game and category art is drawn with CornerRoundingRadius corners.</summary>
+        public bool RoundGameArtCorners
+        {
+            get => _roundGameArtCorners;
+            set => SetValue(ref _roundGameArtCorners, value);
+        }
+
+        /// <summary>Whether achievement icons are drawn with AchievementIconCornerRadius corners.</summary>
+        public bool RoundAchievementIconCorners
+        {
+            get => _roundAchievementIconCorners;
+            set => SetValue(ref _roundAchievementIconCorners, value);
+        }
+
+        /// <summary>
+        /// Whether layout surfaces (text boxes, dropdowns, buttons, cards, menus) are drawn with
+        /// LayoutCornerRadius corners. Square when off.
+        /// </summary>
+        public bool RoundLayoutCorners
+        {
+            get => _roundLayoutCorners;
+            set => SetValue(ref _roundLayoutCorners, value);
+        }
+
+        /// <summary>Corner radius in pixels for rounded layout surfaces.</summary>
+        public int LayoutCornerRadius
+        {
+            get => _layoutCornerRadius;
+            set => SetValue(ref _layoutCornerRadius, Math.Max(0, value));
         }
 
         /// <summary>
@@ -3357,6 +3458,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableCategoryModeHotkey = this.EnableCategoryModeHotkey,
                 EnableTestUnlockHotkey = this.EnableTestUnlockHotkey,
                 EnableWorkshopHotkey = this.EnableWorkshopHotkey,
+                EnableAchievementEditorHotkey = this.EnableAchievementEditorHotkey,
                 ViewAchievementsHotkey = this.ViewAchievementsHotkey,
                 ManageAchievementsHotkey = this.ManageAchievementsHotkey,
                 OverviewHotkey = this.OverviewHotkey,
@@ -3364,6 +3466,7 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
                 WorkshopHotkey = this.WorkshopHotkey,
+                AchievementEditorHotkey = this.AchievementEditorHotkey,
                 EnableCaptureTestFolder = this.EnableCaptureTestFolder,
 
                 HiddenManageSidebarStatGroups = this.HiddenManageSidebarStatGroups,
@@ -3497,6 +3600,7 @@ namespace PlayniteAchievements.Models.Settings
                 ProgressColumnAlignmentDefaulted = this.ProgressColumnAlignmentDefaulted,
                 InlineSurfaceTransparencySeeded = this.InlineSurfaceTransparencySeeded,
                 CommonGlowTierCleared = this.CommonGlowTierCleared,
+                SurfaceOverrideMovedToPanel = this.SurfaceOverrideMovedToPanel,
                 CategoryProgressColumnAlignmentDefaulted = this.CategoryProgressColumnAlignmentDefaulted,
                 GridColumnHeaderAlignment = this.GridColumnHeaderAlignment,
                 GridCellAlignment = this.GridCellAlignment,
@@ -3505,6 +3609,12 @@ namespace PlayniteAchievements.Models.Settings
                 PlaytimeDisplayMode = this.PlaytimeDisplayMode,
                 CategoryCompletionBadgeMode = this.CategoryCompletionBadgeMode,
                 IconScaleMode = this.IconScaleMode,
+                CornerRoundingRadius = this.CornerRoundingRadius,
+                AchievementIconCornerRadius = this.AchievementIconCornerRadius,
+                RoundGameArtCorners = this.RoundGameArtCorners,
+                RoundAchievementIconCorners = this.RoundAchievementIconCorners,
+                RoundLayoutCorners = this.RoundLayoutCorners,
+                LayoutCornerRadius = this.LayoutCornerRadius,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
                 ProgressDetailShownCount = this.ProgressDetailShownCount,
@@ -3640,6 +3750,12 @@ namespace PlayniteAchievements.Models.Settings
             PlaytimeDisplayMode = defaults.PlaytimeDisplayMode;
             CategoryCompletionBadgeMode = defaults.CategoryCompletionBadgeMode;
             IconScaleMode = defaults.IconScaleMode;
+            CornerRoundingRadius = defaults.CornerRoundingRadius;
+            AchievementIconCornerRadius = defaults.AchievementIconCornerRadius;
+            RoundGameArtCorners = defaults.RoundGameArtCorners;
+            RoundAchievementIconCorners = defaults.RoundAchievementIconCorners;
+            RoundLayoutCorners = defaults.RoundLayoutCorners;
+            LayoutCornerRadius = defaults.LayoutCornerRadius;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;

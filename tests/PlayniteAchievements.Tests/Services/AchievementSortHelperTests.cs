@@ -471,32 +471,6 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ResolveLibraryAchievements_DynamicSortUsesCanonicalSourceInsteadOfPrecomputedLists()
-        {
-            var common = CreateDetail("Common", unlocked: true, globalPercentUnlocked: 80);
-            var rare = CreateDetail("Rare", unlocked: true, globalPercentUnlocked: 5);
-            var poison = CreateDetail("Precomputed", unlocked: true, globalPercentUnlocked: 1);
-            var state = new LibraryRuntimeState
-            {
-                TotalTrophies = 2,
-                AllAchievements = new List<AchievementDetail> { common, rare },
-                AllAchievementsRarityAsc = new List<AchievementDetail> { poison },
-                AllAchievementsRarityDesc = new List<AchievementDetail> { poison },
-                AllAchievementsUnlockAsc = new List<AchievementDetail> { poison },
-                AllAchievementsUnlockDesc = new List<AchievementDetail> { poison }
-            };
-
-            var resolved = AchievementSortHelper.ResolveLibraryAchievements(
-                state,
-                DynamicThemeViewKeys.Rarity,
-                DynamicThemeViewKeys.Ascending);
-
-            CollectionAssert.AreEqual(
-                new[] { "Rare", "Common" },
-                resolved.Select(item => item.DisplayName).ToArray());
-        }
-
-        [TestMethod]
         public void ResolveGridSortAction_DefaultNone_CyclesAscendingDescendingThenReset()
         {
             var settings = new PersistedSettings

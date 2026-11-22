@@ -1,6 +1,8 @@
 using Newtonsoft.Json;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Database;
+using PlayniteAchievements.Services.Images;
 using SqlNado;
 using System;
 using System.Collections.Generic;
@@ -10,9 +12,15 @@ using System.Linq;
 
 namespace PlayniteAchievements.Services.GameCustomData
 {
+    /// <summary>
+    /// Reads and writes custom data in the custom layer tables (see <see cref="GameCustomLayer"/>),
+    /// one game per transaction, on its own connection to the plugin's database.
+    /// </summary>
     internal sealed class GameCustomDataRepository
     {
-        private const string TableName = "GameCustomData";
+        // Where custom data was stored, one JSON payload per game, before the custom layer tables.
+        // Kept untouched as a backup for one release; read only to migrate.
+        private const string LegacyTableName = "GameCustomData";
         private const string CapstoneArtTableName = "CapstoneArtRecords";
 
         // Custom data had its own database file before it moved into the plugin's one database.
@@ -20,7 +28,11 @@ namespace PlayniteAchievements.Services.GameCustomData
         private const string MovedInMarkerKey = "custom_data_moved_in";
         private const int BusyTimeoutMs = 5000;
 
-        private sealed class GameCustomDataRow
+        private const string AchievementColumns = "PlayniteGameId, " + CustomAchievementRow.Columns;
+        private const string GameColumns = CustomGameStateRow.Columns;
+        private const string CategoryColumns = CustomCategoryRow.Columns;
+
+        private sealed class LegacyPayloadRow
         {
             public string PlayniteGameId { get; set; }
 
@@ -29,37 +41,421 @@ namespace PlayniteAchievements.Services.GameCustomData
             public string UpdatedUtc { get; set; }
         }
 
+        /// <summary>The outcome of moving the legacy payloads into the tables.</summary>
+        internal sealed class MigrationResult
+        {
+            public int Migrated { get; set; }
+
+            /// <summary>Payloads that would not parse, left in the legacy table only.</summary>
+            public int Unreadable { get; set; }
+
+            public string BackupPath { get; set; }
+        }
+
         private readonly object _syncRoot = new object();
         private readonly string _databasePath;
+        private readonly string _pluginDataRoot;
         private readonly ILogger _logger;
-        private readonly JsonSerializerSettings _writeSettings;
         private bool _schemaInitialized;
         private bool _migrationBackupAttempted;
 
-        public GameCustomDataRepository(string databasePath, JsonSerializerSettings writeSettings, ILogger logger = null)
+        public GameCustomDataRepository(string databasePath, ILogger logger = null)
         {
             _databasePath = databasePath ?? string.Empty;
-            _writeSettings = writeSettings ?? throw new ArgumentNullException(nameof(writeSettings));
+            _pluginDataRoot = Path.GetDirectoryName(_databasePath);
             _logger = logger;
         }
 
         public string DatabasePath => _databasePath;
 
+        /// <summary>The last migration of legacy payloads this repository ran, or null.</summary>
+        internal MigrationResult LastMigration { get; private set; }
+
+        public bool TryLoad(Guid playniteGameId, out GameCustomDataFile data)
+        {
+            data = null;
+            if (playniteGameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var idText = ToGuidText(playniteGameId);
+            data = WithDb(
+                createIfMissing: false,
+                db => Load(
+                    Games(db, $"SELECT {GameColumns} FROM {AchievementLayerSql.GamesTable} WHERE PlayniteGameId = ?;", idText),
+                    Achievements(db, $"SELECT {AchievementColumns} FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ?;", idText),
+                    Categories(db, $"SELECT {CategoryColumns} FROM {AchievementLayerSql.CategoriesTable} WHERE PlayniteGameId = ?;", idText))
+                    .FirstOrDefault(),
+                default(GameCustomDataFile));
+            return data != null;
+        }
+
+        /// <summary>Every stored record, normalized.</summary>
+        public IEnumerable<GameCustomDataFile> EnumerateAllNormalized()
+        {
+            return WithDb(
+                createIfMissing: false,
+                db => Load(
+                    Games(db, $"SELECT {GameColumns} FROM {AchievementLayerSql.GamesTable} ORDER BY PlayniteGameId;"),
+                    Achievements(db, $"SELECT {AchievementColumns} FROM {AchievementLayerSql.AchievementsTable};"),
+                    Categories(db, $"SELECT {CategoryColumns} FROM {AchievementLayerSql.CategoriesTable};")),
+                new List<GameCustomDataFile>());
+        }
+
+        /// <summary>
+        /// Writes the game's rows and returns the record they hold, file paths in the form a load
+        /// returns them, so the caller can seed its cache without reading it back, or null when the
+        /// record holds nothing and the game's rows were deleted instead.
+        /// </summary>
+        /// <param name="normalized">A record <see cref="GameCustomDataNormalizer.NormalizeInternal"/> returned.</param>
+        /// <param name="changed">True when a row moved.</param>
+        public GameCustomDataFile Save(Guid playniteGameId, GameCustomDataFile normalized, out bool changed)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                throw new ArgumentException("Game ID is required.", nameof(playniteGameId));
+            }
+
+            var keep = GameCustomDataNormalizer.HasInternalData(normalized);
+            var rows = keep ? ToRows(normalized) : null;
+            var wrote = false;
+            WithDb(createIfMissing: keep, db => db.RunTransaction(() => wrote = Write(db, playniteGameId, rows)));
+            changed = wrote;
+            return keep ? Read(playniteGameId, rows) : null;
+        }
+
+        /// <summary>
+        /// Writes several games' normalized records in one transaction, and returns for each, in
+        /// order, the record its rows hold (null when they were deleted) and whether a row moved.
+        /// </summary>
+        public IReadOnlyList<(GameCustomDataFile Persisted, bool Changed)> SaveBatch(
+            IReadOnlyList<KeyValuePair<Guid, GameCustomDataFile>> normalizedRecords)
+        {
+            var prepared = (normalizedRecords ?? Array.Empty<KeyValuePair<Guid, GameCustomDataFile>>())
+                .Select(pair =>
+                {
+                    if (pair.Key == Guid.Empty)
+                    {
+                        throw new ArgumentException("Game ID is required.", nameof(normalizedRecords));
+                    }
+
+                    var keep = GameCustomDataNormalizer.HasInternalData(pair.Value);
+                    return (GameId: pair.Key, Keep: keep, Rows: keep ? ToRows(pair.Value) : null);
+                })
+                .ToList();
+            var changed = new bool[prepared.Count];
+            if (prepared.Count > 0)
+            {
+                WithDb(createIfMissing: prepared.Any(item => item.Keep), db => db.RunTransaction(() =>
+                {
+                    for (var index = 0; index < prepared.Count; index++)
+                    {
+                        changed[index] = Write(db, prepared[index].GameId, prepared[index].Rows);
+                    }
+                }));
+            }
+
+            return prepared
+                .Select((item, index) => (item.Keep ? Read(item.GameId, item.Rows) : null, changed[index]))
+                .ToList();
+        }
+
+        /// <summary>Normalizes and writes every record in one transaction; returns the games whose rows moved.</summary>
+        public IReadOnlyList<Guid> SaveMany(IEnumerable<GameCustomDataFile> items)
+        {
+            var pending = (items ?? Enumerable.Empty<GameCustomDataFile>())
+                .Where(item => item != null && item.PlayniteGameId != Guid.Empty)
+                .Select(item => GameCustomDataNormalizer.NormalizeInternal(item, item.PlayniteGameId))
+                .Select(normalized => new KeyValuePair<Guid, GameCustomLayerRows>(
+                    normalized.PlayniteGameId,
+                    GameCustomDataNormalizer.HasInternalData(normalized) ? ToRows(normalized) : null))
+                .ToList();
+            var changed = new List<Guid>();
+            if (pending.Count == 0)
+            {
+                return changed;
+            }
+
+            WithDb(createIfMissing: pending.Any(pair => pair.Value != null), db => db.RunTransaction(() =>
+            {
+                foreach (var pair in pending.Where(pair => Write(db, pair.Key, pair.Value)))
+                {
+                    changed.Add(pair.Key);
+                }
+            }));
+            return changed;
+        }
+
+        /// <summary>Deletes the game's rows; true when it had any.</summary>
+        public bool Delete(Guid playniteGameId)
+        {
+            var deleted = false;
+            if (playniteGameId != Guid.Empty)
+            {
+                WithDb(createIfMissing: false, db => db.RunTransaction(() => deleted = Write(db, playniteGameId, null)));
+            }
+
+            return deleted;
+        }
+
+        /// <summary>
+        /// Rewrites every record stored under an older schema, and reports how many.
+        /// </summary>
+        /// <remarks>
+        /// Normalization upgrades a record on the way out of every read, but nothing wrote the
+        /// upgraded shape back unless that particular game was edited afterwards. A game the user
+        /// has not touched since the schema moved therefore stayed at its old version, and any such
+        /// record arms the migration backup on every launch. This persists exactly what a read
+        /// already hands every caller, after the backup the read path takes.
+        /// </remarks>
+        public int UpgradeStoredRecordsToCurrentSchema()
+        {
+            var stale = WithDb(
+                createIfMissing: false,
+                db => Games(db, $"SELECT {GameColumns} FROM {AchievementLayerSql.GamesTable};")
+                    .Where(row => GameCustomLayer.SchemaVersionOf(row.SettingsJson) < GameCustomDataNormalizer.CurrentSchemaVersion)
+                    .Select(row => Guid.TryParse(row.PlayniteGameId, out var id) ? id : Guid.Empty)
+                    .Where(id => id != Guid.Empty)
+                    .ToList(),
+                new List<Guid>());
+            var upgraded = stale
+                .Select(id => TryLoad(id, out var data) ? data : GameCustomDataNormalizer.CreateDefault(id))
+                .ToList();
+            if (upgraded.Count == 0)
+            {
+                return 0;
+            }
+
+            SaveMany(upgraded);
+            _logger?.Info(
+                $"[GameCustomData] Upgraded {upgraded.Count} record(s) to schema {GameCustomDataNormalizer.CurrentSchemaVersion}. " +
+                "The migration backup will not be taken again unless a record predates the schema.");
+            return upgraded.Count;
+        }
+
+        /// <summary>
+        /// Points every stored path under the old icon cache folder at the same file under the new
+        /// one, in the custom data and the capstone art records, in one transaction. Returns how
+        /// many records changed.
+        /// </summary>
+        public int RewriteIconCacheRoot(string oldRoot, string newRoot)
+        {
+            var rebased = new List<GameCustomDataFile>();
+            foreach (var data in EnumerateAllNormalized())
+            {
+                if (IconCachePathRebaser.TryRebaseJson(JsonConvert.SerializeObject(data, GameCustomLayer.JsonSettings), oldRoot, newRoot, out var json))
+                {
+                    rebased.Add(JsonConvert.DeserializeObject<GameCustomDataFile>(json, GameCustomLayer.JsonSettings));
+                }
+            }
+
+            var changedArt = LoadAllCapstoneArtRecords()
+                .Where(record => IconCacheLocationRebase(record, oldRoot, newRoot))
+                .ToList();
+
+            if (rebased.Count == 0 && changedArt.Count == 0)
+            {
+                return 0;
+            }
+
+            SaveMany(rebased);
+            WithDb(createIfMissing: false, db => db.RunTransaction(() =>
+            {
+                foreach (var record in changedArt)
+                {
+                    db.ExecuteNonQuery(
+                        $"UPDATE {CapstoneArtTableName} SET Path = ? WHERE PlayniteGameId = ? AND ApiName = ?;",
+                        record.Path,
+                        record.PlayniteGameId,
+                        record.ApiName);
+                }
+            }));
+
+            _logger?.Info(
+                $"[GameCustomData] Moved stored icon paths to the new icon cache folder in " +
+                $"{rebased.Count} record(s) and {changedArt.Count} capstone art record(s).");
+            return rebased.Count + changedArt.Count;
+        }
+
+        private static bool IconCacheLocationRebase(CapstoneArtRecordRow record, string oldRoot, string newRoot)
+        {
+            var rebased = Images.IconCachePathRebaser.RebasePath(record?.Path, oldRoot, newRoot);
+            if (record == null || string.Equals(rebased, record.Path, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            record.Path = rebased;
+            return true;
+        }
+
+        private GameCustomLayerRows ToRows(GameCustomDataFile normalized)
+        {
+            var iconCacheRoot = IconCacheLocation.CurrentRootOrDefault(_pluginDataRoot);
+            return GameCustomLayer.ToRows(normalized, path => StoredPathMapping.ToStored(path, _pluginDataRoot, iconCacheRoot));
+        }
+
+        private GameCustomDataFile Read(Guid gameId, GameCustomLayerRows rows)
+        {
+            var iconCacheRoot = IconCacheLocation.CurrentRootOrDefault(_pluginDataRoot);
+            return GameCustomDataNormalizer.NormalizeInternal(
+                GameCustomLayer.FromRows(gameId, rows.State, rows.Achievements, rows.Categories, path => StoredPathMapping.FromStored(path, _pluginDataRoot, iconCacheRoot)),
+                gameId);
+        }
+
+        /// <summary>The records the rows hold, normalized; a game whose settings will not parse is skipped.</summary>
+        private List<GameCustomDataFile> Load(
+            IEnumerable<CustomGameStateRow> games,
+            IEnumerable<CustomAchievementRow> achievements,
+            IEnumerable<CustomCategoryRow> categories)
+        {
+            var achievementsByGame = achievements.ToLookup(row => row.PlayniteGameId, StringComparer.OrdinalIgnoreCase);
+            var categoriesByGame = categories.ToLookup(row => row.PlayniteGameId, StringComparer.OrdinalIgnoreCase);
+            var results = new List<GameCustomDataFile>();
+            foreach (var game in games)
+            {
+                if (!Guid.TryParse(game?.PlayniteGameId, out var gameId) || gameId == Guid.Empty)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    // Normalization upgrades the record in place, so this is the last point where
+                    // the stored schema version is still visible.
+                    EnsureSchemaMigrationBackup(GameCustomLayer.SchemaVersionOf(game.SettingsJson));
+                    var data = Read(gameId, new GameCustomLayerRows
+                    {
+                        State = game,
+                        Achievements = achievementsByGame[game.PlayniteGameId].ToList(),
+                        Categories = categoriesByGame[game.PlayniteGameId].ToList()
+                    });
+                    if (GameCustomDataNormalizer.HasInternalData(data))
+                    {
+                        results.Add(data);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed loading per-game custom data for gameId={gameId}.");
+                }
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Replaces one game's rows with <paramref name="rows"/>, or deletes them when null,
+        /// writing only the rows that differ. Runs inside the caller's transaction. True when a
+        /// row moved.
+        /// </summary>
+        private static bool Write(SQLiteDatabase db, Guid playniteGameId, GameCustomLayerRows rows)
+        {
+            var idText = ToGuidText(playniteGameId);
+            var storedGame = Games(db, $"SELECT {GameColumns} FROM {AchievementLayerSql.GamesTable} WHERE PlayniteGameId = ?;", idText)
+                .FirstOrDefault();
+            var storedAchievements = Achievements(db, $"SELECT {AchievementColumns} FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ?;", idText)
+                .GroupBy(row => row.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            var storedCategories = CategorySignature(
+                Categories(db, $"SELECT {CategoryColumns} FROM {AchievementLayerSql.CategoriesTable} WHERE PlayniteGameId = ?;", idText));
+
+            var desiredAchievements = (rows?.Achievements ?? new List<CustomAchievementRow>())
+                .GroupBy(row => row.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.Last(), StringComparer.OrdinalIgnoreCase);
+            var changed = false;
+
+            if (!string.Equals(storedGame?.Signature(), rows?.State?.Signature(), StringComparison.Ordinal))
+            {
+                db.ExecuteNonQuery($"DELETE FROM {AchievementLayerSql.GamesTable} WHERE PlayniteGameId = ?;", idText);
+                if (rows != null)
+                {
+                    var state = rows.State;
+                    db.ExecuteNonQuery(
+                        $"INSERT INTO {AchievementLayerSql.GamesTable} ({GameColumns}) VALUES (?, ?, ?, ?, ?, ?, ?);",
+                        idText,
+                        state.CapstonesMaterialized,
+                        state.HasManualLink,
+                        state.ExcludedFromSummaries,
+                        state.ExcludedFromRefreshes,
+                        state.UseSeparateLockedIcons,
+                        state.SettingsJson);
+                }
+
+                changed = true;
+            }
+
+            // Only the rows that moved: an edit to one achievement of a heavily customized game
+            // writes that achievement's row, not every row the game has.
+            var nowIso = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+            var insertSql = $"INSERT INTO {AchievementLayerSql.AchievementsTable} ({AchievementColumns}, UpdatedUtc) VALUES (" +
+                string.Join(", ", Enumerable.Repeat("?", AchievementColumns.Split(',').Length + 1)) + ");";
+            var deleteSql = $"DELETE FROM {AchievementLayerSql.AchievementsTable} WHERE PlayniteGameId = ? AND ApiName = ? AND IsAuthored = ?;";
+            foreach (var row in storedAchievements.Where(pair => !desiredAchievements.ContainsKey(pair.Key)).Select(pair => pair.Value).ToList())
+            {
+                db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);
+                changed = true;
+            }
+
+            foreach (var row in desiredAchievements.Values)
+            {
+                if (storedAchievements.TryGetValue(row.Key, out var stored) &&
+                    string.Equals(stored.Signature(), row.Signature(), StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                db.ExecuteNonQuery(deleteSql, idText, row.ApiName, row.IsAuthored);
+                db.ExecuteNonQuery(insertSql, new object[] { idText }.Concat(row.Values()).Concat(new object[] { nowIso }).ToArray());
+                changed = true;
+            }
+
+            if (!string.Equals(storedCategories, CategorySignature(rows?.Categories), StringComparison.Ordinal))
+            {
+                db.ExecuteNonQuery($"DELETE FROM {AchievementLayerSql.CategoriesTable} WHERE PlayniteGameId = ?;", idText);
+                foreach (var row in rows?.Categories ?? new List<CustomCategoryRow>())
+                {
+                    db.ExecuteNonQuery(
+                        $"INSERT OR REPLACE INTO {AchievementLayerSql.CategoriesTable} ({CategoryColumns}) VALUES (?, ?, ?, ?, ?);",
+                        idText,
+                        row.Category,
+                        row.Kind,
+                        row.SortIndex,
+                        row.ImagePath);
+                }
+
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static List<CustomGameStateRow> Games(SQLiteDatabase db, string sql, params object[] args) =>
+            db.LoadObjects(sql, args).Select(CustomGameStateRow.From).ToList();
+
+        private static List<CustomAchievementRow> Achievements(SQLiteDatabase db, string sql, params object[] args) =>
+            db.LoadObjects(sql, args).Select(CustomAchievementRow.From).ToList();
+
+        private static List<CustomCategoryRow> Categories(SQLiteDatabase db, string sql, params object[] args) =>
+            db.LoadObjects(sql, args).Select(CustomCategoryRow.From).ToList();
+
+        private static string CategorySignature(IEnumerable<CustomCategoryRow> rows) =>
+            string.Join("\n\n", (rows ?? Enumerable.Empty<CustomCategoryRow>())
+                .Select(row => row.Signature())
+                .OrderBy(signature => signature, StringComparer.Ordinal));
+
         /// <summary>
         /// Copies the custom-data database aside once per session, before the first record written
-        /// by an older schema is upgraded. Unlike the achievement cache, this database holds
-        /// authorship that cannot be re-fetched, so a migration defect must not leave the migrated
-        /// copy as the only one.
+        /// by an older schema is upgraded. The database holds authorship that cannot be re-fetched,
+        /// so a migration defect must not leave the migrated copy as the only one.
         /// </summary>
         /// <param name="onDiskSchemaVersion">
-        /// The version read from the payload, before normalization rewrites it. The current
-        /// version means there is nothing to migrate; zero means a record from before the version
-        /// was stamped, which normalization still folds.
+        /// The stored version, before normalization rewrites it. Zero means a record from before
+        /// the version was stamped, which normalization still folds.
         /// </param>
         private void EnsureSchemaMigrationBackup(int onDiskSchemaVersion)
         {
-            // Zero means a record written before the version was stamped. Normalization folds
-            // those exactly as it folds a numbered one, so they need the backup most, not least.
             if (onDiskSchemaVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
             {
                 return;
@@ -78,16 +474,10 @@ namespace PlayniteAchievements.Services.GameCustomData
 
             try
             {
-                var root = Path.GetDirectoryName(_databasePath);
-                var backupPath = BackupHelper.CreateBackup(
-                    root,
-                    string.Format(
-                        CultureInfo.InvariantCulture,
-                        "customdata-schema{0}",
-                        GameCustomDataNormalizer.CurrentSchemaVersion),
-                    _databasePath,
-                    _databasePath + "-wal",
-                    _databasePath + "-shm");
+                var backupPath = CreateBackup(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "customdata-schema{0}",
+                    GameCustomDataNormalizer.CurrentSchemaVersion));
                 _logger?.Info(
                     $"[GameCustomData] Schema {onDiskSchemaVersion} -> " +
                     $"{GameCustomDataNormalizer.CurrentSchemaVersion} migration backup created: {backupPath}");
@@ -100,375 +490,185 @@ namespace PlayniteAchievements.Services.GameCustomData
             }
         }
 
-        public bool TryLoad(Guid playniteGameId, out GameCustomDataFile data)
-        {
-            data = null;
-            if (playniteGameId == Guid.Empty)
-            {
-                return false;
-            }
-
-            var row = WithDb(
-                createIfMissing: false,
-                db => db.Load<GameCustomDataRow>(
-                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName} WHERE PlayniteGameId = ? LIMIT 1;",
-                    ToGuidText(playniteGameId)).FirstOrDefault(),
-                default(GameCustomDataRow));
-
-            if (row == null)
-            {
-                return false;
-            }
-
-            if (TryDeserialize(playniteGameId, row.PayloadJson, out var normalized, out var shouldDelete))
-            {
-                data = normalized;
-                return true;
-            }
-
-            if (shouldDelete)
-            {
-                Delete(playniteGameId);
-            }
-
-            return false;
-        }
-
-        public GameCustomDataFile LoadOrDefault(Guid playniteGameId)
-        {
-            return TryLoad(playniteGameId, out var data)
-                ? data
-                : GameCustomDataNormalizer.CreateDefault(playniteGameId);
-        }
+        private string CreateBackup(string prefix) =>
+            BackupHelper.CreateBackup(_pluginDataRoot, prefix, _databasePath, _databasePath + "-wal", _databasePath + "-shm");
 
         /// <summary>
-        /// Persists the game's custom data and returns the normalized instance that was written,
-        /// so the caller can seed its cache without reading the row back. Returns null when the
-        /// data normalized to nothing and the row was deleted instead.
+        /// Moves the legacy <c>GameCustomData</c> payloads into the custom layer tables, once, in
+        /// one transaction with its marker, after a backup of the database. The legacy table is left
+        /// as it was. A payload written after the marker, by an earlier version run on this
+        /// database, is moved again.
         /// </summary>
-        /// <param name="alreadyNormalized">
-        /// True when the caller has just normalized <paramref name="data"/> and nothing has
-        /// touched it since. The only caller, <c>GameCustomDataStore.Save</c>, does exactly
-        /// that, and normalizing again rebuilds every nested collection in the record a second
-        /// time for an identical result - which scales with how customized the game is.
-        /// </param>
-        public GameCustomDataFile Save(
-            Guid playniteGameId,
-            GameCustomDataFile data,
-            bool alreadyNormalized = false)
+        private void MigrateLegacyPayloads(SQLiteDatabase db)
         {
-            if (playniteGameId == Guid.Empty)
-            {
-                throw new ArgumentException("Game ID is required.", nameof(playniteGameId));
-            }
-
-            var normalized = alreadyNormalized && data != null
-                ? data
-                : GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
-            if (!GameCustomDataNormalizer.HasInternalData(normalized))
-            {
-                Delete(playniteGameId);
-                return null;
-            }
-
-            var row = CreateRow(normalized);
-            WithDb(createIfMissing: true, db =>
-            {
-                db.ExecuteNonQuery(
-                    $"INSERT OR REPLACE INTO {TableName} (PlayniteGameId, PayloadJson, UpdatedUtc) VALUES (?, ?, ?);",
-                    row.PlayniteGameId,
-                    row.PayloadJson,
-                    row.UpdatedUtc);
-            });
-            return normalized;
-        }
-
-        public void SaveMany(IEnumerable<GameCustomDataFile> items)
-        {
-            var rows = new List<GameCustomDataRow>();
-            var deleteIds = new List<Guid>();
-
-            foreach (var item in items ?? Enumerable.Empty<GameCustomDataFile>())
-            {
-                if (item == null || item.PlayniteGameId == Guid.Empty)
-                {
-                    continue;
-                }
-
-                var normalized = GameCustomDataNormalizer.NormalizeInternal(item, item.PlayniteGameId);
-                if (!GameCustomDataNormalizer.HasInternalData(normalized))
-                {
-                    deleteIds.Add(item.PlayniteGameId);
-                    continue;
-                }
-
-                rows.Add(CreateRow(normalized));
-            }
-
-            if (rows.Count == 0)
-            {
-                DeleteMany(deleteIds);
-                return;
-            }
-
-            WithDb(createIfMissing: true, db =>
-            {
-                db.RunTransaction(() =>
-                {
-                    foreach (var gameId in deleteIds.Distinct())
-                    {
-                        db.ExecuteNonQuery(
-                            $"DELETE FROM {TableName} WHERE PlayniteGameId = ?;",
-                            ToGuidText(gameId));
-                    }
-
-                    foreach (var row in rows)
-                    {
-                        db.ExecuteNonQuery(
-                            $"INSERT OR REPLACE INTO {TableName} (PlayniteGameId, PayloadJson, UpdatedUtc) VALUES (?, ?, ?);",
-                            row.PlayniteGameId,
-                            row.PayloadJson,
-                            row.UpdatedUtc);
-                    }
-                });
-            });
-        }
-
-        public void Delete(Guid playniteGameId)
-        {
-            if (playniteGameId == Guid.Empty)
+            if (db.ExecuteScalar<long>("SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = ?;", LegacyTableName) == 0)
             {
                 return;
             }
 
-            DeleteMany(new[] { playniteGameId });
-        }
-
-        /// <summary>
-        /// Rewrites every record still stored under an older schema, and reports how many.
-        /// </summary>
-        /// <remarks>
-        /// Normalization upgrades a record on the way out of every read, but nothing wrote the
-        /// upgraded shape back unless that particular game was edited afterwards. A game the user
-        /// has not touched since the schema moved therefore stayed at its old version forever, and
-        /// because any such record arms the migration backup, a full copy of this database was
-        /// taken on every single launch - 184 of them, 348 MB, on the machine this was found on.
-        ///
-        /// Safe by construction rather than by care: this persists exactly what
-        /// <see cref="TryDeserialize"/> already hands every caller, and deletes exactly what that
-        /// method already asks callers to delete. Nothing here decides anything a read does not
-        /// decide already - it only stops the answer being recomputed and thrown away. The backup
-        /// is taken first, by the same guard the read path uses.
-        /// </remarks>
-        public int UpgradeStoredRecordsToCurrentSchema()
-        {
-            var rows = WithDb(
-                createIfMissing: false,
-                db => db.Load<GameCustomDataRow>(
-                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName} ORDER BY PlayniteGameId;").ToList(),
-                new List<GameCustomDataRow>());
-
-            if (rows == null || rows.Count == 0)
+            var marker = db.ExecuteScalar<string>(
+                "SELECT Value FROM CacheMetadata WHERE Key = ?;", new object[] { AchievementLayerSql.CustomLayerMigratedKey });
+            var pending = db.Load<LegacyPayloadRow>(
+                    $"SELECT p.PlayniteGameId AS PlayniteGameId, p.PayloadJson AS PayloadJson, p.UpdatedUtc AS UpdatedUtc FROM {LegacyTableName} p " +
+                    $"WHERE ? IS NULL OR p.UpdatedUtc > ?;",
+                    marker,
+                    marker)
+                .ToList();
+            if (pending.Count == 0 && marker != null)
             {
-                return 0;
+                return;
             }
 
-            var upgraded = new List<GameCustomDataFile>();
-            var deleteIds = new List<Guid>();
-
-            foreach (var row in rows)
+            var result = new MigrationResult();
+            if (pending.Count > 0)
             {
-                if (!Guid.TryParse(row?.PlayniteGameId, out var gameId) || gameId == Guid.Empty)
+                result.BackupPath = CreateBackup("customdata-layer");
+            }
+
+            var parsed = new List<KeyValuePair<Guid, GameCustomLayerRows>>();
+            foreach (var row in pending)
+            {
+                if (!Guid.TryParse(row.PlayniteGameId, out var gameId) || gameId == Guid.Empty)
                 {
                     continue;
                 }
 
-                // The stored version, read before normalization rewrites it. A record already at
-                // the current version is left exactly as it is: untouched bytes cannot be damaged
-                // by a defect in this sweep.
-                int storedVersion;
+                GameCustomDataFile normalized;
                 try
                 {
-                    storedVersion =
-                        JsonConvert.DeserializeObject<GameCustomDataFile>(row.PayloadJson)?.SchemaVersion ?? 0;
+                    normalized = GameCustomDataNormalizer.NormalizeInternal(
+                        JsonConvert.DeserializeObject<GameCustomDataFile>(row.PayloadJson ?? string.Empty),
+                        gameId);
                 }
                 catch (Exception ex)
                 {
-                    // Left alone deliberately. A payload that will not parse is not one to rewrite
-                    // from a guess, and the read path already decides what to do with it.
-                    _logger?.Warn(ex, $"Skipped schema upgrade for unreadable custom data, gameId={gameId}.");
+                    result.Unreadable++;
+                    _logger?.Warn(ex, $"[GameCustomData] Custom data of game {gameId} would not parse; left in {LegacyTableName} only.");
                     continue;
                 }
 
-                if (storedVersion >= GameCustomDataNormalizer.CurrentSchemaVersion)
-                {
-                    continue;
-                }
-
-                if (TryDeserialize(gameId, row.PayloadJson, out var normalized, out var shouldDelete))
-                {
-                    upgraded.Add(normalized);
-                }
-                else if (shouldDelete)
-                {
-                    deleteIds.Add(gameId);
-                }
+                var rows = GameCustomDataNormalizer.HasInternalData(normalized) ? ToRows(normalized) : null;
+                parsed.Add(new KeyValuePair<Guid, GameCustomLayerRows>(gameId, rows));
             }
 
-            if (upgraded.Count == 0 && deleteIds.Count == 0)
+            db.RunTransaction(() =>
             {
-                return 0;
-            }
-
-            SaveMany(upgraded);
-            DeleteMany(deleteIds);
-
-            var total = upgraded.Count + deleteIds.Count;
-            _logger?.Info(
-                $"[GameCustomData] Upgraded {upgraded.Count} record(s) to schema " +
-                $"{GameCustomDataNormalizer.CurrentSchemaVersion} and dropped {deleteIds.Count} empty one(s). " +
-                "The migration backup will not be taken again unless a record predates the schema.");
-            return total;
-        }
-
-        public IEnumerable<GameCustomDataFile> EnumerateAllNormalized()
-        {
-            var rows = WithDb(
-                createIfMissing: false,
-                db => db.Load<GameCustomDataRow>(
-                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName} ORDER BY PlayniteGameId;").ToList(),
-                new List<GameCustomDataRow>());
-
-            if (rows == null || rows.Count == 0)
-            {
-                return Array.Empty<GameCustomDataFile>();
-            }
-
-            var results = new List<GameCustomDataFile>(rows.Count);
-            var deleteIds = new List<Guid>();
-
-            foreach (var row in rows)
-            {
-                if (!Guid.TryParse(row?.PlayniteGameId, out var gameId) || gameId == Guid.Empty)
+                foreach (var pair in parsed)
                 {
-                    continue;
+                    Write(db, pair.Key, pair.Value);
+                    result.Migrated++;
                 }
 
-                if (TryDeserialize(gameId, row.PayloadJson, out var normalized, out var shouldDelete))
-                {
-                    results.Add(normalized);
-                    continue;
-                }
-
-                if (shouldDelete)
-                {
-                    deleteIds.Add(gameId);
-                }
-            }
-
-            DeleteMany(deleteIds);
-            return results;
-        }
-
-        private void DeleteMany(IEnumerable<Guid> playniteGameIds)
-        {
-            var ids = (playniteGameIds ?? Enumerable.Empty<Guid>())
-                .Where(a => a != Guid.Empty)
-                .Distinct()
-                .Select(ToGuidText)
-                .ToList();
-
-            if (ids.Count == 0)
-            {
-                return;
-            }
-
-            WithDb(createIfMissing: false, db =>
-            {
-                db.RunTransaction(() =>
-                {
-                    foreach (var id in ids)
-                    {
-                        db.ExecuteNonQuery(
-                            $"DELETE FROM {TableName} WHERE PlayniteGameId = ?;",
-                            id);
-                    }
-                });
-            });
-        }
-
-        /// <summary>
-        /// Rewrites every stored path under <paramref name="oldRoot"/> to the same place under
-        /// <paramref name="newRoot"/>, in the game payloads and the capstone art records, in one
-        /// transaction. Records holding no such path are left as they are. Returns how many records
-        /// changed.
-        /// </summary>
-        public int RewriteIconCacheRoot(string oldRoot, string newRoot)
-        {
-            var rows = WithDb(
-                createIfMissing: false,
-                db => db.Load<GameCustomDataRow>(
-                    $"SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM {TableName};").ToList(),
-                new List<GameCustomDataRow>());
-            var changedRows = new List<GameCustomDataRow>();
-            foreach (var row in rows ?? new List<GameCustomDataRow>())
-            {
-                if (row != null &&
-                    Images.IconCachePathRebaser.TryRebaseJson(row.PayloadJson, oldRoot, newRoot, out var rebased))
-                {
-                    row.PayloadJson = rebased;
-                    changedRows.Add(row);
-                }
-            }
-
-            var changedArt = LoadAllCapstoneArtRecords()
-                .Where(record => IconCacheLocationRebase(record, oldRoot, newRoot))
-                .ToList();
-
-            if (changedRows.Count == 0 && changedArt.Count == 0)
-            {
-                return 0;
-            }
-
-            WithDb(createIfMissing: false, db =>
-            {
-                db.RunTransaction(() =>
-                {
-                    foreach (var row in changedRows)
-                    {
-                        db.ExecuteNonQuery(
-                            $"UPDATE {TableName} SET PayloadJson = ? WHERE PlayniteGameId = ?;",
-                            row.PayloadJson,
-                            row.PlayniteGameId);
-                    }
-
-                    foreach (var record in changedArt)
-                    {
-                        db.ExecuteNonQuery(
-                            $"UPDATE {CapstoneArtTableName} SET Path = ? WHERE PlayniteGameId = ? AND ApiName = ?;",
-                            record.Path,
-                            record.PlayniteGameId,
-                            record.ApiName);
-                    }
-                });
+                db.ExecuteNonQuery(
+                    "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
+                    AchievementLayerSql.CustomLayerMigratedKey,
+                    DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             });
 
-            _logger?.Info(
-                $"[GameCustomData] Moved stored icon paths to the new icon cache folder in " +
-                $"{changedRows.Count} record(s) and {changedArt.Count} capstone art record(s).");
-            return changedRows.Count + changedArt.Count;
+            LastMigration = result;
+            if (pending.Count > 0)
+            {
+                _logger?.Info(
+                    $"[GameCustomData] Moved {result.Migrated} game(s) of custom data into the custom layer tables " +
+                    $"({result.Unreadable} unreadable); backup: {result.BackupPath}.");
+            }
         }
 
-        private static bool IconCacheLocationRebase(CapstoneArtRecordRow record, string oldRoot, string newRoot)
+        private TResult WithDb<TResult>(bool createIfMissing, Func<SQLiteDatabase, TResult> action, TResult defaultValue)
         {
-            var rebased = Images.IconCachePathRebaser.RebasePath(record?.Path, oldRoot, newRoot);
-            if (record == null || string.Equals(rebased, record.Path, StringComparison.Ordinal))
+            if (action == null)
             {
-                return false;
+                throw new ArgumentNullException(nameof(action));
             }
 
-            record.Path = rebased;
-            return true;
+            lock (_syncRoot)
+            {
+                var databaseExists = File.Exists(_databasePath);
+                if (!databaseExists && !createIfMissing)
+                {
+                    return defaultValue;
+                }
+
+                if (createIfMissing)
+                {
+                    EnsureParentDirectory();
+                }
+
+                using (var db = OpenDatabase(createIfMissing))
+                {
+                    if (!_schemaInitialized || !databaseExists)
+                    {
+                        EnsureSchema(db);
+                        MoveInLegacyDatabase(db);
+                        MigrateLegacyPayloads(db);
+                        _schemaInitialized = true;
+                    }
+
+                    return action(db);
+                }
+            }
+        }
+
+        private void WithDb(bool createIfMissing, Action<SQLiteDatabase> action)
+        {
+            WithDb(
+                createIfMissing,
+                db =>
+                {
+                    action(db);
+                    return true;
+                },
+                defaultValue: false);
+        }
+
+        private SQLiteDatabase OpenDatabase(bool createIfMissing)
+        {
+            var options = SQLiteOpenOptions.SQLITE_OPEN_READWRITE |
+                          SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX;
+
+            if (createIfMissing)
+            {
+                options |= SQLiteOpenOptions.SQLITE_OPEN_CREATE;
+            }
+
+            // The achievement cache reads and writes this database on its own connections.
+            return new SQLiteDatabase(_databasePath, options) { BusyTimeout = BusyTimeoutMs };
+        }
+
+        private void EnsureParentDirectory()
+        {
+            var parent = Path.GetDirectoryName(_databasePath);
+            if (!string.IsNullOrWhiteSpace(parent) && !Directory.Exists(parent))
+            {
+                Directory.CreateDirectory(parent);
+            }
+        }
+
+        private static void EnsureSchema(SQLiteDatabase db)
+        {
+            db.ExecuteNonQuery("PRAGMA journal_mode = WAL;");
+            db.ExecuteNonQuery("PRAGMA synchronous = NORMAL;");
+            db.ExecuteNonQuery("CREATE TABLE IF NOT EXISTS CacheMetadata (Key TEXT PRIMARY KEY NOT NULL, Value TEXT NOT NULL);");
+            AchievementLayerSql.EnsureCustomLayerTables(db);
+            CreateCapstoneArtTable(db);
+        }
+
+        // Not custom data: portable packages and Workshop exports never carry these rows, so they
+        // stay local to this database.
+        private static void CreateCapstoneArtTable(SQLiteDatabase db)
+        {
+            db.ExecuteNonQuery(
+                $@"CREATE TABLE IF NOT EXISTS {CapstoneArtTableName} (
+                    PlayniteGameId TEXT NOT NULL,
+                    ApiName TEXT NOT NULL COLLATE NOCASE,
+                    Title TEXT NULL,
+                    Description TEXT NULL,
+                    Source TEXT NULL,
+                    Path TEXT NULL,
+                    Length INTEGER NULL,
+                    WriteUtc TEXT NULL,
+                    PRIMARY KEY (PlayniteGameId, ApiName)
+                );");
         }
 
         /// <summary>
@@ -593,154 +793,6 @@ namespace PlayniteAchievements.Services.GameCustomData
                 record.WriteUtc);
         }
 
-        private bool TryDeserialize(
-            Guid playniteGameId,
-            string payloadJson,
-            out GameCustomDataFile data,
-            out bool shouldDelete)
-        {
-            data = null;
-            shouldDelete = false;
-
-            if (string.IsNullOrWhiteSpace(payloadJson))
-            {
-                shouldDelete = true;
-                return false;
-            }
-
-            try
-            {
-                var parsed = JsonConvert.DeserializeObject<GameCustomDataFile>(payloadJson);
-                // Normalization upgrades the record in place, so this is the last point where the
-                // on-disk schema version is still visible.
-                EnsureSchemaMigrationBackup(parsed?.SchemaVersion ?? 0);
-                var normalized = GameCustomDataNormalizer.NormalizeInternal(parsed, playniteGameId);
-                if (!GameCustomDataNormalizer.HasInternalData(normalized))
-                {
-                    shouldDelete = true;
-                    return false;
-                }
-
-                data = normalized;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed loading per-game custom data for gameId={playniteGameId}.");
-                return false;
-            }
-        }
-
-        private GameCustomDataRow CreateRow(GameCustomDataFile data)
-        {
-            return new GameCustomDataRow
-            {
-                PlayniteGameId = ToGuidText(data.PlayniteGameId),
-                PayloadJson = JsonConvert.SerializeObject(data, _writeSettings),
-                UpdatedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)
-            };
-        }
-
-        private TResult WithDb<TResult>(bool createIfMissing, Func<SQLiteDatabase, TResult> action, TResult defaultValue)
-        {
-            if (action == null)
-            {
-                throw new ArgumentNullException(nameof(action));
-            }
-
-            lock (_syncRoot)
-            {
-                var databaseExists = File.Exists(_databasePath);
-                if (!databaseExists && !createIfMissing)
-                {
-                    return defaultValue;
-                }
-
-                if (createIfMissing)
-                {
-                    EnsureParentDirectory();
-                }
-
-                using (var db = OpenDatabase(createIfMissing))
-                {
-                    if (!_schemaInitialized || !databaseExists)
-                    {
-                        EnsureSchema(db);
-                        MoveInLegacyDatabase(db);
-                        _schemaInitialized = true;
-                    }
-
-                    return action(db);
-                }
-            }
-        }
-
-        private void WithDb(bool createIfMissing, Action<SQLiteDatabase> action)
-        {
-            WithDb(
-                createIfMissing,
-                db =>
-                {
-                    action(db);
-                    return true;
-                },
-                defaultValue: false);
-        }
-
-        private SQLiteDatabase OpenDatabase(bool createIfMissing)
-        {
-            var options = SQLiteOpenOptions.SQLITE_OPEN_READWRITE |
-                          SQLiteOpenOptions.SQLITE_OPEN_FULLMUTEX;
-
-            if (createIfMissing)
-            {
-                options |= SQLiteOpenOptions.SQLITE_OPEN_CREATE;
-            }
-
-            // The achievement cache writes to this database on its own connection.
-            return new SQLiteDatabase(_databasePath, options) { BusyTimeout = BusyTimeoutMs };
-        }
-
-        private void EnsureParentDirectory()
-        {
-            var parent = Path.GetDirectoryName(_databasePath);
-            if (!string.IsNullOrWhiteSpace(parent) && !Directory.Exists(parent))
-            {
-                Directory.CreateDirectory(parent);
-            }
-        }
-
-        private static void EnsureSchema(SQLiteDatabase db)
-        {
-            db.ExecuteNonQuery("PRAGMA journal_mode = WAL;");
-            db.ExecuteNonQuery("PRAGMA synchronous = NORMAL;");
-            CreateTables(db);
-        }
-
-        private static void CreateTables(SQLiteDatabase db)
-        {
-            db.ExecuteNonQuery(
-                @"CREATE TABLE IF NOT EXISTS GameCustomData (
-                    PlayniteGameId TEXT PRIMARY KEY NOT NULL,
-                    PayloadJson TEXT NOT NULL,
-                    UpdatedUtc TEXT NOT NULL
-                );");
-            // Not part of PayloadJson: portable packages and Workshop exports read the payload
-            // only, so these rows stay local to this database.
-            db.ExecuteNonQuery(
-                $@"CREATE TABLE IF NOT EXISTS {CapstoneArtTableName} (
-                    PlayniteGameId TEXT NOT NULL,
-                    ApiName TEXT NOT NULL COLLATE NOCASE,
-                    Title TEXT NULL,
-                    Description TEXT NULL,
-                    Source TEXT NULL,
-                    Path TEXT NULL,
-                    Length INTEGER NULL,
-                    WriteUtc TEXT NULL,
-                    PRIMARY KEY (PlayniteGameId, ApiName)
-                );");
-        }
-
         /// <summary>
         /// Copies the separate custom data file's tables into this database once, in one
         /// transaction with a marker, then moves the file into the migration backups. A
@@ -768,14 +820,15 @@ namespace PlayniteAchievements.Services.GameCustomData
                     db.RunTransaction(() =>
                     {
                         db.ExecuteNonQuery("DROP TABLE IF EXISTS main.GameCustomDataAchievementFilter;");
-                        db.ExecuteNonQuery("DROP TABLE IF EXISTS main." + TableName + ";");
+                        db.ExecuteNonQuery("DROP TABLE IF EXISTS main." + LegacyTableName + ";");
                         db.ExecuteNonQuery("DROP TABLE IF EXISTS main." + CapstoneArtTableName + ";");
-                        CreateTables(db);
-                        if (LegacyHas(TableName))
+                        db.ExecuteNonQuery("CREATE TABLE " + LegacyTableName + " (PlayniteGameId TEXT PRIMARY KEY NOT NULL, PayloadJson TEXT NOT NULL, UpdatedUtc TEXT NOT NULL);");
+                        CreateCapstoneArtTable(db);
+                        if (LegacyHas(LegacyTableName))
                         {
                             db.ExecuteNonQuery(
-                                "INSERT INTO main." + TableName + " (PlayniteGameId, PayloadJson, UpdatedUtc) " +
-                                "SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM legacy." + TableName + ";");
+                                "INSERT INTO main." + LegacyTableName + " (PlayniteGameId, PayloadJson, UpdatedUtc) " +
+                                "SELECT PlayniteGameId, PayloadJson, UpdatedUtc FROM legacy." + LegacyTableName + ";");
                         }
 
                         if (LegacyHas(CapstoneArtTableName))
@@ -799,7 +852,7 @@ namespace PlayniteAchievements.Services.GameCustomData
                 }
 
                 _logger?.Info(
-                    $"[GameCustomData] Moved {db.ExecuteScalar<long>("SELECT COUNT(1) FROM " + TableName + ";")} " +
+                    $"[GameCustomData] Moved {db.ExecuteScalar<long>("SELECT COUNT(1) FROM " + LegacyTableName + ";")} " +
                     $"games of custom data from {LegacyDatabaseFileName} into {Path.GetFileName(_databasePath)}.");
             }
 

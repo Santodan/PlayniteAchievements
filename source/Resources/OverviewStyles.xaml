@@ -48,16 +48,31 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                         <ContentPresenter VerticalAlignment="Stretch"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="helpers:PlaceholderCell.Shape"
+                Value="{Binding Column.(helpers:PlaceholderCell.Shape), RelativeSource={RelativeSource Self}}"/>
+        <!-- A row standing in until the grid's first read lands, drawn as the achievement grids
+             draw their unloaded rows. -->
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                <Setter Property="Template" Value="{StaticResource PlayAch.PlaceholderCellTemplate}"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="ToolTip" Value="{x:Null}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="GameSummariesImageCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
         <Setter Property="Padding" Value="0"/>
+        <Setter Property="helpers:PlaceholderCell.Shape" Value="Block"/>
     </Style>
 
     <Style x:Key="GameSummariesGridRowBaseStyle" TargetType="DataGridRow">
@@ -75,6 +90,9 @@
                     <Border x:Name="DGR_Border"
                             Background="{TemplateBinding Background}"
                             SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <helpers:ImplicitStyleMirror/>
+                        </Border.Resources>
                       <Grid>
                         <!-- The separator is drawn behind the cells rather than as the border of
                              this Border. As a border it would inset the content by its own
@@ -82,10 +100,11 @@
                              the row edge - the category tree connectors run the full height of
                              every row and have to cross it unbroken. Behind the cells it still
                              reads as a separator everywhere else, since nothing else paints over
-                             it. BorderThickness is left unbound for the same reason. -->
+                             it. BorderThickness is left unbound for the same reason. It sits on the
+                             top edge and the first row hides it, so lines fall only between rows. -->
                         <Rectangle x:Name="DGR_Separator"
                                    Height="1"
-                                   VerticalAlignment="Bottom"
+                                   VerticalAlignment="Top"
                                    Fill="{TemplateBinding BorderBrush}"
                                    SnapsToDevicePixels="True"/>
                         <SelectiveScrollingGrid>
@@ -98,7 +117,8 @@
                                 <RowDefinition Height="Auto"/>
                             </SelectiveScrollingGrid.RowDefinitions>
 
-                            <DataGridCellsPresenter Grid.Column="1"
+                            <controls:StylePinnedDataGridCellsPresenter x:Name="DGR_Cells"
+                                                    Grid.Column="1"
                                                     ItemsPanel="{TemplateBinding ItemsPanel}"
                                                     SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
 
@@ -115,6 +135,13 @@
                       </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="0">
+                            <Setter TargetName="DGR_Separator" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <!-- An unloaded row's skeleton cells shimmer as one band across the row. -->
+                        <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
+                            <Setter TargetName="DGR_Cells" Property="helpers:SkeletonShimmer.IsActive" Value="True"/>
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="DGR_Border" Property="Background" Value="{DynamicResource PlayAch.Brush.Grid.RowHoverBackground}"/>
                         </DataTrigger>
@@ -406,7 +433,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Chrome"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <TextBlock Text="{TemplateBinding Content}"
                                    Foreground="{TemplateBinding Foreground}"
@@ -444,7 +471,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Chrome"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Small}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             SnapsToDevicePixels="True">
                         <Path x:Name="Arrow"
                               Width="8"

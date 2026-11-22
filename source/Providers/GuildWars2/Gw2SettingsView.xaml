@@ -23,21 +23,20 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoGW2}" Fill="{StaticResource PlayAch.Brush.ProviderGW2}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GW2}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <!-- Provider Enable Toggle -->
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoGW2}" Fill="{StaticResource PlayAch.Brush.ProviderGW2}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GW2}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <!-- Provider Disabled Message -->
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
@@ -45,6 +44,9 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
+                    <TextBlock x:Name="ConnectionLabel"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_Help}"
@@ -72,64 +74,49 @@
                                    Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                     </StackPanel>
 
-                    <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource AuthStatusBorderStyle}">
+                        <StackPanel>
 
-                        <TextBlock Grid.Column="0"
-                                   x:Name="AuthLabel"
-                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                   TextWrapping="Wrap"
-                                   VerticalAlignment="Top"
-                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="1" Style="{StaticResource AuthStatusBorderStyle}">
-                            <StackPanel>
+                                <!-- No local RenderTransform here: the style installs a
+                                     RotateTransform that the checking state animates, and a
+                                     local value would replace it and kill the spinner. -->
+                                <TextBlock Grid.Column="0"
+                                           Style="{StaticResource AuthStatusIconStyle}"/>
 
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
 
-                                    <!-- No local RenderTransform here: the style installs a
-                                         RotateTransform that the checking state animates, and a
-                                         local value would replace it and kill the spinner. -->
-                                    <TextBlock Grid.Column="0"
-                                               Style="{StaticResource AuthStatusIconStyle}"/>
-
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               VerticalAlignment="Center"
+                            <Border BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_ApiKey}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                                    <TextBox Text="{Binding Settings.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="4"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_ApiKey_Help}"
+                                               Style="{StaticResource MutedTextStyle}"
+                                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                TextWrapping="Wrap"/>
-
-                                    <Button Grid.Column="2"
-                                            x:Name="CheckButton"
+                                    <Button x:Name="CheckButton"
                                             Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Style="{StaticResource AuthActionButtonStyle}"
-                                            Click="Check_Click"/>
-                                </Grid>
-
-                                <Border BorderBrush="{DynamicResource PopupBorderBrush}"
-                                        BorderThickness="0,1,0,0"
-                                        Padding="0,12,0,0">
-                                    <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_ApiKey}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
-                                        <TextBox Text="{Binding Settings.ApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GW2_ApiKey_Help}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
-                                                   TextWrapping="Wrap"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                                            Click="Check_Click"
+                                            HorizontalAlignment="Left"
+                                            Margin="{StaticResource PlayAch.Thickness.Top.Lg}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
         </StackPanel>

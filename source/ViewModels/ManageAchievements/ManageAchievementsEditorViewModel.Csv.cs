@@ -222,8 +222,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isImportingCsv = true;
             _isApplyingBulk = true;
             _isTogglingReveal = true;
-            _batchedFieldWrites = new List<(string, AchievementEditableField, object)>();
-            _batchedNoteWrites = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            BeginWriteBatch();
             try
             {
                 foreach (var (csv, row) in matches)

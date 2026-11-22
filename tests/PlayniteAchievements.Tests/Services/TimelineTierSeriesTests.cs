@@ -4,7 +4,6 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Overview;
-using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Tests.Services
 {
@@ -13,14 +12,12 @@ namespace PlayniteAchievements.Tests.Services
     {
         private static readonly DateTime Noon = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc);
 
-        private static AchievementDisplayItem Unlock(RarityTier rarity, string trophy = null, int dayOffset = 0) =>
-            new AchievementDisplayItem
+        private static UnlockFact Unlock(RarityTier rarity, string trophy = null, int? dayOffset = 0) =>
+            new UnlockFact
             {
-                PlayniteGameId = Guid.NewGuid(),
-                Unlocked = true,
-                UnlockTimeUtc = Noon.AddDays(dayOffset),
-                Rarity = rarity,
-                TrophyType = trophy
+                GameId = Guid.NewGuid(),
+                Day = dayOffset.HasValue ? UnlockDayCounts.DayOf(Noon.AddDays(dayOffset.Value)) : (DateTime?)null,
+                Tally = new AchievementTally(null, rarity, AchievementTally.NormalizeTrophy(trophy), false, 1, 1)
             };
 
         [TestMethod]
@@ -28,13 +25,12 @@ namespace PlayniteAchievements.Tests.Services
         {
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>
+                Unlocks = new[]
                 {
                     Unlock(RarityTier.Common),
                     Unlock(RarityTier.Common, dayOffset: 1),
                     Unlock(RarityTier.UltraRare),
-                    new AchievementDisplayItem { Unlocked = false, Rarity = RarityTier.Rare },
-                    new AchievementDisplayItem { Unlocked = true, Rarity = RarityTier.Rare }
+                    Unlock(RarityTier.Rare, dayOffset: null)
                 }
             };
 
@@ -52,7 +48,7 @@ namespace PlayniteAchievements.Tests.Services
         {
             var snapshot = new OverviewDataSnapshot
             {
-                Achievements = new List<AchievementDisplayItem>
+                Unlocks = new[]
                 {
                     Unlock(RarityTier.Common, "Gold"),
                     Unlock(RarityTier.Common, "platinum"),

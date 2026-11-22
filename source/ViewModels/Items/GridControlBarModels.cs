@@ -407,6 +407,17 @@ namespace PlayniteAchievements.ViewModels.Items
         }
 
         /// <summary>
+        /// Whether an option's label is drawn dimmed, as the Compare dropdown draws a friend
+        /// with nothing for the game; null dims none.
+        /// </summary>
+        public Func<string, bool> IsMutedOption { get; set; }
+
+        public bool IsMuted(string option)
+        {
+            return IsMutedOption?.Invoke(option) == true;
+        }
+
+        /// <summary>
         /// The image resource key of an option's badge, or null for none. When set, the dropdown
         /// shows each option's badge before its label, and the button shows the picked options'
         /// badges in place of their names.

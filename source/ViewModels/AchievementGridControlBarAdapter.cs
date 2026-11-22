@@ -8,11 +8,35 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Database;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.ViewModels
 {
+    /// <summary>What the rows a control bar filters contain, for the options it offers.</summary>
+    internal sealed class AchievementBarOptions
+    {
+        public static readonly AchievementBarOptions None = new AchievementBarOptions();
+
+        public bool HasUnlocked { get; set; }
+
+        public bool HasLocked { get; set; }
+
+        public bool HasHiddenLocked { get; set; }
+
+        public bool HasTrophies { get; set; }
+
+        /// <summary>The one game every row belongs to; null for rows spanning games.</summary>
+        public Guid? GameId { get; set; }
+
+        /// <summary>The stored tag texts present on the rows.</summary>
+        public IReadOnlyList<string> Tags { get; set; }
+
+        /// <summary>The category labels in filter order.</summary>
+        public IReadOnlyList<string> CategoryLabels { get; set; }
+    }
+
     public sealed class AchievementGridControlBarAdapter : PlayniteAchievements.Common.ObservableObject
     {
         private readonly SearchTextIndex<AchievementDisplayItem> _searchIndex =
@@ -260,23 +284,38 @@ namespace PlayniteAchievements.ViewModels
             var sourceItems = (source ?? Enumerable.Empty<AchievementDisplayItem>())
                 .Where(item => item != null)
                 .ToList();
-            _hasUnlocked = sourceItems.Any(item => item.Unlocked);
-            _hasLocked = sourceItems.Any(item => !item.Unlocked);
-            _hasHiddenLocked = sourceItems.Any(item => item.Hidden && !item.Unlocked);
-
             var gameIds = sourceItems.Select(item => item.PlayniteGameId).Distinct().ToList();
-            _optionsGameId = gameIds.Count == 1 ? gameIds[0] : null;
+            UpdateOptions(new AchievementBarOptions
+            {
+                HasUnlocked = sourceItems.Any(item => item.Unlocked),
+                HasLocked = sourceItems.Any(item => !item.Unlocked),
+                HasHiddenLocked = sourceItems.Any(item => item.Hidden && !item.Unlocked),
+                HasTrophies = sourceItems.Any(row => !string.IsNullOrWhiteSpace(row.TrophyType)),
+                GameId = gameIds.Count == 1 ? gameIds[0] : null,
+                Tags = sourceItems.Select(item => item.Tags).ToList(),
+                CategoryLabels = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
+                    sourceItems,
+                    item => item?.CategoryLabel,
+                    sourceItems
+                        .Where(item => item != null && item.CategoryOrderIndex < int.MaxValue)
+                        .OrderBy(item => item.CategoryOrderIndex)
+                        .Select(item => item.CategoryLabel))
+            });
+        }
+
+        /// <summary>Offers the bar's options for rows described by <paramref name="options"/>; null offers none.</summary>
+        internal void UpdateOptions(AchievementBarOptions options)
+        {
+            options = options ?? AchievementBarOptions.None;
+            _hasUnlocked = options.HasUnlocked;
+            _hasLocked = options.HasLocked;
+            _hasHiddenLocked = options.HasHiddenLocked;
+            _optionsGameId = options.GameId;
             var typeOptions = AchievementClassificationFilter.GetPresentKeys(
-                sourceItems,
-                item => item.Tags,
+                options.Tags ?? Array.Empty<string>(),
+                tags => tags,
                 _optionsGameId);
-            var categoryOptions = AchievementCategoryFilterOrderHelper.BuildOrderedCategoryLabels(
-                sourceItems,
-                item => item?.CategoryLabel,
-                sourceItems
-                    .Where(item => item != null && item.CategoryOrderIndex < int.MaxValue)
-                    .OrderBy(item => item.CategoryOrderIndex)
-                    .Select(item => item.CategoryLabel));
+            var categoryOptions = options.CategoryLabels ?? Array.Empty<string>();
 
             CollectionHelper.SynchronizeCollection(CategoryTypeFilterOptions, typeOptions);
             CollectionHelper.SynchronizeCollection(CategoryLabelFilterOptions, categoryOptions);
@@ -291,25 +330,50 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(SelectedCategoryLabelFilterText));
             }
 
-            _tierFilters.UpdateRows(sourceItems);
+            _tierFilters.OfferTrophies(options.HasTrophies);
             ControlBar.Refresh();
+        }
+
+        /// <summary>
+        /// <paramref name="query"/> narrowed to the rows the bar keeps: its unlock-state toggles
+        /// while they are offered, Tags, Category, Rarity and Trophy picks, and its own search
+        /// text. A rows filter that is not offered keeps every row, as <see cref="Apply"/> does.
+        /// </summary>
+        internal AchievementQuery ApplyTo(AchievementQuery query)
+        {
+            if (!EffectiveShowHidden)
+            {
+                query = query.WithoutHiddenLocked();
+            }
+
+            var showUnlocked = EffectiveShowUnlocked;
+            var showLocked = EffectiveShowLocked;
+            if (!showUnlocked || !showLocked)
+            {
+                var keep = showUnlocked ? true : showLocked ? false : (bool?)null;
+                query = keep.HasValue && (!query.Unlocked.HasValue || query.Unlocked == keep)
+                    ? query.WhereUnlocked(keep)
+                    : query.MatchNothing();
+            }
+
+            if (_selectedCategoryTypeFilters.Count > 0)
+            {
+                query = query.WhereClassification(_selectedCategoryTypeFilters.ToList());
+            }
+
+            if (_selectedCategoryLabelFilters.Count > 0)
+            {
+                query = query.WhereCategory(_selectedCategoryLabelFilters.ToList());
+            }
+
+            query = _tierFilters.ApplyTo(query);
+            return SearchQuery.From(SearchText).HasValue ? query.WhereSearch(SearchText) : query;
         }
 
         public void Clear()
         {
             _searchIndex.Clear();
-            UpdateOptions(null);
-        }
-
-        // Replaces the unlock-state toggle availability computed by the last UpdateOptions call.
-        // Used when the options source is a fallback while the exact rows load on demand, so the
-        // toggles can reflect known summary counts instead of the fallback's unlocked-only rows.
-        public void OverrideUnlockStateAvailability(bool hasUnlocked, bool hasLocked, bool hasHiddenLocked)
-        {
-            _hasUnlocked = hasUnlocked;
-            _hasLocked = hasLocked;
-            _hasHiddenLocked = hasHiddenLocked;
-            ControlBar.Refresh();
+            UpdateOptions(AchievementBarOptions.None);
         }
 
         // True when any filter deviates from "show everything" (used for header/count logic).
@@ -485,7 +549,8 @@ namespace PlayniteAchievements.ViewModels
                 LabelKey = "LOCPlayAch_Filter_CompareSelectorPlaceholder",
                 Width = 140,
                 ToolTip = L("LOCPlayAch_Filter_CompareSelectorPlaceholder"),
-                StaysOnBar = true
+                StaysOnBar = true,
+                IsMutedOption = key => _friendCompare?.IsKeyMuted(key) == true
             };
             controlBar.Items.Add(_friendCompareFilter);
             controlBar.Items.Add(new GridToggleFilter(

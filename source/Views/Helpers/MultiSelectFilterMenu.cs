@@ -189,7 +189,8 @@ namespace PlayniteAchievements.Views.Helpers
         // Plain string header for ordinary dropdowns; for a marker-aware filter (e.g. the friend
         // Compare dropdown) render a fixed-width star gutter before the label so marked options show
         // a star while every label stays aligned (unmarked options keep a transparent star). The
-        // gutter is only shown when the dropdown has at least one marked option.
+        // gutter is only shown when the dropdown has at least one marked option. A muted option's
+        // label is dimmed by opacity, which holds under the highlighted row's own foreground.
         private static object BuildMultiSelectHeader(
             GridMultiSelectFilter filter,
             string value,
@@ -202,9 +203,10 @@ namespace PlayniteAchievements.Views.Helpers
                 return BuildIconHeader(filter.IconKeyOf(value), label);
             }
 
+            var muted = filter.IsMuted(value);
             if (!showMarkerGutter)
             {
-                return label;
+                return muted ? (object)BuildLabel(label, true) : label;
             }
 
             var panel = new DockPanel { LastChildFill = true };
@@ -218,14 +220,25 @@ namespace PlayniteAchievements.Views.Helpers
             };
             DockPanel.SetDock(star, Dock.Left);
             panel.Children.Add(star);
-            panel.Children.Add(new TextBlock
+            panel.Children.Add(BuildLabel(label, muted));
+            return panel;
+        }
+
+        private static TextBlock BuildLabel(string label, bool muted)
+        {
+            var text = new TextBlock
             {
                 Text = label,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.NoWrap
-            });
-            return panel;
+            };
+            if (muted)
+            {
+                text.SetResourceReference(UIElement.OpacityProperty, "PlayAch.Opacity.Muted");
+            }
+
+            return text;
         }
 
         /// <summary>

@@ -67,8 +67,7 @@
     <Color x:Key="PlayAch.Color.ProviderHypixel">#F6B31E</Color>
     <Color x:Key="PlayAch.Color.ProviderMeta">#0081FB</Color>
     <Color x:Key="PlayAch.Color.ProviderMinecraft">#866043</Color>
-    <Color x:Key="PlayAch.Color.MigrationAccent">#FF37A7C8</Color>
-    <Color x:Key="PlayAch.Color.MigrationAccentPressed">#FF2D8FAB</Color>
+    <Color x:Key="PlayAch.Color.ProviderExophase">#2F8AB3</Color>
 
     <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Transparent" Color="{StaticResource PlayAch.Color.Overlay.Transparent}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.08" Color="{StaticResource PlayAch.Color.Overlay.Tint.08}"/>
@@ -151,8 +150,7 @@
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderHypixel" Color="{StaticResource PlayAch.Color.ProviderHypixel}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderMeta" Color="{StaticResource PlayAch.Color.ProviderMeta}"/>
     <SolidColorBrush x:Key="PlayAch.Brush.ProviderMinecraft" Color="{StaticResource PlayAch.Color.ProviderMinecraft}"/>
-    <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccent" Color="{StaticResource PlayAch.Color.MigrationAccent}"/>
-    <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccentPressed" Color="{StaticResource PlayAch.Color.MigrationAccentPressed}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderExophase" Color="{StaticResource PlayAch.Color.ProviderExophase}"/>
 
     <!-- Common scalar values. -->
     <sys:Double x:Key="PlayAch.Opacity.Disabled">0.55</sys:Double>
@@ -162,6 +160,9 @@
     <sys:Double x:Key="PlayAch.Opacity.Secondary">0.8</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Emphasis">0.95</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Placeholder">0.5</sys:Double>
+    <!-- A skeleton's opacity under its shimmer band; SkeletonShimmer's mask holds it at two
+         thirds of this (0.12) elsewhere. -->
+    <sys:Double x:Key="PlayAch.Opacity.Skeleton">0.18</sys:Double>
     <sys:Double x:Key="PlayAch.Opacity.Full">1</sys:Double>
 
     <sys:Double x:Key="PlayAch.FontSize.SectionHeader">16</sys:Double>
@@ -190,9 +191,8 @@
     <sys:Double x:Key="PlayAch.Size.Text.DataGridCellMaxHeight">72</sys:Double>
 
     <CornerRadius x:Key="PlayAch.Radius.Tiny">2</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Small">4</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Card">6</CornerRadius>
-    <CornerRadius x:Key="PlayAch.Radius.Section">8</CornerRadius>
+    <!-- The radius of inputs, buttons, cards and menus is the user's layout rounding setting,
+         published at runtime as PlayAch.Radius.Layout (PlayAchResourceService), not a token here. -->
     <CornerRadius x:Key="PlayAch.Radius.PillSmall">11</CornerRadius>
     <CornerRadius x:Key="PlayAch.Radius.Circle18">9</CornerRadius>
     <CornerRadius x:Key="PlayAch.Radius.Circle34">17</CornerRadius>

@@ -106,6 +106,19 @@ namespace PlayniteAchievements.Views.Settings.General
             set => SetValue(WorkshopHotkeyButtonTextProperty, value);
         }
 
+        public static readonly DependencyProperty AchievementEditorHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(AchievementEditorHotkeyButtonText),
+                typeof(string),
+                typeof(HotkeySettingsSection),
+                new PropertyMetadata(string.Empty));
+
+        public string AchievementEditorHotkeyButtonText
+        {
+            get => (string)GetValue(AchievementEditorHotkeyButtonTextProperty);
+            set => SetValue(AchievementEditorHotkeyButtonTextProperty, value);
+        }
+
         public static readonly DependencyProperty HotkeyCaptureStatusTextProperty =
             DependencyProperty.Register(
                 nameof(HotkeyCaptureStatusText),
@@ -127,7 +140,8 @@ namespace PlayniteAchievements.Views.Settings.General
             OpenSettings,
             CategoryMode,
             TestUnlock,
-            Workshop
+            Workshop,
+            AchievementEditor
         }
 
         private static readonly HotkeyCaptureTarget[] AllTargets =
@@ -163,7 +177,8 @@ namespace PlayniteAchievements.Views.Settings.General
                 e.PropertyName == nameof(PersistedSettings.OpenSettingsHotkey) ||
                 e.PropertyName == nameof(PersistedSettings.CategoryModeHotkey) ||
                 e.PropertyName == nameof(PersistedSettings.TestUnlockHotkey) ||
-                e.PropertyName == nameof(PersistedSettings.WorkshopHotkey))
+                e.PropertyName == nameof(PersistedSettings.WorkshopHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.AchievementEditorHotkey))
             {
                 UpdateHotkeyButtonTexts();
             }
@@ -274,6 +289,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.CategoryMode: return persisted?.CategoryModeHotkey;
                 case HotkeyCaptureTarget.TestUnlock: return persisted?.TestUnlockHotkey;
                 case HotkeyCaptureTarget.Workshop: return persisted?.WorkshopHotkey;
+                case HotkeyCaptureTarget.AchievementEditor: return persisted?.AchievementEditorHotkey;
                 default: return null;
             }
         }
@@ -295,6 +311,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.CategoryMode: persisted.CategoryModeHotkey = hotkey; break;
                 case HotkeyCaptureTarget.TestUnlock: persisted.TestUnlockHotkey = hotkey; break;
                 case HotkeyCaptureTarget.Workshop: persisted.WorkshopHotkey = hotkey; break;
+                case HotkeyCaptureTarget.AchievementEditor: persisted.AchievementEditorHotkey = hotkey; break;
             }
         }
 
@@ -309,6 +326,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.CategoryMode: return PersistedSettings.DefaultCategoryModeHotkey;
                 case HotkeyCaptureTarget.TestUnlock: return PersistedSettings.DefaultTestUnlockHotkey;
                 case HotkeyCaptureTarget.Workshop: return PersistedSettings.DefaultWorkshopHotkey;
+                case HotkeyCaptureTarget.AchievementEditor: return PersistedSettings.DefaultAchievementEditorHotkey;
                 default: return string.Empty;
             }
         }
@@ -324,6 +342,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.CategoryMode: return CategoryModeHotkeyCaptureButton;
                 case HotkeyCaptureTarget.TestUnlock: return TestUnlockHotkeyCaptureButton;
                 case HotkeyCaptureTarget.Workshop: return WorkshopHotkeyCaptureButton;
+                case HotkeyCaptureTarget.AchievementEditor: return AchievementEditorHotkeyCaptureButton;
                 default: return null;
             }
         }
@@ -339,6 +358,7 @@ namespace PlayniteAchievements.Views.Settings.General
                 case HotkeyCaptureTarget.CategoryMode: CategoryModeHotkeyButtonText = text; break;
                 case HotkeyCaptureTarget.TestUnlock: TestUnlockHotkeyButtonText = text; break;
                 case HotkeyCaptureTarget.Workshop: WorkshopHotkeyButtonText = text; break;
+                case HotkeyCaptureTarget.AchievementEditor: AchievementEditorHotkeyButtonText = text; break;
             }
         }
 

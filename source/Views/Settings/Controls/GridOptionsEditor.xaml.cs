@@ -142,12 +142,13 @@ namespace PlayniteAchievements.Views.Settings.Controls
             editor.SetValue(CommonOptionsPropertyKey, e.NewValue as GridCommonOptions);
             if (e.OldValue is System.ComponentModel.INotifyPropertyChanged oldOptions)
             {
-                oldOptions.PropertyChanged -= editor.Options_ControlBarOrderChanged;
+                System.ComponentModel.PropertyChangedEventManager.RemoveHandler(oldOptions, editor.Options_ControlBarOrderChanged, string.Empty);
             }
 
             if (e.NewValue is System.ComponentModel.INotifyPropertyChanged newOptions)
             {
-                newOptions.PropertyChanged += editor.Options_ControlBarOrderChanged;
+                // Weak: the options are the session-lifetime persisted settings.
+                System.ComponentModel.PropertyChangedEventManager.AddHandler(newOptions, editor.Options_ControlBarOrderChanged, string.Empty);
             }
 
             editor.RefreshSortChoices();

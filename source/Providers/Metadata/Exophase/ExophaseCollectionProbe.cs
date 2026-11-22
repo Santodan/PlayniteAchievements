@@ -86,7 +86,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
 
         // The PlayStation platforms whose pages the survey scores for the PlayStation branch.
         private static readonly HashSet<string> PlayStationPlatforms =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ps5", "ps4", "ps3", "psvita" };
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ps5", "ps4", "ps3", "ps-vita", "psvita", "vita" };
 
         public static async Task RunAsync(
             IPlayniteAPI api,

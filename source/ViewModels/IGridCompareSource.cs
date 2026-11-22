@@ -27,6 +27,11 @@ namespace PlayniteAchievements.ViewModels
 
         bool IsKeyFavorite(string key);
 
+        /// <summary>
+        /// Whether the entry is listed dimmed: a friend with nothing for the game being compared.
+        /// </summary>
+        bool IsKeyMuted(string key);
+
         void SelectKey(string key, bool isSelected);
     }
 }

@@ -51,7 +51,7 @@
                     Background="{DynamicResource PlayAch.Brush.Panel}"
                     BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                     BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                    CornerRadius="4"
+                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                     Padding="12">
                 <ContentControl x:Name="BodyHost" Focusable="False"/>
             </Border>

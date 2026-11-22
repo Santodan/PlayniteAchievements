@@ -54,6 +54,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         public IReadOnlyList<MatchOption> Options => _options ?? (_options = BuildOptions(_search.Trim()));
 
+        /// <summary>Whether the dropdown can open now.</summary>
+        public virtual bool CanPick => true;
+
         /// <summary>Pairs the row with the option and closes the dropdown.</summary>
         public abstract void Pick(MatchOption option);
 

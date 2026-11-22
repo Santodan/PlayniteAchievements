@@ -2,12 +2,16 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Metadata.Exophase;
+using PlayniteAchievements.Providers.Steam;
+using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Services.Metadata;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -30,10 +34,14 @@ namespace PlayniteAchievements.Providers.Metadata
 
         private const int CategoryMinimum = 5;
 
+        /// <summary>When set, only the cases read from this origin ("steamsets") run; null runs every case.</summary>
+        private static readonly string OnlyOrigin = "steamsets";
+
         /// <summary>
-        /// A case: where the game's achievements are read from ("steam:&lt;appid&gt;", or
-        /// "exophase:&lt;branch&gt;" found by the name), the platform it stands for, and the
-        /// sources to ask.
+        /// A case: where the game's achievements are read from ("steam:&lt;appid&gt;" through
+        /// SteamHunters, "steamsets:&lt;appid&gt;" from Steam's own schema with its achievement
+        /// sets as categories, or "exophase:&lt;branch&gt;" found by the name), the platform it
+        /// stands for, and the sources to ask.
         /// </summary>
         private static readonly (string Name, string From, string Servicing, string[] Sources)[] Cases =
         {
@@ -66,7 +74,13 @@ namespace PlayniteAchievements.Providers.Metadata
             // its Steam name and its short name, and a game whose PlayStation page is known to link.
             ("Shadow of the Tomb Raider: Definitive Edition", "steam:750920", "Steam", new[] { "PlayStation" }),
             ("Shadow of the Tomb Raider", "steam:750920", "Steam", new[] { "PlayStation" }),
-            ("Satisfactory", "steam:526870", "Steam", new[] { "PlayStation" })
+            ("Satisfactory", "steam:526870", "Steam", new[] { "PlayStation" }),
+
+            // A Steam game with achievement sets to PlayStation: what the Steam scan hands the
+            // overlay, sets included, and the categories the PlayStation list gives in their place.
+            ("Pillars of Eternity", "steamsets:291650", "Steam", new[] { "PlayStation", "Xbox" }),
+            ("Portal 2", "steamsets:620", "Steam", new[] { "PlayStation", "Xbox" }),
+            ("Left 4 Dead 2", "steamsets:550", "Steam", new[] { "Xbox" })
         };
 
         public static async Task RunAsync(
@@ -100,11 +114,16 @@ namespace PlayniteAchievements.Providers.Metadata
                 foreach (var (name, from, servicing, sources) in Cases)
                 {
                     ct.ThrowIfCancellationRequested();
+                    if (OnlyOrigin != null && !from.StartsWith(OnlyOrigin + ":", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     List<AchievementDetail> rows;
                     string origin;
                     try
                     {
-                        (rows, origin) = await LoadTargetsAsync(name, from, servicing, byKey, exophase, ct).ConfigureAwait(false);
+                        (rows, origin) = await LoadTargetsAsync(name, from, servicing, byKey, exophase, logger, ct).ConfigureAwait(false);
                     }
                     catch (Exception ex) when (!(ex is OperationCanceledException))
                     {
@@ -145,6 +164,11 @@ namespace PlayniteAchievements.Providers.Metadata
                             {
                                 // Each source's found names go to the sources after it, as the overlay shares them.
                                 var found = await ProbeSourceAsync(provider, name, servicing, rows, sharedLabel, report, ct).ConfigureAwait(false);
+                                if (from.StartsWith("steamsets:", StringComparison.Ordinal))
+                                {
+                                    await ReportOverlayAsync(provider, name, servicing, rows, report, logger, ct).ConfigureAwait(false);
+                                }
+
                                 sharedLabel = MetadataFoundNames.Format(MetadataFoundNames.Parse(sharedLabel).Concat(MetadataFoundNames.Parse(found)));
                             }
                         }
@@ -185,9 +209,15 @@ namespace PlayniteAchievements.Providers.Metadata
             string servicing,
             IReadOnlyDictionary<string, IMetadataProvider> byKey,
             IReadOnlyDictionary<string, ExophaseMetadataProvider> exophase,
+            ILogger logger,
             CancellationToken ct)
         {
             var parts = from.Split(':');
+            if (parts[0] == "steamsets")
+            {
+                return await LoadSteamSetRowsAsync(name, int.Parse(parts[1]), logger, ct).ConfigureAwait(false);
+            }
+
             if (parts[0] == "steam")
             {
                 if (!byKey.TryGetValue(SteamHuntersMetadataProvider.MetadataKey, out var steamHunters))
@@ -208,6 +238,39 @@ namespace PlayniteAchievements.Providers.Metadata
 
             var page = await branch.FetchAsync(Request(name, servicing, null), link.Id, ct).ConfigureAwait(false);
             return (page?.Achievements?.Where(row => row != null).ToList() ?? new List<AchievementDetail>(), $"Exophase {link.Id}");
+        }
+
+        /// <summary>
+        /// The app's achievements as the Steam scan builds them: one row per schema definition,
+        /// filed under its achievement set by <see cref="SteamAchievementSetMapper.ApplySets"/>.
+        /// The schema service answers without a token, so the app need not be owned.
+        /// </summary>
+        private static async Task<(List<AchievementDetail> Rows, string Origin)> LoadSteamSetRowsAsync(
+            string name,
+            int appId,
+            ILogger logger,
+            CancellationToken ct)
+        {
+            SchemaAndPercentages schema;
+            using (var http = new HttpClient())
+            {
+                schema = await new SteamApiClient(http, logger).GetSchemaForGameDetailedAsync(null, appId, "english", ct).ConfigureAwait(false);
+            }
+
+            var rows = (schema?.Achievements ?? new List<SchemaAchievement>())
+                .Where(definition => !string.IsNullOrWhiteSpace(definition?.Name))
+                .Select(definition => new AchievementDetail
+                {
+                    ApiName = definition.Name,
+                    DisplayName = string.IsNullOrWhiteSpace(definition.DisplayName) ? definition.Name : definition.DisplayName,
+                    Description = definition.Description ?? string.Empty,
+                    Hidden = definition.Hidden == 1
+                })
+                .ToList();
+            SteamAchievementSetMapper.ApplySets(rows, schema, name);
+            var sets = (schema?.Groups?.Values ?? Enumerable.Empty<SchemaAchievementGroup>())
+                .Select(group => $"{group.GroupId} '{group.Name}' dlc app {group.DlcAppId}");
+            return (rows, $"Steam schema {appId}, has sets: {schema?.HasAchievementSets}, sets: {string.Join("; ", sets)}");
         }
 
         /// <summary>The source's lookups for the case; returns the names it found the whole game under.</summary>
@@ -285,7 +348,8 @@ namespace PlayniteAchievements.Providers.Metadata
                 return null;
             }
 
-            var set = await MetadataListFetch.FetchAsync(provider, request, link.Id, null, ct).ConfigureAwait(false);
+            // With the link's label, as the overlay fetches: its found names name each list's base category.
+            var set = await MetadataListFetch.FetchAsync(provider, request, link.Id, null, ct, link.Label).ConfigureAwait(false);
             var sources = set?.Achievements?.ToList() ?? new List<AchievementDetail>();
             var pooled = CrossSourceAchievementMatcher.Match(rows, sources).Count;
             var byList = MetadataOverlayRun.MatchByList(rows, sources, set?.Lists, matchApiNames: false).Count;
@@ -307,7 +371,124 @@ namespace PlayniteAchievements.Providers.Metadata
                 report.AppendLine($"  source sample: {string.Join("; ", sources.Take(4).Select(row => row.DisplayName))}");
             }
 
+            ReportCategories(rows, sources, set, link.Label, report);
             return link.Label;
+        }
+
+        /// <summary>
+        /// The categories a refresh gives the game with <paramref name="provider"/> chosen as its
+        /// category source: the real overlay, run on copies of the rows for a made-up game with no
+        /// link store, so nothing is saved.
+        /// </summary>
+        private static async Task ReportOverlayAsync(
+            IMetadataProvider provider,
+            string name,
+            string servicing,
+            List<AchievementDetail> rows,
+            StringBuilder report,
+            ILogger logger,
+            CancellationToken ct)
+        {
+            var copies = rows
+                .Select(row => new AchievementDetail
+                {
+                    ApiName = row.ApiName,
+                    DisplayName = row.DisplayName,
+                    Description = row.Description,
+                    Hidden = row.Hidden,
+                    Category = row.Category,
+                    CategoryKind = row.CategoryKind,
+                    Tags = row.Tags
+                })
+                .ToList();
+            var own = copies.ToDictionary(row => row, row => $"{row.Category ?? "none"} [{row.CategoryKind ?? "no kind"}]");
+            var choices = new MetadataChoices
+            {
+                Icons = string.Empty,
+                Categories = provider.Key,
+                Tags = string.Empty,
+                Rarity = string.Empty,
+                CapstoneArt = string.Empty,
+                TrophyTypes = string.Empty,
+                Points = string.Empty,
+                Text = string.Empty,
+                Order = string.Empty
+            };
+            var settings = new PersistedSettings
+            {
+                MetadataDefaults = choices,
+                MetadataPlatformChoices = new Dictionary<string, MetadataChoices>(StringComparer.OrdinalIgnoreCase)
+            };
+            var game = new Game(name) { Id = Guid.NewGuid() };
+            var data = new GameAchievementData
+            {
+                GameName = name,
+                ProviderKey = servicing,
+                PlayniteGameId = game.Id,
+                Achievements = copies
+            };
+
+            report.AppendLine($"== the overlay, categories from {provider.Key} ==");
+            try
+            {
+                var overlay = new MetadataOverlay(() => new[] { provider }, () => settings, null, logger);
+                using (var run = overlay.BeginRun())
+                {
+                    await run.ApplyAsync(game, data, ct).ConfigureAwait(false);
+                }
+
+                foreach (var group in copies.GroupBy(row => own[row]))
+                {
+                    var after = group
+                        .GroupBy(row => $"{row.Category ?? "none"} [{row.CategoryKind ?? "no kind"}]" + (row.MetadataLayer == null ? " (no metadata layer)" : string.Empty))
+                        .Select(result => $"{result.Key} {result.Count()}");
+                    report.AppendLine($"  own category {group.Key} ({group.Count()}) -> {string.Join("; ", after)}");
+                }
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                report.AppendLine($"  overlay failed: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// What the source's categories do to the game's own: whether the game's categories read
+        /// as a collection's games, the lists fetched, and for each of the game's categories how
+        /// many of its achievements matched, the source categories those take, and how many stay
+        /// unmatched and so keep the game's category.
+        /// </summary>
+        private static void ReportCategories(
+            List<AchievementDetail> rows,
+            List<AchievementDetail> sources,
+            AchievementSourceSet set,
+            string linkLabel,
+            StringBuilder report)
+        {
+            string Label(AchievementDetail row) => $"{row.Category ?? "none"} [{row.CategoryKind ?? "no kind"}]";
+            var subGames = MetadataSubGame.From(rows);
+            report.AppendLine(subGames.Count >= 2
+                ? "  read as a collection: " + string.Join("; ", subGames.Select(sub => $"{sub.Name} {sub.Rows.Count}"))
+                : "  read as a collection: no");
+            report.AppendLine("  link label: " + (linkLabel ?? "none").Replace("\t", " => ").Replace("\n", "; "));
+            report.AppendLine("  lists: " + (set?.Lists == null || set.Lists.Count == 0
+                ? "one"
+                : string.Join("; ", set.Lists.Select(list => $"{list.Id} '{list.Title}' {list.Rows.Count}"))));
+            report.AppendLine("  source categories: " + string.Join("; ", sources
+                .Where(row => row != null)
+                .GroupBy(Label)
+                .Select(group => $"{group.Key} {group.Count()}")));
+
+            var taken = MetadataOverlayRun.MatchByList(rows, sources, set?.Lists, matchApiNames: false)
+                .GroupBy(match => match.Target)
+                .ToDictionary(group => group.Key, group => group.First().Source);
+            foreach (var category in rows.GroupBy(Label))
+            {
+                var matched = category.Where(taken.ContainsKey).ToList();
+                var becomes = matched.GroupBy(row => Label(taken[row])).Select(group => $"{group.Key} {group.Count()}");
+                report.AppendLine(
+                    $"  own category {category.Key}: {category.Count()} achievements, {matched.Count} matched -> {string.Join("; ", becomes)}; " +
+                    $"{category.Count() - matched.Count} unmatched keep it");
+            }
         }
 
         // An empty game id keeps the sources from storing what they find for these made-up games.

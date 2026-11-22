@@ -26,99 +26,6 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void Build_SummaryCategoryWithOverrideArt_UsesOverrideAsCoverImage()
-        {
-            var tempDir = CreateTempDirectory();
-            var gameId = Guid.NewGuid();
-            var artPath = Path.Combine(tempDir, "art.png");
-
-            try
-            {
-                WritePlaceholderFile(artPath);
-
-                var allData = new List<GameAchievementData>
-                {
-                    new GameAchievementData
-                    {
-                        PlayniteGameId = gameId,
-                        Game = new Game { Id = gameId, Name = "Summary Art Game" },
-                        HasAchievements = true,
-                        Achievements = new List<AchievementDetail>
-                        {
-                            new AchievementDetail
-                            {
-                                ApiName = "Locked",
-                                DisplayName = "Locked",
-                                Unlocked = false
-                            }
-                        },
-                        GameSummaryCategory = new GameSummaryCategoryData
-                        {
-                            Label = "Bonus",
-                            ProviderLabel = "Bonus"
-                        },
-                        AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            ["Bonus"] = new CategoryImageOverrideData { Art = artPath }
-                        }
-                    }
-                };
-
-                var state = LibraryRuntimeStateBuilder.Build(
-                    allData,
-                    api: null,
-                    token: default,
-                    includeHeavyAchievementLists: false);
-
-                var summary = FindSummary(state.AllGamesWithAchievements, gameId);
-                StringAssert.StartsWith(summary.CoverImagePath, "cachebust|");
-                StringAssert.EndsWith(summary.CoverImagePath, artPath);
-            }
-            finally
-            {
-                DeleteDirectory(tempDir);
-            }
-        }
-
-        [TestMethod]
-        public void Build_NoSummaryCategory_FallsBackToGamePresentationPath()
-        {
-            var gameId = Guid.NewGuid();
-            var allData = new List<GameAchievementData>
-            {
-                new GameAchievementData
-                {
-                    PlayniteGameId = gameId,
-                    Game = new Game { Id = gameId, Name = "Fallback Game" },
-                    HasAchievements = true,
-                    Achievements = new List<AchievementDetail>
-                    {
-                        new AchievementDetail
-                        {
-                            ApiName = "Locked",
-                            DisplayName = "Locked",
-                            Unlocked = false
-                        }
-                    },
-                    GameSummaryCategory = null,
-                    AchievementCategoryImageOverrides = new Dictionary<string, CategoryImageOverrideData>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["Bonus"] = new CategoryImageOverrideData { Art = "https://example.com/art.png" }
-                    }
-                }
-            };
-
-            var state = LibraryRuntimeStateBuilder.Build(
-                allData,
-                api: null,
-                token: default,
-                includeHeavyAchievementLists: false);
-
-            var summary = FindSummary(state.AllGamesWithAchievements, gameId);
-            Assert.AreEqual(string.Empty, summary.CoverImagePath);
-        }
-
-        [TestMethod]
         public void BuildFromCachedSummary_StoreSelectionWithOverride_ResolvesOverrideArt()
         {
             var tempDir = CreateTempDirectory();
@@ -142,6 +49,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
                 var state = LibraryRuntimeStateBuilder.BuildFromCachedSummary(
                     CreateSummaryData(gameId),
+                    rarestRecent: null,
                     api: null,
                     token: default,
                     customDataStore: store);
@@ -174,6 +82,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
                 var state = LibraryRuntimeStateBuilder.BuildFromCachedSummary(
                     CreateSummaryData(gameId),
+                    rarestRecent: null,
                     api: null,
                     token: default,
                     customDataStore: store);

@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Views.ParityTests
             _initialized = true;
             _plugin.Settings.PropertyChanged += Settings_PropertyChanged;
 
-            _plugin.ThemeUpdateService?.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+            _plugin.ThemeUpdateService?.EnsureAllGamesThemeDataLoaded();
             _plugin.ThemeUpdateService?.RequestUpdate(_game?.Id);
             RefreshProviderOptions();
             SyncSelectionsFromSettings();
@@ -152,7 +152,7 @@ namespace PlayniteAchievements.Views.ParityTests
         {
             try
             {
-                _plugin.ThemeUpdateService?.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+                _plugin.ThemeUpdateService?.EnsureAllGamesThemeDataLoaded();
                 _plugin.ThemeUpdateService?.RequestUpdate(_game?.Id);
             }
             catch (Exception ex)

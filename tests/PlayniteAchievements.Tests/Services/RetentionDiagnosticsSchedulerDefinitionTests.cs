@@ -93,6 +93,29 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void TheScheduler_KeepsEveryDistinctPendingPoint()
+        {
+            var body = Between(
+                ReadStartPage(),
+                "internal void ScheduleRetentionDiagnostics(string point, int delaySeconds)",
+                "private void FlushRetentionDiagnostics(");
+
+            // "overview.closed" followed by "overview.opened" within the delay reports both names.
+            StringAssert.Contains(body, "_pendingRetentionPoint + \"+\" + point");
+            Assert.IsFalse(body.Contains("_pendingRetentionPoint = point;"), "Last writer wins drops the earlier point.");
+        }
+
+        [TestMethod]
+        public void TheReport_NeverReadsThemeFacingGetters()
+        {
+            var source = ReadStartPage();
+
+            // A theme list getter starts the list's read; the report asks the service what is loaded.
+            Assert.IsFalse(source.Contains("ModernTheme."), "The report must not read theme bindings.");
+            StringAssert.Contains(source, "DescribeLoadedLibraryLists()");
+        }
+
+        [TestMethod]
         public void TheDefaultEntryPoint_StillReportsRefreshSettledAfterTheSettleDelay()
         {
             var source = ReadStartPage();

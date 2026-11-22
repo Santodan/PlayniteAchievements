@@ -19,20 +19,20 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
 
-            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
-                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
-                    <Path Data="{StaticResource GeoHoyoverse}" Fill="{StaticResource PlayAch.Brush.ProviderHoyoverse}"/>
-                </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Hoyoverse}" Style="{StaticResource ProviderTitleTextStyle}"/>
-            </StackPanel>
-
-            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}" Grid.IsSharedSizeScope="True">
-                <controls:SettingRow Label="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
-                                     FontWeight="SemiBold"
-                                     Margin="0">
-                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"/>
-                </controls:SettingRow>
-            </Border>
+            <DockPanel Style="{StaticResource ProviderHeaderRowStyle}">
+                <StackPanel Style="{StaticResource ProviderEnableTogglePanelStyle}">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}" Style="{StaticResource ProviderEnableLabelStyle}"/>
+                    <CheckBox IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                              VerticalAlignment="Center"
+                              AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"/>
+                </StackPanel>
+                <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                    <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                        <Path Data="{StaticResource GeoHoyoverse}" Fill="{StaticResource PlayAch.Brush.ProviderHoyoverse}"/>
+                    </Viewbox>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Hoyoverse}" Style="{StaticResource ProviderTitleTextStyle}"/>
+                </StackPanel>
+            </DockPanel>
 
             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
@@ -40,22 +40,9 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                    <Border Background="{DynamicResource PlayAch.Brush.Panel}"
-                            CornerRadius="8"
-                            Padding="14"
-                            BorderThickness="{StaticResource PlayAch.Thickness.Border}">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                 Value="False">
-                                        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                    <Border>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -99,6 +86,7 @@
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                     <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
                         <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"
@@ -129,6 +117,7 @@
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles}"
                                Style="{StaticResource SectionHeaderStyle}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles_Help}"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"

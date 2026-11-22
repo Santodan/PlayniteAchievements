@@ -115,11 +115,7 @@ namespace PlayniteAchievements.Services.Achievements
                         customData.CapstonesMaterialized = true;
                         customData.Capstones = next;
                     },
-                    affectsSummaryData,
-                    // Capstones are not in the override mirror, which carries only the filtered
-                    // ApiNames and the user-editable points and trophy type, so resyncing it here
-                    // would clone the record and take the write connection for nothing.
-                    affectsOverrideMirror: false);
+                    affectsSummaryData);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -700,6 +696,138 @@ namespace PlayniteAchievements.Services.Achievements
             });
         }
 
+        /// <summary>
+        /// Sets the category and tag overrides of the named achievements and keeps every other
+        /// achievement's as stored, for the library editor, which lists only some of a game's
+        /// rows. A null or empty map leaves that facet alone. True when the write moved an auto
+        /// capstone into or out of the default category.
+        /// </summary>
+        public bool PatchAchievementAssignments(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> tagOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var rescoped = false;
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    if (categoryOverrides?.Count > 0)
+                    {
+                        var before = CloneOverrides(customData);
+                        GameCustomDataPatches.SetOverrideField(customData, categoryOverrides, (entry, value) => entry.Category = value);
+                        var after = customData.AchievementOverrides;
+                        var moved = AutoCapstoneScope.Rescope(
+                            customData.CustomAchievements,
+                            apiName => before.TryGetValue(apiName, out var entry) ? entry?.Category : null,
+                            apiName => after != null && after.TryGetValue(apiName, out var entry) ? entry?.Category : null);
+                        if (moved != null)
+                        {
+                            customData.CustomAchievements = moved;
+                            rescoped = true;
+                        }
+                    }
+
+                    GameCustomDataPatches.SetTagOverrides(customData, tagOverrides);
+                },
+                affectsSummaryData: false);
+            return rescoped;
+        }
+
+        /// <summary>
+        /// Adds the named achievements to the filter lists or takes them out, keeping every other
+        /// achievement's place, for the library editor. A null or empty map leaves that list alone.
+        /// </summary>
+        public void PatchAchievementFilters(
+            Guid gameId,
+            IReadOnlyDictionary<string, bool> filtered,
+            IReadOnlyDictionary<string, bool> summaryFiltered)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                if (filtered?.Count > 0)
+                {
+                    customData.FilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.FilteredAchievementApiNames, filtered);
+                }
+
+                if (summaryFiltered?.Count > 0)
+                {
+                    customData.SummaryFilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.SummaryFilteredAchievementApiNames, summaryFiltered);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Sets the named achievements' icon overrides and keeps every other achievement's, for the
+        /// library editor. A null path removes that override.
+        /// </summary>
+        public void PatchIconOverrides(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> unlockedIconOverrides,
+            IReadOnlyDictionary<string, string> lockedIconOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                GameCustomDataPatches.SetOverrideField(customData, unlockedIconOverrides, (entry, value) => entry.UnlockedIconPath = value);
+                GameCustomDataPatches.SetOverrideField(customData, lockedIconOverrides, (entry, value) => entry.LockedIconPath = value);
+            });
+        }
+
+        /// <summary>
+        /// Reverts the named achievements to the provider's values in one store update: drops
+        /// their override records, which carry their fields, category, tags, note and icons, and
+        /// takes them out of the filter lists and the goals. The library editor's revert; the
+        /// game's order and capstones are left as stored.
+        /// </summary>
+        public void RevertAchievements(Guid gameId, IEnumerable<string> achievementApiNames)
+        {
+            var removed = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in achievementApiNames ?? Array.Empty<string>())
+            {
+                var apiName = AchievementNoteHelper.NormalizeApiName(name);
+                if (!string.IsNullOrWhiteSpace(apiName))
+                {
+                    removed[apiName] = false;
+                }
+            }
+
+            if (gameId == Guid.Empty || removed.Count == 0)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(
+                gameId,
+                customData =>
+                {
+                    GameCustomDataPatches.RemoveOverrides(customData, removed.Keys);
+                    customData.FilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.FilteredAchievementApiNames, removed);
+                    customData.SummaryFilteredAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.SummaryFilteredAchievementApiNames, removed);
+                    customData.GoalAchievementApiNames =
+                        GameCustomDataPatches.SetMembership(customData.GoalAchievementApiNames, removed);
+                },
+                affectsSummaryData: true);
+        }
+
         private static Dictionary<string, AchievementOverride> CloneOverrides(GameCustomDataFile customData)
         {
             var clone = new Dictionary<string, AchievementOverride>(StringComparer.OrdinalIgnoreCase);
@@ -976,8 +1104,8 @@ namespace PlayniteAchievements.Services.Achievements
         /// </summary>
         /// <remarks>
         /// The per-achievement form costs a whole store write -- several deep clones of the
-        /// game's record, three normalizations, a serialize, a SQLite open and close, and for a
-        /// mirrored field a delete and re-insert of every override row. Applying a value across a
+        /// game's record, three normalizations, a serialize, and a SQLite open and close. Applying
+        /// a value across a
         /// selection by calling it in a loop paid all of that once per row. This batches the same
         /// edit into one write, matching the shape ClearCustomizations already uses.
         ///
@@ -1011,25 +1139,16 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // This flag gates two things: the summary memo, and the Overview's per-game delta. So
-            // it has to be true for any field a displayed row shows, not just the ones a summary
-            // aggregate sums -- otherwise the edit lands in the store and nothing on screen
-            // re-reads it, which is what left a hidden edit visible only inside the editor.
-            //
-            // Points and trophy type additionally move SQL-resolved aggregates, via the override
-            // mirror. The rest are applied in code over the rows, so they need the re-read but not
-            // the mirror. That includes the unlock time: summary rows show the overridden date, and
-            // the summary's unlock-date counts follow it (ApplyAchievementSummaryCustomization).
+            // This flag gates the Overview's per-game delta. So it has to be true for any field a
+            // displayed row shows, not just the ones a summary aggregate sums -- otherwise the
+            // edit lands in the store and nothing on screen re-reads it, which is what left a
+            // hidden edit visible only inside the editor.
             const bool affectsSummaryData = true;
-            var affectsOverrideMirror =
-                field == AchievementEditableField.Points ||
-                field == AchievementEditableField.TrophyType;
 
             _gameCustomDataStore.Update(
                 gameId,
                 customData => MutateOverrides(customData, targets, entry => ApplyFieldToEntry(entry, field, value)),
-                affectsSummaryData,
-                affectsOverrideMirror);
+                affectsSummaryData);
         }
 
         /// <summary>
@@ -1081,19 +1200,6 @@ namespace PlayniteAchievements.Services.Achievements
                 return;
             }
 
-            // The flags are the union over the fields written, for the reasons the single-value
-            // overload documents: a mirrored field anywhere in the batch means the batch moves
-            // the mirror.
-            // Every editable field is displayed on summary rows, so any write affects the summary.
-            var affectsSummary = true;
-            var affectsMirror = false;
-            foreach (var write in resolved)
-            {
-                affectsMirror |=
-                    write.Field == AchievementEditableField.Points ||
-                    write.Field == AchievementEditableField.TrophyType;
-            }
-
             _gameCustomDataStore.Update(
                 gameId,
                 customData =>
@@ -1119,8 +1225,8 @@ namespace PlayniteAchievements.Services.Achievements
 
                     StoreOverrides(customData, overrides);
                 },
-                affectsSummary,
-                affectsMirror);
+                // Every editable field is displayed on summary rows.
+                affectsSummaryData: true);
         }
 
         private static void ApplyFieldToEntry(
@@ -1222,8 +1328,6 @@ namespace PlayniteAchievements.Services.Achievements
 
             var normalizedGoals = AchievementOrderHelper.NormalizeApiNames(goalApiNames);
 
-            // A dropped record may have carried a points or trophy-type override, both of which
-            // the summary SQL resolves through the mirror, so the rebuild is warranted.
             _gameCustomDataStore.Update(
                 gameId,
                 customData =>
@@ -1389,6 +1493,38 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Replaces the stored authored achievement with the id of <paramref name="definition"/>,
+        /// keeping its place in the list and every other definition as stored; adds it at the end
+        /// when the game has none with that id. For an editor that holds only some of a game's
+        /// achievements, where <see cref="SetCustomAchievements"/> would drop the rest.
+        /// </summary>
+        public void UpsertCustomAchievement(Guid gameId, CustomAchievementDefinition definition)
+        {
+            var id = definition?.Id?.Trim();
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(id))
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                var definitions = customData.CustomAchievements ?? new List<CustomAchievementDefinition>();
+                var index = definitions.FindIndex(existing =>
+                    string.Equals(existing?.Id?.Trim(), id, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0)
+                {
+                    definitions[index] = definition.Clone();
+                }
+                else
+                {
+                    definitions.Add(definition.Clone());
+                }
+
+                customData.CustomAchievements = definitions;
+            });
+        }
+
+        /// <summary>
         /// Puts <paramref name="apiNames"/> at the head of the order. Everything else keeps its order
         /// behind them: entries the order does not name follow those it does, in their own order.
         /// </summary>
@@ -1501,8 +1637,7 @@ namespace PlayniteAchievements.Services.Achievements
             _gameCustomDataStore.Update(
                 gameId,
                 customData => customData.AutoCapstoneGenerated = true,
-                affectsSummaryData: false,
-                affectsOverrideMirror: false);
+                affectsSummaryData: false);
         }
 
         public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)

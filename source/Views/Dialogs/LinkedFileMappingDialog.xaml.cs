@@ -1,6 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.ViewModels;
-using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.ViewModels.ManageAchievements;
 using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Windows;
@@ -26,8 +26,16 @@ namespace PlayniteAchievements.Views.Dialogs
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             DataContext = _viewModel;
             _viewModel.ColumnsRebuilt += (s, e) => RebuildPreviewColumns();
+            _viewModel.ValueColumnsRebuilt += (s, e) => RebuildAchievementColumns();
             _viewModel.RequestClose += (s, e) => RequestClose?.Invoke(this, EventArgs.Empty);
             RebuildPreviewColumns();
+            RebuildAchievementColumns();
+
+            // A game with no achievements has no achievements list; the file is all there is.
+            if (!_viewModel.ShowsMatching)
+            {
+                Tabs.SelectedIndex = 1;
+            }
         }
 
         public event EventHandler RequestClose;
@@ -96,19 +104,63 @@ namespace PlayniteAchievements.Views.Dialogs
                     Header = column,
                     HeaderTemplate = fieldHeaderTemplate,
                     Binding = new Binding("[" + column.Index + "]"),
-                    ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index),
+                    ElementStyle = BuildCellTextStyle(cellTextStyle, column.Index, column.IsPosition),
                     MaxWidth = 420
                 });
             }
         }
 
         /// <summary>
-        /// The text style of one file column: a cell whose value cannot be read for its field
-        /// shows in the error color, with the reason as its tooltip.
+        /// The achievements list: the achievement, frozen while the rest scrolls, the row it pairs
+        /// with as a dropdown, then what the row says for the status and each mapped field.
         /// </summary>
-        private Style BuildCellTextStyle(Style baseStyle, int columnIndex)
+        private void RebuildAchievementColumns()
+        {
+            AchievementsGrid.Columns.Clear();
+            AchievementsGrid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_Column_Achievement"),
+                CellTemplate = (DataTemplate)FindResource("AchievementCellTemplate"),
+                HeaderTemplate = (DataTemplate)FindResource("MatchColumnHeaderTemplate"),
+                HeaderStyle = (Style)FindResource("MatchColumnHeaderStyle"),
+                CellStyle = (Style)FindResource("MatchCellStyle"),
+                Width = 260,
+                MaxWidth = 340
+            });
+            AchievementsGrid.Columns.Add(new DataGridTemplateColumn
+            {
+                Header = ResourceProvider.GetString("LOCPlayAch_LinkedFile_File"),
+                CellTemplate = (DataTemplate)FindResource("AchievementRowCellTemplate"),
+                Width = 200,
+                MaxWidth = 320
+            });
+
+            var cellTextStyle = (Style)FindResource("PreviewCellTextStyle");
+            for (var i = 0; i < _viewModel.ValueColumns.Count; i++)
+            {
+                AchievementsGrid.Columns.Add(new DataGridTextColumn
+                {
+                    Header = _viewModel.ValueColumns[i].Header,
+                    Binding = new Binding("[" + i + "]") { Mode = BindingMode.OneWay },
+                    ElementStyle = cellTextStyle,
+                    MaxWidth = 320
+                });
+            }
+        }
+
+        /// <summary>
+        /// The text style of one file column: a cell whose value cannot be read for its field
+        /// shows in the error color, with the reason as its tooltip. The position column is the
+        /// plugin's own numbering rather than the file's text, so it is shown muted.
+        /// </summary>
+        private Style BuildCellTextStyle(Style baseStyle, int columnIndex, bool muted)
         {
             var style = new Style(typeof(TextBlock), baseStyle);
+            if (muted)
+            {
+                style.Setters.Add(new Setter(OpacityProperty, Convert.ToDouble(FindResource("PlayAch.Opacity.Hint"))));
+            }
+
             style.Setters.Add(new Setter(ToolTipProperty, new Binding("CellErrors[" + columnIndex + "]") { FallbackValue = null }));
             var failed = new DataTrigger
             {
@@ -170,7 +222,7 @@ namespace PlayniteAchievements.Views.Dialogs
 
         // The row whose dropdown a press outside it just closed, and when: a press on the row's
         // own cell closes the dropdown, and its release must not open it again.
-        private LinkedFilePreviewRow _closedRow;
+        private MatchPickerItem _closedRow;
         private int _closedAt;
 
         /// <summary>Keeps the press from toggling the button; the dropdown opens on release.</summary>
@@ -187,7 +239,7 @@ namespace PlayniteAchievements.Views.Dialogs
         private void PickerButton_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            if (!(sender is FrameworkElement cell) || !(cell.DataContext is LinkedFilePreviewRow row) || !row.CanPick)
+            if (!(sender is FrameworkElement cell) || !(cell.DataContext is MatchPickerItem row) || !row.CanPick)
             {
                 return;
             }
@@ -212,7 +264,7 @@ namespace PlayniteAchievements.Views.Dialogs
         private void PairingPopup_Closed(object sender, EventArgs e)
         {
             // Only a press outside the dropdown closes it with the button down; a pick happens on release.
-            _closedRow = Mouse.LeftButton == MouseButtonState.Pressed ? PairingPopup.DataContext as LinkedFilePreviewRow : null;
+            _closedRow = Mouse.LeftButton == MouseButtonState.Pressed ? PairingPopup.DataContext as MatchPickerItem : null;
             _closedAt = Environment.TickCount;
         }
 
