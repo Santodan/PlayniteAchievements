@@ -1785,6 +1785,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            IsAllMatchingSelected = false;
             _selectedRows.Clear();
             foreach (var row in incoming)
             {
