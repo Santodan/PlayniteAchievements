@@ -1827,10 +1827,10 @@ namespace PlayniteAchievements.Views.Showcase
 
             var wash = new Border { Opacity = 0.06 };
             wash.SetResourceReference(Border.BackgroundProperty, brushKey);
-            wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            wash.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             var outline = new Border { BorderThickness = new Thickness(2) };
             outline.SetResourceReference(Border.BorderBrushProperty, brushKey);
-            outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            outline.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             var ghost = new Grid
             {
                 Margin = cell.Margin,
@@ -1964,7 +1964,7 @@ namespace PlayniteAchievements.Views.Showcase
                 Focusable = EditLayoutButton.IsChecked == true,
                 BorderThickness = new Thickness(0)
             };
-            border.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            border.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             border.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.GridSurface");
             // Widgets can contain buttons, scroll viewers, and charts that consume bubbling
             // drag events. Tunneling at the block host keeps the illuminated target and the
@@ -1996,7 +1996,7 @@ namespace PlayniteAchievements.Views.Showcase
                 IsHitTestVisible = false,
                 BorderThickness = new Thickness(2)
             };
-            editChrome.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            editChrome.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             editChrome.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Border");
             layers.Children.Add(editChrome);
 
@@ -2046,7 +2046,7 @@ namespace PlayniteAchievements.Views.Showcase
             };
             dropGlow.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Accent");
             dropGlow.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
-            dropGlow.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Section");
+            dropGlow.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             layers.Children.Add(dropGlow);
 
             var dropStatus = new TextBlock
@@ -2073,7 +2073,7 @@ namespace PlayniteAchievements.Views.Showcase
             };
             dropStatusPanel.SetResourceReference(Border.BackgroundProperty, "PlayAch.Brush.Surface");
             dropStatusPanel.SetResourceReference(Border.BorderBrushProperty, "PlayAch.Brush.Accent");
-            dropStatusPanel.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Card");
+            dropStatusPanel.SetResourceReference(Border.CornerRadiusProperty, "PlayAch.Radius.Layout");
             layers.Children.Add(dropStatusPanel);
             border.Child = layers;
             var visualState = new BlockVisualState
