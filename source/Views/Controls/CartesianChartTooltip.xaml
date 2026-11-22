@@ -17,7 +17,7 @@
     <Border Background="{Binding SurfaceBrush, ElementName=TooltipRoot}"
             BorderBrush="{Binding OutlineBrush, ElementName=TooltipRoot}"
             BorderThickness="1"
-            CornerRadius="4"
+            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
             IsHitTestVisible="False"
             Padding="8,4">
         <StackPanel>
