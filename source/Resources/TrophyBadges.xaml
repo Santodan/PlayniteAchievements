@@ -74,8 +74,12 @@
     </DrawingImage.Drawing>
   </DrawingImage>
 
+  <!-- Graded trophies carry a Default suffix: RarityAppearanceHelper publishes the user-colored
+       TrophyBronze/Silver/Gold/Platinum at application scope, and a same-named static copy here
+       would win the lookup for every control that merges this dictionary. -->
+
   <!-- Bronze Trophy -->
-  <DrawingImage x:Key="TrophyBronze">
+  <DrawingImage x:Key="TrophyBronzeDefault">
     <DrawingImage.Drawing>
       <DrawingGroup>
         <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource FillBronze}">
@@ -90,7 +94,7 @@
   </DrawingImage>
 
   <!-- Silver Trophy -->
-  <DrawingImage x:Key="TrophySilver">
+  <DrawingImage x:Key="TrophySilverDefault">
     <DrawingImage.Drawing>
       <DrawingGroup>
         <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource FillSilver}">
@@ -104,7 +108,7 @@
   </DrawingImage>
 
   <!-- Gold Trophy -->
-  <DrawingImage x:Key="TrophyGold">
+  <DrawingImage x:Key="TrophyGoldDefault">
     <DrawingImage.Drawing>
       <DrawingGroup>
         <GeometryDrawing Geometry="{StaticResource GeoTrophy}" Brush="{StaticResource FillGold}">
@@ -118,7 +122,7 @@
   </DrawingImage>
 
   <!-- Platinum Trophy - Enhanced PSN-inspired design with sparkles -->
-  <DrawingImage x:Key="TrophyPlatinum">
+  <DrawingImage x:Key="TrophyPlatinumDefault">
     <DrawingImage.Drawing>
       <DrawingGroup>
         <!-- Base trophy shape with enhanced platinum fill -->
