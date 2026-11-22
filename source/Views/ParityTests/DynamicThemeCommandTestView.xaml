@@ -24,7 +24,7 @@
 
         <Border Grid.Row="0"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
                 Background="{DynamicResource PlayAch.Brush.Surface}">
