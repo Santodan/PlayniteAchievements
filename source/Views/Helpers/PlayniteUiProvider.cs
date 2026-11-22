@@ -106,6 +106,13 @@ namespace PlayniteAchievements.Views.Helpers
             windowExtension.UseLayoutRounding = true;
             windowExtension.SnapsToDevicePixels = true;
 
+            // The theme's window template paints the title bar with the window's Background, so give
+            // it the plugin's Window background: the title bar then matches the content below it.
+            if (Application.Current?.TryFindResource(Services.UI.PlayAchResourceService.WindowFrameResourceKey) != null)
+            {
+                windowExtension.SetResourceReference(Control.BackgroundProperty, Services.UI.PlayAchResourceService.WindowFrameResourceKey);
+            }
+
             windowExtension.ResizeMode = windowOptions.CanBeResizable ? ResizeMode.CanResize : ResizeMode.NoResize;
             windowExtension.Owner = API.Instance.Dialogs.GetCurrentAppWindow();
             windowExtension.WindowStartupLocation = WindowStartupLocation.CenterOwner;
