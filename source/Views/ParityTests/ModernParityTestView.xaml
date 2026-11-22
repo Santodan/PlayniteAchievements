@@ -66,7 +66,7 @@
 
                 <!-- Row 0: Toast -->
                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,0,0,12">
                     <StackPanel>
@@ -90,7 +90,7 @@
                     <!-- AchievementViewItem -->
                     <Border Grid.Column="0"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
@@ -109,7 +109,7 @@
                     <!-- AchievementButton -->
                     <Border Grid.Column="1"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="4,0">
                         <StackPanel>
@@ -124,7 +124,7 @@
                     <!-- AchievementProgressBar -->
                     <Border Grid.Column="2"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
@@ -139,7 +139,7 @@
 
                 <!-- Row 2: Stats -->
                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,12,0,0">
                     <StackPanel>
@@ -161,7 +161,7 @@
                     <!-- AchievementBarChart -->
                     <Border Grid.Column="0"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
@@ -176,7 +176,7 @@
                     <!-- AchievementPieChart -->
                     <Border Grid.Column="1"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
@@ -200,7 +200,7 @@
                     <!-- AchievementCompactList -->
                     <Border Grid.Column="0"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
@@ -215,7 +215,7 @@
                     <!-- AchievementCompactLockedList -->
                     <Border Grid.Column="1"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="4,0">
                         <StackPanel>
@@ -230,7 +230,7 @@
                     <!-- AchievementCompactUnlockedList -->
                     <Border Grid.Column="2"
                             Background="{DynamicResource PlayAch.Brush.Surface}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
@@ -245,7 +245,7 @@
 
                 <!-- AchievementCompactLatest -->
                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,12,0,0">
                     <StackPanel>
@@ -261,7 +261,7 @@
 
                 <!-- Row 5: Full Achievement List -->
                 <Border Background="{DynamicResource PlayAch.Brush.Surface}"
-                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                         Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,12,0,0">
                     <StackPanel>
