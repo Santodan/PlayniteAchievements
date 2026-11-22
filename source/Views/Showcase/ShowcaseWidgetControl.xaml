@@ -16,7 +16,7 @@
     </UserControl.Resources>
     <Border x:Name="RootBorder"
             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-            CornerRadius="{StaticResource PlayAch.Radius.Section}"
+            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
             ClipToBounds="True">
         <!-- Fill and outline are style setters, not local values, so the DrawsBackground
              trigger can clear them. Transparent (not null) keeps gaps hit-testable. -->
