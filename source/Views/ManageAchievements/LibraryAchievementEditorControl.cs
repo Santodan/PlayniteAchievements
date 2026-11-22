@@ -144,11 +144,15 @@ namespace PlayniteAchievements.Views.ManageAchievements
                 plugin?.ThemeUpdateService?.RequestUpdate(selected.Value, forceRefresh: true);
             }
 
-            foreach (var gameId in games)
+            // The library lists are rebuilt once, with the last game: each call would request it.
+            for (var index = 0; index < games.Count; index++)
             {
+                var gameId = games[index];
                 try
                 {
-                    plugin?.ThemeIntegrationService?.NotifyCustomDataChanged(gameId);
+                    plugin?.ThemeIntegrationService?.NotifyCustomDataChanged(
+                        gameId,
+                        refreshLibraryState: index == games.Count - 1);
                 }
                 catch (Exception ex)
                 {
