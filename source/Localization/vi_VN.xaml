@@ -747,6 +747,7 @@ Các tệp sẽ được ghi đè trực tiếp và thao tác này không thể 
     <sys:String x:Key="LOCPlayAch_Settings_ToastDurationSeconds">Thời lượng (giây):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotificationDelaySeconds">Độ trễ thông báo (giây):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CaptureDelaySeconds">Độ trễ ghi hình (giây):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CaptureAtUnlockAndAfterDelay">Also capture at the moment of unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableControllerVibration">Rung tay cầm khi có thông báo</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationStrength">Cường độ rung (%):</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ControllerVibrationDuration">Thời lượng rung (ms):</sys:String>
@@ -1832,47 +1833,5 @@ Bạn có muốn tiếp tục không?</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">Thời gian để mở khoá mọi thứ</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUltraRare">Cực hiếm</sys:String>
     <sys:String x:Key="LOCPlayniteAchievementsUserStats">Thống kê người dùng</sys:String>
-
-    <!-- Main-only keys: still used by the released build, removed at the next release -->
-    <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">Dùng cho trò chơi</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">Hoàn thành</sys:String>
-    <sys:String x:Key="LOCPlayAch_FriendsOverview_AllProviders">Toàn bộ nền tảng</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataButton">Làm sạch dữ liệu tuỳ chỉnh</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirm">Clear all custom data for &quot;{0}&quot;?
-
-Cached achievement data is kept.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ClearCustomDataConfirmManual">Clear all custom data for &quot;{0}&quot;?
-
-This also deletes the manual link and the achievements it produced. This cannot be undone.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_MetadataLink_SetByYou">Set by you</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData">Làm sạch dữ liệu</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Làm sạch dữ liệu cho {0} trò chơi được chọn?
-
-Hành động này sẽ xoá những thành tựu, biểu tượng, bất kì liên kết thủ công nào và thời gian mở khoá của chúng trong bộ nhớ đệm.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Làm sạch dữ liệu của &quot;{0}&quot;?
-
-Hành động này sẽ xoá thành tựu, biểu tượng, bất kì liên kết thủ công nào và thời gian mở khoá của nó trong bộ nhớ đệm.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">Loại trừ khỏi làm mới và làm sạch dữ liệu</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Loại trừ {0} trò chơi được chọn và làm sạch dữ liệu của chúng?
-
-Hành động này sẽ ẩn chúng khỏi màn hình thành tựu đồng thời xoá dữ liệu và liên kết thủ công của chúng trong bộ nhớ đệm.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Loại bỏ &quot;{0}&quot; và làm sạch dữ liệu của nó?
-
-Hành động này sẽ ẩn trò chơi khỏi màn hình thành tựu đồng thời xoá dữ liệu và liên kết thủ công của nó trong bộ nhớ đệm.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">Bao gồm trong làm mới và làm mới các trò chơi được chọn</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_AggregateAccountCharacters">Gập thành tựu từ mọi nhân vật trong tài khoản</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Đang làm sạch dữ liệu thành tựu trong bộ nhớ đệm...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Làm sạch dữ liệu thành tựu trong bộ nhớ đệm. Lần làm mới kế tiếp sẽ tạo lại nó.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Dữ liệu thành tựu được lưu bộ nhớ đệm từ các nền tảng của bạn. Việc làm sạch dữ liệu này sẽ không làm ảnh hưởng đến các tệp biểu tượng.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Dữ liệu thành tựu trong bộ nhớ đệm</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode">Rendering</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Hint">Quality keeps notifications smooth while a game keeps the GPU busy, at some cost to the game's frame rate while a notification is shown.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotificationRenderMode_Performance">Hiệu suất</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource">Huy hiệu thanh tiến trình</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_Help">Huy hiệu nào sẽ hiển thị bên dưới thanh tiến trình. Cúp khi khả dụng sử dụng cúp của trò chơi nếu trò chơi có cúp, còn ở những nơi khác sẽ sử dụng phân bố độ hiếm; Độ hiếm luôn hiển thị phân bố độ hiếm.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBadgeSource_TrophyWhenAvailable">Cúp khi khả dụng</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Đang đồng bộ thẻ...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Tag_CustomManualTracking">Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_Workshop_Likes">Likes</sys:String>
 
 </ResourceDictionary>
