@@ -57,6 +57,7 @@ namespace PlayniteAchievements.Models.Tests
                     ""Persisted"": {
                         ""InlineSurfaceTransparencySeeded"": true,
                         ""CommonGlowTierCleared"": true,
+                        ""SurfaceOverrideMovedToPanel"": true,
                         ""ResourceOverrides"": {
                             ""PlayAch.Brush.ControlSurface"": { ""Mode"": 2, ""CustomValue"": ""#00000000"" }
                         }
@@ -136,6 +137,48 @@ namespace PlayniteAchievements.Models.Tests
 
             Assert.AreEqual(true, persisted["ShowCompactLockedListRarityBar"].Value<bool>());
             Assert.AreEqual(true, persisted["ShowCompactUnlockedListRarityBar"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_MovesSurfaceOverrideToPanel_WhenFlagAbsent()
+        {
+            const string json =
+                @"{ ""Persisted"": { ""ResourceOverrides"": {
+                    ""PlayAch.Brush.Surface"": { ""Mode"": 1, ""CustomValue"": ""#FF203040"" } } } }";
+
+            var persisted = MigratePersisted(json);
+            var overrides = (JObject)persisted["ResourceOverrides"];
+
+            Assert.IsNull(overrides["PlayAch.Brush.Surface"]);
+            Assert.AreEqual("#FF203040", overrides["PlayAch.Brush.Panel"]["CustomValue"].Value<string>());
+            Assert.AreEqual(true, persisted["SurfaceOverrideMovedToPanel"].Value<bool>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_KeepsPanelOverride_WhenBothSaved()
+        {
+            const string json =
+                @"{ ""Persisted"": { ""ResourceOverrides"": {
+                    ""PlayAch.Brush.Surface"": { ""Mode"": 1, ""CustomValue"": ""#FF203040"" },
+                    ""PlayAch.Brush.Panel"": { ""Mode"": 1, ""CustomValue"": ""#FF506070"" } } } }";
+
+            var overrides = (JObject)MigratePersisted(json)["ResourceOverrides"];
+
+            Assert.IsNull(overrides["PlayAch.Brush.Surface"]);
+            Assert.AreEqual("#FF506070", overrides["PlayAch.Brush.Panel"]["CustomValue"].Value<string>());
+        }
+
+        [TestMethod]
+        public void MigrateFromJson_KeepsSurfaceOverride_WhenSurfaceFlagSet()
+        {
+            const string json =
+                @"{ ""Persisted"": { ""SurfaceOverrideMovedToPanel"": true, ""ResourceOverrides"": {
+                    ""PlayAch.Brush.Surface"": { ""Mode"": 1, ""CustomValue"": ""#FF203040"" } } } }";
+
+            var overrides = (JObject)MigratePersisted(json)["ResourceOverrides"];
+
+            Assert.AreEqual("#FF203040", overrides["PlayAch.Brush.Surface"]["CustomValue"].Value<string>());
+            Assert.IsNull(overrides["PlayAch.Brush.Panel"]);
         }
 
         private static JObject MigratePersisted(string json)
