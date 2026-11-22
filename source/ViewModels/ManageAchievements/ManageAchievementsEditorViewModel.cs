@@ -5967,6 +5967,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             _isTogglingReveal = true;
             BeginWriteBatch();
             var gestureGame = _activeGameId;
+
+            // Across games an authored row writes its own definition as the loop reaches it;
+            // the store batch folds those writes and the flush below into one transaction.
+            using (IsPagedMode ? _gameCustomDataStore?.BeginBatch() : null)
             try
             {
                 foreach (var row in _selectedRows)
@@ -7190,10 +7194,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
+            // One store batch: a game's notes and fields land in one write, and a gesture across
+            // games in one transaction.
             var wrote = false;
-            foreach (var gameId in order)
+            using (_gameCustomDataStore?.BeginBatch())
             {
-                wrote |= FlushGameWriteBatch(gameId, batches[gameId]);
+                foreach (var gameId in order)
+                {
+                    wrote |= FlushGameWriteBatch(gameId, batches[gameId]);
+                }
             }
 
             if (wrote)
