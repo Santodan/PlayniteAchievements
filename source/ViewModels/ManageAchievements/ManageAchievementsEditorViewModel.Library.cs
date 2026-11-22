@@ -347,8 +347,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 onError: ex => _logger?.Error(ex, "Failed to load the achievement editor's rows."),
                 update: UpdatePagedRow,
                 gate: _pagedFeedGate,
-                placed: AttachPagedRow);
+                placed: AttachPagedRow,
+                // Skeleton rows until the first read lands: across every game it is the slowest.
+                pendingRows: PlaceholderRows.Count);
             _pagedRows.PropertyChanged += PagedRows_PropertyChanged;
+            HasRows = _pagedRows.Count > 0;
             Common.LeakWatch.Track("EditorPagedRows", _pagedRows);
         }
 
