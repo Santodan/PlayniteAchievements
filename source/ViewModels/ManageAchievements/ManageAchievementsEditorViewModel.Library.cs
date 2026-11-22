@@ -317,6 +317,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             OnPropertyChanged(nameof(Scope));
             OnPropertyChanged(nameof(IsPagedMode));
             OnPropertyChanged(nameof(AllowsSingleGameFeatures));
+            OnPropertyChanged(nameof(ShowLinkFileButton));
+            OnPropertyChanged(nameof(ShowEditLinkedFileButton));
             OnPropertyChanged(nameof(GridRows));
             OnPropertyChanged(nameof(GameId));
             RaiseCommandStates();
