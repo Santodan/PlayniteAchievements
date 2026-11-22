@@ -31,7 +31,7 @@
                         <ControlTemplate TargetType="RadioButton">
                             <Border x:Name="BorderRoot"
                                     Background="{TemplateBinding Background}"
-                                    CornerRadius="4"
+                                    CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                     Padding="{TemplateBinding Padding}">
                                 <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="Center" />
@@ -98,7 +98,7 @@
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <DockPanel LastChildFill="True">
                 <!-- Always-visible stats, docked at the bottom so every tab shows them. Right-click
@@ -381,7 +381,7 @@
                     </Grid.RowDefinitions>
 
                     <controls:WidthFollowingDecorator Grid.Row="2">
-                        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        <Border CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                                 ClipToBounds="False"
                                 Background="Transparent">
                             <Image Stretch="Uniform"
@@ -431,7 +431,7 @@
                 Background="Transparent"
                 BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                 BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                 Padding="{StaticResource PlayAch.Thickness.CardPadding}">
             <Grid>
                 <!-- Every tab is a host, and every host is Hidden rather than Collapsed when
