@@ -233,6 +233,8 @@ namespace PlayniteAchievements.Models.Settings
         private int _cornerRoundingRadius = 6;
         private bool _roundGameArtCorners;
         private bool _roundAchievementIconCorners;
+        private bool _roundLayoutCorners = true;
+        private int _layoutCornerRadius = 4;
         private CategoryColumnDisplay _categoryColumnDisplay = CategoryColumnDisplay.Subcategory;
         private List<ProgressDetailEntry> _progressDetails = ProgressDetailOrder.Default();
         private int _progressDetailShownCount = ProgressDetailOrder.MinShownCount;
@@ -2697,6 +2699,23 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Whether layout surfaces (text boxes, dropdowns, buttons, cards, menus) are drawn with
+        /// LayoutCornerRadius corners. Square when off.
+        /// </summary>
+        public bool RoundLayoutCorners
+        {
+            get => _roundLayoutCorners;
+            set => SetValue(ref _roundLayoutCorners, value);
+        }
+
+        /// <summary>Corner radius in pixels for rounded layout surfaces.</summary>
+        public int LayoutCornerRadius
+        {
+            get => _layoutCornerRadius;
+            set => SetValue(ref _layoutCornerRadius, Math.Max(0, value));
+        }
+
+        /// <summary>
         /// Which part of a nested category the grids' Category column shows: the subcategory, the
         /// top level, or the full path.
         /// </summary>
@@ -3549,6 +3568,8 @@ namespace PlayniteAchievements.Models.Settings
                 CornerRoundingRadius = this.CornerRoundingRadius,
                 RoundGameArtCorners = this.RoundGameArtCorners,
                 RoundAchievementIconCorners = this.RoundAchievementIconCorners,
+                RoundLayoutCorners = this.RoundLayoutCorners,
+                LayoutCornerRadius = this.LayoutCornerRadius,
                 CategoryColumnDisplay = this.CategoryColumnDisplay,
                 ProgressDetails = ProgressDetailOrder.Normalize(this.ProgressDetails),
                 ProgressDetailShownCount = this.ProgressDetailShownCount,
@@ -3687,6 +3708,8 @@ namespace PlayniteAchievements.Models.Settings
             CornerRoundingRadius = defaults.CornerRoundingRadius;
             RoundGameArtCorners = defaults.RoundGameArtCorners;
             RoundAchievementIconCorners = defaults.RoundAchievementIconCorners;
+            RoundLayoutCorners = defaults.RoundLayoutCorners;
+            LayoutCornerRadius = defaults.LayoutCornerRadius;
             CategoryColumnDisplay = defaults.CategoryColumnDisplay;
             ProgressDetailShownCount = defaults.ProgressDetailShownCount;
             FriendNameDisplayMode = defaults.FriendNameDisplayMode;
