@@ -74,7 +74,9 @@ namespace PlayniteAchievements.Services.UI
             Brush("PlayAch.Brush.Panel", "LOCPlayAch_Settings_Appearance_Resource_Panel", "PanelBackgroundBrush", "CardBackgroundBrush"),
             Brush("PlayAch.Brush.WindowSurface", "LOCPlayAch_Settings_Appearance_Resource_WindowSurface", "WindowBackgourndBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.GridSurface", "LOCPlayAch_Settings_Appearance_Resource_GridSurface", "GridItemBackgroundBrush", "ControlBackgroundBrush"),
-            Brush("PlayAch.Brush.Border", "LOCPlayAch_Settings_Appearance_Resource_Border", "NormalBorderBrush", "ControlBackgroundBrush"),
+            // Card outlines and dividers: the theme's panel separator. NormalBorderBrush is the
+            // control border, which FusionX, Helium and others leave transparent.
+            Brush("PlayAch.Brush.Border", "LOCPlayAch_Settings_Appearance_Resource_Border", "PanelSeparatorBrush", "NormalBorderBrush", "ControlBackgroundBrush"),
             Brush("PlayAch.Brush.ControlBorder", "LOCPlayAch_Settings_Appearance_Resource_ControlBorder", "NormalBrush", "SelectionLightBrush"),
             Brush("PlayAch.Brush.Glyph", "LOCPlayAch_ManageAchievements_Tab_CustomIcons", "GlyphBrush"),
             Brush("PlayAch.Brush.Accent", "LOCPlayAch_Settings_Appearance_Resource_Accent", "HighlightGlyphBrush", "GlyphBrush"),
@@ -404,6 +406,13 @@ namespace PlayniteAchievements.Services.UI
             "PlayAch.Brush.PopupSurface"
         };
 
+        // Outlines that exist only to be seen: a transparent theme brush moves on to the next key in
+        // the chain instead of hiding the edge.
+        private static readonly HashSet<string> VisibleRequiredTokens = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "PlayAch.Brush.Border"
+        };
+
         private static bool IsUsableResource(TokenDefinition token, object value)
         {
             if (value == null)
@@ -411,7 +420,8 @@ namespace PlayniteAchievements.Services.UI
                 return false;
             }
 
-            if (OpaqueRequiredTokens.Contains(token.ResourceKey) && IsFullyTransparent(value as Brush))
+            if ((OpaqueRequiredTokens.Contains(token.ResourceKey) || VisibleRequiredTokens.Contains(token.ResourceKey)) &&
+                IsFullyTransparent(value as Brush))
             {
                 return false;
             }
