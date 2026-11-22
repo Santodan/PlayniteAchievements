@@ -82,7 +82,7 @@
                             x:Name="ThemeMigrationCustomContainer"
                             BorderBrush="{DynamicResource PlayAch.Brush.Border}"
                             BorderThickness="{StaticResource PlayAch.Thickness.Border}"
-                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            CornerRadius="{DynamicResource PlayAch.Radius.Layout}"
                             Margin="0,16,0,0"
                             Padding="{StaticResource PlayAch.Thickness.None}"
                             IsEnabled="{Binding HasThemesToMigrate}">
