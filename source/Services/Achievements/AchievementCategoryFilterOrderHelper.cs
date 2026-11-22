@@ -182,8 +182,8 @@ namespace PlayniteAchievements.Services.Achievements
                 return result;
             }
 
-            var nodes = ExpandToNodes(labels);
-            AppendCategoryTreeLevel(result, nodes, null, preferredOrder);
+            var tree = new CategoryTree(ExpandToNodes(labels), preferredOrder);
+            tree.AppendSubtree(result, null);
             return result;
         }
 
@@ -202,8 +202,7 @@ namespace PlayniteAchievements.Services.Achievements
                 return new List<string>();
             }
 
-            var nodes = ExpandToNodes(labels);
-            return OrderLevel(nodes, parentPath, preferredOrder);
+            return new CategoryTree(ExpandToNodes(labels), preferredOrder).Level(parentPath);
         }
 
         /// <summary>
@@ -228,29 +227,111 @@ namespace PlayniteAchievements.Services.Achievements
             return nodes;
         }
 
-        private static List<string> OrderLevel(
-            List<string> nodes,
-            string parentPath,
-            IReadOnlyList<string> preferredOrder)
+        /// <summary>
+        /// The nodes indexed once: each parent's children in first-seen order, and each node's
+        /// subtree order index. Asking <see cref="CategoryPathHelper.GetChildPaths"/> and
+        /// <see cref="ResolveCategoryOrderIndexForSubtree"/> per node scanned every node for every
+        /// node, which the library editor's thousands of categories turned into a hang.
+        /// </summary>
+        private sealed class CategoryTree
         {
-            return CategoryPathHelper.GetChildPaths(nodes, parentPath)
-                .Select((path, firstSeen) => new { Path = path, FirstSeen = firstSeen })
-                .OrderBy(entry => ResolveCategoryOrderIndexForSubtree(entry.Path, nodes, preferredOrder))
-                .ThenBy(entry => entry.FirstSeen)
-                .Select(entry => entry.Path)
-                .ToList();
-        }
+            private readonly List<string> _roots = new List<string>();
+            private readonly HashSet<string> _rootSet = new HashSet<string>(CategoryPathHelper.LabelComparer);
+            private readonly Dictionary<string, List<string>> _children =
+                new Dictionary<string, List<string>>(CategoryPathHelper.LabelComparer);
+            private readonly Dictionary<string, HashSet<string>> _childSets =
+                new Dictionary<string, HashSet<string>>(CategoryPathHelper.LabelComparer);
+            private readonly Dictionary<string, int> _subtreeOrder =
+                new Dictionary<string, int>(CategoryPathHelper.LabelComparer);
 
-        private static void AppendCategoryTreeLevel(
-            List<string> result,
-            List<string> nodes,
-            string parentPath,
-            IReadOnlyList<string> preferredOrder)
-        {
-            foreach (var path in OrderLevel(nodes, parentPath, preferredOrder))
+            public CategoryTree(IReadOnlyList<string> nodes, IReadOnlyList<string> preferredOrder)
             {
-                result.Add(path);
-                AppendCategoryTreeLevel(result, nodes, path, preferredOrder);
+                var orderIndex = preferredOrder != null && preferredOrder.Count > 0
+                    ? BuildCategoryOrderIndex(preferredOrder)
+                    : null;
+
+                foreach (var node in nodes)
+                {
+                    var segments = CategoryPathHelper.Split(node);
+                    string parent = null;
+                    for (var depth = 1; depth <= segments.Count; depth++)
+                    {
+                        var path = string.Join(CategoryPathHelper.Separator, segments.Take(depth));
+                        AddChild(parent, path);
+                        parent = path;
+                    }
+
+                    // A node's own position counts for itself and for every ancestor above it.
+                    if (orderIndex != null &&
+                        orderIndex.TryGetValue(CategoryPathHelper.NormalizePath(node), out var index))
+                    {
+                        for (var depth = 1; depth <= segments.Count; depth++)
+                        {
+                            var path = string.Join(CategoryPathHelper.Separator, segments.Take(depth));
+                            if (!_subtreeOrder.TryGetValue(path, out var best) || index < best)
+                            {
+                                _subtreeOrder[path] = index;
+                            }
+                        }
+                    }
+                }
+            }
+
+            /// <summary>The children of <paramref name="parentPath"/> in render order; the roots for none.</summary>
+            public List<string> Level(string parentPath)
+            {
+                List<string> children;
+                if (string.IsNullOrWhiteSpace(parentPath))
+                {
+                    children = _roots;
+                }
+                else if (!_children.TryGetValue(
+                             string.Join(CategoryPathHelper.Separator, CategoryPathHelper.Split(parentPath)),
+                             out children))
+                {
+                    return new List<string>();
+                }
+
+                return children
+                    .Select((path, firstSeen) => new { Path = path, FirstSeen = firstSeen })
+                    .OrderBy(entry => _subtreeOrder.TryGetValue(entry.Path, out var index) ? index : int.MaxValue)
+                    .ThenBy(entry => entry.FirstSeen)
+                    .Select(entry => entry.Path)
+                    .ToList();
+            }
+
+            public void AppendSubtree(List<string> result, string parentPath)
+            {
+                foreach (var path in Level(parentPath))
+                {
+                    result.Add(path);
+                    AppendSubtree(result, path);
+                }
+            }
+
+            private void AddChild(string parent, string path)
+            {
+                if (parent == null)
+                {
+                    if (_rootSet.Add(path))
+                    {
+                        _roots.Add(path);
+                    }
+
+                    return;
+                }
+
+                if (!_childSets.TryGetValue(parent, out var set))
+                {
+                    set = new HashSet<string>(CategoryPathHelper.LabelComparer);
+                    _childSets[parent] = set;
+                    _children[parent] = new List<string>();
+                }
+
+                if (set.Add(path))
+                {
+                    _children[parent].Add(path);
+                }
             }
         }
     }
