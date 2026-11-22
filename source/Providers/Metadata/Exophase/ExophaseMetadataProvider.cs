@@ -47,7 +47,7 @@ namespace PlayniteAchievements.Providers.Metadata.Exophase
         private const int SearchCandidatesJudged = 6;
 
         private static readonly HashSet<string> PlayStationPlatforms =
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "psn", "ps3", "ps4", "ps5", "psvita", "vita" };
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "psn", "ps3", "ps4", "ps5", "ps-vita", "psvita", "vita" };
 
         private readonly ExophaseMetadataBranch _branch;
         private readonly ExophasePageSource _pages;
