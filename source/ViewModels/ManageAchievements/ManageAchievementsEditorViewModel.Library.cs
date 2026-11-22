@@ -710,9 +710,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
                     _categoryFilterOptions = categories;
                     _libraryTagNames = userTagNames ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    // One reset, not an add per label: each change rebuilds every picker bound to the
+                    // list, and across games it holds thousands of labels.
                     if (!AssignableCategoryOptions.SequenceEqual(categories, CategoryPathHelper.LabelComparer))
                     {
-                        Common.CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, categories);
+                        AssignableCategoryOptions.ReplaceAll(categories);
                     }
 
                     var present = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase);
