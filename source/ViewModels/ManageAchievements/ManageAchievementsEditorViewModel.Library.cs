@@ -1273,6 +1273,9 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         // deferring again.
         private bool _isApplyingAllMatching;
 
+        // Gestures made over every match while a run was writing, in the order they were made.
+        private readonly Queue<Action> _queuedAllMatchingGestures = new Queue<Action>();
+
         /// <summary>
         /// Whether the selection is every row the filters match across games. The view model then
         /// holds a few rows that stand for the rest, which is all the details pane needs, and a
@@ -1495,8 +1498,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private async System.Threading.Tasks.Task ApplyAcrossAllMatchingAsync(Action gesture)
         {
+            // A gesture made while a run is writing waits its turn rather than being dropped: the
+            // tag menu stays open, and each tick in it is a gesture of its own.
             if (IsSaving)
             {
+                _queuedAllMatchingGestures.Enqueue(gesture);
                 return;
             }
 
@@ -1536,6 +1542,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             if (_isDetached || !IsAllMatchingSelected || !ReferenceEquals(query, _allMatchingQuery))
             {
+                _queuedAllMatchingGestures.Clear();
+                return;
+            }
+
+            // The next waiting gesture runs now; the pane is re-seeded once the last has run.
+            if (_queuedAllMatchingGestures.Count > 0)
+            {
+                _ = ApplyAcrossAllMatchingAsync(_queuedAllMatchingGestures.Dequeue());
                 return;
             }
 
