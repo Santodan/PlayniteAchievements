@@ -292,6 +292,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             {
                 DisposePagedRows();
                 SetActiveGame(single);
+                _listedGame = ResolveListedGame(single);
                 _gameDataSnapshotProvider = new ManageAchievementsDataSnapshotProvider(single, _librarySources.DataService, _logger);
                 ReloadData();
             }
@@ -578,6 +579,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var row = AchievementEditorRow.FromAchievementDetail(detail);
             row.GameId = gameId;
             row.GameName = record.GameName;
+            row.GameIconPath = record.GameIconPath;
             row.IsListEditLocked = true;
             row.IsManuallyTrackedGame = false;
 
@@ -615,6 +617,52 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             ApplyRowDisplaySettings(row, game.UseSeparateLockedIcons);
             row.RefreshCustomizationState();
             return row;
+        }
+
+        // The one game the library editor lists whole: its name and icon for the Game column,
+        // which the per-game load does not put on its rows.
+        private KeyValuePair<string, string> _listedGame;
+
+        private KeyValuePair<string, string> ResolveListedGame(Guid gameId)
+        {
+            string name = null;
+            string icon = null;
+            try
+            {
+                var database = PlayniteAchievementsPlugin.Instance?.PlayniteApi?.Database;
+                var game = database?.Games?.Get(gameId);
+                name = game?.Name;
+                if (!string.IsNullOrWhiteSpace(game?.Icon))
+                {
+                    icon = database.GetFullFilePath(game.Icon) ?? game.Icon;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed resolving the name and icon of gameId={gameId}.");
+            }
+
+            return new KeyValuePair<string, string>(name, icon);
+        }
+
+        /// <summary>Puts the listed game's name and icon on a row of the one-game load.</summary>
+        private void StampListedGame(AchievementEditorRow row)
+        {
+            if (row == null || !IsLibraryScope || IsPagedMode)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(row.GameName))
+            {
+                // A game Playnite no longer has keeps the name the cache stored for it.
+                row.GameName = _listedGame.Key ?? _gameDataSnapshotProvider?.GetRawGameData()?.GameName;
+            }
+
+            if (string.IsNullOrWhiteSpace(row.GameIconPath))
+            {
+                row.GameIconPath = _listedGame.Value;
+            }
         }
 
         /// <summary>A read row put in place in the list: attached as the per-game load attaches its rows.</summary>
