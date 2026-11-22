@@ -24,11 +24,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
     /// </summary>
     /// <remarks>
     /// In the paged mode <see cref="AchievementRows"/> stays empty, so every pass that rebuilds a
-    /// game's whole list from it has nothing to rebuild; the writers of those lists refuse in this
-    /// mode (<see cref="RefuseInPagedMode"/>) and the rows lock their editors
-    /// (<see cref="AchievementEditorRow.IsListEditLocked"/>). What is written per achievement
-    /// works on any row: names, descriptions, points, trophies, hidden, unlock times, notes,
-    /// goals, capstones, and an authored achievement's own definition.
+    /// game's whole list from it has nothing to rebuild. Categories, tags, filters, icons and
+    /// revert are written as patches of the rows edited, one store update per game, which keep
+    /// every other achievement's entries as stored. What needs a game's every row (order, adding
+    /// and deleting authored achievements, an authored achievement's key, the resets) refuses in
+    /// this mode (<see cref="RefuseInPagedMode"/>), and the rows lock the key's editor
+    /// (<see cref="AchievementEditorRow.IsListEditLocked"/>).
     /// </remarks>
     public sealed partial class ManageAchievementsEditorViewModel
     {
@@ -673,6 +674,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     }
 
                     _categoryFilterOptions = categories;
+                    if (!AssignableCategoryOptions.SequenceEqual(categories, CategoryPathHelper.LabelComparer))
+                    {
+                        Common.CollectionHelper.SynchronizeCollection(AssignableCategoryOptions, categories);
+                    }
+
                     var present = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase);
                     _typeFilterOptions = AchievementTagRegistry.GetAssignableKeys(null)
                         .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
@@ -685,6 +691,377 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                     TypeFilter?.Refresh();
                 });
             });
+        }
+
+        #endregion
+
+        #region List writes across games
+
+        /// <summary>
+        /// Writes the category and tag overrides of rows just staged: the game's whole maps while
+        /// it is listed whole, these rows' entries only across games.
+        /// </summary>
+        private void PersistAssignments(IReadOnlyList<AchievementEditorRow> rows)
+        {
+            if (!IsPagedMode)
+            {
+                PersistCategoryAssignmentsFromRows();
+                return;
+            }
+
+            foreach (var game in RowsByGame(rows))
+            {
+                var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in game)
+                {
+                    categories[row.OriginalApiName] = row.CategoryLabel;
+                    tags[row.OriginalApiName] = row.TagsValue;
+                }
+
+                try
+                {
+                    _achievementOverridesService.PatchAchievementAssignments(game.Key, categories, tags);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed saving achievement category assignments for gameId={game.Key}.");
+                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                }
+            }
+
+            KeepEditedRows(rows);
+            RaiseAssignmentsChanged();
+
+            // A category first filed here joins the pickers and the filter.
+            LoadLibraryFilterOptions();
+        }
+
+        /// <summary>
+        /// Writes the filter lists for rows just staged: the game's whole lists while it is listed
+        /// whole, these rows' entries only across games.
+        /// </summary>
+        private void PersistFilters(IReadOnlyList<AchievementEditorRow> rows)
+        {
+            if (!IsPagedMode)
+            {
+                PersistFiltersFromRows();
+                return;
+            }
+
+            foreach (var game in RowsByGame(rows))
+            {
+                var filtered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                var summaryFiltered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                foreach (var row in game)
+                {
+                    filtered[row.OriginalApiName] = row.IsFiltered;
+                    summaryFiltered[row.OriginalApiName] = row.IsSummaryFiltered;
+                }
+
+                try
+                {
+                    _achievementOverridesService.PatchAchievementFilters(game.Key, filtered, summaryFiltered);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed saving achievement filters for gameId={game.Key}.");
+                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                }
+            }
+
+            KeepEditedRows(rows);
+            RaiseAssignmentsChanged();
+        }
+
+        /// <summary>
+        /// Writes the icon overrides of provider rows across games, by the rule the whole-map write
+        /// uses: an entry where the row's icon differs from the provider's own, none where it
+        /// matches. A row whose provider values were not read is left as stored.
+        /// </summary>
+        private void PersistIconOverridesAcrossGames(IReadOnlyList<AchievementEditorRow> rows)
+        {
+            foreach (var game in RowsByGame(rows?.Where(row => row != null && row.IsProviderRow)))
+            {
+                var unlocked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var locked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var written = new List<AchievementEditorRow>();
+                foreach (var row in game)
+                {
+                    if (!row.HasProviderBaselines)
+                    {
+                        _logger?.Warn($"Skipped writing icon overrides for gameId={game.Key}: no provider data to compare against.");
+                        continue;
+                    }
+
+                    var apiName = NormalizeText(row.OriginalApiName);
+                    var unlockedPath = NormalizeText(row.UnlockedIconPath);
+                    unlocked[apiName] = !string.IsNullOrWhiteSpace(unlockedPath) &&
+                        !string.Equals(unlockedPath, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase)
+                            ? unlockedPath
+                            : null;
+
+                    var lockedPath = NormalizeText(row.LockedIconPath);
+                    locked[apiName] = !string.IsNullOrWhiteSpace(lockedPath) &&
+                        !string.Equals(lockedPath, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase) &&
+                        AchievementIconResolver.HasExplicitLockedIcon(lockedPath, row.UnlockedIconPath)
+                            ? lockedPath
+                            : null;
+                    written.Add(row);
+                }
+
+                if (written.Count == 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    _achievementOverridesService.PatchIconOverrides(game.Key, unlocked, locked);
+                    RaiseIconOverridesSaved(written, gameId: game.Key);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed saving achievement icon overrides for gameId={game.Key}.");
+                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                }
+            }
+
+            KeepEditedRows(rows);
+            RaiseAssignmentsChanged();
+        }
+
+        /// <summary>
+        /// Copies a chosen image into the managed icon cache for authored rows across games and
+        /// writes each one's definition, which carries its icons.
+        /// </summary>
+        private async System.Threading.Tasks.Task PersistAuthoredIconsAcrossGamesAsync(
+            IReadOnlyList<AchievementEditorRow> rows,
+            AchievementIconVariant variant,
+            ICollection<string> errors)
+        {
+            foreach (var row in rows ?? Array.Empty<AchievementEditorRow>())
+            {
+                var apiName = NormalizeText(row?.OriginalApiName);
+                if (row == null || row.IsProviderRow || string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                // As the whole save materializes authored art: a locked slot that only copies the
+                // unlocked art is not made a file of its own.
+                var current = NormalizeText(ReadIcon(row, variant));
+                var ownArt = variant == AchievementIconVariant.Unlocked ||
+                    AchievementIconResolver.HasExplicitLockedIcon(current, row.UnlockedIconPath);
+                if (!string.IsNullOrWhiteSpace(current) && ownArt &&
+                    AchievementIconCachePathBuilder.BuildFileStems(new[] { apiName }).TryGetValue(apiName, out var stem))
+                {
+                    var materialized = await MaterializeIconSourceAsync(
+                        current,
+                        stem,
+                        variant,
+                        errors,
+                        GameOf(row).ToString("D")).ConfigureAwait(true);
+                    if (!string.Equals(materialized, current, StringComparison.Ordinal))
+                    {
+                        StageAcross(new[] { row }, target => WriteIcon(target, variant, materialized));
+                    }
+                }
+
+                PersistAuthoredRowDefinition(row);
+                KeepEditedRow(row);
+            }
+        }
+
+        /// <summary>
+        /// The file stem a provider row's icon is cached under, worked out from its game's
+        /// achievement names as the per-game load works it out; memoized per game for a gesture.
+        /// </summary>
+        private string ResolvePagedIconFileStem(
+            AchievementEditorRow row,
+            Dictionary<Guid, IReadOnlyDictionary<string, string>> stemsByGame)
+        {
+            var gameId = GameOf(row);
+            var apiName = NormalizeText(row?.OriginalApiName);
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            if (!stemsByGame.TryGetValue(gameId, out var stems))
+            {
+                try
+                {
+                    var names = _librarySources.Reads.Reads
+                        .SortedKeys(AchievementQuery.CurrentUser.WithLatestProgressOnly().ForGames(new[] { gameId }).OrderBy(AchievementSort.Display))
+                        .Select(key => key.ApiName);
+                    stems = AchievementIconCachePathBuilder.BuildFileStems(names.Concat(new[] { apiName }));
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed reading the achievement names of gameId={gameId}.");
+                    stems = AchievementIconCachePathBuilder.BuildFileStems(new[] { apiName });
+                }
+
+                stemsByGame[gameId] = stems;
+            }
+
+            return stems.TryGetValue(apiName, out var stem) ? stem : null;
+        }
+
+        /// <summary>
+        /// Reverts rows across games to the provider's values: one patch per game that drops their
+        /// records and takes them out of the filter lists and the goals, and a capstone write for
+        /// those holding one. The games' order is left as stored.
+        /// </summary>
+        private void RevertAcrossGames(IReadOnlyList<AchievementEditorRow> targets)
+        {
+            foreach (var game in RowsByGame(targets))
+            {
+                try
+                {
+                    _achievementOverridesService.RevertAchievements(game.Key, game.Select(row => row.OriginalApiName));
+
+                    var clearedCapstones = game
+                        .Where(row => row.IsCapstone)
+                        .Select(row => (NormalizeText(row.OriginalApiName), false))
+                        .ToList();
+                    if (clearedCapstones.Count > 0)
+                    {
+                        _achievementOverridesService.SetCapstones(game.Key, clearedCapstones);
+                    }
+
+                    // The dropped records took their icon overrides with them; the cached rows
+                    // take the provider's own art back.
+                    RaiseIconOverridesSaved(game.ToList(), editorRowsStale: true, gameId: game.Key);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed reverting achievements for gameId={game.Key}.");
+                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+                }
+            }
+
+            KeepEditedRows(targets);
+            RaiseAssignmentsChanged();
+            SetStatus(null, false);
+        }
+
+        /// <summary>The rows with a game and an ApiName, by game.</summary>
+        private IReadOnlyList<IGrouping<Guid, AchievementEditorRow>> RowsByGame(IEnumerable<AchievementEditorRow> rows) =>
+            (rows ?? Enumerable.Empty<AchievementEditorRow>())
+                .Where(row => row != null &&
+                              !row.IsBulkRow &&
+                              !row.IsPlaceholder &&
+                              GameOf(row) != Guid.Empty &&
+                              !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .GroupBy(GameOf)
+                .ToList();
+
+        private void KeepEditedRows(IEnumerable<AchievementEditorRow> rows)
+        {
+            foreach (var row in rows ?? Enumerable.Empty<AchievementEditorRow>())
+            {
+                KeepEditedRow(row);
+            }
+        }
+
+        /// <summary>
+        /// The tags a row takes from the ticks. Across games the ticks show the tags the games
+        /// share, plus a game's own only when the selection is that one game's, so a row's own
+        /// tags the ticks do not show are kept rather than taken off.
+        /// </summary>
+        private string WithUnofferedTags(AchievementEditorRow row, string tags)
+        {
+            if (!IsPagedMode || row == null)
+            {
+                return tags;
+            }
+
+            var offered = new HashSet<string>(
+                TagSelectionOptions.Select(option => option.Value),
+                StringComparer.OrdinalIgnoreCase);
+            var kept = AchievementTagHelper.Parse(AchievementTagHelper.StripDerived(row.EffectiveTagsValue))
+                .Where(tag => !offered.Contains(tag));
+            return AchievementTagHelper.Normalize(
+                AchievementTagHelper.Combine(AchievementTagHelper.Parse(tags).Concat(kept)));
+        }
+
+        /// <summary>
+        /// Creates a tag of the name in each selected row's game (or finds the one already named
+        /// that there) and adds it to the row, since a game's own tags are kept per game.
+        /// </summary>
+        private void CreateAndAssignTagAcrossGames(string name)
+        {
+            MarkUndoIntent(EditorEditIntent.Command("Tags", "LOCPlayAch_Common_Tags"));
+            var targets = ResolveSelectionTargets()
+                .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                .ToList();
+            var staged = new List<AchievementEditorRow>();
+            foreach (var game in RowsByGame(targets))
+            {
+                var key = _achievementOverridesService.CreateGameTag(game.Key, name);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                StageAcross(game, row => row.TagsValue = AchievementTagHelper.OverrideOrNull(
+                    AchievementTagHelper.WithTag(AchievementTagHelper.Normalize(row.EffectiveTagsValue), key, true),
+                    row.ProviderTagsValue));
+                staged.AddRange(game);
+            }
+
+            if (staged.Count > 0)
+            {
+                PersistAssignments(staged);
+                SyncBulkRowFromSelection();
+            }
+        }
+
+        // The game whose own tags the ticks offer; null for only the shared tags.
+        private Guid? _tagOptionsGame;
+        private bool _tagOptionsSynced;
+
+        /// <summary>
+        /// Points the library editor's tag ticks at the game whose own tags they can offer: the
+        /// listed game, or across games the selection's one game, else only the shared tags.
+        /// </summary>
+        private void SyncLibraryTagOptions(bool force = false)
+        {
+            if (!IsLibraryScope || TagSelectionOptions == null)
+            {
+                return;
+            }
+
+            Guid? game = null;
+            if (!IsPagedMode)
+            {
+                game = _gameId == Guid.Empty ? (Guid?)null : _gameId;
+            }
+            else
+            {
+                var games = _selectedRows
+                    .Where(row => row != null && !row.IsBulkRow)
+                    .Select(GameOf)
+                    .Distinct()
+                    .Take(2)
+                    .ToList();
+                game = games.Count == 1 && games[0] != Guid.Empty ? games[0] : (Guid?)null;
+            }
+
+            if (!force && _tagOptionsSynced && game == _tagOptionsGame)
+            {
+                return;
+            }
+
+            _tagOptionsGame = game;
+            _tagOptionsSynced = true;
+            TagSelectionOption.Sync(
+                TagSelectionOptions,
+                AchievementTagRegistry.GetAssignableKeys(game),
+                key => ManageAchievementsCategoryViewModel.GetTagDisplayName(key, game),
+                option => option.PropertyChanged += TypeSelectionOption_PropertyChanged);
         }
 
         #endregion
