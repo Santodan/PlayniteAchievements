@@ -968,8 +968,8 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 try
                 {
                     var names = _librarySources.Reads.Reads
-                        .SortedKeys(AchievementQuery.CurrentUser.WithLatestProgressOnly().ForGames(new[] { gameId }).OrderBy(AchievementSort.Display))
-                        .Select(key => key.ApiName);
+                        .Rows(AchievementQuery.CurrentUser.WithLatestProgressOnly().ForGames(new[] { gameId }).OrderBy(AchievementSort.Display))
+                        .Select(record => record.ApiName);
                     stems = AchievementIconCachePathBuilder.BuildFileStems(names.Concat(new[] { apiName }));
                 }
                 catch (Exception ex)
