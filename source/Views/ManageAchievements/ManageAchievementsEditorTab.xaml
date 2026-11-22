@@ -794,6 +794,12 @@
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
+                                <!-- Rows listed across games keep their games' orders and do not drag. -->
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                        <Setter Property="Cursor" Value="Arrow" />
+                                    </DataTrigger>
+                                </Style.Triggers>
                             </Style>
                         </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
@@ -804,9 +810,19 @@
                                 <Border Tag="DragHandle"
                                         Background="Transparent"
                                         HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Stretch"
-                                        Cursor="SizeAll"
-                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
+                                        VerticalAlignment="Stretch">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Cursor" Value="SizeAll" />
+                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                    <Setter Property="ToolTip" Value="{x:Null}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <!-- Customization marker. It shares the handle cell rather
                                              than taking a column of its own: the grid is already
@@ -852,7 +868,17 @@
                                                    Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                   Opacity="0.65" />
+                                                   Opacity="0.65">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
