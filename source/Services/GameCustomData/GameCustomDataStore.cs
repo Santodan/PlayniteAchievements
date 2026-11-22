@@ -299,6 +299,14 @@ namespace PlayniteAchievements.Services.GameCustomData
             // the stored shape instead left that only true for a record whose mirrors were
             // already projections of it -- for one carrying a value the record did not, from an
             // older schema or an import, the write read past it and then dropped it.
+            var batch = _batch;
+            var batched = batch != null && batch.ThreadId == Environment.CurrentManagedThreadId;
+            if (batched && batch.Holds(playniteGameId))
+            {
+                batch.Add(playniteGameId, null, null, affectsSummaryData, mutate);
+                return;
+            }
+
             GameCustomDataFile data;
             GameCustomDataFile previous;
             using (PerfScope.Start(_logger, "GameCustomData.Update.NormalizePrevious", thresholdMs: 10))
@@ -307,8 +315,163 @@ namespace PlayniteAchievements.Services.GameCustomData
                 previous = data.Clone();
             }
 
+            if (batched)
+            {
+                batch.Add(playniteGameId, data, previous, affectsSummaryData, mutate);
+                return;
+            }
+
             mutate(data);
             Save(playniteGameId, data, previous, affectsSummaryData);
+        }
+
+        private volatile WriteBatch _batch;
+
+        /// <summary>
+        /// Groups the <see cref="Update"/> calls this thread makes until the returned scope is
+        /// disposed: each game's updates apply in turn to one record, and every game is written in
+        /// one transaction when the scope ends, raising its events once and publishing one change
+        /// for all of them. Reads see a game's batched updates only once the scope has ended.
+        /// </summary>
+        /// <remarks>
+        /// For a gesture that writes many games, such as the library editor's edits across games.
+        /// Written one by one, each game paid its own SQLite transaction and its own change, and
+        /// each change re-read every page the editor had loaded. A scope begun inside another is
+        /// part of the outer one.
+        /// </remarks>
+        public IDisposable BeginBatch()
+        {
+            if (_batch != null)
+            {
+                return new BatchScope(null);
+            }
+
+            var batch = new WriteBatch(this, Environment.CurrentManagedThreadId);
+            _batch = batch;
+            return new BatchScope(batch);
+        }
+
+        private sealed class BatchScope : IDisposable
+        {
+            private WriteBatch _batch;
+
+            public BatchScope(WriteBatch batch)
+            {
+                _batch = batch;
+            }
+
+            public void Dispose()
+            {
+                var batch = _batch;
+                _batch = null;
+                batch?.Commit();
+            }
+        }
+
+        private sealed class WriteBatch
+        {
+            private readonly GameCustomDataStore _store;
+            private readonly Dictionary<Guid, PendingWrite> _games = new Dictionary<Guid, PendingWrite>();
+            private readonly List<Guid> _order = new List<Guid>();
+
+            public WriteBatch(GameCustomDataStore store, int threadId)
+            {
+                _store = store;
+                ThreadId = threadId;
+            }
+
+            public int ThreadId { get; }
+
+            public bool Holds(Guid playniteGameId) => _games.ContainsKey(playniteGameId);
+
+            /// <summary>
+            /// Applies an update to the game's pending record: the record as stored for its first
+            /// update, normalized again before each later one, as each update would have read it.
+            /// </summary>
+            public void Add(
+                Guid playniteGameId,
+                GameCustomDataFile normalizedStored,
+                GameCustomDataFile previous,
+                bool affectsSummaryData,
+                Action<GameCustomDataFile> mutate)
+            {
+                if (_games.TryGetValue(playniteGameId, out var pending))
+                {
+                    pending.Data = GameCustomDataNormalizer.NormalizeInternal(pending.Data, playniteGameId);
+                    pending.AffectsSummaryData |= affectsSummaryData;
+                }
+                else
+                {
+                    pending = new PendingWrite
+                    {
+                        Data = normalizedStored,
+                        Previous = previous,
+                        AffectsSummaryData = affectsSummaryData
+                    };
+                    _games[playniteGameId] = pending;
+                    _order.Add(playniteGameId);
+                }
+
+                mutate(pending.Data);
+            }
+
+            public void Commit()
+            {
+                _store._batch = null;
+                if (_order.Count > 0)
+                {
+                    _store.SaveBatch(_order.Select(id => (id, _games[id])).ToList());
+                }
+            }
+        }
+
+        private sealed class PendingWrite
+        {
+            public GameCustomDataFile Data { get; set; }
+
+            public GameCustomDataFile Previous { get; set; }
+
+            public bool AffectsSummaryData { get; set; }
+        }
+
+        private void SaveBatch(IReadOnlyList<(Guid GameId, PendingWrite Write)> writes)
+        {
+            using (var scope = PerfScope.Start(_logger, "GameCustomData.SaveBatch", thresholdMs: 10))
+            {
+                scope?.SetContext("games=" + writes.Count);
+                var normalized = writes
+                    .Select(write => new KeyValuePair<Guid, GameCustomDataFile>(
+                        write.GameId,
+                        GameCustomDataNormalizer.NormalizeInternal(write.Write.Data, write.GameId)))
+                    .ToList();
+
+                IReadOnlyList<(GameCustomDataFile Persisted, bool Changed)> results;
+                using (PerfScope.Start(_logger, "GameCustomData.SaveBatch.Repository", thresholdMs: 10))
+                {
+                    results = _repository.SaveBatch(normalized);
+                }
+
+                var changed = new List<Guid>();
+                for (var index = 0; index < writes.Count; index++)
+                {
+                    var gameId = writes[index].GameId;
+                    CompleteSave(
+                        gameId,
+                        normalized[index].Value,
+                        results[index].Persisted,
+                        writes[index].Write.Previous,
+                        writes[index].Write.AffectsSummaryData);
+                    if (results[index].Changed)
+                    {
+                        changed.Add(gameId);
+                    }
+                }
+
+                if (changed.Count > 0)
+                {
+                    _feed?.Publish(Database.AchievementDataChange.ForGames(changed));
+                }
+            }
         }
 
         // Rewrites every ApiName-keyed field after achievement definitions were renamed in place
@@ -537,39 +700,49 @@ namespace PlayniteAchievements.Services.GameCustomData
                     persisted = _repository.Save(playniteGameId, normalized, out layerChanged);
                 }
 
-                SetCachedEntry(playniteGameId, persisted);
-                if (ShouldSyncManagedCustomIconCache(previousData, normalized))
-                {
-                    SyncManagedCustomIconCache(playniteGameId, normalized);
-                }
-
-                _notificationImageStore?.PruneGameImages(
-                    playniteGameId,
-                    normalized.NotificationAppearanceOverride?.Style);
-                // Before the change event, so a recorder has the write in hand before the
-                // subscribers that rebuild from it run. In its own guard because this is
-                // bookkeeping: a listener that throws must not fail a write that already landed.
-                try
-                {
-                    CustomDataWritten?.Invoke(
-                        this,
-                        new GameCustomDataWrittenEventArgs(
-                            playniteGameId,
-                            previousData,
-                            persisted,
-                            affectsSummaryData));
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
-                }
-
-                using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
-                {
-                    RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
-                }
-
+                CompleteSave(playniteGameId, normalized, persisted, previousData, affectsSummaryData);
                 PublishLayerChanged(playniteGameId, layerChanged);
+            }
+        }
+
+        /// <summary>What follows a game's write: the cache, its files, and its events.</summary>
+        private void CompleteSave(
+            Guid playniteGameId,
+            GameCustomDataFile normalized,
+            GameCustomDataFile persisted,
+            GameCustomDataFile previousData,
+            bool affectsSummaryData)
+        {
+            SetCachedEntry(playniteGameId, persisted);
+            if (ShouldSyncManagedCustomIconCache(previousData, normalized))
+            {
+                SyncManagedCustomIconCache(playniteGameId, normalized);
+            }
+
+            _notificationImageStore?.PruneGameImages(
+                playniteGameId,
+                normalized.NotificationAppearanceOverride?.Style);
+            // Before the change event, so a recorder has the write in hand before the
+            // subscribers that rebuild from it run. In its own guard because this is
+            // bookkeeping: a listener that throws must not fail a write that already landed.
+            try
+            {
+                CustomDataWritten?.Invoke(
+                    this,
+                    new GameCustomDataWrittenEventArgs(
+                        playniteGameId,
+                        previousData,
+                        persisted,
+                        affectsSummaryData));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"A custom-data write subscriber failed for game {playniteGameId}.");
+            }
+
+            using (PerfScope.Start(_logger, "GameCustomData.Save.RaiseChanged", thresholdMs: 10))
+            {
+                RaiseCustomDataChanged(playniteGameId, affectsSummaryData);
             }
         }
 

@@ -310,6 +310,7 @@ namespace PlayniteAchievements.ViewModels
             var categoryModeLabel = L("LOCPlayAch_CategorySummaries_ToggleToolTip");
             var testUnlockLabel = L("LOCPlayAch_Hotkeys_FireTestNotification");
             var workshopLabel = L("LOCPlayAch_Workshop_Title");
+            var editorLabel = L("LOCPlayAch_Menu_AchievementEditor");
             var invalidMessage = L("LOCPlayAch_Hotkeys_InvalidShortcut");
             var duplicateMessage = L("LOCPlayAch_Hotkeys_DuplicateShortcut");
 
@@ -320,6 +321,7 @@ namespace PlayniteAchievements.ViewModels
             var categoryModeValid = TryValidateHotkey(categoryModeLabel, persisted.CategoryModeHotkey, invalidMessage, errors, out var categoryModeGesture);
             var testUnlockValid = TryValidateHotkey(testUnlockLabel, persisted.TestUnlockHotkey, invalidMessage, errors, out var testUnlockGesture);
             var workshopValid = TryValidateHotkey(workshopLabel, persisted.WorkshopHotkey, invalidMessage, errors, out var workshopGesture);
+            var editorValid = TryValidateHotkey(editorLabel, persisted.AchievementEditorHotkey, invalidMessage, errors, out var editorGesture);
 
             var assignedGestures = new List<AchievementHotkeyGesture>();
             AddDuplicateHotkeyError(viewValid, viewGesture, assignedGestures, duplicateMessage, errors);
@@ -329,6 +331,7 @@ namespace PlayniteAchievements.ViewModels
             AddDuplicateHotkeyError(categoryModeValid, categoryModeGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(testUnlockValid, testUnlockGesture, assignedGestures, duplicateMessage, errors);
             AddDuplicateHotkeyError(workshopValid, workshopGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(editorValid, editorGesture, assignedGestures, duplicateMessage, errors);
         }
 
         private void ApplyThemeResources()

@@ -179,6 +179,9 @@ namespace PlayniteAchievements.Services.Cache
         List<CachedRecentUnlockData> ICacheReadOptimizations.LoadRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
             Reads.Read(db => _store.LoadRows(db, query, keys));
 
+        EditorRowsRead ICacheReadOptimizations.LoadEditorRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            Reads.Read(db => _store.LoadEditorRows(db, query, keys));
+
         CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(
             int limit,
             IEnumerable<Guid> excludedGameIds,

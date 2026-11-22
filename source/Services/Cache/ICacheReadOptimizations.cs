@@ -38,6 +38,12 @@ namespace PlayniteAchievements.Services.Cache
         List<CachedRecentUnlockData> LoadRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
 
         /// <summary>
+        /// The rows of <paramref name="keys"/> in their order with the provider values of their
+        /// platform rows, for the achievement editor, with every stored icon path made absolute.
+        /// </summary>
+        Database.EditorRowsRead LoadEditorRows(Database.AchievementQuery query, IReadOnlyList<Database.AchievementQuerySql.RowKey> keys);
+
+        /// <summary>
         /// Games the current user's cache records as having no achievements at all.
         /// </summary>
         /// <remarks>

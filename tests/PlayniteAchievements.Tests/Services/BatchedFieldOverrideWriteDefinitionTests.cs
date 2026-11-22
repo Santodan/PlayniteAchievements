@@ -32,8 +32,8 @@ namespace PlayniteAchievements.Tests.Services
 
             StringAssert.Contains(
                 body,
-                "SetAchievementFieldOverrides(_gameId, pending)",
-                "The batch must go to the store as one unit.");
+                "SetAchievementFieldOverrides(gameId, pending)",
+                "Each game's batch must go to the store as one unit.");
 
             Assert.IsFalse(
                 body.Contains("GroupBy"),

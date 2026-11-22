@@ -101,6 +101,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableCategoryModeHotkey = source.EnableCategoryModeHotkey;
             target.EnableTestUnlockHotkey = source.EnableTestUnlockHotkey;
             target.EnableWorkshopHotkey = source.EnableWorkshopHotkey;
+            target.EnableAchievementEditorHotkey = source.EnableAchievementEditorHotkey;
             target.ViewAchievementsHotkey = source.ViewAchievementsHotkey;
             target.ManageAchievementsHotkey = source.ManageAchievementsHotkey;
             target.OverviewHotkey = source.OverviewHotkey;
@@ -108,6 +109,7 @@ namespace PlayniteAchievements.Models.Settings
             target.CategoryModeHotkey = source.CategoryModeHotkey;
             target.TestUnlockHotkey = source.TestUnlockHotkey;
             target.WorkshopHotkey = source.WorkshopHotkey;
+            target.AchievementEditorHotkey = source.AchievementEditorHotkey;
 
             target.HiddenManageSidebarStatGroups = source.HiddenManageSidebarStatGroups;
             target.EnableCaptureTestFolder = source.EnableCaptureTestFolder;

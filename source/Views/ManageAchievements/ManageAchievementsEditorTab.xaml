@@ -20,6 +20,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:DefaultGameImageConverter x:Key="EditorDefaultGameImage" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
             <converters:ProviderIconConverter x:Key="ProviderIconConverter" />
             <converters:FontLineHeightConverter x:Key="FontLineHeightConverter" />
@@ -376,7 +377,7 @@
                                 Command="{Binding OpenLinkedFileCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}"
                                 Margin="12,0,0,0"
-                                Visibility="{Binding HasLinkedFile, Converter={StaticResource BoolToVis}}">
+                                Visibility="{Binding ShowEditLinkedFileButton, Converter={StaticResource BoolToVis}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xEF1B;"
                                            FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
@@ -614,6 +615,25 @@
                     </Grid>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                        <!-- The library editor's games: one picked lists that game whole, with every
+                             editing feature; none or several list rows across games. -->
+                        <Button x:Name="GameFilterButton"
+                                DataContext="{Binding GameFilter.Item}"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DisplayText}"
+                                Click="MultiSelectFilter_Click"
+                                MinWidth="140"
+                                MaxWidth="{Binding Width}"
+                                Height="{StaticResource PlayAch.Size.Control.Height}"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding DataContext.IsLibraryScope, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}"
+                                ToolTip="{DynamicResource LOCPlayAch_Column_Game}">
+                            <Button.ContextMenu>
+                                <ContextMenu Style="{StaticResource AchievementSelectorContextMenuStyle}"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}" />
+                            </Button.ContextMenu>
+                        </Button>
                         <!-- The same summary-button-over-checkable-menu the overview grids use,
                              so these read and behave like every other filter in the plugin: several
                              choices at once, and a button that names its facet until something is
@@ -720,7 +740,7 @@
                       Grid.Row="0"
                       Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                      ItemsSource="{Binding AchievementRows}"
+                      ItemsSource="{Binding GridRows}"
                       SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
                       SelectionChanged="AchievementsGrid_SelectionChanged"
                       AutoGenerateColumns="False"
@@ -777,6 +797,12 @@
                         <DataGridTemplateColumn.CellStyle>
                             <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
                                 <Setter Property="Cursor" Value="SizeAll" />
+                                <!-- Rows listed across games keep their games' orders and do not drag. -->
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                        <Setter Property="Cursor" Value="Arrow" />
+                                    </DataTrigger>
+                                </Style.Triggers>
                             </Style>
                         </DataGridTemplateColumn.CellStyle>
                         <DataGridTemplateColumn.CellTemplate>
@@ -787,9 +813,19 @@
                                 <Border Tag="DragHandle"
                                         Background="Transparent"
                                         HorizontalAlignment="Stretch"
-                                        VerticalAlignment="Stretch"
-                                        Cursor="SizeAll"
-                                        ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}">
+                                        VerticalAlignment="Stretch">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Cursor" Value="SizeAll" />
+                                            <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_ManageAchievements_Order_Hint}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                    <Setter Property="ToolTip" Value="{x:Null}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <!-- Customization marker. It shares the handle cell rather
                                              than taking a column of its own: the grid is already
@@ -835,7 +871,17 @@
                                                    Margin="8,0,0,0"
                                                    VerticalAlignment="Center"
                                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
-                                                   Opacity="0.65" />
+                                                   Opacity="0.65">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsListEditLocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -881,6 +927,40 @@
                                           IsTabStop="False"
                                           Click="RoutedCheckBox_Click"
                                           helpers:EditorCellRouting.Field="UnlockedState" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- The library editor's rows span games, so each names its own. A per-game
+                         editor drops this column before its layout is read. -->
+                    <!-- The library editor's only: the game's icon, named in its tooltip, sized by the
+                         column like the achievement icon beside it. The Manage window removes it. -->
+                    <DataGridTemplateColumn x:Name="EditorGameColumn"
+                                            Width="58"
+                                            MinWidth="32"
+                                            MaxWidth="180"
+                                            SortMemberPath="GameName"
+                                            IsReadOnly="True"
+                                            helpers:ColumnVisibilityHelper.ColumnKey="EditorGameIcon"
+                                            helpers:ColumnVisibilityHelper.ColumnDisplayName="{DynamicResource LOCPlayAch_Column_Game}"
+                                            Header="{DynamicResource LOCPlayAch_Column_Game}">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource ManageAchievementsIconCellStyle}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <controls:SquareDecorator>
+                                    <Image Stretch="Uniform"
+                                           Margin="2"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           helpers:AsyncImage.Uri="{Binding GameIconPath, Converter={StaticResource EditorDefaultGameImage}, ConverterParameter=icon}"
+                                           helpers:AsyncImage.DecodePixel="96"
+                                           helpers:AsyncImage.CapAtOwnSize="{DynamicResource PlayAch.Image.CapAtOwnSize}"
+                                           helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.Art}" />
+                                </controls:SquareDecorator>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -950,7 +1030,7 @@
                                      late, and the grid packed rows in at the short height before they grew. -->
                                 <controls:SquareDecorator>
                                     <Grid Background="Transparent"
-                                          AllowDrop="True"
+                                          AllowDrop="{Binding CanEditIcons}"
                                           PreviewDragOver="IconDropTarget_PreviewDragOver"
                                           PreviewDrop="IconDropTarget_Drop">
                                         <!-- Sized by the cell rather than fixed, the way the shared
@@ -2145,7 +2225,7 @@
                                                Foreground="{DynamicResource PlayAch.Brush.Text}" />
                                     <Button Grid.Column="1"
                                             Content="{DynamicResource LOCPlayAch_Common_Edit}"
-                                            IsEnabled="{Binding CanEditAssignments}"
+                                            IsEnabled="{Binding CanEditNote}"
                                             Click="NoteCell_Click"
                                             Padding="8,1"
                                             MinHeight="22"
@@ -2423,7 +2503,7 @@
                                                     Style="{StaticResource PreviewBorderStyle}"
                                                     Tag="Unlocked"
                                                     ToolTipService.InitialShowDelay="300"
-                                                    helpers:FilePickTarget.IsEnabled="True"
+                                                    helpers:FilePickTarget.IsEnabled="{Binding CanEditIcons}"
                                                     helpers:FilePickTarget.Picked="IconPickTarget_Picked">
                                                 <!-- A larger preview of the art, sized up front so the tooltip does not grow as it loads. -->
                                                 <Border.ToolTip>
@@ -2499,7 +2579,7 @@
                                                     Style="{StaticResource PreviewBorderStyle}"
                                                     Tag="Locked"
                                                     ToolTipService.InitialShowDelay="300"
-                                                    helpers:FilePickTarget.IsEnabled="True"
+                                                    helpers:FilePickTarget.IsEnabled="{Binding CanEditIcons}"
                                                     helpers:FilePickTarget.Picked="IconPickTarget_Picked">
                                                 <!-- A larger preview of the art, sized up front so the tooltip does not grow as it loads. -->
                                                 <Border.ToolTip>
@@ -2881,7 +2961,7 @@
                                         Padding="8,2"
                                         MinHeight="26"
                                         Margin="8,0,0,0"
-                                        IsEnabled="{Binding CanEditAssignments}"
+                                        IsEnabled="{Binding CanEditNote}"
                                         Click="EditNoteButton_Click" />
                             </Grid>
 

@@ -428,6 +428,16 @@ namespace PlayniteAchievements.Services.Database
             (platform == "ad" ? "WHEN m." + column + " IS NOT NULL THEN m." + column + " WHEN " + IsCleared(field) + " THEN NULL " : string.Empty) +
             "ELSE " + platform + "." + column + " END";
 
+        /// <summary>
+        /// The column as the metadata and platform layers resolve it, without the user's custom
+        /// layer: the provider's value the achievement editor compares an override with. Reads
+        /// <c>PlatformDefinitions</c> as <c>ad</c> and <c>AchievementMetadataLayer</c> as <c>m</c>.
+        /// </summary>
+        internal static string ProviderValue(string column, AchievementField field) => Value(column, field);
+
+        /// <summary>The tags <see cref="ProviderValue"/> resolves: the metadata layer's with the platform's derived tags, else the platform's.</summary>
+        internal static string ProviderTags() => Tags(custom: false);
+
         private static string Pick(string column, AchievementField field, bool custom = false) =>
             Value(column, field, custom) + " AS " + column;
 
@@ -435,7 +445,7 @@ namespace PlayniteAchievements.Services.Database
         /// The tags <see cref="LayerResolver.ResolveTags"/> gives: the deciding layer's, plus the
         /// platform's derived tags always and its Unobtainable when metadata decides.
         /// </summary>
-        private static string Tags(string platform = "ad")
+        private static string Tags(string platform = "ad", bool custom = true)
         {
             string Keep(string key) =>
                 "CASE WHEN ('|' || COALESCE(" + platform + ".Tags, '') || '|') LIKE '%|" + key + "|%' THEN '|" + key + "' ELSE '' END";
@@ -443,6 +453,11 @@ namespace PlayniteAchievements.Services.Database
             var metadata = platform != "ad" ? string.Empty : @"
                      WHEN m.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags) + @"
                      THEN NULLIF(TRIM(COALESCE(m.Tags, '') || " + derived + " || " + Keep(AchievementTagHelper.Unobtainable) + @", '|'), '')";
+            if (!custom)
+            {
+                return "CASE" + metadata + " ELSE " + platform + ".Tags END";
+            }
+
             return "CASE WHEN c.Tags IS NOT NULL OR " + IsCleared(AchievementField.Tags, "c") + @"
                      THEN NULLIF(TRIM(COALESCE(c.Tags, '') || " + derived + @", '|'), '')" + metadata + @"
                      ELSE " + platform + ".Tags END";

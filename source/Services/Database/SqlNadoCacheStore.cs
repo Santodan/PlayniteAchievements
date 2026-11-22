@@ -899,6 +899,33 @@ namespace PlayniteAchievements.Services.Database
                 .Select(row => SummaryCacheReader.MapRow(row, null, MakeAbsolutePath))
                 .ToList();
 
+        /// <inheritdoc cref="Cache.ICacheReadOptimizations.LoadEditorRows"/>
+        public EditorRowsRead LoadEditorRows(SQLiteDatabase db, AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        {
+            var rows = AchievementReadService.Rows(db, query, keys);
+            var games = new Dictionary<Guid, GamePresentation>();
+            foreach (var row in rows)
+            {
+                row.UnlockedIconPath = MakeAbsolutePath(row.UnlockedIconPath);
+                row.LockedIconPath = MakeAbsolutePath(row.LockedIconPath);
+
+                // The game's name and art as Playnite has them now, as the overview reads them.
+                var presentation = ResolveGamePresentation(ParseGuid(row.PlayniteGameId), games);
+                row.GameName = presentation.DisplayName ?? row.GameName;
+                row.GameIconPath = presentation.IconPath ?? MakeAbsolutePath(row.GameIconPath);
+                row.GameCoverPath = presentation.CoverPath ?? MakeAbsolutePath(row.GameCoverPath);
+            }
+
+            var baselines = AchievementReadService.EditorBaselines(db, keys);
+            foreach (var baseline in baselines.Values)
+            {
+                baseline.UnlockedIconPath = MakeAbsolutePath(baseline.UnlockedIconPath);
+                baseline.LockedIconPath = MakeAbsolutePath(baseline.LockedIconPath);
+            }
+
+            return new EditorRowsRead(rows, baselines);
+        }
+
         internal static Guid? ResolveCachedPlayniteGameId(string cacheKey, string playniteGameId)
         {
             var resolved = ParseGuid(playniteGameId);

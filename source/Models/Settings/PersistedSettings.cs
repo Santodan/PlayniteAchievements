@@ -48,6 +48,7 @@ namespace PlayniteAchievements.Models.Settings
         public const string DefaultCategoryModeHotkey = "C";
         public const string DefaultTestUnlockHotkey = "Ctrl+Alt+T";
         public const string DefaultWorkshopHotkey = "Ctrl+Alt+W";
+        public const string DefaultAchievementEditorHotkey = "Ctrl+Alt+E";
 
         /// <summary>
         /// Column key of the Progress column in game-summaries grids (matches the XAML ColumnKey and
@@ -163,6 +164,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableCategoryModeHotkey = true;
         private bool _enableTestUnlockHotkey = true;
         private bool _enableWorkshopHotkey = true;
+        private bool _enableAchievementEditorHotkey = true;
         private bool _enableCaptureTestFolder = false;
         private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
         private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
@@ -171,6 +173,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _categoryModeHotkey = DefaultCategoryModeHotkey;
         private string _testUnlockHotkey = DefaultTestUnlockHotkey;
         private string _workshopHotkey = DefaultWorkshopHotkey;
+        private string _achievementEditorHotkey = DefaultAchievementEditorHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
@@ -1189,6 +1192,15 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Enables the Achievement Editor shortcut individually. Gated by <see cref="EnableAchievementHotkeys"/>.
+        /// </summary>
+        public bool EnableAchievementEditorHotkey
+        {
+            get => _enableAchievementEditorHotkey;
+            set => SetValue(ref _enableAchievementEditorHotkey, value);
+        }
+
+        /// <summary>
         /// Routes retriggered captures into the shared "Test" subfolder of the capture root instead of
         /// the game's own folder. The capture library hides that subfolder, so retriggers become
         /// throwaway test output rather than part of the game's collection.
@@ -1266,6 +1278,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _workshopHotkey;
             set => SetValue(ref _workshopHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that opens, focuses, or closes the Achievement Editor window. In-app only: it is
+        /// never registered as a global hotkey.
+        /// </summary>
+        public string AchievementEditorHotkey
+        {
+            get => _achievementEditorHotkey;
+            set => SetValue(ref _achievementEditorHotkey, NormalizeHotkeyText(value));
         }
 
         #endregion
@@ -3416,6 +3438,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableCategoryModeHotkey = this.EnableCategoryModeHotkey,
                 EnableTestUnlockHotkey = this.EnableTestUnlockHotkey,
                 EnableWorkshopHotkey = this.EnableWorkshopHotkey,
+                EnableAchievementEditorHotkey = this.EnableAchievementEditorHotkey,
                 ViewAchievementsHotkey = this.ViewAchievementsHotkey,
                 ManageAchievementsHotkey = this.ManageAchievementsHotkey,
                 OverviewHotkey = this.OverviewHotkey,
@@ -3423,6 +3446,7 @@ namespace PlayniteAchievements.Models.Settings
                 CategoryModeHotkey = this.CategoryModeHotkey,
                 TestUnlockHotkey = this.TestUnlockHotkey,
                 WorkshopHotkey = this.WorkshopHotkey,
+                AchievementEditorHotkey = this.AchievementEditorHotkey,
                 EnableCaptureTestFolder = this.EnableCaptureTestFolder,
 
                 HiddenManageSidebarStatGroups = this.HiddenManageSidebarStatGroups,

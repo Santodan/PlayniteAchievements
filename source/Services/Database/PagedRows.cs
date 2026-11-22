@@ -76,6 +76,7 @@ namespace PlayniteAchievements.Services.Database
         private readonly Func<AchievementQuery, IReadOnlyList<AchievementQuerySql.RowKey>, IReadOnlyList<T>> _loadRows;
         private readonly Func<T> _newPlaceholder;
         private readonly Action<T, T> _update;
+        private readonly Action<T> _placed;
         private readonly IReadScheduler _scheduler;
         private readonly Action<Exception> _onError;
         private readonly IDisposable _subscription;
@@ -117,6 +118,10 @@ namespace PlayniteAchievements.Services.Database
         /// <param name="update">Brings a row or placeholder handed out up to date from a new read of its key; without it the row is replaced.</param>
         /// <param name="pendingRows">Placeholders the list holds until the first read lands; they read nothing.</param>
         /// <param name="gate">Holds back reloads for feed changes while closed (<see cref="AchievementDataFeed.Subscribe"/>).</param>
+        /// <param name="placed">
+        /// Called on the UI thread for each read row the list puts in place as itself, rather than
+        /// copying it into a row or placeholder already handed out with <paramref name="update"/>.
+        /// </param>
         public PagedRows(
             AchievementDataFeed feed,
             AchievementQuery query,
@@ -129,7 +134,8 @@ namespace PlayniteAchievements.Services.Database
             Action<Exception> onError = null,
             Action<T, T> update = null,
             int pendingRows = 0,
-            FeedGate gate = null)
+            FeedGate gate = null,
+            Action<T> placed = null)
         {
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _loadKeys = loadKeys ?? throw new ArgumentNullException(nameof(loadKeys));
@@ -140,6 +146,7 @@ namespace PlayniteAchievements.Services.Database
             _maxRows = Math.Max(0, maxRows);
             _onError = onError;
             _update = update;
+            _placed = placed;
             _count = Math.Max(0, pendingRows);
             _subscription = feed?.Subscribe(() => _query, scheduler, window ?? (() => LiveQuery<T>.DefaultWindow), Reset, gate);
             Reset();
@@ -397,6 +404,13 @@ namespace PlayniteAchievements.Services.Database
                 foreach (var page in pages)
                 {
                     _pages[page.Key] = Fill(new T[PageSize], page.Value);
+                    if (_placed != null)
+                    {
+                        foreach (var row in page.Value.Take(PageSize))
+                        {
+                            _placed(row);
+                        }
+                    }
                 }
 
                 Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
@@ -574,6 +588,7 @@ namespace PlayniteAchievements.Services.Database
                 }
 
                 items[offset] = rows[offset];
+                _placed?.Invoke(rows[offset]);
                 if (before != null && index < _count && !ReferenceEquals(before, rows[offset]))
                 {
                     Raise(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace, rows[offset], before, index));

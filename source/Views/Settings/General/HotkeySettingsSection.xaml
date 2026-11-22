@@ -140,6 +140,25 @@
                             </StackPanel>
                         </controls:SettingRow>
 
+                        <controls:SettingRow Label="{DynamicResource LOCPlayAch_Menu_AchievementEditor}">
+                            <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding Persisted.EnableAchievementEditorHotkey}"
+                                          VerticalAlignment="Center"
+                                          Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button x:Name="AchievementEditorHotkeyCaptureButton"
+                                        Content="{Binding AchievementEditorHotkeyButtonText, ElementName=HotkeySettingsSectionRoot}"
+                                        Click="HotkeyCapture_Click"
+                                        CommandParameter="AchievementEditor"
+                                        PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                        Width="150"
+                                        Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                <Button Content="{DynamicResource LOCPlayAch_Common_Reset}"
+                                        Click="ResetHotkey_Click"
+                                        CommandParameter="AchievementEditor"
+                                        MinWidth="{StaticResource PlayAch.Size.Button.ResetMinWidth}"/>
+                            </StackPanel>
+                        </controls:SettingRow>
+
                         <controls:SettingRow Label="{DynamicResource LOCPlayAch_CategorySummaries_ToggleToolTip}"
                                              Hint="{DynamicResource LOCPlayAch_Hotkeys_CategoryModeHelp}">
                             <StackPanel Orientation="Horizontal">
