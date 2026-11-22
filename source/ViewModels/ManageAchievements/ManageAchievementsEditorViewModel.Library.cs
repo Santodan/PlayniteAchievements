@@ -56,6 +56,10 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         private int _libraryOptionsVersion;
 
+        // Closed while an edit runs over every match, so the list reloads once for it rather than
+        // once per chunk it writes.
+        private readonly Services.Cache.FeedGate _pagedFeedGate = new Services.Cache.FeedGate();
+
         /// <summary>
         /// The library editor, opened on every game. The single-game services the Manage window
         /// hands its editor (manual linking, export, import, the Workshop) are not offered here.
@@ -339,6 +343,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _librarySources.Scheduler,
                 onError: ex => _logger?.Error(ex, "Failed to load the achievement editor's rows."),
                 update: UpdatePagedRow,
+                gate: _pagedFeedGate,
                 placed: AttachPagedRow);
             _pagedRows.PropertyChanged += PagedRows_PropertyChanged;
             Common.LeakWatch.Track("EditorPagedRows", _pagedRows);
@@ -434,14 +439,16 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        // The kept rows ride in the query's SQL, so a bulk edit of many rows keeps the first of
-        // them only; the rest leave the list as their edit takes them out of the filters.
-        private const int MaxKeptRows = 1000;
+        // The kept rows ride in every page's SQL, so a bulk edit of many rows keeps the first of
+        // them only; the rest leave the list as their edit takes them out of the filters. An
+        // edit of every match keeps none: it edited the whole list.
+        private const int MaxKeptRows = 250;
 
         private bool AddKeptRow(AchievementEditorRow row)
         {
             if (!IsPagedMode ||
                 !IsFiltering ||
+                _isApplyingAllMatching ||
                 _keptRows.Count >= MaxKeptRows ||
                 row?.GameId == null ||
                 string.IsNullOrWhiteSpace(row.OriginalApiName))
@@ -464,12 +471,18 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// builds it from hydrated data, then stamped with its game's custom data and its provider
         /// values. Nothing here is bound yet, so nothing is announced.
         /// </summary>
-        private IReadOnlyList<AchievementEditorRow> LoadPagedRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys)
+        private IReadOnlyList<AchievementEditorRow> LoadPagedRows(AchievementQuery query, IReadOnlyList<AchievementQuerySql.RowKey> keys) =>
+            LoadPagedRows(query, keys, new Dictionary<Guid, PagedGameState>());
+
+        /// <param name="games">Each game's custom data as resolved for earlier reads of the same pass.</param>
+        private IReadOnlyList<AchievementEditorRow> LoadPagedRows(
+            AchievementQuery query,
+            IReadOnlyList<AchievementQuerySql.RowKey> keys,
+            Dictionary<Guid, PagedGameState> games)
         {
             using (Common.PerfScope.Start(_logger, "Editor.LoadPagedRows", thresholdMs: 25, context: "rows=" + keys.Count))
             {
                 var read = _librarySources.Reads.LoadEditorRows(query, keys);
-                var games = new Dictionary<Guid, PagedGameState>();
                 var rows = new List<AchievementEditorRow>(read.Rows.Count);
                 foreach (var record in read.Rows)
                 {
@@ -784,32 +797,52 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            foreach (var game in RowsByGame(rows))
+            WriteAcrossGames("category assignments", () =>
             {
-                var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var row in game)
+                foreach (var game in RowsByGame(rows))
                 {
-                    categories[row.OriginalApiName] = row.CategoryLabel;
-                    tags[row.OriginalApiName] = row.TagsValue;
-                }
+                    var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var row in game)
+                    {
+                        categories[row.OriginalApiName] = row.CategoryLabel;
+                        tags[row.OriginalApiName] = row.TagsValue;
+                    }
 
-                try
-                {
                     _achievementOverridesService.PatchAchievementAssignments(game.Key, categories, tags);
                 }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed saving achievement category assignments for gameId={game.Key}.");
-                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
-                }
-            }
+            });
 
             KeepEditedRows(rows);
             RaiseAssignmentsChanged();
 
-            // A category first filed here joins the pickers and the filter.
-            LoadLibraryFilterOptions();
+            // A category first filed here joins the pickers and the filter; once for a gesture
+            // applied over every match.
+            if (!_isApplyingAllMatching)
+            {
+                LoadLibraryFilterOptions();
+            }
+        }
+
+        /// <summary>
+        /// Runs a gesture's writes across games as one store batch: one transaction and one change
+        /// for all the games, where each game's own write paid both.
+        /// </summary>
+        private void WriteAcrossGames(string what, Action write)
+        {
+            try
+            {
+                using (Common.PerfScope.Start(_logger, "Editor.WriteAcrossGames", thresholdMs: 10, context: what))
+                using (_gameCustomDataStore?.BeginBatch())
+                {
+                    write();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed saving achievement {what} across games.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
         }
 
         /// <summary>
@@ -824,26 +857,21 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 return;
             }
 
-            foreach (var game in RowsByGame(rows))
+            WriteAcrossGames("filters", () =>
             {
-                var filtered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                var summaryFiltered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-                foreach (var row in game)
+                foreach (var game in RowsByGame(rows))
                 {
-                    filtered[row.OriginalApiName] = row.IsFiltered;
-                    summaryFiltered[row.OriginalApiName] = row.IsSummaryFiltered;
-                }
+                    var filtered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                    var summaryFiltered = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var row in game)
+                    {
+                        filtered[row.OriginalApiName] = row.IsFiltered;
+                        summaryFiltered[row.OriginalApiName] = row.IsSummaryFiltered;
+                    }
 
-                try
-                {
                     _achievementOverridesService.PatchAchievementFilters(game.Key, filtered, summaryFiltered);
                 }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed saving achievement filters for gameId={game.Key}.");
-                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
-                }
-            }
+            });
 
             KeepEditedRows(rows);
             RaiseAssignmentsChanged();
@@ -856,50 +884,53 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void PersistIconOverridesAcrossGames(IReadOnlyList<AchievementEditorRow> rows)
         {
-            foreach (var game in RowsByGame(rows?.Where(row => row != null && row.IsProviderRow)))
+            // Announced once the batch is written: the cache apply each announcement starts
+            // reads the games' stored overrides.
+            var announced = new List<KeyValuePair<Guid, List<AchievementEditorRow>>>();
+            WriteAcrossGames("icon overrides", () =>
             {
-                var unlocked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                var locked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                var written = new List<AchievementEditorRow>();
-                foreach (var row in game)
+                foreach (var game in RowsByGame(rows?.Where(row => row != null && row.IsProviderRow)))
                 {
-                    if (!row.HasProviderBaselines)
+                    var unlocked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var locked = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var written = new List<AchievementEditorRow>();
+                    foreach (var row in game)
                     {
-                        _logger?.Warn($"Skipped writing icon overrides for gameId={game.Key}: no provider data to compare against.");
+                        if (!row.HasProviderBaselines)
+                        {
+                            _logger?.Warn($"Skipped writing icon overrides for gameId={game.Key}: no provider data to compare against.");
+                            continue;
+                        }
+
+                        var apiName = NormalizeText(row.OriginalApiName);
+                        var unlockedPath = NormalizeText(row.UnlockedIconPath);
+                        unlocked[apiName] = !string.IsNullOrWhiteSpace(unlockedPath) &&
+                            !string.Equals(unlockedPath, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase)
+                                ? unlockedPath
+                                : null;
+
+                        var lockedPath = NormalizeText(row.LockedIconPath);
+                        locked[apiName] = !string.IsNullOrWhiteSpace(lockedPath) &&
+                            !string.Equals(lockedPath, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase) &&
+                            AchievementIconResolver.HasExplicitLockedIcon(lockedPath, row.UnlockedIconPath)
+                                ? lockedPath
+                                : null;
+                        written.Add(row);
+                    }
+
+                    if (written.Count == 0)
+                    {
                         continue;
                     }
 
-                    var apiName = NormalizeText(row.OriginalApiName);
-                    var unlockedPath = NormalizeText(row.UnlockedIconPath);
-                    unlocked[apiName] = !string.IsNullOrWhiteSpace(unlockedPath) &&
-                        !string.Equals(unlockedPath, NormalizeText(row.ProviderUnlockedIconPath), StringComparison.OrdinalIgnoreCase)
-                            ? unlockedPath
-                            : null;
-
-                    var lockedPath = NormalizeText(row.LockedIconPath);
-                    locked[apiName] = !string.IsNullOrWhiteSpace(lockedPath) &&
-                        !string.Equals(lockedPath, NormalizeText(row.ProviderLockedIconPath), StringComparison.OrdinalIgnoreCase) &&
-                        AchievementIconResolver.HasExplicitLockedIcon(lockedPath, row.UnlockedIconPath)
-                            ? lockedPath
-                            : null;
-                    written.Add(row);
-                }
-
-                if (written.Count == 0)
-                {
-                    continue;
-                }
-
-                try
-                {
                     _achievementOverridesService.PatchIconOverrides(game.Key, unlocked, locked);
-                    RaiseIconOverridesSaved(written, gameId: game.Key);
+                    announced.Add(new KeyValuePair<Guid, List<AchievementEditorRow>>(game.Key, written));
                 }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, $"Failed saving achievement icon overrides for gameId={game.Key}.");
-                    SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
-                }
+            });
+
+            foreach (var game in announced)
+            {
+                RaiseIconOverridesSaved(game.Value, gameId: game.Key);
             }
 
             KeepEditedRows(rows);
@@ -991,12 +1022,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         /// </summary>
         private void RevertAcrossGames(IReadOnlyList<AchievementEditorRow> targets)
         {
-            foreach (var game in RowsByGame(targets))
+            var games = RowsByGame(targets);
+            WriteAcrossGames("reverts", () =>
+            {
+                foreach (var game in games)
+                {
+                    _achievementOverridesService.RevertAchievements(game.Key, game.Select(row => row.OriginalApiName));
+                }
+            });
+
+            // After the batch: the capstone write reads the game's stored record to resolve it.
+            foreach (var game in games)
             {
                 try
                 {
-                    _achievementOverridesService.RevertAchievements(game.Key, game.Select(row => row.OriginalApiName));
-
                     var clearedCapstones = game
                         .Where(row => row.IsCapstone)
                         .Select(row => (NormalizeText(row.OriginalApiName), false))
@@ -1079,11 +1118,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             var targets = ResolveSelectionTargets()
                 .Where(row => row.CanEditAssignments && !string.IsNullOrWhiteSpace(row.OriginalApiName))
                 .ToList();
-            var staged = new List<AchievementEditorRow>();
-            foreach (var game in RowsByGame(targets))
+            var games = RowsByGame(targets);
+            var keys = new Dictionary<Guid, string>();
+            WriteAcrossGames("tags", () =>
             {
-                var key = _achievementOverridesService.CreateGameTag(game.Key, name);
-                if (string.IsNullOrWhiteSpace(key))
+                foreach (var game in games)
+                {
+                    keys[game.Key] = _achievementOverridesService.CreateGameTag(game.Key, name);
+                }
+            });
+
+            var staged = new List<AchievementEditorRow>();
+            foreach (var game in games)
+            {
+                if (!keys.TryGetValue(game.Key, out var key) || string.IsNullOrWhiteSpace(key))
                 {
                     continue;
                 }
@@ -1150,28 +1198,31 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         #region Select all matching
 
-        // Rows built per read when selecting every match; the grid's own page size.
-        private const int SelectAllChunk = 100;
+        // Rows read and built per step while selecting or editing every match; the grid's page size.
+        private const int AllMatchingChunk = 100;
 
         private int _selectAllMatchingVersion;
-        private bool _isAllMatchingSelected;
+
+        // The query whose every match is selected, and how many it matched; null when the
+        // selection is what the grid reported.
+        private AchievementQuery _allMatchingQuery;
+        private int _allMatchingCount;
+
+        // Set while a gesture runs over one chunk of every match, so it applies there instead of
+        // deferring again.
+        private bool _isApplyingAllMatching;
 
         /// <summary>
-        /// Whether the selection is every row the filters match across games, read from the
-        /// database. The grid shows only the part of it that it has loaded, so its own reports
-        /// of what is selected do not replace it; a click or a key in the grid does.
+        /// Whether the selection is every row the filters match across games. The view model then
+        /// holds a few rows that stand for the rest, which is all the details pane needs, and a
+        /// gesture reads the matches from the database a chunk at a time; the grid shows only the
+        /// part it has loaded, so its own reports of what is selected do not replace it.
         /// </summary>
-        public bool IsAllMatchingSelected
-        {
-            get => _isAllMatchingSelected;
-            private set => SetValue(ref _isAllMatchingSelected, value);
-        }
+        public bool IsAllMatchingSelected => _allMatchingQuery != null;
 
         /// <summary>
-        /// Selects every row the filters match across games without loading the grid's pages:
-        /// the keys are read from the database, and the rows the grid has not loaded are built
-        /// off the UI thread a page at a time. Rows the grid has loaded are selected as
-        /// themselves.
+        /// Selects every row the filters match across games without loading the grid's pages or
+        /// holding a row for each match.
         /// </summary>
         public void SelectAllMatching()
         {
@@ -1182,67 +1233,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             var version = ++_selectAllMatchingVersion;
             var query = BuildLibraryQuery();
-            var loaded = LoadedRowsByKey();
-            var sources = _librarySources;
-            sources.Scheduler.Run(() =>
+            ReadRepresentatives(query, version, (representatives, count) =>
             {
-                List<AchievementQuerySql.RowKey> keys = null;
-                var built = new Dictionary<string, AchievementEditorRow>(StringComparer.OrdinalIgnoreCase);
-                try
-                {
-                    using (Common.PerfScope.Start(_logger, "Editor.SelectAllMatching", thresholdMs: 50))
-                    {
-                        keys = sources.Reads.Reads.SortedKeys(query).ToList();
-                        var missing = keys.Where(key => !loaded.ContainsKey(KeyText(key))).ToList();
-                        for (var start = 0; start < missing.Count; start += SelectAllChunk)
-                        {
-                            if (version != _selectAllMatchingVersion)
-                            {
-                                return;
-                            }
-
-                            var chunk = missing.Skip(start).Take(SelectAllChunk).ToList();
-                            foreach (var row in LoadPagedRows(query, chunk))
-                            {
-                                built[HistoryRowKey(GameOf(row), row.OriginalApiName)] = row;
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Error(ex, "Failed to select every achievement the editor's filters match.");
-                    keys = null;
-                }
-
-                sources.Scheduler.Post(() =>
-                {
-                    if (keys == null || _isDetached || version != _selectAllMatchingVersion || !IsPagedMode)
-                    {
-                        return;
-                    }
-
-                    // The grid may have loaded or dropped pages meanwhile; a row it holds now is
-                    // the instance to select.
-                    var current = LoadedRowsByKey();
-                    var rows = new List<AchievementEditorRow>(keys.Count);
-                    foreach (var key in keys)
-                    {
-                        var text = KeyText(key);
-                        if (current.TryGetValue(text, out var row) || loaded.TryGetValue(text, out row))
-                        {
-                            rows.Add(row);
-                        }
-                        else if (built.TryGetValue(text, out row))
-                        {
-                            AttachPagedRow(row);
-                            rows.Add(row);
-                        }
-                    }
-
-                    SetSelectedRows(rows);
-                    IsAllMatchingSelected = true;
-                });
+                _allMatchingQuery = query;
+                _allMatchingCount = count;
+                ApplySelection(representatives);
+                OnPropertyChanged(nameof(IsAllMatchingSelected));
             });
         }
 
@@ -1256,22 +1252,285 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private Dictionary<string, AchievementEditorRow> LoadedRowsByKey()
+        /// <summary>
+        /// The fields the details pane shows for a selection. A selection's rows agree on a field
+        /// exactly when its representatives do, see <see cref="RepresentativeRows"/>.
+        /// </summary>
+        private static readonly Func<AchievementEditorRow, object>[] SelectionFields =
         {
-            var rows = new Dictionary<string, AchievementEditorRow>(StringComparer.OrdinalIgnoreCase);
-            foreach (var row in EditableRows)
+            row => row.Unlocked,
+            row => row.DisplayName,
+            row => row.Description,
+            row => row.PointsText,
+            row => row.TrophyType,
+            row => row.EffectiveCategoryLabel,
+            row => row.EffectiveTagsValue,
+            row => row.AchievementNote,
+            row => row.RarityInput,
+            row => row.ProgressNumText,
+            row => row.ProgressDenomText,
+            row => row.UnlockedIconPath,
+            row => row.LockedIconPath,
+            row => row.UnlockTime,
+            row => row.IsGoal,
+            row => row.Hidden,
+            row => row.FilterScope,
+            row => row.IsCapstone,
+            row => row.IsProviderRow,
+            row => IsRevertible(row),
+            row => row.CanEditUnlocked
+        };
+
+        /// <summary>
+        /// A few rows standing for many: for each field, the first row and the first whose value
+        /// differs from it. Every comparison the pane makes is against its first row, so these
+        /// agree on a field exactly when all the rows do, and contain a row of each kind a command
+        /// asks after.
+        /// </summary>
+        private sealed class RepresentativeRows
+        {
+            private AchievementEditorRow _first;
+            private readonly object[] _firstValues = new object[SelectionFields.Length];
+            private readonly AchievementEditorRow[] _differing = new AchievementEditorRow[SelectionFields.Length];
+
+            public void Offer(AchievementEditorRow row)
             {
-                if (row?.GameId is Guid gameId && !string.IsNullOrWhiteSpace(row.OriginalApiName))
+                if (row == null)
                 {
-                    rows[HistoryRowKey(gameId, row.OriginalApiName)] = row;
+                    return;
+                }
+
+                if (_first == null)
+                {
+                    _first = row;
+                    for (var index = 0; index < SelectionFields.Length; index++)
+                    {
+                        _firstValues[index] = SelectionFields[index](row);
+                    }
+
+                    return;
+                }
+
+                for (var index = 0; index < SelectionFields.Length; index++)
+                {
+                    if (_differing[index] == null && !Equals(SelectionFields[index](row), _firstValues[index]))
+                    {
+                        _differing[index] = row;
+                    }
                 }
             }
 
-            return rows;
+            public List<AchievementEditorRow> Rows
+            {
+                get
+                {
+                    var rows = new List<AchievementEditorRow>();
+                    if (_first != null)
+                    {
+                        rows.Add(_first);
+                    }
+
+                    foreach (var row in _differing)
+                    {
+                        if (row != null && !rows.Contains(row))
+                        {
+                            rows.Add(row);
+                        }
+                    }
+
+                    return rows;
+                }
+            }
         }
 
-        private static string KeyText(AchievementQuerySql.RowKey key) =>
-            HistoryRowKey(Guid.TryParse(key?.PlayniteGameId, out var gameId) ? gameId : Guid.Empty, key?.ApiName);
+        /// <summary>
+        /// Reads every match of <paramref name="query"/> off the UI thread a chunk at a time,
+        /// keeping only the rows that stand for the rest, and hands them over attached.
+        /// </summary>
+        private void ReadRepresentatives(
+            AchievementQuery query,
+            int version,
+            Action<List<AchievementEditorRow>, int> done)
+        {
+            var sources = _librarySources;
+            sources.Scheduler.Run(() =>
+            {
+                List<AchievementEditorRow> picked = null;
+                var count = 0;
+                try
+                {
+                    using (var scope = Common.PerfScope.Start(_logger, "Editor.SelectAllMatching", thresholdMs: 50))
+                    {
+                        var keys = sources.Reads.Reads.SortedKeys(query);
+                        count = keys.Count;
+                        scope?.SetContext("matches=" + count);
+                        var representatives = new RepresentativeRows();
+                        var games = new Dictionary<Guid, PagedGameState>();
+                        for (var start = 0; start < keys.Count; start += AllMatchingChunk)
+                        {
+                            if (version != _selectAllMatchingVersion)
+                            {
+                                return;
+                            }
+
+                            var chunk = keys.Skip(start).Take(AllMatchingChunk).ToList();
+                            foreach (var row in LoadPagedRows(query, chunk, games))
+                            {
+                                representatives.Offer(row);
+                            }
+                        }
+
+                        picked = representatives.Rows;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed to select every achievement the editor's filters match.");
+                }
+
+                sources.Scheduler.Post(() =>
+                {
+                    if (picked == null || _isDetached || version != _selectAllMatchingVersion || !IsPagedMode)
+                    {
+                        return;
+                    }
+
+                    foreach (var row in picked)
+                    {
+                        AttachPagedRow(row);
+                    }
+
+                    done(picked, count);
+                });
+            });
+        }
+
+        /// <summary>
+        /// Runs a gesture over every match instead of over the rows held, when every match is
+        /// selected; true when it was taken over. The gesture runs again for each chunk with that
+        /// chunk as the selection.
+        /// </summary>
+        private bool DeferToAllMatching(Action gesture)
+        {
+            if (!IsAllMatchingSelected || _isApplyingAllMatching)
+            {
+                return false;
+            }
+
+            _ = ApplyAcrossAllMatchingAsync(gesture);
+            return true;
+        }
+
+        /// <summary>
+        /// Reads every match a chunk at a time off the UI thread, builds that chunk's rows, and
+        /// runs the gesture with them as the selection, so memory holds one chunk however many
+        /// match. Saving holds the undo step open, so the whole run undoes as one step.
+        /// </summary>
+        private async System.Threading.Tasks.Task ApplyAcrossAllMatchingAsync(Action gesture)
+        {
+            if (IsSaving)
+            {
+                return;
+            }
+
+            var query = _allMatchingQuery;
+            var games = new Dictionary<Guid, PagedGameState>();
+            IsSaving = true;
+            _pagedFeedGate.IsOpen = false;
+            try
+            {
+                using (var scope = Common.PerfScope.Start(_logger, "Editor.ApplyAcrossAllMatching", thresholdMs: 50))
+                {
+                    var keys = await ReadAsync(() => _librarySources.Reads.Reads.SortedKeys(query)).ConfigureAwait(true);
+                    scope?.SetContext("matches=" + keys.Count);
+                    for (var start = 0; start < keys.Count && !_isDetached; start += AllMatchingChunk)
+                    {
+                        var chunk = keys.Skip(start).Take(AllMatchingChunk).ToList();
+                        var rows = await ReadAsync(() => LoadPagedRows(query, chunk, games)).ConfigureAwait(true);
+                        if (_isDetached)
+                        {
+                            break;
+                        }
+
+                        ApplyToChunk(rows, gesture);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to apply an edit to every achievement the editor's filters match.");
+                SetStatus(string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message), true);
+            }
+            finally
+            {
+                _pagedFeedGate.IsOpen = true;
+                IsSaving = false;
+            }
+
+            if (_isDetached || !IsAllMatchingSelected || !ReferenceEquals(query, _allMatchingQuery))
+            {
+                return;
+            }
+
+            // The pane shows what the gesture left, and a category it filed joins the choices.
+            LoadLibraryFilterOptions();
+            var version = _selectAllMatchingVersion;
+            ReadRepresentatives(query, version, (representatives, count) =>
+            {
+                if (ReferenceEquals(query, _allMatchingQuery))
+                {
+                    _allMatchingCount = count;
+                    ApplySelection(representatives);
+                }
+            });
+        }
+
+        private void ApplyToChunk(IReadOnlyList<AchievementEditorRow> rows, Action gesture)
+        {
+            var held = _selectedRows.ToList();
+            foreach (var row in rows)
+            {
+                AttachPagedRow(row);
+            }
+
+            _isApplyingAllMatching = true;
+            _selectedRows.Clear();
+            _selectedRows.AddRange(rows);
+            try
+            {
+                gesture();
+            }
+            finally
+            {
+                _selectedRows.Clear();
+                _selectedRows.AddRange(held);
+                _isApplyingAllMatching = false;
+                foreach (var row in rows)
+                {
+                    ForgetOverrideWriteCache(row);
+                }
+            }
+        }
+
+        /// <summary>Runs a read off the UI thread and resumes on it with the result.</summary>
+        private System.Threading.Tasks.Task<T> ReadAsync<T>(Func<T> read)
+        {
+            var completion = new System.Threading.Tasks.TaskCompletionSource<T>();
+            var scheduler = _librarySources.Scheduler;
+            scheduler.Run(() =>
+            {
+                try
+                {
+                    var result = read();
+                    scheduler.Post(() => completion.SetResult(result));
+                }
+                catch (Exception ex)
+                {
+                    scheduler.Post(() => completion.SetException(ex));
+                }
+            });
+            return completion.Task;
+        }
 
         #endregion
 
