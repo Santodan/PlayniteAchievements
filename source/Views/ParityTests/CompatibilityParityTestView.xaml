@@ -23,7 +23,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Padding="10" CornerRadius="{StaticResource PlayAch.Radius.Card}" Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}" BorderThickness="{StaticResource PlayAch.Thickness.Border}" BorderBrush="{StaticResource PlayAch.Brush.Overlay.Shade.22}">
+        <Border Grid.Row="0" Padding="10" CornerRadius="{DynamicResource PlayAch.Radius.Layout}" Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}" BorderThickness="{StaticResource PlayAch.Thickness.Border}" BorderBrush="{StaticResource PlayAch.Brush.Overlay.Shade.22}">
             <StackPanel>
                 <TextBlock FontSize="18" FontWeight="SemiBold" Text="PlayniteAchievements UI Parity Test — SuccessStory Compatibility" />
                 <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}" Opacity="0.85">
