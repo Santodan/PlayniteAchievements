@@ -480,7 +480,7 @@
                             <Border Height="{Binding Height}"
                                     ToolTip="{Binding ToolTip}"
                                     local:YearReviewUnlockPopover.Group="{Binding Group}"
-                                    local:YearReviewMotion.Hover="True"
+                                    local:YearReviewBarHighlight.IsBar="True"
                                     local:YearReviewMotion.Reveal="Grow"
                                     local:YearReviewMotion.Delay="{Binding Delay}">
                                 <Border.Style>
@@ -758,10 +758,12 @@
                           local:YearReviewMotion.Reveal="Spin">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:YearReviewDonutSegment}">
-                        <Path Data="{Binding Geometry}" Fill="{Binding Fill}"
-                              ToolTip="{Binding ToolTip}"
-                              local:YearReviewMotion.Hover="True"
-                              local:YearReviewUnlockPopover.Group="{Binding Group}"/>
+                        <local:YearReviewDonutSlice Width="700" Height="700"
+                                                    StartAngle="{Binding StartAngle}"
+                                                    Sweep="{Binding Sweep}"
+                                                    Fill="{Binding Fill}"
+                                                    ToolTip="{Binding ToolTip}"
+                                                    local:YearReviewUnlockPopover.Group="{Binding Group}"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
