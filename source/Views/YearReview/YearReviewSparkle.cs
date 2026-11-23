@@ -197,7 +197,7 @@ namespace PlayniteAchievements.Views.YearReview
                     }
                     else
                     {
-                        ctx.LineTo(point, false, false);
+                        ctx.LineTo(point, true, true);
                     }
                 }
             }
