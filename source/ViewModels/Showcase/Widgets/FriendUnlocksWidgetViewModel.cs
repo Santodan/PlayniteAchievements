@@ -44,7 +44,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var bar = Bar();
             var lists = _lists.Current;
             var reads = _lists.Source?.Reads;
-            if (lists == null || reads == null)
+            // Loading, or friends features off.
+            if (lists == null || reads == null || ReferenceEquals(lists, FriendsOverviewLists.Empty))
             {
                 return Array.Empty<AchievementDisplayItem>();
             }
