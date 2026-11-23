@@ -137,6 +137,8 @@ namespace PlayniteAchievements.Models.YearReview
         public int PrestigeGained { get; set; }
         public int LevelAtStart { get; set; }
         public int LevelAtEnd { get; set; }
+        public int PrestigeLevelAtStart { get; set; }
+        public int PrestigeLevelAtEnd { get; set; }
 
         /// <summary>Unlocks per month, January first.</summary>
         public IReadOnlyList<int> Months { get; set; } = new int[12];
