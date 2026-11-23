@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Services.YearReview
                 .GroupBy(game => game.GameId)
                 .ToDictionary(group => group.Key, group => group.First());
 
+            data.Unlocks = unlocks;
             data.Unlocked = unlocks.Count;
             data.GamesWithUnlocks = unlocks.Select(unlock => unlock.GameId).Distinct().Count();
 
@@ -120,13 +121,15 @@ namespace PlayniteAchievements.Services.YearReview
         }
 
         /// <summary>
-        /// Collection score earned in the year, and the level before and after it. Unlocks
+        /// Collection and prestige score earned in the year, and the collection level before and
+        /// after it. Unlocks
         /// without a date count toward the starting score, as in the score history chart.
         /// </summary>
         private static void ApplyScore(YearReviewData data, YearReviewInputs inputs, DateTime firstDay, DateTime yearEnd)
         {
             var before = 0;
             var during = 0;
+            var prestige = 0;
             foreach (var fact in inputs.Facts ?? Array.Empty<UnlockFact>())
             {
                 if (fact == null)
@@ -141,10 +144,12 @@ namespace PlayniteAchievements.Services.YearReview
                 else if (fact.Day.Value <= yearEnd)
                 {
                     during += fact.CollectionScore;
+                    prestige += fact.PrestigeScore;
                 }
             }
 
-            data.ScoreGained = during;
+            data.CollectionGained = during;
+            data.PrestigeGained = prestige;
             data.LevelAtStart = DisplayLevel(before);
             data.LevelAtEnd = DisplayLevel(before + during);
         }
