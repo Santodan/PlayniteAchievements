@@ -71,7 +71,7 @@ namespace PlayniteAchievements.Services.YearReview
                     return new YearReviewGame
                     {
                         GameId = id,
-                        Name = game.GameName,
+                        Name = string.IsNullOrWhiteSpace(game.GameName) ? PlayniteName(id) : game.GameName,
                         CoverPath = game.GameCoverPath,
                         FinishUtc = finished,
                         Badge = finished.HasValue ? game.CompletionBadgeFor(detailOrder) : CompletionBadgeKind.Completed
@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Services.YearReview
             var last = new DateTime(year, 12, 31);
             return new YearReviewInputs
             {
-                Unlocks = ReadUnlocks(first, last),
+                Unlocks = ReadUnlocks(first, last, library),
                 Facts = library?.Facts ?? Array.Empty<UnlockFact>(),
                 Games = library?.Games ?? Array.Empty<YearReviewGame>(),
                 FriendUnlocks = ReadFriendUnlocks(first),
@@ -103,8 +103,33 @@ namespace PlayniteAchievements.Services.YearReview
             };
         }
 
-        private IReadOnlyList<YearReviewUnlock> ReadUnlocks(DateTime first, DateTime last)
+        private IReadOnlyList<YearReviewUnlock> ReadUnlocks(DateTime first, DateTime last, YearReviewLibrary library)
         {
+            var names = new Dictionary<Guid, string>();
+            foreach (var game in library?.Games ?? Array.Empty<YearReviewGame>())
+            {
+                if (!string.IsNullOrWhiteSpace(game.Name))
+                {
+                    names[game.GameId] = game.Name;
+                }
+            }
+
+            string NameOf(Guid id, string stored)
+            {
+                if (!string.IsNullOrWhiteSpace(stored))
+                {
+                    return stored;
+                }
+
+                if (!names.TryGetValue(id, out var name))
+                {
+                    name = PlayniteName(id);
+                    names[id] = name;
+                }
+
+                return name;
+            }
+
             if (_data == null)
             {
                 return Array.Empty<YearReviewUnlock>();
@@ -119,7 +144,7 @@ namespace PlayniteAchievements.Services.YearReview
                 .Select(row => new YearReviewUnlock
                 {
                     GameId = row.PlayniteGameId.Value,
-                    GameName = row.GameName,
+                    GameName = NameOf(row.PlayniteGameId.Value, row.GameName),
                     AchievementName = row.DisplayName ?? row.ApiName,
                     IconPath = row.UnlockedIconPath,
                     UnlockUtc = row.UnlockTimeUtc.Value,
@@ -198,6 +223,23 @@ namespace PlayniteAchievements.Services.YearReview
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "Year in Review: friend avatar could not be read.");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The game's name in Playnite, for rows whose stored name is empty, such as a game whose
+        /// achievements all come from its custom data.
+        /// </summary>
+        private string PlayniteName(Guid gameId)
+        {
+            try
+            {
+                return _api?.Database?.Games?.Get(gameId)?.Name;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Year in Review: game name could not be read.");
                 return null;
             }
         }
