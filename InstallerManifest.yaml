@@ -1,29 +1,6 @@
 AddonId: PlayniteAchievements
 Packages:
 
-  - Version: 4.3.1
-    RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-11-22
-    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v4.3.1/PlayniteAchievements_4_3_1.pext
-    Changelog:
-    - "[New] Achievement Editor: edit achievements across your whole library in one window, from the main menu or a hotkey."
-    - "[New] Corner rounding options for game art, achievement icons, and buttons, cards and menus."
-    - "[Adjusted] Much faster Overview, Friends Overview, settings and theme lists on large libraries, with placeholder rows while lists load."
-    - "[Adjusted] Link File is available on every game, and a linked file can add unlocks and progress to a game's platform achievements."
-    - "[Adjusted] Choose which column of a linked file matches its rows to achievements."
-    - "[Adjusted] The compare dropdown lists favorite friends first, dims friends without the game, and shares one choice per window."
-    - "[Adjusted] Tags and features renamed in Playnite keep their new names."
-    - "[Adjusted] Plugin windows, cards and inputs follow your Playnite theme's colors more closely, with tidier settings pages."
-    - "[Adjusted] Capstone names and locks use the completed gradient colors."
-    - "[Fixed] ShadPS4 trophies not found for games added by ROM path or packed as .zar."
-    - "[Fixed] PS Vita games not matching on Exophase."
-    - "[Fixed] Metadata categories filing unmatched achievements under the wrong category."
-    - "[Fixed] Duplicate World of Warcraft Forever achievements."
-    - "[Fixed] Theme elements and trophy icons ignoring your color settings."
-    - "[Fixed] Tag settings applied to the library being lost on Cancel."
-    - "[Fixed] Linked-file games not refreshing when no platform is signed in, and linked files duplicating achievements."
-    - "As always, many additional improvements and fixes behind the scenes."
-
   - Version: 4.3.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-11-17
