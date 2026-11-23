@@ -133,8 +133,12 @@ namespace PlayniteAchievements.Views.YearReview
             parts.Hover.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
         }
 
-        /// <summary>True when the system asks for animation; otherwise slides appear at rest.</summary>
-        public static bool Enabled => SystemParameters.ClientAreaAnimation;
+        /// <summary>
+        /// True: the review always plays its entrances, like the plugin's notifications and glows,
+        /// which do not follow the Windows animation switch either. The rest poses stay complete,
+        /// so a slide that is captured or shown mid-entrance still reads correctly.
+        /// </summary>
+        public static bool Enabled => true;
 
         private static void OnPoseChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
