@@ -163,12 +163,19 @@ namespace PlayniteAchievements.Views.YearReview
 
             YearReviewUnlockPopover.Close();
             PlayBackdrop();
+
+            // The new view's elements would otherwise draw once at rest before their entrances
+            // set the start poses: hidden until then.
+            CurrentHost.BeginAnimation(OpacityProperty, null);
+            CurrentHost.Opacity = 0;
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 if (ReferenceEquals(CurrentHost.Content, sender))
                 {
                     YearReviewMotion.Play(CurrentHost);
                 }
+
+                CurrentHost.Opacity = 1;
             }));
         }
 
