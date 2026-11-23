@@ -1682,6 +1682,9 @@
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_ActivityCalendar">Activity Calendar</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Image">Image</sys:String>
     <sys:String x:Key="LOCPlayAch_Showcase_Widget_Text">Text</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendUnlocks">Friend Unlocks</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendLeaderboard">Friend Leaderboard</sys:String>
+    <sys:String x:Key="LOCPlayAch_Showcase_Widget_FriendGames">Friend Games</sys:String>
 
     <!-- ================================================================= -->
     <!-- 19 Workshop -->
