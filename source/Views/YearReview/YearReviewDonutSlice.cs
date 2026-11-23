@@ -8,8 +8,9 @@ using PlayniteAchievements.Views.Helpers;
 namespace PlayniteAchievements.Views.YearReview
 {
     /// <summary>
-    /// One slice of the platform donut. Under the mouse it slides outward along its middle, both
-    /// edges moving together so it lifts off the hole, the way the pie chart widget's slices do.
+    /// One slice of the platform donut. While <see cref="IsLifted"/> it slides outward along its
+    /// middle, both edges moving together so it lifts off the hole, the way the pie chart
+    /// widget's slices do.
     /// </summary>
     public sealed class YearReviewDonutSlice : FrameworkElement
     {
@@ -61,6 +62,17 @@ namespace PlayniteAchievements.Views.YearReview
             set => SetValue(InnerRatioProperty, value);
         }
 
+        public static readonly DependencyProperty IsLiftedProperty = DependencyProperty.Register(
+            nameof(IsLifted), typeof(bool), typeof(YearReviewDonutSlice),
+            new PropertyMetadata(false, (d, e) => ((YearReviewDonutSlice)d).SlideTo((bool)e.NewValue ? HoverGrowth : 0)));
+
+        /// <summary>True while the slice or its platform's row is hovered.</summary>
+        public bool IsLifted
+        {
+            get => (bool)GetValue(IsLiftedProperty);
+            set => SetValue(IsLiftedProperty, value);
+        }
+
         private static readonly DependencyProperty GrowthProperty = DependencyProperty.Register(
             "Growth", typeof(double), typeof(YearReviewDonutSlice),
             new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -68,18 +80,6 @@ namespace PlayniteAchievements.Views.YearReview
         public YearReviewDonutSlice()
         {
             Cursor = Cursors.Hand;
-        }
-
-        protected override void OnMouseEnter(MouseEventArgs e)
-        {
-            base.OnMouseEnter(e);
-            SlideTo(HoverGrowth);
-        }
-
-        protected override void OnMouseLeave(MouseEventArgs e)
-        {
-            base.OnMouseLeave(e);
-            SlideTo(0);
         }
 
         private void SlideTo(double growth)
