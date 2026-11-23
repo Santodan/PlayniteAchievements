@@ -25,10 +25,16 @@
 
     <!-- An opaque backdrop: some themes leave the window surface transparent. -->
     <Grid Background="{DynamicResource PlayAch.Brush.PopupSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
         <!-- The slide area. Slides are laid out at 1280 x 770 and scaled to the window. A click
              anywhere on it moves to the next slide. -->
-        <Grid x:Name="Deck" Background="Transparent" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
-            <Viewbox Stretch="Uniform" Margin="0,30,0,56">
+        <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
+            <Viewbox Stretch="Uniform" Margin="0,4">
                 <!-- The stage is what Save image captures: backdrop and slide together. -->
                 <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
                       Background="{DynamicResource PlayAch.Brush.PopupSurface}">
@@ -39,6 +45,8 @@
                             <BitmapCache RenderAtScale="1"/>
                         </Border.CacheMode>
                         <Image Stretch="UniformToFill"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
                                helpers:AsyncImage.Uri="{Binding CurrentSlide.BackdropPath}"
                                helpers:AsyncImage.DecodePixel="640">
                             <Image.Effect>
@@ -62,7 +70,7 @@
         </Grid>
 
         <!-- Progress through the slides, and the year. -->
-        <Grid VerticalAlignment="Top" Margin="20,14,20,0">
+        <Grid Grid.Row="0" Margin="20,12,20,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -99,17 +107,19 @@
                       AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Year}"/>
         </Grid>
 
-        <TextBlock Text="{Binding Counter}"
-                   VerticalAlignment="Bottom"
+        <TextBlock Grid.Row="2"
+                   Text="{Binding Counter}"
+                   VerticalAlignment="Center"
                    HorizontalAlignment="Left"
-                   Margin="24,0,0,24"
+                   Margin="24,0,0,0"
                    FontSize="{DynamicResource PlayAch.FontSize.Caption}"
                    Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
 
-        <StackPanel Orientation="Horizontal"
-                    VerticalAlignment="Bottom"
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
                     HorizontalAlignment="Right"
-                    Margin="0,0,20,14">
+                    Margin="0,8,20,12">
             <Button Content="&#xEF08;"
                     Click="SaveImage_Click"
                     Style="{StaticResource YearReview.NavButton}"
