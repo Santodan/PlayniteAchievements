@@ -725,6 +725,9 @@ namespace PlayniteAchievements.Views.Showcase
                 case ShowcaseWidgetKind.FriendLeaderboard:
                     AddFriendWidgetRows<FriendLeaderboardControlBarAdapter>(contentRows, barRows);
                     break;
+                case ShowcaseWidgetKind.FriendGames:
+                    AddFriendWidgetRows<FriendGamesControlBarAdapter>(contentRows, barRows);
+                    break;
                 case ShowcaseWidgetKind.ActivityCalendar:
                     AddCountChoice(contentRows);
                     AddRangeChoice(contentRows);
