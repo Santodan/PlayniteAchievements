@@ -65,9 +65,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var spec = new FriendSummariesSortSpec(
                 options?.SortMode ?? FriendSummariesSortMode.CollectionScore,
                 options?.SortDescending == false ? ListSortDirection.Ascending : ListSortDirection.Descending);
-            string sortedPath = null;
-            var sortedDirection = ListSortDirection.Ascending;
-            FriendSummarySortHelper.TrySortItems(list, spec.SortMemberPath, spec.Direction, ref sortedPath, ref sortedDirection);
+            FriendSummarySortHelper.SortRanked(list, spec.SortMemberPath, spec.Direction);
             return list;
         }
 
@@ -81,6 +79,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         private FriendLeaderboardControlBarAdapter Bar()
         {
             _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
+            _controlBarSlot.Adapter.EnableSort();
             _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
             ControlBar = _controlBarSlot.ShownBar;
             return _controlBarSlot.Adapter;
