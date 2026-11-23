@@ -484,6 +484,15 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     })
                     .ToList();
 
+            YearReviewUnlockGroup Keyed(string label, IReadOnlyCollection<string> keys) =>
+                GroupOf(label, data.Unlocks.Where(unlock => unlock.Key != null && keys.Contains(unlock.Key)).ToList());
+
+            YearReviewUnlockGroup SharedGames(string name, IReadOnlyList<Guid> gameIds)
+            {
+                var games = new HashSet<Guid>(gameIds);
+                return GroupOf(name, data.Unlocks.Where(unlock => games.Contains(unlock.GameId)).ToList());
+            }
+
             string Initial(string name) =>
                 string.IsNullOrEmpty(name) ? string.Empty : name.Substring(0, 1).ToUpper(FormattingCulture.Current);
 
@@ -496,6 +505,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     Label = Text("LOCPlayAch_Common_All"),
                     BigNumber = friends.UnlockedFirst,
                     BigLabel = Text("LOCPlayAch_YearReview_UnlockedFirst"),
+                    BigGroup = Keyed(Text("LOCPlayAch_YearReview_UnlockedFirst"), friends.UnlockedFirstKeys),
+                    SharedGroup = SharedGames(topName, friends.SharedGameIds),
                     HasFriend = friends.SharedGameIds.Count > 0,
                     FriendKey = friends.TopFriendKey,
                     FriendName = topName,
@@ -516,9 +527,12 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     FriendKey = friend.Key,
                     BigNumber = friend.UnlockedFirst,
                     BigLabel = Format("LOCPlayAch_YearReview_UnlockedBeforeFriend", name),
+                    BigGroup = Keyed(Format("LOCPlayAch_YearReview_UnlockedBeforeFriend", name), friend.UnlockedFirstKeys),
                     HasSecond = true,
                     SecondNumber = friend.TheyFirst,
                     SecondLabel = Format("LOCPlayAch_YearReview_FriendUnlockedFirst", name),
+                    SecondGroup = Keyed(Format("LOCPlayAch_YearReview_FriendUnlockedFirst", name), friend.TheyFirstKeys),
+                    SharedGroup = SharedGames(name, friend.SharedGameIds),
                     HasFriend = true,
                     FriendName = name,
                     FriendInitial = Initial(name),
