@@ -29,7 +29,27 @@
              anywhere on it moves to the next slide. -->
         <Grid x:Name="Deck" Background="Transparent" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
             <Viewbox Stretch="Uniform" Margin="0,30,0,56">
-                <Grid Width="1280" Height="770" ClipToBounds="True">
+                <!-- The stage is what Save image captures: backdrop and slide together. -->
+                <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
+                      Background="{DynamicResource PlayAch.Brush.PopupSurface}">
+                    <!-- The slide's game art, decoded tiny and stretched, which blurs it without an
+                         effect, then faded toward the surface on the left where the text sits. -->
+                    <Viewbox x:Name="Backdrop" Stretch="UniformToFill" Opacity="0.4"
+                             RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                        <Image Width="64" Height="40" Stretch="UniformToFill"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               helpers:AsyncImage.Uri="{Binding CurrentSlide.BackdropPath}"
+                               helpers:AsyncImage.DecodePixel="64"/>
+                    </Viewbox>
+                    <Rectangle Fill="{DynamicResource PlayAch.Brush.PopupSurface}" IsHitTestVisible="False">
+                        <Rectangle.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
+                                <GradientStop Offset="0" Color="#C0000000"/>
+                                <GradientStop Offset="0.55" Color="#50000000"/>
+                                <GradientStop Offset="1" Color="#10000000"/>
+                            </LinearGradientBrush>
+                        </Rectangle.OpacityMask>
+                    </Rectangle>
                     <ContentPresenter x:Name="OutgoingHost" IsHitTestVisible="False"/>
                     <ContentPresenter x:Name="CurrentHost"/>
                 </Grid>
@@ -85,13 +105,19 @@
                     VerticalAlignment="Bottom"
                     HorizontalAlignment="Right"
                     Margin="0,0,20,14">
+            <Button Content="&#xEF08;"
+                    Click="SaveImage_Click"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveImage}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveImage}"
+                    Margin="0,0,10,0"/>
             <Button Content="&#xEAB5;"
-                    Command="{Binding PreviousCommand}"
+                    Click="Previous_Click"
                     Style="{StaticResource YearReview.NavButton}"
                     ToolTip="{DynamicResource LOCPlayAch_Common_Previous}"
                     AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Previous}"/>
             <Button Content="&#xEAB8;"
-                    Command="{Binding NextCommand}"
+                    Click="Next_Click"
                     Style="{StaticResource YearReview.NavButton}"
                     ToolTip="{DynamicResource LOCPlayAch_Common_Next}"
                     AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Next}"/>
