@@ -48,6 +48,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 new YearReviewRarestView
                 {
                     Label = Text("LOCPlayAch_YearReview_RarestUnlock"),
+                    GameId = rarest.GameId,
                     IsSingle = true,
                     Name = rarest.AchievementName,
                     IconPath = rarest.IconPath,
@@ -111,6 +112,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                         var percent = entry.Unlock.GlobalPercent ?? 0;
                         return new YearReviewRareEntry
                         {
+                            GameId = entry.Unlock.GameId,
                             IconPath = entry.Unlock.IconPath,
                             Name = entry.Unlock.AchievementName,
                             Caption = entry.Caption,
@@ -134,7 +136,16 @@ namespace PlayniteAchievements.ViewModels.YearReview
             var views = new List<YearReviewSlideView> { RarityView(Text("LOCPlayAch_Common_All"), data.Unlocks) };
             if (platforms.Count > 1)
             {
-                views.AddRange(platforms.Select(platform => RarityView(platform.Name, platform.Unlocks)));
+                foreach (var platform in platforms)
+                {
+                    var view = RarityView(platform.Name, platform.Unlocks);
+                    view.TopGameId = platform.Unlocks
+                        .GroupBy(unlock => unlock.GameId)
+                        .OrderByDescending(group => group.Count())
+                        .Select(group => (Guid?)group.Key)
+                        .FirstOrDefault();
+                    views.Add(view);
+                }
             }
 
             return new YearReviewRaritySlide { Views = views };
