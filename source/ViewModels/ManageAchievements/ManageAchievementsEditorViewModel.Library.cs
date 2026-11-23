@@ -776,8 +776,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                         AssignableCategoryOptions.ReplaceAll(categories);
                     }
 
-                    var present = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase);
-                    _typeFilterOptions = AchievementTagRegistry.GetAssignableKeys(null)
+                    // None leads, always offered: whether some listed row has no tag would take
+                    // another read across the games.
+                    var present = new HashSet<string>(tags, StringComparer.OrdinalIgnoreCase)
+                    {
+                        AchievementClassificationFilter.NoTagsKey
+                    };
+                    _typeFilterOptions = new[] { AchievementClassificationFilter.NoTagsKey }
+                        .Concat(AchievementTagRegistry.GetAssignableKeys(null))
                         .Concat(new[] { AchievementTagHelper.Softcore, AchievementTagHelper.Hardcore })
                         .Concat(tags)
                         .Where(present.Contains)
@@ -838,9 +844,11 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         /// <summary>A tag's name in the Tags filter: across games a game's own tag by the name its game gives it.</summary>
         private string TagFilterName(string key) =>
-            IsPagedMode && key != null && _libraryTagNames.TryGetValue(key, out var name)
-                ? name
-                : ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId);
+            string.Equals(key, AchievementClassificationFilter.NoTagsKey, StringComparison.OrdinalIgnoreCase)
+                ? AchievementClassificationFilter.GetDisplayName(key)
+                : IsPagedMode && key != null && _libraryTagNames.TryGetValue(key, out var name)
+                    ? name
+                    : ManageAchievementsCategoryViewModel.GetTagDisplayName(key, _gameId);
 
         #endregion
 
