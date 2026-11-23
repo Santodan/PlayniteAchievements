@@ -28,20 +28,22 @@ namespace PlayniteAchievements.Views.YearReview
         private const double SavedImageWidth = 1920;
         private const double BackdropOpacity = 0.4;
 
+        /// <summary>Saves the element given as the parameter, the summary card, as a PNG.</summary>
+        public static readonly RoutedUICommand SaveCardCommand = new RoutedUICommand("SaveCard", "SaveCard", typeof(YearReviewControl));
+
         private readonly YearReviewViewModel _viewModel;
-        private readonly Func<string> _pickSavePath;
         private readonly ILogger _logger;
         private int _shownIndex = -1;
         private DateTime _wheelReadyAt = DateTime.MinValue;
 
-        internal YearReviewControl(YearReviewViewModel viewModel, Func<string> pickSavePath, ILogger logger)
+        internal YearReviewControl(YearReviewViewModel viewModel, ILogger logger)
         {
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-            _pickSavePath = pickSavePath;
             _logger = logger;
 
             InitializeComponent();
             DataContext = _viewModel;
+            CommandBindings.Add(new CommandBinding(SaveCardCommand, OnSaveCard));
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             Loaded += OnLoaded;
             PreviewKeyDown += OnPreviewKeyDown;
@@ -53,6 +55,7 @@ namespace PlayniteAchievements.Views.YearReview
         public void Cleanup()
         {
             Loaded -= OnLoaded;
+            YearReviewUnlockPopover.Close();
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             CurrentHost.Content = null;
             OutgoingHost.Content = null;
@@ -84,6 +87,7 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void ShowCurrentSlide()
         {
+            YearReviewUnlockPopover.Close();
             var slide = _viewModel.CurrentSlide;
             var index = slide == null ? -1 : IndexOf(slide);
             var direction = index >= _shownIndex ? 1 : -1;
@@ -258,36 +262,99 @@ namespace PlayniteAchievements.Views.YearReview
         /// </summary>
         private void SaveImage_Click(object sender, RoutedEventArgs e)
         {
-            var stage = SlideStage;
-            if (CurrentHost.Content == null || stage.ActualWidth <= 0 || stage.ActualHeight <= 0)
+            if (!(CurrentHost.Content is YearReviewSlide slide))
             {
                 return;
             }
 
-            var path = _pickSavePath?.Invoke();
-            if (string.IsNullOrWhiteSpace(path))
+            var path = PickPath(FileName(slide.Title));
+            if (path == null)
             {
                 return;
             }
 
+            FinishMotion();
+            Save(SlideStage, path);
+        }
+
+        /// <summary>Saves the summary card alone.</summary>
+        private void OnSaveCard(object sender, ExecutedRoutedEventArgs e)
+        {
+            if (!(e.Parameter is FrameworkElement card))
+            {
+                return;
+            }
+
+            var path = PickPath(FileName(null));
+            if (path == null)
+            {
+                return;
+            }
+
+            FinishMotion();
+            Save(card, path);
+        }
+
+        /// <summary>"Year in Review 2026 - Unlocks by month.png", or without the slide part for the card.</summary>
+        private string FileName(string slideTitle)
+        {
+            var name = WindowTitle + " " + _viewModel.SelectedYear.ToString(FormattingCulture.Current);
+            if (!string.IsNullOrWhiteSpace(slideTitle))
+            {
+                name += " - " + slideTitle;
+            }
+
+            foreach (var invalid in Path.GetInvalidFileNameChars())
+            {
+                name = name.Replace(invalid, '_');
+            }
+
+            return name + ".png";
+        }
+
+        /// <summary>The save dialog, starting from <paramref name="suggested"/>; null when cancelled.</summary>
+        private string PickPath(string suggested)
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = suggested,
+                DefaultExt = ".png",
+                AddExtension = true,
+                OverwritePrompt = true,
+                Filter = ResourceProvider.GetString("LOCPlayAch_YearReview_PngImage") + "|*.png"
+            };
+
+            return dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FileName : null;
+        }
+
+        /// <summary>Ends every running entrance and transition, so a capture shows each element at rest.</summary>
+        private void FinishMotion()
+        {
             YearReviewMotion.Reset(CurrentHost);
             CurrentHost.BeginAnimation(OpacityProperty, null);
             (CurrentHost.RenderTransform as TranslateTransform)?.BeginAnimation(TranslateTransform.XProperty, null);
             OutgoingHost.Content = null;
             Backdrop.BeginAnimation(OpacityProperty, null);
+            SlideStage.UpdateLayout();
+        }
 
-            stage.UpdateLayout();
-            var card = stage;
+        private void Save(FrameworkElement element, string path)
+        {
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0)
+            {
+                return;
+            }
+
             try
             {
-                var scale = SavedImageWidth / card.ActualWidth;
-                var width = (int)Math.Round(card.ActualWidth * scale);
-                var height = (int)Math.Round(card.ActualHeight * scale);
+                var scale = SavedImageWidth / element.ActualWidth;
+                var width = (int)Math.Round(element.ActualWidth * scale);
+                var height = (int)Math.Round(element.ActualHeight * scale);
                 var visual = new DrawingVisual();
                 using (var dc = visual.RenderOpen())
                 {
                     dc.PushTransform(new ScaleTransform(scale, scale));
-                    dc.DrawRectangle(new VisualBrush(card), null, new Rect(0, 0, card.ActualWidth, card.ActualHeight));
+                    dc.DrawRectangle(new VisualBrush(element), null, new Rect(0, 0, element.ActualWidth, element.ActualHeight));
                 }
 
                 var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
@@ -301,7 +368,7 @@ namespace PlayniteAchievements.Views.YearReview
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "Year in Review: the slide image could not be saved.");
+                _logger?.Error(ex, "Year in Review: the image could not be saved.");
             }
         }
     }
