@@ -33,6 +33,9 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
 
         protected override string BaseSurfaceKey => ShowcaseGridSurfaces.FriendSummaries;
 
+        // Each read of the friend data builds new rows.
+        protected override bool ReplacesRowsInPlace => true;
+
         protected override IEnumerable<FriendSummaryItem> SelectItems(ShowcaseWidgetProjection projection)
         {
             var bar = Bar();
