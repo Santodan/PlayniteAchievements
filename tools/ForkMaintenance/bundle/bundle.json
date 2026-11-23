@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedUtc":  "2026-11-23T10:59:31.0704189Z",
+    "generatedUtc":  "2026-11-23T13:58:33.2127299Z",
     "baselineRef":  "v4.3.2",
     "baselineCommit":  "9ae07a4dcae40c13c9c6246ba3598e9414f0766f",
     "protectedPaths":  [
@@ -11,7 +11,7 @@
                        ],
     "patch":  {
                   "path":  "fork-changes.patch",
-                  "sha256":  "80B0F2C1A89358B9EEE8C4D5BB9FAC1D762DA7E3CDDEE993A69E630B3F09342B"
+                  "sha256":  "85A5F9D04DF6EB12FBE11299417C66DAFD6B549BF020984E6780693D15D5EE9C"
               },
     "localizationRecipes":  {
                                 "path":  "localization-recipes.json",
@@ -22,7 +22,7 @@
     "overlayFiles":  [
                          {
                              "path":  ".agents/skills/santodan-fork-context/references/source-map.md",
-                             "sha256":  "C5E90811C63252732DDA09140A0594BBE6DEFEC28BB7B3713FB14867622DA9F1"
+                             "sha256":  "7B743F2FF26A01D3806D0E98874B9D53CBDEBBC379241121F8B7E1CEC8EAB1AE"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-context/SKILL.md",
@@ -34,7 +34,7 @@
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-local-provider/SKILL.md",
-                             "sha256":  "666C42188FC3C78CABE57B5C27BF427AE104A440C0BDFAB354A3B53F9991E0A8"
+                             "sha256":  "B41551CCE42837AB3AE58C775FFCC62EBCE3824E10CC5681297907333F4D5FEB"
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-maintenance/SKILL.md",
@@ -54,7 +54,7 @@
                          },
                          {
                              "path":  ".agents/skills/santodan-fork-upstream-update/SKILL.md",
-                             "sha256":  "218DCAD4127780F842702B4BB303F361B9BD59A08F9DA953AB69665662913686"
+                             "sha256":  "516B0B20C083D0D2A7D5CC1F27D368A5C47E241C62FDAD004457F72C0BB88BD1"
                          },
                          {
                              "path":  "ACHIEVEMENT_NOTIFICATIONS_GUIDE.md",
@@ -118,11 +118,11 @@
                          },
                          {
                              "path":  "LOCAL_PROVIDER_TROUBLESHOOTING.md",
-                             "sha256":  "630651ABB7255F32E9794909FC7AFD01D724B713F18F01A063809967FB27A5BC"
+                             "sha256":  "29F765AEA62F703167A58DC266050227315C340459316015080B3B1B67580CEE"
                          },
                          {
                              "path":  "NATIVE_SOURCES_GUIDE.md",
-                             "sha256":  "27B5E350805771D9C3BB8121D1AC5C9581CD4FCF353BEDB4462F4351C6B3E9F7"
+                             "sha256":  "6CBB8925AAAD81344BD4BDE8282AAA91816D3650B9CC226AD2D606F68A7FA5B7"
                          },
                          {
                              "path":  "opencode.json",
@@ -170,7 +170,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalFolderGamesImporter.cs",
-                             "sha256":  "900B961DA9D6952D805DC56DDE8EB19ACEC4527176D1EF35FF9F7088950F1BF5"
+                             "sha256":  "AD60106E04238AA854A175E49CD375C1A1B03501B6A85301E4AD8ABF4A32A560"
                          },
                          {
                              "path":  "source/Providers/Local/LocalImportProgressControl.xaml",
@@ -190,7 +190,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSavesProvider.cs",
-                             "sha256":  "73F5F20D60DA040554A3C00A8AEDB286221DA008D511D81B26525E7D81F2EB9D"
+                             "sha256":  "8F814D965D96EA66F489C0AD9950F483F51B81F91B7B49E4781946E08AB91E87"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettings.cs",
@@ -202,7 +202,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/LocalSettingsView.xaml.cs",
-                             "sha256":  "1F851BCE5E9D65C747671395D96A68D9B332BDEEB8FE08701C71374A40A0F115"
+                             "sha256":  "DB51734B107320CFFB3F397BF23556E8A3D567725CE43D45098B53BAA70012BE"
                          },
                          {
                              "path":  "source/Providers/Local/LocalSuccessStoryImportService.cs",
@@ -213,12 +213,24 @@
                              "sha256":  "DB65F74A3B9FF8258A22197DA9D1ADB46FC3548C82B349B7323E97D1707C260C"
                          },
                          {
+                             "path":  "source/Providers/Local/Santodan/AWN_SYNC.md",
+                             "sha256":  "13E7473AE8770B9535ADA1C00C1AD352FF41E63DCBEF72B6508EB8E65850FCC2"
+                         },
+                         {
                              "path":  "source/Providers/Local/Santodan/LocalOfflineSchemaCache.cs",
                              "sha256":  "BCB19D7FBCAE1F82B086BAC2B74C0FAF31DC09BC3BF99EE0BC7BD36E384AD799"
                          },
                          {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.AwnCompat.cs",
+                             "sha256":  "2D54436C1B87ED3DF6E0F8864FB351C2EB9E3E15668F3F9FD810773625DA8B4F"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/LocalSavesProvider.AwnPlatforms.cs",
+                             "sha256":  "9789003C1A3CF5A29316EB4AFCF477D9FA398CD58E65B2ED9EF806F72D22CFF7"
+                         },
+                         {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.NativeSources.cs",
-                             "sha256":  "43FB9F331D6A9B4F077FC17969130B7AF2193FC324FB20251B5B06E0E950FF57"
+                             "sha256":  "80F24370A7EC0617F765AB88F3F0B90C02DD25942041FF328BD80B356174BE89"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/LocalSavesProvider.SantodanDiscovery.cs",
@@ -247,6 +259,10 @@
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/AWN-NOTICE.txt",
                              "sha256":  "67333C3A0F3318E24148225BB5EDE17974496A7384E2A97B18CAF98FAAFAA622"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/AwnUplaySteam.json",
+                             "sha256":  "58B205F089ACCA22F35C0C52752995FB4D59192FCEC8473D633A56E4D690E7A3"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/GPL-3.0.txt",
@@ -286,15 +302,15 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeLocationDiscovery.cs",
-                             "sha256":  "7C0476025172D5C7C6BD157D69CE4CE242930DF04A2DCC04BF9D8A1A353C59E5"
+                             "sha256":  "6D5F127258E3F3DC5F2E3FB1A524E12B8FB85049B1BC21E49937B72496FC5218"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeLocationFiles.cs",
-                             "sha256":  "124446A6182EED8D8DA4F65CEF520C4FB3B295FCA7294AC96767B3BCF73183E1"
+                             "sha256":  "80312B332948E7BBB72BF81AE82389B3E428791C1D20B921007963F6BAA69106"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativePortDefinitions.json",
-                             "sha256":  "AA692B70606819B34C9C257157BB08B2B25349453773FEF1DCBACEDE6AAD25E8"
+                             "sha256":  "64D2DE74A995341A02340B106190B5EBA1D59DDA95AD65C7D06D7F2FF5D050EC"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeQuiverDiscovery.cs",
@@ -302,7 +318,7 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceConfiguration.cs",
-                             "sha256":  "5D47F74316BBAECA7D677BDCEF96F8313B8591E1E0CF1CF6D723DBA9C021E195"
+                             "sha256":  "661603C688F9A102E3B4BE6BEE725FDF2CCEBB7E68A199A0BF43486A2A8D343C"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceIconService.cs",
@@ -322,19 +338,31 @@
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourceReader.cs",
-                             "sha256":  "16ED4098C763C7DD688E96B4516761785308706353F81497CE52C3EC83A1862E"
+                             "sha256":  "B81C40DF64CA3D3BDAC89A20231ECE89B4D85DE7BCE820507218F778F9D9F99F"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeSourcesSettingsView.cs",
-                             "sha256":  "D4496DC9EE369DBFA18255424122E9FF11F037FE99138B55610ADD61DF3EAC3F"
+                             "sha256":  "FBFEEC1ABD274CDF0BEC22F3DF7DA79B89FE15EB2F4B973CD73550ECC6B80069"
                          },
                          {
                              "path":  "source/Providers/Local/Santodan/NativeSources/NativeTrophyReader.cs",
                              "sha256":  "E73E0B208FF8499137AB3E254AF1EE0EC916594D5EB6EA2898874E230D044380"
                          },
                          {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeX360Ports.json",
+                             "sha256":  "9CE87D1026D30E34AF1ABFC71B75CBCAF3F1E5636909DFCE86CF43BCE98BCA45"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeX360PortTable.cs",
+                             "sha256":  "445FE978A6179B194D2DA7F9FAA9522A4FBFC48119018FDC7B6796758116D5DC"
+                         },
+                         {
+                             "path":  "source/Providers/Local/Santodan/NativeSources/NativeXllnReader.cs",
+                             "sha256":  "5A900E3631D4769EE4D23BBFA90FD0051CA41CF0A1B2D7C02721C702E6C35F9A"
+                         },
+                         {
                              "path":  "source/Providers/Local/Santodan/NativeSources/THIRD-PARTY.txt",
-                             "sha256":  "AA9A6FA76E9C9AFA3CC81C3094D4A33B15A4FA91DB2C4E16F78EADF2131B94A8"
+                             "sha256":  "6300A45315DA2B8098D7480CA926466F1D3BC55DF6EE7BA4A3C12F5873A41370"
                          },
                          {
                              "path":  "source/Providers/Metadata/SteamHunters/SteamHuntersApiClient.SantodanSchema.cs",
@@ -610,7 +638,7 @@
                          },
                          {
                              "path":  "source/ViewModels/ManageAchievementsViewModel.NativeSources.cs",
-                             "sha256":  "B66063E60779F187E7849316015972DE7A64C6934F7A765475BC051B3A953BB1"
+                             "sha256":  "C4E3A64C782B261FD14224E13A49EF3D55754030157635B6018D8F632C14ADA4"
                          },
                          {
                              "path":  "source/ViewModels/OverviewViewModel.SantodanSidebarAll.cs",
@@ -634,7 +662,7 @@
                          },
                          {
                              "path":  "source/Views/GameOptionsNativeSourcesSection.xaml",
-                             "sha256":  "41BA619E1C43FA2B172EF10BC3DF877B9ECC9FF4D9F0E1C8B00ACC6603DE9F05"
+                             "sha256":  "6985DE0A1DBFC2121364B5D579DCCDBBD1AFFC9423390A4880B33B33EBFF0FBA"
                          },
                          {
                              "path":  "source/Views/GameOptionsNativeSourcesSection.xaml.cs",
@@ -731,6 +759,14 @@
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Providers/LocalOfflineSchemaCacheTests.cs",
                              "sha256":  "4341BFEAE80BF5440C0C52C769CF222ACD823F68F2B9DC484BADD74D4656A388"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Providers/NativeSourceAwnPortTests.cs",
+                             "sha256":  "61693227F0A12CB6CABE2EE1DAF251C83CB8B39B980FE543186E010CF5122EBF"
+                         },
+                         {
+                             "path":  "tests/PlayniteAchievements.Tests/Providers/NativeSourceAwnXboxTests.cs",
+                             "sha256":  "24CC46D8112873FADBA248E09D7D47BFD7F432A2F41980DADB1355056FFCF8D6"
                          },
                          {
                              "path":  "tests/PlayniteAchievements.Tests/Providers/NativeSourceIconTests.cs",

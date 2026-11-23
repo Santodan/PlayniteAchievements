@@ -34,7 +34,9 @@ namespace PlayniteAchievements.Providers.Local
             "steam_settings",
             @"steam_settings\settings",
             @"steam_settings\stats",
-            "achievement"
+            "achievement",
+            @"SteamEmu\UserStats",
+            "UniverseLANData"
         };
 
         internal sealed class LocalImportProgressInfo
@@ -466,13 +468,15 @@ namespace PlayniteAchievements.Providers.Local
                 resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "OnlineFix"));
                 resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "Steam", "RUNE"));
                 resolvedRoots.Add(Path.Combine(publicFolder, "Documents", "Steam", "CODEX"));
-                resolvedRoots.Add(Path.Combine(publicFolder, "EMPRESS"));
             }
 
             if (!string.IsNullOrWhiteSpace(documents))
             {
+                resolvedRoots.Add(Path.Combine(documents, "OnlineFix"));
                 resolvedRoots.Add(Path.Combine(documents, "SkidRow"));
             }
+
+            resolvedRoots.AddRange(LocalSavesProvider.GetAwnCompatSaveRoots());
 
             if (includeSteamRoots && !string.IsNullOrWhiteSpace(commonAppData))
             {
@@ -794,7 +798,8 @@ namespace PlayniteAchievements.Providers.Local
                 !string.IsNullOrWhiteSpace(jsonPath) ||
                 !string.IsNullOrWhiteSpace(tenokeIniPath) ||
                 !string.IsNullOrWhiteSpace(sovereignIniPath) ||
-                !string.IsNullOrWhiteSpace(tenokeUserStatsPath);
+                !string.IsNullOrWhiteSpace(tenokeUserStatsPath) ||
+                LocalSavesProvider.GetRecognizedLocalSaveFileNames().Any(fileName => !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(directory, fileName)));
             if (!hasAchievementFile)
             {
                 if (!includeFoldersWithoutAchievementFiles || !CanImportSchemaOnlyFolderCandidate(directory))
@@ -1394,7 +1399,7 @@ namespace PlayniteAchievements.Providers.Local
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "SOVEREIGN.ini", "achievements.json" })
+            foreach (var fileName in LocalSavesProvider.GetRecognizedLocalSaveFileNames())
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
@@ -1428,7 +1433,7 @@ namespace PlayniteAchievements.Providers.Local
                     ? Path.Combine(folderPath, fileName)
                     : Path.Combine(folderPath, relativeDirectory, fileName);
 
-                if (File.Exists(candidatePath))
+                if (File.Exists(candidatePath) && LocalSavesProvider.IsAwnSaveFileAccepted(candidatePath))
                 {
                     return candidatePath;
                 }

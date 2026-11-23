@@ -11,7 +11,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 {
     public sealed partial class ManageAchievementsViewModel
     {
-        public IReadOnlyList<NativeSourceOption> NativeSourceOptions => NativeSourceCatalog.Sources;
+        public IReadOnlyList<NativeSourceOption> NativeSourceOptions => NativeSourceCatalog.DisplayOrder;
         private string _nativeSourceKey = "auto", _nativeInstallPath = "", _nativeSavePath = "", _nativeSchemaPath = "", _nativeProfile = "", _nativeInspection = "Select a source to see expected files. Inspect reads the selected files without modifying them.";
         public string NativeSourceKey { get => _nativeSourceKey; set { SetValue(ref _nativeSourceKey, value); OnPropertyChanged(nameof(NativeSourceFileHint)); } }
         public string NativeSourceFileHint => NativeSourceCatalog.Find(NativeSourceKey)?.Files ?? "";

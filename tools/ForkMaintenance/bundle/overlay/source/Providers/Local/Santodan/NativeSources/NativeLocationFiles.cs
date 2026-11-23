@@ -48,6 +48,16 @@ namespace PlayniteAchievements.Providers.Local
                 case "smb1r": return new[] { "achievements.sav" };
                 case "sms": return new[] { "achievements.txt" };
                 case "smseclipse": return new[] { "achievements-eclipse.txt" };
+                case "smas": return new[] { "achievements.ini" };
+                case "rr64": case "gdiffuser": return new[] { "achievements.txt" };
+                case "nectar": return new[] { "pikmin_achievements.txt" };
+                case "nectar2": return new[] { "pikmin2_achievements.txt" };
+                case "fh2azimuth": return new[] { "User_*.ini" };
+                case "sanctuary": return new[] { "trophies.txt" };
+                case "issn": return new[] { "trophies-CUSA00004.txt", "trophies-CUSA00223.txt" };
+                case "issnfl": return new[] { "trophies-CUSA00575.txt", "trophies-CUSA00897.txt", "trophies-CUSA01064.txt" };
+                case "deadnation": return new[] { "trophies.dat" };
+                case "xlln": return new[] { "achievements.dat" };
                 default: return new string[0];
             }
         }

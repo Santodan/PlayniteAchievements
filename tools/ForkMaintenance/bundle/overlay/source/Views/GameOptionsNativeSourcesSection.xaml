@@ -9,30 +9,30 @@
         <TextBlock Text="{Binding NativeSourceFileHint}" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,8,0,12"/>
         <TextBlock Text="Install folder (optional override)" Foreground="{DynamicResource TextBrush}"/>
         <DockPanel Margin="0,4,0,8">
-            <Button DockPanel.Dock="Right" Content="Browse folder" Command="{Binding BrowseNativeInstallCommand}" Margin="8,0,0,0" Padding="10,5"/>
-            <TextBox x:Name="NativeInstallBox" Text="{Binding NativeInstallPath, UpdateSourceTrigger=PropertyChanged}"/>
+            <Button DockPanel.Dock="Right" Content="Browse folder" Command="{Binding BrowseNativeInstallCommand}" Margin="8,0,0,0" Padding="12,6" MinWidth="90"/>
+            <TextBox x:Name="NativeInstallBox" Text="{Binding NativeInstallPath, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" VerticalContentAlignment="Center"/>
         </DockPanel>
         <controls:FolderVariableButtons TargetTextBox="{Binding ElementName=NativeInstallBox}"/>
         <TextBlock Text="Unlock file (choose an exact profile / slot / trophy set if several exist)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <DockPanel Margin="0,4,0,8">
-            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSaveCommand}" Margin="8,0,0,0" Padding="10,5"/>
-            <TextBox Text="{Binding NativeSavePath, UpdateSourceTrigger=PropertyChanged}"/>
+            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSaveCommand}" Margin="8,0,0,0" Padding="12,6" MinWidth="90"/>
+            <TextBox Text="{Binding NativeSavePath, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" VerticalContentAlignment="Center"/>
         </DockPanel>
         <TextBlock Text="Definition file (optional: TRP, UCP, extracted TROP.XML, JSON, or source-specific text)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
         <DockPanel Margin="0,4,0,8">
-            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSchemaCommand}" Margin="8,0,0,0" Padding="10,5"/>
-            <TextBox Text="{Binding NativeSchemaPath, UpdateSourceTrigger=PropertyChanged}"/>
+            <Button DockPanel.Dock="Right" Content="Browse file" Command="{Binding BrowseNativeSchemaCommand}" Margin="8,0,0,0" Padding="12,6" MinWidth="90"/>
+            <TextBox Text="{Binding NativeSchemaPath, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" VerticalContentAlignment="Center"/>
         </DockPanel>
         <TextBlock Text="Profile / slot filename or containing folder (optional, without extension)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
-        <TextBox Text="{Binding NativeProfile, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <TextBox Text="{Binding NativeProfile, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" Padding="8,6" VerticalContentAlignment="Center"/>
         <TextBlock Text="Kyty user ID for this game (optional; blank follows the shared preference / Kyty.ini)" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
-        <TextBox Text="{Binding NativeUserId, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <TextBox Text="{Binding NativeUserId, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" Padding="8,6" VerticalContentAlignment="Center"/>
         <TextBlock Text="PS4 shared collection log only: u1 / u2 / u3 for Uncharted, p1 / p2 for Prototype. Leave blank for other games." Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap"/>
-        <TextBox Text="{Binding NativeCollectionGame, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12"/>
+        <TextBox Text="{Binding NativeCollectionGame, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,12" Padding="8,6" VerticalContentAlignment="Center"/>
         <WrapPanel>
-            <Button Content="Inspect files" Command="{Binding InspectNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
-            <Button Content="Apply" Command="{Binding ApplyNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
-            <Button Content="Clear override" Command="{Binding ClearNativeSourceCommand}" Padding="12,6" Margin="0,0,8,8"/>
+            <Button Content="Inspect files" Command="{Binding InspectNativeSourceCommand}" Padding="12,6" MinWidth="90" Margin="0,0,8,8"/>
+            <Button Content="Apply" Command="{Binding ApplyNativeSourceCommand}" Padding="12,6" MinWidth="90" Margin="0,0,8,8"/>
+            <Button Content="Clear override" Command="{Binding ClearNativeSourceCommand}" Padding="12,6" MinWidth="90" Margin="0,0,8,8"/>
         </WrapPanel>
         <TextBox Text="{Binding NativeInspection, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MinHeight="140" VerticalScrollBarVisibility="Auto"/>
     </StackPanel>

@@ -1150,7 +1150,7 @@ index fd9e3b46dd341f9b0b708c587f208005af3abc88..32e4ccc3e601c705712e27efbcdca985
          public ObservableCollection<GameAchievementSummary> UbisoftGames
          {
 diff --git a/source/PlayniteAchievements.csproj b/source/PlayniteAchievements.csproj
-index e694959d60cca9c0ab6225030510fb0e76bd6135..ec5164f760286bb0838fd67a0e63dbfb9104fa04 100644
+index e694959d60cca9c0ab6225030510fb0e76bd6135..42f745bc2c344ade0d57662b58f740b1ccfe6ca6 100644
 --- a/source/PlayniteAchievements.csproj
 +++ b/source/PlayniteAchievements.csproj
 @@ -87,6 +87,14 @@
@@ -1168,7 +1168,7 @@ index e694959d60cca9c0ab6225030510fb0e76bd6135..ec5164f760286bb0838fd67a0e63dbfb
      <Reference Include="Newtonsoft.Json">
        <HintPath>packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
        <Private>True</Private>
-@@ -196,7 +204,33 @@
+@@ -196,7 +204,39 @@
    </ItemGroup>
    <ItemGroup>
      <!-- Helper is its own exe project (see below); its sources must not compile into the plugin. -->
@@ -1184,6 +1184,12 @@ index e694959d60cca9c0ab6225030510fb0e76bd6135..ec5164f760286bb0838fd67a0e63dbfb
 +      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 +    </Content>
 +    <Compile Include="**\*.cs" Exclude="bin\**;obj\**;Helper\**;packages\**;**\*.g.cs;**\*.g.i.cs" />
++    <EmbeddedResource Include="Providers\Local\Santodan\NativeSources\AwnUplaySteam.json">
++      <LogicalName>PlayniteAchievements.AwnUplaySteam.json</LogicalName>
++    </EmbeddedResource>
++    <EmbeddedResource Include="Providers\Local\Santodan\NativeSources\NativeX360Ports.json">
++      <LogicalName>PlayniteAchievements.NativeX360Ports.json</LogicalName>
++    </EmbeddedResource>
 +    <EmbeddedResource Include="Providers\Local\Santodan\NativeSources\NativePortDefinitions.json">
 +      <LogicalName>PlayniteAchievements.NativePortDefinitions.json</LogicalName>
 +    </EmbeddedResource>
@@ -1203,7 +1209,7 @@ index e694959d60cca9c0ab6225030510fb0e76bd6135..ec5164f760286bb0838fd67a0e63dbfb
    </ItemGroup>
    <ItemGroup>
      <!-- Builds the unlock-sound host before this project (ReferenceOutputAssembly=false: the plugin
-@@ -244,6 +278,52 @@
+@@ -244,6 +284,52 @@
      <Content Include="Resources\UnlockedAchIcon.png">
        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
      </Content>
@@ -1256,7 +1262,7 @@ index e694959d60cca9c0ab6225030510fb0e76bd6135..ec5164f760286bb0838fd67a0e63dbfb
      <Content Include="Resources\Hoyoverse\**\*.png">
        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
      </Content>
-@@ -271,7 +351,18 @@
+@@ -271,7 +357,18 @@
      </EmbeddedResource>
    </ItemGroup>
    <PropertyGroup>
@@ -22035,7 +22041,7 @@ index 42914042d1dfe260d082f719f06e9d53edf879b7..c6c348ee89badfdcf77bfa34687b7913
              <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_General}">
                  <TabItem.Header>
 diff --git a/source/Views/SettingsControl.xaml.cs b/source/Views/SettingsControl.xaml.cs
-index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7ec91b490b 100644
+index 1c1f4109129395a56588a10e637be65f4d25603d..0db3af36f87bd59529eaf5c29b73f40cca9e235d 100644
 --- a/source/Views/SettingsControl.xaml.cs
 +++ b/source/Views/SettingsControl.xaml.cs
 @@ -56,6 +56,7 @@ public partial class SettingsControl : UserControl, IDisposable
@@ -22123,7 +22129,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
                      providerKey,
                      displayName,
                      GetProviderSettingsGroupName(providerKey),
-@@ -296,6 +333,43 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -296,6 +333,42 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
                      settingsViewFactory,
                      redirectProviderKey,
                      subtitle));
@@ -22133,10 +22139,9 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
 +                    ForkProviderNavigationItems.Add(new ProviderNavigationItem(
 +                        "LocalNativeSources", "Native source folders", "Local", iconKey, colorHex,
 +                        settings, () => new Providers.Local.NativeSourcesSettingsView()));
-+                    foreach (var nativeSource in Providers.Local.NativeSourceCatalog.Sources.Where(source => source.Key != "auto"))
++                    foreach (var nativeSource in Providers.Local.NativeSourceCatalog.DisplayOrder.Where(source => source.Key != "auto"))
 +                    {
-+                        var group = nativeSource.Key == "kytyps5" || nativeSource.Key == "ps3recomp" ||
-+                            nativeSource.Key == "ps4recomp" || nativeSource.Key == "x360recomp"
++                        var group = Providers.Local.NativeSourceCatalog.IsEmulator(nativeSource.Key)
 +                            ? "Emulators" : "PC ports & community patches";
 +                        var nativeSettings = (Providers.Local.LocalSettings)settings;
 +                        var nativeIconKey = Providers.Local.NativeSourceIconService.IconKey(nativeSource, nativeSettings);
@@ -22167,7 +22172,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
              }
  
              if (selectDefault && SelectedProviderNavigationItem == null && ProviderNavigationItems.Count > 0)
-@@ -304,6 +378,10 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
+@@ -304,6 +377,10 @@ private void BuildProviderNavigationItems(bool selectDefault = true)
              }
  
              _providerNavigationBuilt = true;
@@ -22178,7 +22183,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
              _logger?.Info($"Built {ProviderNavigationItems.Count} platform navigation items");
          }
  
-@@ -349,7 +427,8 @@ private async Task RunAutoAuthCheckAsync(ProviderNavigationItem item, Cancellati
+@@ -349,7 +426,8 @@ private async Task RunAutoAuthCheckAsync(ProviderNavigationItem item, Cancellati
              }
  
              if (token.IsCancellationRequested ||
@@ -22188,7 +22193,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
              {
                  return;
              }
-@@ -414,28 +493,36 @@ private void NavigateToPendingProvider()
+@@ -414,28 +492,36 @@ private void NavigateToPendingProvider()
              PendingNavigationProviderKey = null;
  
              // Find and select the provider navigation item matching the target key
@@ -22230,7 +22235,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
  
              // Inspect the newly selected TabItem by name (uses x:Name from XAML)
              if (e.AddedItems == null || e.AddedItems.Count == 0) return;
-@@ -445,11 +532,72 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
+@@ -445,11 +531,72 @@ private void TabControl_SelectionChanged(object sender, SelectionChangedEventArg
  
              var name = selected.Name ?? string.Empty;
  
@@ -22304,7 +22309,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
          }
  
          /// <summary>
-@@ -532,6 +680,21 @@ private void JumpToTab(string tabKey)
+@@ -532,6 +679,21 @@ private void JumpToTab(string tabKey)
              TabItem tab;
              switch (tabKey)
              {
@@ -22326,7 +22331,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
                  case "Display":
                      tab = DisplayTab;
                      break;
-@@ -571,11 +734,6 @@ private void JumpToTab(string tabKey)
+@@ -571,11 +733,6 @@ private void JumpToTab(string tabKey)
                  BuildProviderNavigationItems();
              }
  
@@ -22338,7 +22343,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
              tab.BringIntoView();
          }
  
-@@ -608,6 +766,7 @@ public void Dispose()
+@@ -608,6 +765,7 @@ public void Dispose()
              _notificationsSettingsTab?.Dispose();
              _workshopSettingsTab?.Dispose();
              _metadataSettingsTab?.Dispose();
@@ -22346,7 +22351,7 @@ index 1c1f4109129395a56588a10e637be65f4d25603d..5a436b8619cf3cdfff7cf69c4a259e7e
          }
  
          private void Persisted_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
-@@ -615,7 +774,7 @@ private void Persisted_PropertyChanged(object sender, System.ComponentModel.Prop
+@@ -615,7 +773,7 @@ private void Persisted_PropertyChanged(object sender, System.ComponentModel.Prop
              if (string.IsNullOrEmpty(e?.PropertyName) ||
                  e.PropertyName == nameof(PersistedSettings.ProviderColorOverrides))
              {
@@ -23318,10 +23323,10 @@ index 932799ca426a9c25133b406836158fa697bf61b2..e3607fe74fb57525e3886affd077f26b
          public void Position_MapsToItsAlignment(
              ToastScreenCorner position, ToastHorizontalAlignment horizontal, bool bottom)
 diff --git a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cdc97ae1ac 100644
+index 972841ff1eabf0d76a63dee6f5a385f895cf5904..4408b62b65239906967969a8f5784d2d594a238b 100644
 --- a/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
 +++ b/tests/PlayniteAchievements.Tests/PlayniteAchievements.Tests.csproj
-@@ -8,6 +8,30 @@
+@@ -8,6 +8,33 @@
    </PropertyGroup>
  
    <ItemGroup>
@@ -23338,6 +23343,9 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
 +    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeKytySettings.cs" Link="Source\Providers\Local\NativeKytySettings.cs" />
 +    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeTrophyReader.cs" Link="Source\Providers\Local\NativeTrophyReader.cs" />
 +    <EmbeddedResource Include="..\..\source\Providers\Local\Santodan\NativeSources\NativePortDefinitions.json" LogicalName="PlayniteAchievements.NativePortDefinitions.json" />
++    <EmbeddedResource Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeX360Ports.json" LogicalName="PlayniteAchievements.NativeX360Ports.json" />
++    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeX360PortTable.cs" Link="Source\Providers\Local\NativeX360PortTable.cs" />
++    <Compile Include="..\..\source\Providers\Local\Santodan\NativeSources\NativeXllnReader.cs" Link="Source\Providers\Local\NativeXllnReader.cs" />
 +    <Compile Include="..\..\source\Services\Logging\ForkLogger.cs" Link="Source\Services\Logging\ForkLogger.cs" />
 +    <Compile Include="..\..\source\Services\Logging\CefDebugTrace.cs" Link="Source\Services\Logging\CefDebugTrace.cs" />
 +    <Compile Include="..\..\source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" Link="Source\Services\InGameMonitoring\SantodanStartupBaselineStore.cs" />
@@ -23352,7 +23360,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
      <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
      <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
-@@ -85,11 +109,13 @@
+@@ -85,11 +112,13 @@
      <Compile Include="..\..\source\Providers\GOG\Local\GogGalaxyDbReader.cs" Link="Source\Providers\GOG\Local\GogGalaxyDbReader.cs" />
  
      <Compile Include="..\..\source\Services\Settings\DebouncedSettingsPersist.cs" Link="Source\Services\Settings\DebouncedSettingsPersist.cs" />
@@ -23366,7 +23374,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" Link="Source\Services\InGameMonitoring\InGameUnlockEmissionOrder.cs" />
      <Compile Include="..\..\source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" Link="Source\Services\InGameMonitoring\CompletionNotificationPolicy.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />
-@@ -104,7 +130,9 @@
+@@ -104,7 +133,9 @@
      <Compile Include="..\..\source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" Link="Source\Providers\Steam\Local\SteamBinaryKeyValuesReader.cs" />
      <Compile Include="..\..\source\Providers\Steam\Local\SteamLocalStatsReader.cs" Link="Source\Providers\Steam\Local\SteamLocalStatsReader.cs" />
      <Compile Include="..\..\source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" Link="Source\Providers\Metadata\SteamHunters\SteamHuntersApiClient.cs" />
@@ -23376,7 +23384,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListItem.cs" Link="Source\Providers\Steam\SteamFriendListItem.cs" />
      <Compile Include="..\..\source\Providers\Steam\SteamFriendListBuilder.cs" Link="Source\Providers\Steam\SteamFriendListBuilder.cs" />
      <Compile Include="..\..\source\Providers\IInGameProgressSource.cs" Link="Source\Providers\IInGameProgressSource.cs" />
-@@ -112,6 +140,7 @@
+@@ -112,6 +143,7 @@
      <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
      <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshEntryPoint.cs" Link="Source\Services\Refresh\RefreshEntryPoint.cs" />
@@ -23384,7 +23392,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\LegacyManualLinkImporter.cs" Link="Source\Services\LegacyManualLinkImporter.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.cs" />
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" Link="Source\Services\GameCustomData\GameCustomDataStore.CustomAchievementsPackage.cs" />
-@@ -124,6 +153,7 @@
+@@ -124,6 +156,7 @@
      <Compile Include="..\..\source\Services\GameCustomData\PortablePersonalState.cs" Link="Source\Services\GameCustomData\PortablePersonalState.cs" />
      <Compile Include="..\..\source\Services\CustomAchievementCsvFormat.cs" Link="Source\Services\CustomAchievementCsvFormat.cs" />
      <Compile Include="..\..\source\Common\ObservableStateCopier.cs" Link="Source\Common\ObservableStateCopier.cs" />
@@ -23392,7 +23400,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\GameCustomData\GameCustomDataLookup.cs" Link="Source\Services\GameCustomData\GameCustomDataLookup.cs" />
      <Compile Include="..\..\source\Services\CustomAchievementProjectionService.cs" Link="Source\Services\CustomAchievementProjectionService.cs" />
      <Compile Include="..\..\source\Services\Achievements\UserOwnedUnlockRules.cs" Link="Source\Services\Achievements\UserOwnedUnlockRules.cs" />
-@@ -162,6 +192,7 @@
+@@ -162,6 +195,7 @@
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTemplate.cs" Link="Source\Services\Achievements\AutoCapstoneTemplate.cs" />
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneText.cs" Link="Source\Services\Achievements\AutoCapstoneText.cs" />
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTagRule.cs" Link="Source\Services\Achievements\AutoCapstoneTagRule.cs" />
@@ -23400,7 +23408,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\Achievements\AutoCapstoneTextRewriter.cs" Link="Source\Services\Achievements\AutoCapstoneTextRewriter.cs" />
      <Compile Include="..\..\source\Services\Achievements\CapstoneResolver.cs" Link="Source\Services\Achievements\CapstoneResolver.cs" />
      <Compile Include="..\..\source\Services\Achievements\CapstoneCompletion.cs" Link="Source\Services\Achievements\CapstoneCompletion.cs" />
-@@ -170,6 +201,8 @@
+@@ -170,6 +204,8 @@
      <Compile Include="..\..\source\Services\Captures\CaptureFileNameParser.cs" Link="Source\Services\Captures\CaptureFileNameParser.cs" />
      <Compile Include="..\..\source\Services\Captures\CaptureAchievementIndex.cs" Link="Source\Services\Captures\CaptureAchievementIndex.cs" />
      <Compile Include="..\..\source\Services\Captures\CaptureLibraryService.cs" Link="Source\Services\Captures\CaptureLibraryService.cs" />
@@ -23409,7 +23417,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\Captures\AchievementCapturePathResolver.cs" Link="Source\Services\Captures\AchievementCapturePathResolver.cs" />
      <Compile Include="..\..\source\Services\Images\CategoryDefaultImageResolver.cs" Link="Source\Services\Images\CategoryDefaultImageResolver.cs" />
      <Compile Include="..\..\source\Services\Images\CategoryArtChainResolver.cs" Link="Source\Services\Images\CategoryArtChainResolver.cs" />
-@@ -206,6 +239,7 @@
+@@ -206,6 +242,7 @@
      <Compile Include="..\..\source\Services\Images\RayTrackBuilder.cs" Link="Source\Services\Images\RayTrackBuilder.cs" />
      <Compile Include="..\..\source\Services\Images\RayTrackService.cs" Link="Source\Services\Images\RayTrackService.cs" />
      <Compile Include="..\..\source\Views\Helpers\AnimatedImageHelper.cs" Link="Source\Views\Helpers\AnimatedImageHelper.cs" />
@@ -23417,7 +23425,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Views\Helpers\AsyncImage.cs" Link="Source\Views\Helpers\AsyncImage.cs" />
      <Compile Include="..\..\source\Views\Helpers\RoundedClip.cs" Link="Source\Views\Helpers\RoundedClip.cs" />
      <Compile Include="..\..\source\Views\Helpers\AnimationFrameRate.cs" Link="Source\Views\Helpers\AnimationFrameRate.cs" />
-@@ -279,6 +313,7 @@
+@@ -279,6 +316,7 @@
      <Compile Include="..\..\source\Views\Helpers\DataGridSortingHelper.cs" Link="Source\Views\Helpers\DataGridSortingHelper.cs" />
      <Compile Include="..\..\source\Services\FriendSummarySortHelper.cs" Link="Source\Services\FriendSummarySortHelper.cs" />
      <Compile Include="..\..\source\Services\DisplayGridRowLimitHelper.cs" Link="Source\Services\DisplayGridRowLimitHelper.cs" />
@@ -23425,7 +23433,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\Search\SearchQuery.cs" Link="Source\Services\Search\SearchQuery.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextBuilder.cs" Link="Source\Services\Search\SearchTextBuilder.cs" />
      <Compile Include="..\..\source\Services\Search\SearchTextIndex.cs" Link="Source\Services\Search\SearchTextIndex.cs" />
-@@ -635,6 +670,7 @@
+@@ -635,6 +673,7 @@
      <Compile Include="..\..\source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" Link="Source\Models\Settings\PersistedSettings.GridCompatibility.Notifications.cs" />
      <Compile Include="..\..\source\Models\Settings\ProgressDetailStyle.cs" Link="Source\Models\Settings\ProgressDetailStyle.cs" />
      <Compile Include="..\..\source\Models\Settings\CompletionBadgeKind.cs" Link="Source\Models\Settings\CompletionBadgeKind.cs" />
@@ -23433,7 +23441,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Models\Settings\ProviderNotificationOverride.cs" Link="Source\Models\Settings\ProviderNotificationOverride.cs" />
      <Compile Include="..\..\source\Models\Settings\GameNotificationOverrides.cs" Link="Source\Models\Settings\GameNotificationOverrides.cs" />
      <Compile Include="..\..\source\Models\Settings\FrameVignetteStyle.cs" Link="Source\Models\Settings\FrameVignetteStyle.cs" />
-@@ -644,6 +680,7 @@
+@@ -644,6 +683,7 @@
      <Compile Include="..\..\source\Models\Settings\NotificationStyleSettingsMigration.cs" Link="Source\Models\Settings\NotificationStyleSettingsMigration.cs" />
      <Compile Include="..\..\source\Models\Settings\RecordingEnums.cs" Link="Source\Models\Settings\RecordingEnums.cs" />
      <Compile Include="..\..\source\Models\Settings\ScreenshotResolution.cs" Link="Source\Models\Settings\ScreenshotResolution.cs" />
@@ -23441,7 +23449,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Models\Settings\RarityColorSettings.cs" Link="Source\Models\Settings\RarityColorSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\UnlockSoundSettings.cs" Link="Source\Models\Settings\UnlockSoundSettings.cs" />
      <Compile Include="..\..\source\Models\Settings\ResourceOverrideDescriptor.cs" Link="Source\Models\Settings\ResourceOverrideDescriptor.cs" />
-@@ -669,6 +706,7 @@
+@@ -669,6 +709,7 @@
      <Compile Include="..\..\source\Models\Settings\AchievementTagDisplay.cs" Link="Source\Models\Settings\AchievementTagDisplay.cs" />
      <Compile Include="..\..\source\Models\Settings\AchievementStatusColorMode.cs" Link="Source\Models\Settings\AchievementStatusColorMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GameSummariesSortMode.cs" Link="Source\Models\Settings\GameSummariesSortMode.cs" />
@@ -23449,7 +23457,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Models\Settings\FriendSummariesSortMode.cs" Link="Source\Models\Settings\FriendSummariesSortMode.cs" />
      <Compile Include="..\..\source\Models\Settings\GridOptions.cs" Link="Source\Models\Settings\GridOptions.cs" />
      <Compile Include="..\..\source\Models\Settings\GridSortColumns.cs" Link="Source\Models\Settings\GridSortColumns.cs" />
-@@ -750,6 +788,8 @@
+@@ -750,6 +791,8 @@
      <Compile Include="..\..\source\Services\Tagging\LibraryFieldSyncTarget.cs" Link="Source\Services\Tagging\LibraryFieldSyncTarget.cs" />
      <Compile Include="..\..\source\Services\Localization\LocalizedDefaultStringCatalog.cs" Link="Source\Services\Localization\LocalizedDefaultStringCatalog.cs" />
      <Compile Include="..\..\source\Services\UI\NotificationHeaderTextService.cs" Link="Source\Services\UI\NotificationHeaderTextService.cs" />
@@ -23458,7 +23466,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\UI\NotificationStyleResolver.cs" Link="Source\Services\UI\NotificationStyleResolver.cs" />
      <Compile Include="..\..\source\Models\Settings\ThemeMigrationCacheEntry.cs" Link="Source\Models\Settings\ThemeMigrationCacheEntry.cs" />
      <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
-@@ -819,11 +859,13 @@
+@@ -819,11 +862,13 @@
      <Compile Include="..\..\source\Services\Refresh\RebuildOutcome.cs" Link="Source\Services\Refresh\RebuildOutcome.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRequestPlanner.cs" Link="Source\Services\Refresh\RefreshRequestPlanner.cs" />
      <Compile Include="..\..\source\Services\Refresh\RefreshRuntime.cs" Link="Source\Services\Refresh\RefreshRuntime.cs" />
@@ -23472,7 +23480,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\ProgressReporting\ProgressReportingService.cs" Link="Source\Services\ProgressReporting\ProgressReportingService.cs" />
      <Compile Include="..\..\source\Services\ProgressReporting\RefreshProgressReporter.cs" Link="Source\Services\ProgressReporting\RefreshProgressReporter.cs" />
      <Compile Include="..\..\source\Services\Friends\FriendCacheModels.cs" Link="Source\Services\Friends\FriendCacheModels.cs" />
-@@ -837,6 +879,7 @@
+@@ -837,6 +882,7 @@
      <Compile Include="..\..\source\Services\ThemeMigration\CustomMigrationSelection.cs" Link="Source\Services\ThemeMigration\CustomMigrationSelection.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\MigrationMode.cs" Link="Source\Services\ThemeMigration\MigrationMode.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryCache.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryCache.cs" />
@@ -23480,7 +23488,7 @@ index 972841ff1eabf0d76a63dee6f5a385f895cf5904..ab133a9277b637cbe65dc814f4e011cd
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeDiscoveryService.cs" Link="Source\Services\ThemeMigration\ThemeDiscoveryService.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
      <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
-@@ -932,10 +975,16 @@
+@@ -932,10 +978,16 @@
      <Compile Include="..\..\source\Services\UI\ScreenshotVariants.cs" Link="Source\Services\UI\ScreenshotVariants.cs" />
      <Compile Include="..\..\source\Services\UI\SystemFontCatalog.cs" Link="Source\Services\UI\SystemFontCatalog.cs" />
      <Compile Include="..\..\source\Services\UI\UnlockScreenshotVariantPolicy.cs" Link="Source\Services\UI\UnlockScreenshotVariantPolicy.cs" />

@@ -64,7 +64,16 @@ namespace PlayniteAchievements.Providers.Local
             "tenoke.ini",
             "SOVEREIGN.ini",
             "achievements.ini",
-            "user_stats.ini"
+            "user_stats.ini",
+            // Achievement Watcher Next formats (see Santodan/AWN_SYNC.md).
+            "achiev.ini",
+            "Achievements.Bin",
+            "achieve.dat",
+            "CreamAPI.Achievements.cfg",
+            "stats.ini",
+            "stats.bin",
+            "achievement",
+            "achievement.dat"
         };
 
         private static readonly string[] SupportedAchievementRelativeDirectories =
@@ -74,7 +83,9 @@ namespace PlayniteAchievements.Providers.Local
             "steam_settings",
             @"steam_settings\settings",
             @"steam_settings\stats",
-            "achievement"
+            "achievement",
+            @"SteamEmu\UserStats",
+            "UniverseLANData"
         };
 
         public sealed class ExpectedAchievementsDownloadResult
@@ -252,7 +263,7 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            if (TryGetInstallLocalAchievementFolder(game, out _))
+            if (TryGetInstallLocalAchievementFolder(game, out _) || HasAwnNameKeyedSave(game))
             {
                 return true;
             }
@@ -351,7 +362,7 @@ namespace PlayniteAchievements.Providers.Local
             var hasEnabledCustomSchemaOverride = game != null &&
                 TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabled) &&
                 isCustomSchemaEnabled;
-            var hasInstallLocalAchievementFolder = TryGetInstallLocalAchievementFolder(game, out _);
+            var hasInstallLocalAchievementFolder = TryGetInstallLocalAchievementFolder(game, out _) || HasAwnNameKeyedSave(game);
             var shouldFetchIconsFromGame = hasEnabledCustomSchemaOverride && game != null &&
                 GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(game.Id);
             // Schema-defined icons from the active schema should always remain usable.
@@ -464,6 +475,18 @@ namespace PlayniteAchievements.Providers.Local
                     configuredLumaPlayAppId.ToString(CultureInfo.InvariantCulture));
             }
 
+            var registrySourceName = "LumaPlay registry";
+            if (lumaRegistryEntries == null &&
+                string.IsNullOrWhiteSpace(jsonPath) &&
+                iniPaths.Count == 0)
+            {
+                lumaRegistryEntries = TryGetGreenLumaRegistryEntries(appId);
+                if (lumaRegistryEntries != null)
+                {
+                    registrySourceName = "GreenLuma registry";
+                }
+            }
+
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || iniPaths.Count > 0;
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
             var isLumaPlayContext = hasValidLumaPlayIniOverride;
@@ -483,7 +506,7 @@ namespace PlayniteAchievements.Providers.Local
             var schemaLookupByTitle = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
             int appIdInt = 0;
             int steamSchemaAppIdInt = 0;
-            if (!int.TryParse(appId, out appIdInt) && !hasUsableCustomSchema && SupportsSchemaOnlyManualFallback(game) && !string.IsNullOrWhiteSpace(game?.Name))
+            if (!int.TryParse(appId, out appIdInt) && !hasUsableCustomSchema && (SupportsSchemaOnlyManualFallback(game) || HasAwnNameKeyedSave(game)) && !string.IsNullOrWhiteSpace(game?.Name))
             {
                 var resolvedManualSchemaAppId = await ResolveLocalSchemaAppIdAsync(game, 0, allowSchemaNetwork).ConfigureAwait(false);
                 if (resolvedManualSchemaAppId > 0)
@@ -501,6 +524,16 @@ namespace PlayniteAchievements.Providers.Local
                 if (!isAppIdOverridden && TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
                 {
                     steamSchemaAppIdInt = resolvedSteamSchemaAppId;
+                }
+
+                // A GOG/Ubisoft emulator save is named after the store's product id, not a Steam App ID.
+                if (!hasUsableCustomSchema && !isAppIdOverridden && steamSchemaAppIdInt == appIdInt && GetAwnPlatformOfFolder(localFolderPath) != null)
+                {
+                    var platformSteamAppId = await ResolveAwnPlatformSteamAppIdAsync(game, appIdInt, localFolderPath, allowSchemaNetwork).ConfigureAwait(false);
+                    if (platformSteamAppId > 0)
+                    {
+                        steamSchemaAppIdInt = platformSteamAppId;
+                    }
                 }
 
                 // For LumaPlay (Uplay/Ubisoft Connect) games: the registry key uses a Uplay game ID,
@@ -638,12 +671,13 @@ namespace PlayniteAchievements.Providers.Local
                     // This preserves custom local icon paths (for example img/*.png) even when
                     // achievements.ini exists.
                     raw = await LoadLocalEntriesAsync(jsonPath, iniPaths).ConfigureAwait(false);
+                    raw = ApplyAwnStatProgress(raw, iniPaths, steamSchemaAppIdInt, game);
                 }
 
                 if ((raw == null || raw.Count == 0) && hasLumaRegistryEntries)
                 {
                     raw = lumaRegistryEntries;
-                    rawSource = "LumaPlay registry";
+                    rawSource = registrySourceName;
                 }
 
                 if (raw != null && raw.Count > 0)
@@ -682,6 +716,7 @@ namespace PlayniteAchievements.Providers.Local
                         return await EnrichSteamHuntersCategoriesAsync(data, steamSchemaAppIdInt, allowMetadataNetwork, resolveOfflineIcons).ConfigureAwait(false);
                     }
 
+                    raw = WithoutUnmappedSseEntries(raw);
                     foreach (var kv in raw)
                     {
                         var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
@@ -1967,6 +2002,14 @@ namespace PlayniteAchievements.Providers.Local
             foreach (var folder in EnumerateNestedSteamSettingsParents(installDirectory, excludedPaths))
             {
                 if (HasLocalAchievementFiles(folder))
+                {
+                    yield return folder;
+                }
+            }
+
+            foreach (var folder in EnumerateAwnInstallConfigSaveFolders(installDirectory, excludedPaths))
+            {
+                if (!IsPathExcludedFromLocalScan(folder, excludedPaths) && HasLocalAchievementFiles(folder))
                 {
                     yield return folder;
                 }
@@ -6429,6 +6472,8 @@ namespace PlayniteAchievements.Providers.Local
                 return correlated;
             }
 
+            localEntries = RemapAwnCrcEntries(localEntries, schemaAchievements);
+            localEntries = RemapAwnObjectiveIdEntries(localEntries, schemaAchievements);
             var workingEntries = RemapGenericAchievementEntries(
                 localEntries.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
                 schemaAchievements);
@@ -7834,7 +7879,7 @@ namespace PlayniteAchievements.Providers.Local
                 }).ConfigureAwait(false);
                 Dictionary<string, LocalEntry> jsonEntries;
                 using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.json-parse"))
-                    jsonEntries = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
+                    jsonEntries = ParseLocalJsonSave(json, IsListOnlyUnlockedSave(jsonPath));
                 if (jsonEntries != null)
                 {
                     var jsonDirectory = Path.GetDirectoryName(jsonPath);
@@ -7855,14 +7900,20 @@ namespace PlayniteAchievements.Providers.Local
                 }
 
                 PlayniteAchievements.Services.Logging.PollingDebugLog.ObserveFile(iniPath);
-                var ini = await Task.Run(() =>
-                {
-                    using var fileStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.ini-read");
-                    return File.ReadAllLines(iniPath);
-                }).ConfigureAwait(false);
                 Dictionary<string, LocalEntry> iniEntries;
-                using (PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.ini-parse"))
-                    iniEntries = ParseIniEntries(ini);
+                try
+                {
+                    iniEntries = await Task.Run(() =>
+                    {
+                        using var fileStage = PlayniteAchievements.Services.Logging.PollingDebugLog.Stage("local.ini-parse");
+                        return ParseLocalSaveFileWithAwnFormats(iniPath);
+                    }).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is UnauthorizedAccessException)
+                {
+                    Log($"LOCAL SAVE READ ERROR: file={iniPath} msg={ex.Message}");
+                    continue;
+                }
                 var iniDirectory = Path.GetDirectoryName(iniPath);
                 foreach (var entry in iniEntries)
                 {
@@ -7883,6 +7934,16 @@ namespace PlayniteAchievements.Providers.Local
                         if (incoming.percent.HasValue)
                         {
                             existing.percent = incoming.percent;
+                        }
+
+                        if (incoming.progress.HasValue)
+                        {
+                            existing.progress = incoming.progress;
+                        }
+
+                        if (incoming.max_progress.HasValue)
+                        {
+                            existing.max_progress = incoming.max_progress;
                         }
 
                         if (!string.IsNullOrWhiteSpace(incoming.displayName))
@@ -8447,7 +8508,7 @@ namespace PlayniteAchievements.Providers.Local
             var candidates = string.IsNullOrWhiteSpace(appId)
                 ? new List<string>()
                 : FindLocalFolders(appId, game);
-            foreach (var installLocalFolder in GetInstallLocalAchievementFolders(game))
+            foreach (var installLocalFolder in GetInstallLocalAchievementFolders(game).Concat(GetAwnNameKeyedSaveFolders(game, appId)))
             {
                 if (!candidates.Contains(installLocalFolder, StringComparer.OrdinalIgnoreCase))
                 {
@@ -8619,11 +8680,8 @@ namespace PlayniteAchievements.Providers.Local
 
         private static bool HasLocalAchievementFiles(string folderPath)
         {
-            return !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.ini")) ||
-                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "user_stats.ini")) ||
-                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "tenoke.ini")) ||
-                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "SOVEREIGN.ini")) ||
-                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json"));
+            return !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json")) ||
+                LocalAchievementIniFileNames.Any(fileName => !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, fileName)));
         }
 
         private string ChooseBestLocalFolderCandidate(IEnumerable<string> candidates)
@@ -8671,13 +8729,18 @@ namespace PlayniteAchievements.Providers.Local
                 score += 1;
             }
 
+            if (score == 0 && HasLocalAchievementFiles(folderPath))
+            {
+                score += 1;
+            }
+
             return score;
         }
 
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "SOVEREIGN.ini", "achievements.json" })
+            foreach (var fileName in LocalAchievementIniFileNames.Concat(new[] { "achievements.json" }))
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
@@ -8715,7 +8778,7 @@ namespace PlayniteAchievements.Providers.Local
                 var candidatePath = string.IsNullOrWhiteSpace(relativeDirectory)
                     ? Path.Combine(folderPath, fileName)
                     : Path.Combine(folderPath, relativeDirectory, fileName);
-                if (File.Exists(candidatePath))
+                if (File.Exists(candidatePath) && IsAwnSaveFileAccepted(candidatePath))
                 {
                     return candidatePath;
                 }
@@ -11020,7 +11083,6 @@ namespace PlayniteAchievements.Providers.Local
                 roots.Add(Path.Combine(publicFolder, "Documents", "OnlineFix"));
                 roots.Add(Path.Combine(publicFolder, "Documents", "Steam", "RUNE"));
                 roots.Add(Path.Combine(publicFolder, "Documents", "Steam", "CODEX"));
-                roots.Add(Path.Combine(publicFolder, "EMPRESS"));
             }
 
             if (!string.IsNullOrWhiteSpace(documents))
@@ -11045,6 +11107,7 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             roots.Add(Path.Combine(localAppData, "SKIDROW"));
+            roots.AddRange(GetAwnCompatSaveRoots());
 
             foreach (var extraPath in LocalSettings.SplitExtraLocalPaths(_pluginSettings?.Persisted?.ExtraLocalPaths))
             {

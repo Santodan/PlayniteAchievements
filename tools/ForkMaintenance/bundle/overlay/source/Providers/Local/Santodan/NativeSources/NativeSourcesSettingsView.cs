@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Providers.Local
                 automatic.Unchecked += (_, __) => update(l => l.UseDefaultLocations = false);
                 details.Children.Add(automatic);
                 AddText(details, "Folders accept Windows environment variables and the existing per-game variables such as {GameName}, {InstallDir} and {RomDir}. Explicit per-game file overrides take priority. Multiple profiles are never combined.");
-                var reset = new Button { Content = "Reset this source's locations", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 5, 10, 5) };
+                var reset = new Button { Content = "Reset this source's locations", HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 90, Padding = new Thickness(12, 6, 12, 6) };
                 reset.Click += (_, __) => { update(l => { l.InstallFolders = l.SaveFolders = l.DefinitionFolders = l.EmulatorFolders = l.SettingsFile = l.UserId = l.Profile = ""; l.UseDefaultLocations = true; }); Initialize(settings); };
                 details.Children.Add(reset);
                 panel.Children.Add(details);
@@ -107,12 +107,11 @@ namespace PlayniteAchievements.Providers.Local
             AddText(panel, "Default: " + source.OriginalConsoleName + ". Browse for a custom image or borrow another platform's icon. Custom images take priority and are copied as PNG up to 64 × 64 pixels. Save applies the selection; Cancel keeps the saved icon.");
             var preview = new Image { Width = 48, Height = 48, Stretch = System.Windows.Media.Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 8) };
             panel.Children.Add(preview);
-            var path = new TextBox { IsReadOnly = true, Margin = new Thickness(0, 0, 0, 8) }; panel.Children.Add(path);
+            var path = FieldBox(""); path.IsReadOnly = true; path.ToolTip = "Managed custom icon path";
             var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 8) }; status.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            var browse = new Button { Content = "Browse image", Padding = new Thickness(10, 5, 10, 5) };
-            var clear = new Button { Content = "Clear custom image", Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0) };
-            buttons.Children.Add(browse); buttons.Children.Add(clear); panel.Children.Add(buttons);
+            var browse = RowButton("Browse");
+            var clear = RowButton("Remove");
+            panel.Children.Add(FieldRow(path, browse, clear));
             Action refresh = () =>
             {
                 settings.NativeSourceIcons.TryGetValue(source.Key, out var current);
@@ -158,10 +157,10 @@ namespace PlayniteAchievements.Providers.Local
         private static void AddFolderList(Panel panel, string label, string value, Action<string> save)
         {
             AddText(panel, label, true);
-            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-            var browse = new Button { Content = "Add folder", Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
-            DockPanel.SetDock(browse, Dock.Right); row.Children.Add(browse);
-            var box = new TextBox { Text = value ?? "", AcceptsReturn = true, MinHeight = 55, MaxHeight = 140, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, TextWrapping = TextWrapping.Wrap };
+            var browse = RowButton("Add folder");
+            var box = FieldBox(value);
+            box.AcceptsReturn = true; box.MinHeight = 55; box.MaxHeight = 140; box.TextWrapping = TextWrapping.Wrap;
+            box.VerticalScrollBarVisibility = ScrollBarVisibility.Auto; box.VerticalContentAlignment = VerticalAlignment.Top;
             box.TextChanged += (_, __) => save(box.Text);
             browse.Click += (_, __) =>
             {
@@ -169,21 +168,41 @@ namespace PlayniteAchievements.Providers.Local
                     if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                         box.Text = string.Join(Environment.NewLine, NativeSourceLocations.Split(box.Text).Concat(new[] { dialog.SelectedPath }).Distinct(StringComparer.OrdinalIgnoreCase));
             };
-            row.Children.Add(box); panel.Children.Add(row);
+            panel.Children.Add(FieldRow(box, browse));
+        }
+
+        // The Local page's path rows: the field fills the width; each button is at least 90 px
+        // wide, 8 px apart, and as tall as the field.
+        private static Button RowButton(string text) =>
+            new Button { Content = text, MinWidth = 90, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(8, 0, 0, 0) };
+
+        private static TextBox FieldBox(string value) =>
+            new TextBox { Text = value ?? "", Padding = new Thickness(8, 6, 8, 6), VerticalContentAlignment = VerticalAlignment.Center };
+
+        private static Grid FieldRow(TextBox box, params Button[] buttons)
+        {
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.Children.Add(box);
+            for (var i = 0; i < buttons.Length; i++)
+            {
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                Grid.SetColumn(buttons[i], i + 1);
+                row.Children.Add(buttons[i]);
+            }
+            return row;
         }
         private static void AddSinglePath(Panel panel, string label, string value, Action<string> save, bool ini)
         {
             AddText(panel, label, true);
-            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-            var browse = new Button { Content = "Browse file", Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0) };
-            DockPanel.SetDock(browse, Dock.Right); row.Children.Add(browse);
-            var box = new TextBox { Text = value ?? "" }; box.TextChanged += (_, __) => save(box.Text);
+            var browse = RowButton("Browse file");
+            var box = FieldBox(value); box.TextChanged += (_, __) => save(box.Text);
             browse.Click += (_, __) => { var dialog = new OpenFileDialog { Filter = ini ? "Kyty settings|Kyty.ini|INI files|*.ini|All files|*.*" : "All files|*.*", CheckFileExists = true }; if (dialog.ShowDialog() == true) box.Text = dialog.FileName; };
-            row.Children.Add(box); panel.Children.Add(row);
+            panel.Children.Add(FieldRow(box, browse));
         }
         private static void AddEntry(Panel panel, string label, string value, Action<string> save)
         {
-            AddText(panel, label, true); var box = new TextBox { Text = value ?? "", Margin = new Thickness(0, 0, 0, 8) };
+            AddText(panel, label, true); var box = FieldBox(value); box.Margin = new Thickness(0, 0, 0, 8);
             box.TextChanged += (_, __) => save(box.Text); panel.Children.Add(box);
         }
         private static string SaveHint(string source)

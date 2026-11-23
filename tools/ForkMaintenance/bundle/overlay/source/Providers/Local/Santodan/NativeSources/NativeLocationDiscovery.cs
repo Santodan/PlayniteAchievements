@@ -11,7 +11,10 @@ namespace PlayniteAchievements.Providers.Local
     {
         private static readonly object Gate = new object();
         private static readonly Dictionary<string, KeyValuePair<DateTime, string>> Cache = new Dictionary<string, KeyValuePair<DateTime, string>>();
-        internal static bool IsSingleGameSource(string source) => new[] { "markerpatch", "madnesspatch", "ladxhd", "dusklight", "ghostship", "dkrr", "smb1r", "sms", "smseclipse" }.Contains(source);
+        internal static bool IsSingleGameSource(string source) => new[] { "markerpatch", "madnesspatch", "ladxhd", "dusklight", "ghostship", "dkrr", "smb1r", "sms", "smseclipse",
+            "smas", "rr64", "gdiffuser", "nectar", "nectar2", "fh2azimuth", "sanctuary", "issn", "issnfl", "deadnation", "xlln" }.Contains(source);
+        // Sources that share one detected install (Eclipse uses SMS Launcher, First Light the issn_pc launcher).
+        internal static string Family(string source) => source == "smseclipse" ? "sms" : source == "issnfl" ? "issn" : source;
         internal static string FindInstall(string current, string name, string gameId, string source, IEnumerable<string> folders)
         {
             if (Directory.Exists(current)) return current;
@@ -27,9 +30,9 @@ namespace PlayniteAchievements.Providers.Local
                 foreach (var dir in Directories(root))
                 {
                     var belongs = Matches(dir, name, gameId);
-                    if (!belongs && !(IsSingleGameSource(source) && NativeSourceReader.Detect(dir) == (source == "smseclipse" ? "sms" : source))) continue;
+                    if (!belongs && !(IsSingleGameSource(source) && Family(NativeSourceReader.Detect(dir)) == Family(source))) continue;
                     var detected = NativeSourceReader.Detect(dir);
-                    if (source == "auto" ? detected != null : belongs || detected == source || (source == "smseclipse" && detected == "sms")) found.Add(dir);
+                    if (source == "auto" ? detected != null : belongs || (detected != null && Family(detected) == Family(source))) found.Add(dir);
                 }
             }
             var unique = found.Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToList();

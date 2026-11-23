@@ -1,5 +1,46 @@
 # Santodan fork feature checklist
 
+## Achievement Watcher Next compatibility - 2026-11-23
+
+- Local save handling follows Achievement Watcher Next (AWN) commit `f9903eb`
+  (3.12.8). `source/Providers/Local/Santodan/AWN_SYNC.md` maps each AWN file to the
+  fork code and lists what is deliberately not ported; the upstream-update skill
+  compares against AWN on every upstream update and updates that file.
+- `LocalSavesProvider.AwnCompat.cs`: RLD! hex values, ALI213, 3DM, Hoodlum times,
+  SKIDROW `achieve.dat`, CreamAPI cfg (7-digit times), SmartSteamEmu `stats.bin`
+  (CRC32 names), RAZOR1911, CODEX/TENOKE progress, lenient JSON, GreenLuma
+  registry, portable saves named by emulator configs, `Stats.ini` counters linked
+  by the Steam schema. An explicit Achieved=0 must win over an unlock time;
+  TENOKE `[STATS]` counters must never become unlocks. Generic file names
+  (`achievement`, `stats.bin`, `stats.ini`, `achievement.dat`) only count inside
+  their own emulator root or layout (`IsAwnSaveFileAccepted`).
+- `LocalSavesProvider.AwnPlatforms.cs`: GOG (Nemirtingas Galaxy, UniverseLAN) and
+  Ubisoft (Goldberg Uplay) saves keep the store product id as save identity and
+  read the Steam schema mapped through gamesdb.gog.com (cached) or the bundled
+  `AwnUplaySteam.json`, then name search. A forced Steam App ID still wins.
+  SocialClub folders match by game name; FF7 (2013) reads `achievement.dat`.
+- Native sources: ten more AWN ports, the Xbox 360 recomp port table
+  (`NativeX360Ports.json`, regenerate by parsing AWN's `PORTS` literal as text,
+  never by running it), re:Blue bonus achievements and the `xlln` source
+  (SPAFILE definitions in the exe). Every profile's list is merged for table ports
+  and XLLN. Keep `THIRD-PARTY.txt`, `AWN-NOTICE.txt` and `AWN-LICENSE.txt`.
+- Platforms lists PC ports A-Z after the emulators (`NativeSourceCatalog.DisplayOrder`,
+  also the per-game dropdown). Native source path rows match the Local page:
+  buttons at least 90 px wide and as tall as their field.
+- Verification: Release rebuild passed; full MSTest suite 6357 passed, 1 skipped,
+  2 failed. Both failures are upstream tests unchanged by the fork:
+  `DayCounts_FollowUnlockTimeOverrides_AndSkipAManuallyLinkedGames` depends on a
+  timezone behind UTC, and `BundledToastTemplate_LoadsThroughTheRuntimeXamlParser`
+  cannot resolve `RoundedClip` in the test assembly since upstream's 2026-11-18
+  template change. Parsers were also checked against AWN's own test samples.
+  Live checks pending: real saves for each new format, GOG/Ubisoft mapping,
+  SocialClub, XLLN, x360 table ports, and the settings layout in Playnite.
+- Bundle refreshed against v4.3.2 (`9ae07a4d`): 274 overlays (9 new), three-way
+  patch and 3 localization recipes. Preflight and actual replay passed in a clean
+  baseline clone, and all 2834 captured files matched the working tree
+  (newline-normalized; localization compared by parsed value). The overlay skill
+  files equal `.agents/skills/`. Protected manifests are not carried, by design.
+
 ## Memories capture delay and dead monitor cleanup - 2026-11-22
 
 - The Memories **Capture delay (ms)** field (0-10,000, default 750) applies to
