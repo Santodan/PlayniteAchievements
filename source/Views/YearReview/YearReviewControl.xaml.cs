@@ -410,12 +410,12 @@ namespace PlayniteAchievements.Views.YearReview
         /// <summary>Saves the summary card alone.</summary>
         private void OnSaveCard(object sender, ExecutedRoutedEventArgs e)
         {
-            if (!(e.Parameter is FrameworkElement card))
+            if (!((e.Parameter as FrameworkElement ?? FindShareCard()) is FrameworkElement card))
             {
                 return;
             }
 
-            var path = PickPath(FileName(null));
+            var path = PickPath(FileName((CurrentHost.Content as YearReviewSlide)?.ViewSuffix));
             if (path == null)
             {
                 return;
@@ -475,7 +475,9 @@ namespace PlayniteAchievements.Views.YearReview
 
         private void OnCopyImage(object sender, ExecutedRoutedEventArgs e)
         {
-            var element = e.Parameter as FrameworkElement ?? (CurrentHost.Content != null ? SlideStage : null);
+            var element = e.Parameter as FrameworkElement
+                ?? (Equals(e.Parameter, ShareCardTag) ? FindShareCard() : null)
+                ?? (CurrentHost.Content != null ? SlideStage : null);
             if (element == null)
             {
                 return;
@@ -511,6 +513,30 @@ namespace PlayniteAchievements.Views.YearReview
             {
                 summary.CardAvatarPath = dialog.FileName;
             }
+        }
+
+        private const string ShareCardTag = "ShareCard";
+
+        /// <summary>The card on the summary slide in whichever style is shown: the element tagged ShareCard.</summary>
+        private FrameworkElement FindShareCard()
+        {
+            var pending = new System.Collections.Generic.Stack<DependencyObject>();
+            pending.Push(CurrentHost);
+            while (pending.Count > 0)
+            {
+                var current = pending.Pop();
+                if (current is FrameworkElement element && Equals(element.Tag, ShareCardTag))
+                {
+                    return element;
+                }
+
+                for (var i = VisualTreeHelper.GetChildrenCount(current) - 1; i >= 0; i--)
+                {
+                    pending.Push(VisualTreeHelper.GetChild(current, i));
+                }
+            }
+
+            return null;
         }
 
         /// <summary>The element drawn at the saved image's width; null for an element not laid out.</summary>
