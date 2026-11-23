@@ -58,6 +58,10 @@ namespace PlayniteAchievements.Services.Showcase
         public Dictionary<string, GameSummaryGridOptions> GameGridSurfaces { get; set; } =
             new Dictionary<string, GameSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Friends leaderboard grid settings keyed by exported widget instance id.</summary>
+        public Dictionary<string, FriendSummaryGridOptions> FriendGridSurfaces { get; set; } =
+            new Dictionary<string, FriendSummaryGridOptions>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>
         /// Recent achievements widgets' category list settings (category mode), keyed by
         /// exported widget instance id.
@@ -592,6 +596,12 @@ namespace PlayniteAchievements.Services.Showcase
             {
                 portable.GameGridSurfaces[widget.InstanceId] = games.Clone();
             }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key) &&
+                     gridOptions.FriendSummaries.TryGetValue(key, out var friends) &&
+                     friends != null)
+            {
+                portable.FriendGridSurfaces[widget.InstanceId] = friends.Clone();
+            }
         }
 
         private static void RestoreGridSurface(
@@ -628,6 +638,12 @@ namespace PlayniteAchievements.Services.Showcase
                      portable.GameGridSurfaces.TryGetValue(sourceId, out var games))
             {
                 gridOptions.SetGameSummaries(key, games);
+            }
+            else if (ShowcaseGridSurfaces.IsFriendSummariesSurface(key) &&
+                     portable.FriendGridSurfaces != null &&
+                     portable.FriendGridSurfaces.TryGetValue(sourceId, out var friends))
+            {
+                gridOptions.SetFriendSummaries(key, friends);
             }
         }
     }
