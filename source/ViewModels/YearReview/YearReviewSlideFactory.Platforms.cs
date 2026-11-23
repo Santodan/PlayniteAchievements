@@ -1,0 +1,371 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
+using System.Windows.Media;
+using Playnite.SDK;
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.YearReview;
+using PlayniteAchievements.Providers;
+
+namespace PlayniteAchievements.ViewModels.YearReview
+{
+    /// <summary>The slides split by platform and rarity, and the helpers every slide shares.</summary>
+    public static partial class YearReviewSlideFactory
+    {
+        /// <summary>A platform as the reader sees it: provider keys that show the same name are one.</summary>
+        private sealed class Platform
+        {
+            public string Name;
+            public Brush Fill;
+            public List<YearReviewUnlock> Unlocks;
+        }
+
+        /// <summary>
+        /// The year's platforms, most unlocks first. Keys that show the same name, such as the
+        /// Custom provider and a custom provider whose id no longer resolves, are one platform.
+        /// </summary>
+        private static IReadOnlyList<Platform> MergedPlatforms(YearReviewData data) =>
+            data.Unlocks
+                .GroupBy(unlock => ProviderRegistry.GetLocalizedName(unlock.ProviderKey), StringComparer.CurrentCultureIgnoreCase)
+                .Select(group => new Platform
+                {
+                    Name = group.Key,
+                    Fill = HexBrush(ProviderRegistry.ResolveProviderVisualsOrFallback(group.First().ProviderKey).colorHex),
+                    Unlocks = group.ToList()
+                })
+                .OrderByDescending(platform => platform.Unlocks.Count)
+                .ThenBy(platform => platform.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+        private static YearReviewRarestSlide Rarest(YearReviewData data, IReadOnlyList<Platform> platforms)
+        {
+            var rarest = data.Rarest;
+            var percent = rarest.GlobalPercent ?? 0;
+            var views = new List<YearReviewSlideView>
+            {
+                new YearReviewRarestView
+                {
+                    Label = Text("LOCPlayAch_YearReview_RarestUnlock"),
+                    IsSingle = true,
+                    Name = rarest.AchievementName,
+                    IconPath = rarest.IconPath,
+                    Group = GameGroup(data, rarest.GameId, rarest.GameName),
+                    Percent = percent,
+                    DetailText = Format("LOCPlayAch_YearReview_RarestDetail",
+                        rarest.GameName,
+                        MonthDay(DateTimeUtilities.AsLocalFromUtc(rarest.UnlockUtc)),
+                        PercentFormatter.Format(percent, PercentDecimals(percent))),
+                    TierText = rarest.Rarity.ToDisplayText().ToUpper(FormattingCulture.Current),
+                    TierBrush = rarest.Rarity.ToBrush()
+                }
+            };
+
+            var rated = data.Unlocks.Where(unlock => unlock.GlobalPercent.HasValue).ToList();
+            var topFive = rated
+                .OrderBy(unlock => unlock.GlobalPercent.Value)
+                .ThenBy(unlock => unlock.UnlockUtc)
+                .Take(5)
+                .Select(unlock => (Unlock: unlock, Caption: unlock.GameName))
+                .ToList();
+            if (topFive.Count > 1)
+            {
+                views.Add(RareRow(data, Text("LOCPlayAch_YearReview_TopFiveRarest"), topFive));
+            }
+
+            var perPlatform = platforms
+                .Select(platform => (
+                    Unlock: platform.Unlocks
+                        .Where(unlock => unlock.GlobalPercent.HasValue)
+                        .OrderBy(unlock => unlock.GlobalPercent.Value)
+                        .ThenBy(unlock => unlock.UnlockUtc)
+                        .FirstOrDefault(),
+                    Caption: platform.Name))
+                .Where(entry => entry.Unlock != null)
+                .OrderBy(entry => entry.Unlock.GlobalPercent.Value)
+                .Take(5)
+                .ToList();
+            if (perPlatform.Count > 1)
+            {
+                views.Add(RareRow(data, Text("LOCPlayAch_YearReview_RarestPerPlatform"), perPlatform));
+            }
+
+            return new YearReviewRarestSlide { Views = views };
+        }
+
+        /// <summary>A row of rare unlocks, each an icon with its percent, staggered up and down.</summary>
+        private static YearReviewRarestView RareRow(YearReviewData data, string label, IReadOnlyList<(YearReviewUnlock Unlock, string Caption)> entries)
+        {
+            const double width = 200;
+            const double gap = 30;
+            var left = (1280 - entries.Count * width - (entries.Count - 1) * gap) / 2;
+            return new YearReviewRarestView
+            {
+                Label = label,
+                IsSingle = false,
+                TierBrush = entries[0].Unlock.Rarity.ToBrush(),
+                Entries = entries
+                    .Select((entry, index) =>
+                    {
+                        var percent = entry.Unlock.GlobalPercent ?? 0;
+                        return new YearReviewRareEntry
+                        {
+                            IconPath = entry.Unlock.IconPath,
+                            Name = entry.Unlock.AchievementName,
+                            Caption = entry.Caption,
+                            PercentText = PercentFormatter.Format(percent, PercentDecimals(percent)),
+                            TierBrush = entry.Unlock.Rarity.ToBrush(),
+                            Group = GameGroup(data, entry.Unlock.GameId, entry.Unlock.GameName),
+                            X = left + index * (width + gap),
+                            Y = index % 2 == 0 ? 190 : 250,
+                            Angle = new[] { -4.0, 3, -2, 4, -3 }[index % 5],
+                            Delay = 200 + index * 160
+                        };
+                    })
+                    .ToList()
+            };
+        }
+
+        public static int PercentDecimals(double percent) => percent < 10 ? 1 : 0;
+
+        private static YearReviewRaritySlide Rarity(YearReviewData data, IReadOnlyList<Platform> platforms)
+        {
+            var views = new List<YearReviewSlideView> { RarityView(Text("LOCPlayAch_Common_All"), data.Unlocks) };
+            if (platforms.Count > 1)
+            {
+                views.AddRange(platforms.Select(platform => RarityView(platform.Name, platform.Unlocks)));
+            }
+
+            return new YearReviewRaritySlide { Views = views };
+        }
+
+        /// <summary>
+        /// One circle per rarity, its area following the count, in a row scaled so the circles sit
+        /// side by side without touching and none outgrows the space under the title.
+        /// </summary>
+        private static YearReviewRarityView RarityView(string label, IReadOnlyList<YearReviewUnlock> unlocks)
+        {
+            var tiers = new[] { RarityTier.Common, RarityTier.Uncommon, RarityTier.Rare, RarityTier.UltraRare };
+            var shown = tiers
+                .Select(tier => (Tier: tier, Unlocks: unlocks.Where(unlock => unlock.Rarity == tier).ToList()))
+                .Where(entry => entry.Unlocks.Count > 0)
+                .ToList();
+            var max = Math.Max(1, shown.Select(entry => entry.Unlocks.Count).DefaultIfEmpty(1).Max());
+
+            const double gap = 28;
+            const double left = 72;
+            const double right = 1208;
+            const double tallest = 470;
+            const double centreY = 430;
+            var diameters = shown.Select(entry => 90 + 380 * Math.Sqrt((double)entry.Unlocks.Count / max)).ToList();
+            var fit = Math.Min(1, Math.Min(
+                (right - left - gap * Math.Max(0, diameters.Count - 1)) / Math.Max(1, diameters.Sum()),
+                tallest / Math.Max(1, diameters.DefaultIfEmpty(1).Max())));
+
+            var bubbles = new List<YearReviewBubble>();
+            var x = left;
+            for (var i = 0; i < shown.Count; i++)
+            {
+                var diameter = diameters[i] * fit;
+                var tier = shown[i].Tier;
+                bubbles.Add(new YearReviewBubble
+                {
+                    Group = GroupOf(tier.ToDisplayText(), shown[i].Unlocks),
+                    Label = tier.ToDisplayText(),
+                    Unlocks = shown[i].Unlocks.Count,
+                    Diameter = diameter,
+                    NumberHeight = diameter * 0.3,
+                    Fill = tier.ToBrush(),
+                    X = x,
+                    Y = Clamp(centreY + (i % 2 == 0 ? -30 : 40) - diameter / 2, 130, 720 - diameter),
+                    Delay = 250 + i * 220
+                });
+                x += diameter + gap;
+            }
+
+            return new YearReviewRarityView
+            {
+                Label = label,
+                Bubbles = bubbles,
+                TotalText = Format("LOCPlayAch_YearReview_UnlocksInTotal", Number(unlocks.Count))
+            };
+        }
+
+        private static YearReviewPlatformsSlide Platforms(YearReviewData data, IReadOnlyList<Platform> platforms)
+        {
+            if (platforms.Count < 2)
+            {
+                return null;
+            }
+
+            var shown = platforms.Take(MaxPlatforms).ToList();
+            var rest = platforms.Skip(MaxPlatforms).SelectMany(platform => platform.Unlocks).ToList();
+            if (rest.Count > 0)
+            {
+                shown.Add(new Platform
+                {
+                    Name = Text("LOCPlayAch_Common_Other"),
+                    Fill = Application.Current?.TryFindResource("PlayAch.Brush.Text.Secondary") as Brush ?? Brushes.Gray,
+                    Unlocks = rest
+                });
+            }
+
+            var max = Math.Max(1, shown.Max(platform => platform.Unlocks.Count));
+            var heights = shown.Select(platform => 44 + 120 * Math.Sqrt((double)platform.Unlocks.Count / max)).ToList();
+            const double gap = 46;
+            var available = 770 - 140 - 40;
+            var needed = heights.Sum() + gap * heights.Count;
+            var fit = needed > available ? available / needed : 1;
+
+            var entries = new List<YearReviewPlatformEntry>();
+            var segments = new List<YearReviewDonutSegment>();
+            var total = Math.Max(1, shown.Sum(platform => platform.Unlocks.Count));
+            var y = 140.0;
+            var start = -90.0;
+            for (var i = 0; i < shown.Count; i++)
+            {
+                var platform = shown[i];
+                var group = GroupOf(platform.Name, platform.Unlocks);
+                var height = heights[i] * fit;
+                entries.Add(new YearReviewPlatformEntry
+                {
+                    Group = group,
+                    Name = platform.Name,
+                    Unlocks = platform.Unlocks.Count,
+                    Fill = platform.Fill,
+                    NumberHeight = height,
+                    X = PlatformIndents[i % PlatformIndents.Length],
+                    Y = y,
+                    Delay = 300 + i * 180
+                });
+                y += height + gap * fit;
+
+                var sweep = 360.0 * platform.Unlocks.Count / total;
+                segments.Add(new YearReviewDonutSegment
+                {
+                    Geometry = RingSegment(new Point(350, 350), 350, 168, start, sweep),
+                    Fill = platform.Fill,
+                    ToolTip = Format("LOCPlayAch_Format_Pair", platform.Name, Number(platform.Unlocks.Count)),
+                    Group = group
+                });
+                start += sweep;
+            }
+
+            return new YearReviewPlatformsSlide { Entries = entries, Segments = segments };
+        }
+
+        /// <summary>The unlocks of <paramref name="unlocks"/>, headed by a name and their count.</summary>
+        private static YearReviewUnlockGroup GroupOf(string name, IReadOnlyList<YearReviewUnlock> unlocks, bool withDate = true) =>
+            unlocks == null || unlocks.Count == 0
+                ? null
+                : new YearReviewUnlockGroup(
+                    Format("LOCPlayAch_Format_Pair", name, Number(unlocks.Count)),
+                    unlocks.Count,
+                    () => Rows(unlocks, withDate));
+
+        private static YearReviewUnlockGroup GameGroup(YearReviewData data, Guid gameId, string name) =>
+            GroupOf(name, data.Unlocks.Where(unlock => unlock.GameId == gameId).ToList());
+
+        private static IReadOnlyList<YearReviewUnlockRow> Rows(IEnumerable<YearReviewUnlock> unlocks, bool withDate) =>
+            unlocks
+                .OrderBy(unlock => unlock.UnlockUtc)
+                .Select(unlock =>
+                {
+                    var local = DateTimeUtilities.AsLocalFromUtc(unlock.UnlockUtc);
+                    var time = local.ToString("t", FormattingCulture.Current);
+                    return new YearReviewUnlockRow
+                    {
+                        IconPath = unlock.IconPath,
+                        Name = unlock.AchievementName,
+                        GameName = unlock.GameName,
+                        TimeText = withDate ? MonthDay(local) + " " + time : time
+                    };
+                })
+                .ToList();
+
+        private static YearReviewCoverCard Card(
+            YearReviewData data, YearReviewGame game, int rank, string valueText,
+            double x, double y, double angle, double width, double height, double delay) =>
+            new YearReviewCoverCard
+            {
+                GameId = game.GameId,
+                Group = GameGroup(data, game.GameId, game.Name),
+                Rank = rank,
+                Name = game.Name,
+                CoverPath = game.CoverPath,
+                ValueText = valueText,
+                X = x,
+                Y = y,
+                Angle = angle,
+                Width = width,
+                Height = height,
+                Delay = delay
+            };
+
+        /// <summary>A ring sector from <paramref name="start"/> degrees, clockwise by <paramref name="sweep"/>.</summary>
+        public static Geometry RingSegment(Point center, double outer, double inner, double start, double sweep)
+        {
+            if (sweep >= 359.99)
+            {
+                var ring = new CombinedGeometry(
+                    GeometryCombineMode.Exclude,
+                    new EllipseGeometry(center, outer, outer),
+                    new EllipseGeometry(center, inner, inner));
+                ring.Freeze();
+                return ring;
+            }
+
+            Point At(double radius, double degrees)
+            {
+                var radians = degrees * Math.PI / 180;
+                return new Point(center.X + radius * Math.Cos(radians), center.Y + radius * Math.Sin(radians));
+            }
+
+            var large = sweep > 180;
+            var geometry = new StreamGeometry();
+            using (var ctx = geometry.Open())
+            {
+                ctx.BeginFigure(At(outer, start), true, true);
+                ctx.ArcTo(At(outer, start + sweep), new Size(outer, outer), 0, large, SweepDirection.Clockwise, true, false);
+                ctx.LineTo(At(inner, start + sweep), true, false);
+                ctx.ArcTo(At(inner, start), new Size(inner, inner), 0, large, SweepDirection.Counterclockwise, true, false);
+            }
+
+            geometry.Freeze();
+            return geometry;
+        }
+
+        private static KeyValuePair<string, string> Figure(string value, string labelKey) =>
+            new KeyValuePair<string, string>(value, Text(labelKey));
+
+        private static Brush HexBrush(string hex)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(hex) && ColorConverter.ConvertFromString(hex) is Color color)
+                {
+                    var brush = new SolidColorBrush(color);
+                    brush.Freeze();
+                    return brush;
+                }
+            }
+            catch (FormatException)
+            {
+            }
+
+            return Brushes.Gray;
+        }
+
+        private static double Clamp(double value, double min, double max) => Math.Max(min, Math.Min(max, value));
+
+        private static string Number(int value) => value.ToString("N0", FormattingCulture.Current);
+
+        private static string MonthDay(DateTime day) => day.ToString("M", FormattingCulture.Current);
+
+        private static string Text(string key) => ResourceProvider.GetString(key);
+
+        private static string Format(string key, params object[] args) =>
+            string.Format(FormattingCulture.Current, ResourceProvider.GetString(key) ?? string.Empty, args);
+    }
+}
