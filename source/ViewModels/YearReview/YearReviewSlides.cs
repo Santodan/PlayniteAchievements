@@ -44,6 +44,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
     public abstract class YearReviewSlideView : ObservableObject
     {
         public string Label { get; set; }
+
+        /// <summary>Art for the backdrop while this view is shown; null keeps the slide's.</summary>
+        public string BackdropPath { get; set; }
     }
 
     public abstract class YearReviewSlide : ObservableObject
@@ -71,8 +74,21 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public YearReviewSlideView CurrentView
         {
             get => _currentView;
-            set => SetValue(ref _currentView, value);
+            set
+            {
+                if (ReferenceEquals(_currentView, value) || value == null)
+                {
+                    return;
+                }
+
+                SetValue(ref _currentView, value);
+                OnPropertyChanged(nameof(ShownBackdropPath));
+                OnPropertyChanged(nameof(ViewSuffix));
+            }
         }
+
+        /// <summary>The backdrop shown now: the current view's art, else the slide's.</summary>
+        public string ShownBackdropPath => CurrentView?.BackdropPath ?? BackdropPath;
 
         /// <summary>The picked view's label when it is not the default, for the saved image's name.</summary>
         public string ViewSuffix => HasViews && !ReferenceEquals(CurrentView, Views[0]) ? CurrentView?.Label : null;
@@ -228,6 +244,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
     /// <summary>A rare unlock in a row of them: an icon with its percent.</summary>
     public sealed class YearReviewRareEntry : YearReviewPlaced
     {
+        public Guid GameId { get; set; }
         public string IconPath { get; set; }
         public string Name { get; set; }
         public string Caption { get; set; }
@@ -239,6 +256,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
     /// <summary>The rarest unlock alone, the five rarest, or the rarest of each platform.</summary>
     public sealed class YearReviewRarestView : YearReviewSlideView
     {
+        public Guid? GameId { get; set; }
         public bool IsSingle { get; set; }
         public string Name { get; set; }
         public string IconPath { get; set; }
@@ -268,6 +286,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     /// <summary>The rarity split of every platform or of one.</summary>
     public sealed class YearReviewRarityView : YearReviewSlideView
     {
+        /// <summary>The game with the most unlocks among these; null for the every-platform view.</summary>
+        public Guid? TopGameId { get; set; }
         public IReadOnlyList<YearReviewBubble> Bubbles { get; set; }
         public string TotalText { get; set; }
     }
