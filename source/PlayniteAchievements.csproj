@@ -215,6 +215,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Compile Include="**\*.cs" Exclude="bin\**;obj\**;Helper\**;packages\**;**\*.g.cs;**\*.g.i.cs" />
+    <EmbeddedResource Include="Providers\Local\Santodan\NativeSources\AwnUplaySteam.json">
+      <LogicalName>PlayniteAchievements.AwnUplaySteam.json</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Providers\Local\Santodan\NativeSources\NativeX360Ports.json">
       <LogicalName>PlayniteAchievements.NativeX360Ports.json</LogicalName>
     </EmbeddedResource>

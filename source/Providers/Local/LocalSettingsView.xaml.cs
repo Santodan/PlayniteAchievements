@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Providers.Local
     {
         public static IReadOnlyList<FolderPathVariable> AutomaticFolderReferences { get; } = new[]
         {
-            new FolderPathVariable("{InstallDir}", "Game installation root and supported Stats, steam_settings, steam_settings\\settings, steam_settings\\stats, and achievement subfolders."),
+            new FolderPathVariable("{InstallDir}", "Game installation root and supported Stats, steam_settings, steam_settings\\settings, steam_settings\\stats, achievement, and SteamEmu\\UserStats subfolders."),
             new FolderPathVariable(@"{InstallDir}\…\steam_settings", @"Nested settings folders, such as Bin\x64\steam_settings, including settings/stats children. Excluded paths and directory links are skipped."),
             new FolderPathVariable("%SteamPath%", "Steam installation folder from the SteamPath environment variable."),
             new FolderPathVariable(@"%SteamPath%\userdata", "Local Steam user data."),
@@ -49,12 +49,28 @@ namespace PlayniteAchievements.Providers.Local
             new FolderPathVariable(@"%APPDATA%\Goldberg SteamEmu Saves", "Goldberg emulator saves."),
             new FolderPathVariable(@"%APPDATA%\GSE Saves", "GSE emulator saves."),
             new FolderPathVariable(@"%APPDATA%\EMPRESS", "User EMPRESS saves."),
-            new FolderPathVariable(@"%PUBLIC%\EMPRESS", "Shared EMPRESS saves."),
+            new FolderPathVariable(@"%PUBLIC%\Documents\EMPRESS", "Shared EMPRESS saves."),
+            new FolderPathVariable(@"%PUBLIC%\Documents\Steam\CPY", "Shared CPY saves (CODEX layout)."),
+            new FolderPathVariable(@"%PUBLIC%\Documents\Steam\RLD!", "Shared RLD! saves (achiev.ini, Achievements.Bin)."),
+            new FolderPathVariable(@"%APPDATA%\Steam\RUNE", "User RUNE saves."),
+            new FolderPathVariable(@"%APPDATA%\Steam\RLD!", "User RLD! saves."),
+            new FolderPathVariable(@"%APPDATA%\.1911", "RAZOR1911 saves (achievement file)."),
+            new FolderPathVariable(@"%DOCUMENTS%\DARKSiDERS", "DARKSiDERS saves."),
+            new FolderPathVariable("%GseSavePath%", "GBE save folder when the GseSavePath environment variable is set."),
+            new FolderPathVariable(@"{InstallDir}\…\<emulator config>", "Portable saves named by ALI213.ini, valve.ini, SteamConfig.ini, hlm.ini, ds.ini, steam_api.ini, steam_emu.ini, cpy.ini, tenoke.ini (SteamData) and Goldberg local_save.txt / configs.user.ini."),
+            new FolderPathVariable(@"HKCU\SOFTWARE\GLR|GL2020|GL2024|GL2025", "GreenLuma registry achievements when no save file exists."),
+            new FolderPathVariable(@"%APPDATA%\NemirtingasGalaxyEmu", "Nemirtingas GOG saves, named by GOG product id and read with the matching Steam schema."),
+            new FolderPathVariable(@"%LOCALAPPDATA%\UniverseLAN", @"UniverseLAN GOG saves (<GOG id>\UniverseLANData\Achievements.ini)."),
+            new FolderPathVariable(@"%APPDATA%\Goldberg UplayEmu Saves", "Goldberg Uplay R2 saves, named by Ubisoft product id."),
+            new FolderPathVariable(@"%APPDATA%\R1 UplayEmu Saves", "Goldberg Uplay R1 saves, named by Ubisoft product id."),
+            new FolderPathVariable(@"%LOCALAPPDATA%\anadius\LSX emu\achievement_watcher", "anadius LSX emulator export (EA games), named by Steam App ID."),
+            new FolderPathVariable(@"%APPDATA%\Goldberg SocialClub Emu Saves", "Goldberg SocialClub saves (Rockstar), matched by game name."),
+            new FolderPathVariable(@"%DOCUMENTS%\FINAL FANTASY VII", "FINAL FANTASY VII (2013) achievement.dat."),
             new FolderPathVariable(@"%APPDATA%\Steam\CODEX", "User CODEX saves."),
             new FolderPathVariable(@"%LOCALAPPDATA%\SKIDROW", "Local SKIDROW saves."),
             new FolderPathVariable(@"%DOCUMENTS%\SkidRow", "SKIDROW saves in the user's Documents folder."),
-            new FolderPathVariable(@"%APPDATA%\SmartSteamEmu", "SmartSteamEmu saves."),
-            new FolderPathVariable(@"%APPDATA%\CreamAPI", "CreamAPI saves.")
+            new FolderPathVariable(@"%APPDATA%\SmartSteamEmu", "SmartSteamEmu saves (stats.bin, matched to the schema by CRC32)."),
+            new FolderPathVariable(@"%APPDATA%\CreamAPI", @"CreamAPI saves (stats\CreamAPI.Achievements.cfg or achievements.ini).")
         };
 
         public sealed class SuccessStoryCategorySelectionOption : INotifyPropertyChanged

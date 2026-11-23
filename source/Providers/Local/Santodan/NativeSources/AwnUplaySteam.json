@@ -1,0 +1,1880 @@
+[
+  {
+    "uplay_id": "4",
+    "uplay_name": "Assassin's Creed II",
+    "steam_appid": 33230,
+    "steam_name": "Assassin's Creed II"
+  },
+  {
+    "uplay_id": "26",
+    "uplay_name": "Assassin's Creed Brotherhood",
+    "steam_appid": 48190,
+    "steam_name": "Assassin's Creed Brotherhood"
+  },
+  {
+    "uplay_id": "40",
+    "uplay_name": "Assassin's Creed® Revelations",
+    "steam_appid": 201870,
+    "steam_name": "Assassin's Creed® Revelations"
+  },
+  {
+    "uplay_id": "54",
+    "uplay_name": "Assassin's Creed® III",
+    "steam_appid": 208480,
+    "steam_name": "Assassin's Creed® III"
+  },
+  {
+    "uplay_id": "82",
+    "uplay_name": "Assassin's Creed™",
+    "steam_appid": 15100,
+    "steam_name": "Assassin's Creed"
+  },
+  {
+    "uplay_id": "103",
+    "uplay_name": "Assassin's Creed® III (RU)",
+    "steam_appid": 208480,
+    "steam_name": "Assassin's Creed® III"
+  },
+  {
+    "uplay_id": "104",
+    "uplay_name": "Assassin's Creed® III (JPN)",
+    "steam_appid": 208480,
+    "steam_name": "Assassin's Creed® III"
+  },
+  {
+    "uplay_id": "105",
+    "uplay_name": "Assassin's Creed® III (CZ)",
+    "steam_appid": 208480,
+    "steam_name": "Assassin's Creed® III"
+  },
+  {
+    "uplay_id": "273",
+    "uplay_name": "Assassin’s Creed® IV Black Flag™",
+    "steam_appid": 242050,
+    "steam_name": "Assassin’s Creed® IV Black Flag™"
+  },
+  {
+    "uplay_id": "437",
+    "uplay_name": "Assassin’s Creed® IV Black Flag™ (Steam Version)",
+    "steam_appid": 242050,
+    "steam_name": "Assassin’s Creed® IV Black Flag™"
+  },
+  {
+    "uplay_id": "441",
+    "uplay_name": "Assassin’s Creed® IV Black Flag™ (RU)",
+    "steam_appid": 242050,
+    "steam_name": "Assassin’s Creed® IV Black Flag™"
+  },
+  {
+    "uplay_id": "442",
+    "uplay_name": "Assassin’s Creed® IV Black Flag™ (Asia)",
+    "steam_appid": 242050,
+    "steam_name": "Assassin’s Creed® IV Black Flag™"
+  },
+  {
+    "uplay_id": "625",
+    "uplay_name": "Assassin's Creed® Liberation HD",
+    "steam_appid": 260210,
+    "steam_name": "Assassin's Creed Liberation"
+  },
+  {
+    "uplay_id": "632",
+    "uplay_name": "Assassin's Creed® Liberation HD (Uplay version/Australia)",
+    "steam_appid": 260210,
+    "steam_name": "Assassin's Creed Liberation"
+  },
+  {
+    "uplay_id": "664",
+    "uplay_name": "Assassin's Creed® Freedom Cry",
+    "steam_appid": 277590,
+    "steam_name": "Assassin's Creed Freedom Cry"
+  },
+  {
+    "uplay_id": "720",
+    "uplay_name": "Assassin's Creed® Unity",
+    "steam_appid": 289650,
+    "steam_name": "Assassin's Creed® Unity"
+  },
+  {
+    "uplay_id": "857",
+    "uplay_name": "Assassin's Creed® Unity (Steam)",
+    "steam_appid": 289650,
+    "steam_name": "Assassin's Creed® Unity"
+  },
+  {
+    "uplay_id": "895",
+    "uplay_name": "Assassin's Creed® Rogue",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "934",
+    "uplay_name": "Assassin's Creed® Rogue (Steam Version)",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "944",
+    "uplay_name": "Assassin's Creed Unity (RU)",
+    "steam_appid": 289650,
+    "steam_name": "Assassin's Creed® Unity"
+  },
+  {
+    "uplay_id": "945",
+    "uplay_name": "Assassin's Creed Unity (RU) (Steam Version)",
+    "steam_appid": 289650,
+    "steam_name": "Assassin's Creed® Unity"
+  },
+  {
+    "uplay_id": "1081",
+    "uplay_name": "Assassin's Creed® Shadows (Steam Version)",
+    "steam_appid": 3159330,
+    "steam_name": "Assassin's Creed Shadows"
+  },
+  {
+    "uplay_id": "1186",
+    "uplay_name": "Assassin's Creed Rogue (RU)",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "1187",
+    "uplay_name": "Assassin's Creed Rogue (RU) (Steam Version)",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "1651",
+    "uplay_name": "Assassin's Creed® Chronicles China",
+    "steam_appid": 354380,
+    "steam_name": "Assassin’s Creed® Chronicles: China"
+  },
+  {
+    "uplay_id": "1661",
+    "uplay_name": "Assassin's Creed Rogue Asia",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "1662",
+    "uplay_name": "Assassin's Creed Rogue Asia (Steam)",
+    "steam_appid": 311560,
+    "steam_name": "Assassin's Creed Rogue"
+  },
+  {
+    "uplay_id": "1841",
+    "uplay_name": "Assassin's Creed® Chronicles China (Steam Version)",
+    "steam_appid": 354380,
+    "steam_name": "Assassin’s Creed® Chronicles: China"
+  },
+  {
+    "uplay_id": "1847",
+    "uplay_name": "Assassin's Creed® Chronicles India",
+    "steam_appid": 359610,
+    "steam_name": "Assassin’s Creed® Chronicles: India"
+  },
+  {
+    "uplay_id": "1848",
+    "uplay_name": "Assassin's Creed® Chronicles Russia",
+    "steam_appid": 359600,
+    "steam_name": "Assassin’s Creed® Chronicles: Russia"
+  },
+  {
+    "uplay_id": "1849",
+    "uplay_name": "Assassin's Creed® Chronicles India (Steam)",
+    "steam_appid": 359610,
+    "steam_name": "Assassin’s Creed® Chronicles: India"
+  },
+  {
+    "uplay_id": "1850",
+    "uplay_name": "Assassin's Creed® Chronicles Russia (Steam)",
+    "steam_appid": 359600,
+    "steam_name": "Assassin’s Creed® Chronicles: Russia"
+  },
+  {
+    "uplay_id": "1875",
+    "uplay_name": "Assassin's Creed® Syndicate",
+    "steam_appid": 368500,
+    "steam_name": "Assassin's Creed® Syndicate"
+  },
+  {
+    "uplay_id": "1955",
+    "uplay_name": "Assassin's Creed® Syndicate (RU)",
+    "steam_appid": 368500,
+    "steam_name": "Assassin's Creed® Syndicate"
+  },
+  {
+    "uplay_id": "1956",
+    "uplay_name": "Assassin's Creed® Syndicate Asia",
+    "steam_appid": 368500,
+    "steam_name": "Assassin's Creed® Syndicate"
+  },
+  {
+    "uplay_id": "1957",
+    "uplay_name": "Assassin's Creed® Syndicate (Steam Version)",
+    "steam_appid": 368500,
+    "steam_name": "Assassin's Creed® Syndicate"
+  },
+  {
+    "uplay_id": "1958",
+    "uplay_name": "Assassin's Creed® Syndicate (RU) (Steam Version)",
+    "steam_appid": 368500,
+    "steam_name": "Assassin's Creed® Syndicate"
+  },
+  {
+    "uplay_id": "3539",
+    "uplay_name": "Assassin's Creed® Origins",
+    "steam_appid": 582160,
+    "steam_name": "Assassin's Creed® Origins"
+  },
+  {
+    "uplay_id": "4919",
+    "uplay_name": "Assassin's Creed II (Steam Version)",
+    "steam_appid": 33230,
+    "steam_name": "Assassin's Creed II"
+  },
+  {
+    "uplay_id": "4923",
+    "uplay_name": "Assassin's Creed Origins (Steam Version)",
+    "steam_appid": 582160,
+    "steam_name": "Assassin's Creed® Origins"
+  },
+  {
+    "uplay_id": "5059",
+    "uplay_name": "Assassin's Creed® Odyssey",
+    "steam_appid": 812140,
+    "steam_name": "Assassin's Creed® Odyssey"
+  },
+  {
+    "uplay_id": "5092",
+    "uplay_name": "Assassin's Creed® Odyssey (Steam Version)",
+    "steam_appid": 812140,
+    "steam_name": "Assassin's Creed® Odyssey"
+  },
+  {
+    "uplay_id": "5100",
+    "uplay_name": "Discovery Tour by Assassin's Creed: Ancient Egypt",
+    "steam_appid": 775430,
+    "steam_name": "Discovery Tour by Assassin’s Creed®: Ancient Egypt"
+  },
+  {
+    "uplay_id": "5183",
+    "uplay_name": "Assassin's Creed® III - Remastered",
+    "steam_appid": 911400,
+    "steam_name": "Assassin's Creed® III Remastered"
+  },
+  {
+    "uplay_id": "5184",
+    "uplay_name": "Assassin's Creed® III - Remastered (Steam Version)",
+    "steam_appid": 911400,
+    "steam_name": "Assassin's Creed® III Remastered"
+  },
+  {
+    "uplay_id": "5404",
+    "uplay_name": "Discovery Tour: Ancient Greece by Ubisoft",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "6100",
+    "uplay_name": "Assassin's Creed® Mirage",
+    "steam_appid": 3035570,
+    "steam_name": "Assassin's Creed Mirage"
+  },
+  {
+    "uplay_id": "6101",
+    "uplay_name": "Assassin's Creed® Mirage (Steam)",
+    "steam_appid": 3035570,
+    "steam_name": "Assassin's Creed Mirage"
+  },
+  {
+    "uplay_id": "7013",
+    "uplay_name": "Assassin's Creed® Valhalla (Steam)",
+    "steam_appid": 2208920,
+    "steam_name": "Assassin's Creed Valhalla"
+  },
+  {
+    "uplay_id": "8006",
+    "uplay_name": "Assassin's Creed® Shadows",
+    "steam_appid": 3159330,
+    "steam_name": "Assassin's Creed Shadows"
+  },
+  {
+    "uplay_id": "11373",
+    "uplay_name": "Discovery Tour: Ancient Egypt by Assassin’s Creed (Steam)",
+    "steam_appid": 775430,
+    "steam_name": "Discovery Tour by Assassin’s Creed®: Ancient Egypt"
+  },
+  {
+    "uplay_id": "13504",
+    "uplay_name": "Assassin's Creed® Valhalla",
+    "steam_appid": 2208920,
+    "steam_name": "Assassin's Creed Valhalla"
+  },
+  {
+    "uplay_id": "19000",
+    "uplay_name": "Discovery Tour: Viking Age by Ubisoft",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "46",
+    "uplay_name": "Far Cry® 3",
+    "steam_appid": 220240,
+    "steam_name": "Far Cry® 3"
+  },
+  {
+    "uplay_id": "84",
+    "uplay_name": "Far Cry",
+    "steam_appid": 13520,
+    "steam_name": "Far Cry®"
+  },
+  {
+    "uplay_id": "85",
+    "uplay_name": "Far Cry 2",
+    "steam_appid": 19900,
+    "steam_name": "Far Cry® 2"
+  },
+  {
+    "uplay_id": "205",
+    "uplay_name": "Far Cry® 3 Blood Dragon",
+    "steam_appid": 233270,
+    "steam_name": "Far Cry® 3 Blood Dragon"
+  },
+  {
+    "uplay_id": "420",
+    "uplay_name": "Far Cry® 4",
+    "steam_appid": 298110,
+    "steam_name": "Far Cry® 4"
+  },
+  {
+    "uplay_id": "856",
+    "uplay_name": "Far Cry® 4 (Steam version/Australia)",
+    "steam_appid": 298110,
+    "steam_name": "Far Cry® 4"
+  },
+  {
+    "uplay_id": "969",
+    "uplay_name": "Far Cry 4 RU",
+    "steam_appid": 298110,
+    "steam_name": "Far Cry® 4"
+  },
+  {
+    "uplay_id": "1803",
+    "uplay_name": "Far Cry® 5",
+    "steam_appid": 552520,
+    "steam_name": "Far Cry® 5"
+  },
+  {
+    "uplay_id": "4311",
+    "uplay_name": "Far Cry® 5 (Steam Version)",
+    "steam_appid": 552520,
+    "steam_name": "Far Cry® 5"
+  },
+  {
+    "uplay_id": "2010",
+    "uplay_name": "Far Cry® Primal",
+    "steam_appid": 371660,
+    "steam_name": "Far Cry® Primal"
+  },
+  {
+    "uplay_id": "2029",
+    "uplay_name": "Far Cry® Primal (Steam version/Australia)",
+    "steam_appid": 371660,
+    "steam_name": "Far Cry® Primal"
+  },
+  {
+    "uplay_id": "5210",
+    "uplay_name": "Far Cry® New Dawn",
+    "steam_appid": 939960,
+    "steam_name": "Far Cry® New Dawn"
+  },
+  {
+    "uplay_id": "5211",
+    "uplay_name": "Far Cry® New Dawn (Steam Version)",
+    "steam_appid": 939960,
+    "steam_name": "Far Cry® New Dawn"
+  },
+  {
+    "uplay_id": "5266",
+    "uplay_name": "Far Cry® 6",
+    "steam_appid": 2369390,
+    "steam_name": "Far Cry® 6"
+  },
+  {
+    "uplay_id": "920",
+    "uplay_name": "Far Cry® 6 (Steam Version)",
+    "steam_appid": 2369390,
+    "steam_name": "Far Cry® 6"
+  },
+  {
+    "uplay_id": "17772",
+    "uplay_name": "Far Cry® 6 Episode 1 Insanity DLC",
+    "steam_appid": 2369458,
+    "steam_name": "Far Cry 6 DLC 1 Vaas: Insanity"
+  },
+  {
+    "uplay_id": "17773",
+    "uplay_name": "Far Cry® 6 Episode 2 Pagan: Control DLC",
+    "steam_appid": 2369456,
+    "steam_name": "Far Cry 6 DLC 2 Pagan: Control"
+  },
+  {
+    "uplay_id": "17774",
+    "uplay_name": "Far Cry® 6 Episode 3 Joseph: Collapse DLC",
+    "steam_appid": 2369454,
+    "steam_name": "Far Cry 6 DLC 3 Joseph: Collapse"
+  },
+  {
+    "uplay_id": "19028",
+    "uplay_name": "Far Cry® 6 Offline Mode \"DLC\"",
+    "steam_appid": 2369390,
+    "steam_name": "Far Cry® 6"
+  },
+  {
+    "uplay_id": "274",
+    "uplay_name": "Watch_Dogs",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "541",
+    "uplay_name": "Watch_Dogs (Steam)",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "543",
+    "uplay_name": "Watch_Dogs (RU)",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "545",
+    "uplay_name": "Watch Dogs Asia",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "741",
+    "uplay_name": "Watch_Dogs (Steam)",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "828",
+    "uplay_name": "Watch Dogs Asia (Steam)",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "1428",
+    "uplay_name": "Watch_Dogs Complete Edition",
+    "steam_appid": 243470,
+    "steam_name": "Watch_Dogs™"
+  },
+  {
+    "uplay_id": "2688",
+    "uplay_name": "WATCH_DOGS® 2",
+    "steam_appid": 447040,
+    "steam_name": "Watch_Dogs® 2"
+  },
+  {
+    "uplay_id": "3353",
+    "uplay_name": "Watch Dogs: Legion",
+    "steam_appid": 2239550,
+    "steam_name": "Watch Dogs®: Legion"
+  },
+  {
+    "uplay_id": "3619",
+    "uplay_name": "WATCH_DOGS® 2 (Steam)",
+    "steam_appid": 447040,
+    "steam_name": "Watch_Dogs® 2"
+  },
+  {
+    "uplay_id": "7017",
+    "uplay_name": "Watch Dogs: Legion (Steam)",
+    "steam_appid": 2239550,
+    "steam_name": "Watch Dogs®: Legion"
+  },
+  {
+    "uplay_id": "2",
+    "uplay_name": "Tom Clancy's Splinter Cell Conviction",
+    "steam_appid": 33220,
+    "steam_name": "Tom Clancy's Splinter Cell Conviction™"
+  },
+  {
+    "uplay_id": "53",
+    "uplay_name": "Tom Clancy's Ghost Recon Future Soldier",
+    "steam_appid": 212630,
+    "steam_name": "Tom Clancy's Ghost Recon: Future Soldier™"
+  },
+  {
+    "uplay_id": "83",
+    "uplay_name": "Tom Clancy's EndWar",
+    "steam_appid": 21800,
+    "steam_name": "Tom Clancy's EndWar™"
+  },
+  {
+    "uplay_id": "88",
+    "uplay_name": "Tom Clancy's Rainbow Six® Vegas",
+    "steam_appid": 13540,
+    "steam_name": "Tom Clancy's Rainbow Six® Vegas"
+  },
+  {
+    "uplay_id": "91",
+    "uplay_name": "Tom Clancy's Splinter Cell Blacklist",
+    "steam_appid": 235600,
+    "steam_name": "Tom Clancy's Splinter Cell Blacklist"
+  },
+  {
+    "uplay_id": "95",
+    "uplay_name": "Tom Clancy's Splinter Cell Chaos Theory™",
+    "steam_appid": 13570,
+    "steam_name": "Tom Clancy's Splinter Cell Chaos Theory®"
+  },
+  {
+    "uplay_id": "108",
+    "uplay_name": "Tom Clancy's Rainbow Six® Vegas 2",
+    "steam_appid": 15120,
+    "steam_name": "Tom Clancy's Rainbow Six® Vegas 2"
+  },
+  {
+    "uplay_id": "109",
+    "uplay_name": "Tom Clancy's Splinter Cell",
+    "steam_appid": 13560,
+    "steam_name": "Tom Clancy's Splinter Cell®"
+  },
+  {
+    "uplay_id": "110",
+    "uplay_name": "Tom Clancy's Splinter Cell Double Agent",
+    "steam_appid": 13580,
+    "steam_name": "Tom Clancy's Splinter Cell Double Agent®"
+  },
+  {
+    "uplay_id": "358",
+    "uplay_name": "Tom Clancy's Rainbow Six® Lockdown",
+    "steam_appid": 15000,
+    "steam_name": "Tom Clancy's Rainbow Six Lockdown™"
+  },
+  {
+    "uplay_id": "449",
+    "uplay_name": "Tom Clancy's Splinter Cell Blacklist (Steam)",
+    "steam_appid": 235600,
+    "steam_name": "Tom Clancy's Splinter Cell Blacklist"
+  },
+  {
+    "uplay_id": "568",
+    "uplay_name": "Tom Clancy's The Division™",
+    "steam_appid": 365590,
+    "steam_name": "Tom Clancy's The Division"
+  },
+  {
+    "uplay_id": "635",
+    "uplay_name": "Tom Clancy's Rainbow Six® Siege",
+    "steam_appid": 359550,
+    "steam_name": "Tom Clancy's Rainbow Six Siege"
+  },
+  {
+    "uplay_id": "1771",
+    "uplay_name": "Tom Clancy's Ghost Recon® Wildlands",
+    "steam_appid": 460930,
+    "steam_name": "Tom Clancy's Ghost Recon® Wildlands"
+  },
+  {
+    "uplay_id": "2970",
+    "uplay_name": "Tom Clancy's Ghost Recon® Wildlands (Open Beta)",
+    "steam_appid": 460930,
+    "steam_name": "Tom Clancy's Ghost Recon® Wildlands"
+  },
+  {
+    "uplay_id": "1835",
+    "uplay_name": "Tom Clancy's The Division™ (RU)",
+    "steam_appid": 365590,
+    "steam_name": "Tom Clancy's The Division"
+  },
+  {
+    "uplay_id": "1842",
+    "uplay_name": "Tom Clancy's Rainbow Six® Siege (RU)",
+    "steam_appid": 359550,
+    "steam_name": "Tom Clancy's Rainbow Six Siege"
+  },
+  {
+    "uplay_id": "1843",
+    "uplay_name": "Tom Clancy's Rainbow Six® Siege (Steam)",
+    "steam_appid": 359550,
+    "steam_name": "Tom Clancy's Rainbow Six Siege"
+  },
+  {
+    "uplay_id": "2036",
+    "uplay_name": "Tom Clancy's The Division Beta",
+    "steam_appid": 414460,
+    "steam_name": "Tom Clancy's The Division - Beta"
+  },
+  {
+    "uplay_id": "2235",
+    "uplay_name": "Tom Clancy's Rainbow Six® 3 Gold",
+    "steam_appid": 19830,
+    "steam_name": "Tom Clancy's Rainbow Six® 3 Gold"
+  },
+  {
+    "uplay_id": "2297",
+    "uplay_name": "Tom Clancy's Ghost Recon",
+    "steam_appid": 15300,
+    "steam_name": "Tom Clancy's Ghost Recon®"
+  },
+  {
+    "uplay_id": "2298",
+    "uplay_name": "Tom Clancy's Rainbow Six®",
+    "steam_appid": 13650,
+    "steam_name": "Tom Clancy's Rainbow Six"
+  },
+  {
+    "uplay_id": "3502",
+    "uplay_name": "Tom Clancy's The Division PTS",
+    "steam_appid": 524440,
+    "steam_name": "Tom Clancy's The Division PTS"
+  },
+  {
+    "uplay_id": "3559",
+    "uplay_name": "Tom Clancy's Ghost Recon Wildlands (Steam)",
+    "steam_appid": 460930,
+    "steam_name": "Tom Clancy's Ghost Recon® Wildlands"
+  },
+  {
+    "uplay_id": "4865",
+    "uplay_name": "Tom Clancy's Rainbow Six® Siege Test Server",
+    "steam_appid": 623990,
+    "steam_name": "Tom Clancy's Rainbow Six Siege - Test Server"
+  },
+  {
+    "uplay_id": "4932",
+    "uplay_name": "Tom Clancy's The Division® 2",
+    "steam_appid": 2221490,
+    "steam_name": "Tom Clancy's The Division 2"
+  },
+  {
+    "uplay_id": "4984",
+    "uplay_name": "Tom Clancy's Ghost Recon Wildlands Open Beta",
+    "steam_appid": 584210,
+    "steam_name": "Tom Clancy's Ghost Recon Wildlands Open Beta"
+  },
+  {
+    "uplay_id": "5159",
+    "uplay_name": "Tom Clancy's The Division 2 - PPS",
+    "steam_appid": 2221490,
+    "steam_name": "Tom Clancy's The Division 2"
+  },
+  {
+    "uplay_id": "5271",
+    "uplay_name": "Tom Clancy's Rainbow Six® Extraction",
+    "steam_appid": 2379390,
+    "steam_name": "Tom Clancy’s Rainbow Six Extraction"
+  },
+  {
+    "uplay_id": "10424",
+    "uplay_name": "Tom Clancy's Rainbow Six® Siege Test Server (Steam)",
+    "steam_appid": 623990,
+    "steam_name": "Tom Clancy's Rainbow Six Siege - Test Server"
+  },
+  {
+    "uplay_id": "11903",
+    "uplay_name": "Tom Clancy's Ghost Recon® Breakpoint",
+    "steam_appid": 2231380,
+    "steam_name": "Tom Clancy's Ghost Recon® Breakpoint"
+  },
+  {
+    "uplay_id": "12737",
+    "uplay_name": "Tom Clancy's Ghost Recon® Breakpoint (Uplay Open + Closed Beta)",
+    "steam_appid": 2231380,
+    "steam_name": "Tom Clancy's Ghost Recon® Breakpoint"
+  },
+  {
+    "uplay_id": "11",
+    "uplay_name": "Prince of Persia® The Forgotten Sands™",
+    "steam_appid": 33320,
+    "steam_name": "Prince of Persia: The Forgotten Sands™"
+  },
+  {
+    "uplay_id": "111",
+    "uplay_name": "Prince of Persia: The Sands of Time™",
+    "steam_appid": 13600,
+    "steam_name": "Prince of Persia®: The Sands of Time"
+  },
+  {
+    "uplay_id": "113",
+    "uplay_name": "Prince of Persia: The Two Thrones™",
+    "steam_appid": 13530,
+    "steam_name": "Prince of Persia: The Two Thrones™"
+  },
+  {
+    "uplay_id": "121",
+    "uplay_name": "Prince of Persia: Warrior Within",
+    "steam_appid": 13500,
+    "steam_name": "Prince of Persia: Warrior Within™"
+  },
+  {
+    "uplay_id": "277",
+    "uplay_name": "Prince of Persia (2008)",
+    "steam_appid": 19980,
+    "steam_name": "Prince of Persia"
+  },
+  {
+    "uplay_id": "6145",
+    "uplay_name": "Prince of Persia: The Lost Crown",
+    "steam_appid": 2751000,
+    "steam_name": "Prince of Persia The Lost Crown"
+  },
+  {
+    "uplay_id": "7021",
+    "uplay_name": "Prince of Persia: The Lost Crown - Complete Edition",
+    "steam_appid": 2751000,
+    "steam_name": "Prince of Persia The Lost Crown"
+  },
+  {
+    "uplay_id": "8005",
+    "uplay_name": "The Rogue Prince of Persia",
+    "steam_appid": 2717880,
+    "steam_name": "The Rogue Prince of Persia"
+  },
+  {
+    "uplay_id": "22",
+    "uplay_name": "Anno 2070",
+    "steam_appid": 48240,
+    "steam_name": "Anno 2070™"
+  },
+  {
+    "uplay_id": "71",
+    "uplay_name": "Anno 2070 (Steam)",
+    "steam_appid": 48240,
+    "steam_name": "Anno 2070™"
+  },
+  {
+    "uplay_id": "89",
+    "uplay_name": "Anno 1404",
+    "steam_appid": 33250,
+    "steam_name": "Anno 1404"
+  },
+  {
+    "uplay_id": "678",
+    "uplay_name": "ANNO 2070® Complete Edition",
+    "steam_appid": 48240,
+    "steam_name": "Anno 2070™"
+  },
+  {
+    "uplay_id": "680",
+    "uplay_name": "Anno 2070 RUS",
+    "steam_appid": 48240,
+    "steam_name": "Anno 2070™"
+  },
+  {
+    "uplay_id": "1253",
+    "uplay_name": "Anno 2205",
+    "steam_appid": 375910,
+    "steam_name": "Anno 2205™"
+  },
+  {
+    "uplay_id": "2990",
+    "uplay_name": "Anno 1602",
+    "steam_appid": 2820130,
+    "steam_name": "Anno 1602 History Edition"
+  },
+  {
+    "uplay_id": "4553",
+    "uplay_name": "Anno 1800 (Uplay)",
+    "steam_appid": 916440,
+    "steam_name": "Anno 1800"
+  },
+  {
+    "uplay_id": "4554",
+    "uplay_name": "Anno 1800 (Uplay+Steam)",
+    "steam_appid": 916440,
+    "steam_name": "Anno 1800"
+  },
+  {
+    "uplay_id": "6245",
+    "uplay_name": "Anno 117: Pax Romana (Steam Demo)",
+    "steam_appid": 3919760,
+    "steam_name": "Anno 117: Pax Romana Demo"
+  },
+  {
+    "uplay_id": "921",
+    "uplay_name": "Anno 117 : Pax Romana",
+    "steam_appid": 3274580,
+    "steam_name": "Anno 117: Pax Romana"
+  },
+  {
+    "uplay_id": "922",
+    "uplay_name": "Anno 117: Pax Romana (Steam)",
+    "steam_appid": 3274580,
+    "steam_name": "Anno 117: Pax Romana"
+  },
+  {
+    "uplay_id": "13800",
+    "uplay_name": "Anno 1800 - Open Beta",
+    "steam_appid": 916440,
+    "steam_name": "Anno 1800"
+  },
+  {
+    "uplay_id": "16232",
+    "uplay_name": "Anno 1404 - History Edition",
+    "steam_appid": 1281630,
+    "steam_name": "Anno 1404 - History Edition"
+  },
+  {
+    "uplay_id": "16234",
+    "uplay_name": "Anno 1503 - History Edition",
+    "steam_appid": 2820110,
+    "steam_name": "Anno 1503 History Edition"
+  },
+  {
+    "uplay_id": "16236",
+    "uplay_name": "Anno 1602 - History Edition",
+    "steam_appid": 2820130,
+    "steam_name": "Anno 1602 History Edition"
+  },
+  {
+    "uplay_id": "16238",
+    "uplay_name": "Anno 1701 - History Edition",
+    "steam_appid": 2820140,
+    "steam_name": "Anno 1701 History Edition"
+  },
+  {
+    "uplay_id": "413",
+    "uplay_name": "The Crew (Worldwide)",
+    "steam_appid": 241560,
+    "steam_name": "The Crew"
+  },
+  {
+    "uplay_id": "507",
+    "uplay_name": "The Crew (Russian)",
+    "steam_appid": 241560,
+    "steam_name": "The Crew"
+  },
+  {
+    "uplay_id": "665",
+    "uplay_name": "The Crew 2 (Steam Version)",
+    "steam_appid": 646910,
+    "steam_name": "The Crew™ 2"
+  },
+  {
+    "uplay_id": "750",
+    "uplay_name": "The Crew (Beta)",
+    "steam_appid": 241560,
+    "steam_name": "The Crew"
+  },
+  {
+    "uplay_id": "63500",
+    "uplay_name": "The Crew Motorfest Trial",
+    "steam_appid": 2829100,
+    "steam_name": "The Crew Motorfest Demo"
+  },
+  {
+    "uplay_id": "16732",
+    "uplay_name": "The Crew Motorfest (Uplay Connect)",
+    "steam_appid": 2698940,
+    "steam_name": "The Crew Motorfest"
+  },
+  {
+    "uplay_id": "2855",
+    "uplay_name": "The Crew 2 (Uplay Connect)",
+    "steam_appid": 646910,
+    "steam_name": "The Crew™ 2"
+  },
+  {
+    "uplay_id": "5037",
+    "uplay_name": "The Crew 2",
+    "steam_appid": 646910,
+    "steam_name": "The Crew™ 2"
+  },
+  {
+    "uplay_id": "8",
+    "uplay_name": "The Settlers 7: Paths to a Kingdom",
+    "steam_appid": 48120,
+    "steam_name": "The Settlers 7: Paths to a Kingdom"
+  },
+  {
+    "uplay_id": "18",
+    "uplay_name": "The Settlers Online",
+    "steam_appid": 354640,
+    "steam_name": "The Settlers Online"
+  },
+  {
+    "uplay_id": "3037",
+    "uplay_name": "The Settlers - New Allies",
+    "steam_appid": 2750080,
+    "steam_name": "The Settlers®: New Allies"
+  },
+  {
+    "uplay_id": "11662",
+    "uplay_name": "The Settlers - History Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "11783",
+    "uplay_name": "The Settlers 2: Veni, Vidi, Vici - History Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "11784",
+    "uplay_name": "The Settlers 3 - History Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "11785",
+    "uplay_name": "The Settlers 4 - History Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "11786",
+    "uplay_name": "The Settlers 5: Heritage of Kings - History Edition",
+    "steam_appid": 965300,
+    "steam_name": "The Settlers® : Heritage of Kings - History Edition"
+  },
+  {
+    "uplay_id": "11787",
+    "uplay_name": "The Settlers 6 - History Edition",
+    "steam_appid": 965310,
+    "steam_name": "The Settlers® : Rise of an Empire - History Edition"
+  },
+  {
+    "uplay_id": "11788",
+    "uplay_name": "The Settlers 7: Paths to a Kingdom - History Edition",
+    "steam_appid": 965320,
+    "steam_name": "The Settlers® 7 : History Edition"
+  },
+  {
+    "uplay_id": "80",
+    "uplay_name": "Rayman Origins",
+    "steam_appid": 207490,
+    "steam_name": "Rayman® Origins"
+  },
+  {
+    "uplay_id": "360",
+    "uplay_name": "Rayman® 3 Hoodlum Havoc®",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "361",
+    "uplay_name": "Rayman® 2 The Great Escape",
+    "steam_appid": 15060,
+    "steam_name": "Rayman 2 - The Great Escape"
+  },
+  {
+    "uplay_id": "362",
+    "uplay_name": "Rayman Raving Rabbids™",
+    "steam_appid": 15080,
+    "steam_name": "Rayman Raving Rabbids™"
+  },
+  {
+    "uplay_id": "410",
+    "uplay_name": "Rayman® Legends",
+    "steam_appid": 242550,
+    "steam_name": "Rayman® Legends"
+  },
+  {
+    "uplay_id": "411",
+    "uplay_name": "Rayman Legends Demo",
+    "steam_appid": 243340,
+    "steam_name": "Rayman Legends Demo"
+  },
+  {
+    "uplay_id": "509",
+    "uplay_name": "Rayman Chinese Special Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "2968",
+    "uplay_name": "Rayman Forever",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "5850",
+    "uplay_name": "Rayman Jungle Run",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "5860",
+    "uplay_name": "Rayman Fiesta Run",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "61578",
+    "uplay_name": "Rabbids: Party of Legends",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "44",
+    "uplay_name": "Might & Magic Heroes VI",
+    "steam_appid": 48220,
+    "steam_name": "Might & Magic: Heroes VI"
+  },
+  {
+    "uplay_id": "64",
+    "uplay_name": "Might & Magic® VI-Pack",
+    "steam_appid": 243380,
+    "steam_name": "Might & Magic VI"
+  },
+  {
+    "uplay_id": "87",
+    "uplay_name": "Heroes of Might and Magic V",
+    "steam_appid": 15170,
+    "steam_name": "Heroes of Might & Magic V"
+  },
+  {
+    "uplay_id": "348",
+    "uplay_name": "Might and Magic VII: For Blood and Honor",
+    "steam_appid": 321960,
+    "steam_name": "Might & Magic Heroes VII"
+  },
+  {
+    "uplay_id": "349",
+    "uplay_name": "Might & Magic® VIII: Day of the Destroyer",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "350",
+    "uplay_name": "Might & Magic® IX",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "352",
+    "uplay_name": "Heroes of Might & Magic II Gold Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "353",
+    "uplay_name": "Heroes® of Might & Magic® III Complete Edition",
+    "steam_appid": 297000,
+    "steam_name": "Heroes® of Might & Magic® III - HD Edition"
+  },
+  {
+    "uplay_id": "354",
+    "uplay_name": "Heroes® of Might & Magic® IV Complete Edition",
+    "steam_appid": 19890,
+    "steam_name": "Heroes of Might and Magic IV - Campaign Editor"
+  },
+  {
+    "uplay_id": "401",
+    "uplay_name": "Might & Magic X Legacy (Uplay)",
+    "steam_appid": 238750,
+    "steam_name": "Might & Magic X - Legacy"
+  },
+  {
+    "uplay_id": "402",
+    "uplay_name": "Might & Magic X Legacy (Steam)",
+    "steam_appid": 238750,
+    "steam_name": "Might & Magic X - Legacy"
+  },
+  {
+    "uplay_id": "403",
+    "uplay_name": "Might & Magic X Legacy (Uplay+Steam)",
+    "steam_appid": 238750,
+    "steam_name": "Might & Magic X - Legacy"
+  },
+  {
+    "uplay_id": "1176",
+    "uplay_name": "Might & Magic Heroes VII",
+    "steam_appid": 321960,
+    "steam_name": "Might & Magic® Heroes® VII"
+  },
+  {
+    "uplay_id": "1177",
+    "uplay_name": "Might & Magic Heroes VII (Steam)",
+    "steam_appid": 321960,
+    "steam_name": "Might & Magic® Heroes® VII"
+  },
+  {
+    "uplay_id": "5042",
+    "uplay_name": "Might & Magic Heroes VI",
+    "steam_appid": 48220,
+    "steam_name": "Might & Magic: Heroes VI"
+  },
+  {
+    "uplay_id": "5613",
+    "uplay_name": "Might & Magic - Chess Royale",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "78",
+    "uplay_name": "Trials Evolution: Gold Edition",
+    "steam_appid": 220160,
+    "steam_name": "Trials Evolution: Gold Edition"
+  },
+  {
+    "uplay_id": "297",
+    "uplay_name": "Trials Fusion",
+    "steam_appid": 245490,
+    "steam_name": "Trials Fusion™"
+  },
+  {
+    "uplay_id": "318",
+    "uplay_name": "Trials Fusion (Steam)",
+    "steam_appid": 245490,
+    "steam_name": "Trials Fusion™"
+  },
+  {
+    "uplay_id": "834",
+    "uplay_name": "Trials Fusion Demo (Steam)",
+    "steam_appid": 294260,
+    "steam_name": "Trials Fusion Demo"
+  },
+  {
+    "uplay_id": "1275",
+    "uplay_name": "Trials Fusion Multiplayer Beta",
+    "steam_appid": 326780,
+    "steam_name": "Trials Fusion MP Beta"
+  },
+  {
+    "uplay_id": "3301",
+    "uplay_name": "Trials of the Blood Dragon (Steam)",
+    "steam_appid": 435480,
+    "steam_name": "Trials of the Blood Dragon"
+  },
+  {
+    "uplay_id": "3600",
+    "uplay_name": "Trials Rising",
+    "steam_appid": 641080,
+    "steam_name": "Trials® Rising"
+  },
+  {
+    "uplay_id": "3601",
+    "uplay_name": "Trials Rising",
+    "steam_appid": 641080,
+    "steam_name": "Trials® Rising"
+  },
+  {
+    "uplay_id": "5233",
+    "uplay_name": "Trials Rising - Open Beta",
+    "steam_appid": 1004390,
+    "steam_name": "Trials Rising - Open Beta"
+  },
+  {
+    "uplay_id": "5454",
+    "uplay_name": "Trials® Rising Demo",
+    "steam_appid": 1099490,
+    "steam_name": "Trials Rising Demo"
+  },
+  {
+    "uplay_id": "3352",
+    "uplay_name": "UNO (Uplay)",
+    "steam_appid": 470220,
+    "steam_name": "UNO"
+  },
+  {
+    "uplay_id": "3360",
+    "uplay_name": "UNO (Uplay+Steam)",
+    "steam_appid": 470220,
+    "steam_name": "UNO"
+  },
+  {
+    "uplay_id": "3361",
+    "uplay_name": "UNO Demo",
+    "steam_appid": 471610,
+    "steam_name": "UNO Demo"
+  },
+  {
+    "uplay_id": "3765",
+    "uplay_name": "UNO - Rayman Theme Cards",
+    "steam_appid": 560940,
+    "steam_name": "Uno - Rayman Theme Cards"
+  },
+  {
+    "uplay_id": "3766",
+    "uplay_name": "UNO - Just Dance Theme Cards",
+    "steam_appid": 560941,
+    "steam_name": "Uno - Just Dance Theme Cards"
+  },
+  {
+    "uplay_id": "3776",
+    "uplay_name": "UNO - Winter Theme Cards",
+    "steam_appid": 571810,
+    "steam_name": "UNO - Winter Theme Cards"
+  },
+  {
+    "uplay_id": "16383",
+    "uplay_name": "UNO - Flip Theme Cards",
+    "steam_appid": 1246520,
+    "steam_name": "UNO - Flip Theme Cards"
+  },
+  {
+    "uplay_id": "17860",
+    "uplay_name": "UNO - Fenyx's Quest Theme Cards",
+    "steam_appid": 1557490,
+    "steam_name": "UNO - Fenyx's Quest Theme Cards"
+  },
+  {
+    "uplay_id": "17942",
+    "uplay_name": "UNO - 50th Anniversary Theme Cards",
+    "steam_appid": 1599770,
+    "steam_name": "UNO - 50th Anniversary Theme Cards"
+  },
+  {
+    "uplay_id": "59689",
+    "uplay_name": "UNO - The Call of Yara Theme Cards",
+    "steam_appid": 1755710,
+    "steam_name": "UNO - The Call of Yara Theme Cards"
+  },
+  {
+    "uplay_id": "60710",
+    "uplay_name": "UNO - AC Valhalla Theme Cards",
+    "steam_appid": 1903460,
+    "steam_name": "UNO - AC Valhalla Theme Cards"
+  },
+  {
+    "uplay_id": "3",
+    "uplay_name": "Silent Hunter®: Battle of the Atlantic Gold Edition",
+    "steam_appid": 48110,
+    "steam_name": "Silent Hunter 5®: Battle of the Atlantic"
+  },
+  {
+    "uplay_id": "5",
+    "uplay_name": "Trial Rising Demo",
+    "steam_appid": 1099490,
+    "steam_name": "Trials Rising Demo"
+  },
+  {
+    "uplay_id": "13",
+    "uplay_name": "Driver: San Francisco",
+    "steam_appid": 33440,
+    "steam_name": "Driver San Francisco"
+  },
+  {
+    "uplay_id": "20",
+    "uplay_name": "Shaun White Snowboarding",
+    "steam_appid": 19990,
+    "steam_name": "Shaun White Snowboarding"
+  },
+  {
+    "uplay_id": "30",
+    "uplay_name": "From Dust",
+    "steam_appid": 33460,
+    "steam_name": "From Dust"
+  },
+  {
+    "uplay_id": "68",
+    "uplay_name": "Silent Hunter 5",
+    "steam_appid": 48110,
+    "steam_name": "Silent Hunter 5®: Battle of the Atlantic"
+  },
+  {
+    "uplay_id": "90",
+    "uplay_name": "World In Conflict",
+    "steam_appid": 21760,
+    "steam_name": "World in Conflict"
+  },
+  {
+    "uplay_id": "93",
+    "uplay_name": "I am Alive",
+    "steam_appid": 214250,
+    "steam_name": "I Am Alive"
+  },
+  {
+    "uplay_id": "232",
+    "uplay_name": "Beyond Good and Evil™",
+    "steam_appid": 15130,
+    "steam_name": "Beyond Good and Evil"
+  },
+  {
+    "uplay_id": "5880",
+    "uplay_name": "Beyond Good and Evil - 20th Anniversary Edition",
+    "steam_appid": 2556990,
+    "steam_name": "Beyond Good and Evil - 20th Anniversary Edition"
+  },
+  {
+    "uplay_id": "233",
+    "uplay_name": "Cold Fear™",
+    "steam_appid": 15270,
+    "steam_name": "Cold Fear"
+  },
+  {
+    "uplay_id": "270",
+    "uplay_name": "Brothers in Arms: Road to Hill 30",
+    "steam_appid": 15190,
+    "steam_name": "Brothers in Arms: Road to Hill 30™"
+  },
+  {
+    "uplay_id": "271",
+    "uplay_name": "Brothers in Arms: Earned in Blood",
+    "steam_appid": 19800,
+    "steam_name": "Brothers in Arms: Earned in Blood™"
+  },
+  {
+    "uplay_id": "272",
+    "uplay_name": "Brothers in Arms: Hell's Highway",
+    "steam_appid": 15390,
+    "steam_name": "Brothers in Arms: Hell's Highway™"
+  },
+  {
+    "uplay_id": "292",
+    "uplay_name": "Silent Hunter III",
+    "steam_appid": 15210,
+    "steam_name": "Silent Hunter® III"
+  },
+  {
+    "uplay_id": "293",
+    "uplay_name": "Silent Hunter 4 Gold Edition",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "422",
+    "uplay_name": "Flashback",
+    "steam_appid": 245730,
+    "steam_name": "Flashback"
+  },
+  {
+    "uplay_id": "423",
+    "uplay_name": "Flashback Demo",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "424",
+    "uplay_name": "Driver San Francisco 大概 (Steam)",
+    "steam_appid": 33440,
+    "steam_name": "Driver San Francisco"
+  },
+  {
+    "uplay_id": "540",
+    "uplay_name": "ShootMania Storm Elite Demo",
+    "steam_appid": 233050,
+    "steam_name": "ShootMania Storm Demo"
+  },
+  {
+    "uplay_id": "569",
+    "uplay_name": "For Honor",
+    "steam_appid": 304390,
+    "steam_name": "FOR HONOR™"
+  },
+  {
+    "uplay_id": "609",
+    "uplay_name": "Child of Light",
+    "steam_appid": 256290,
+    "steam_name": "Child of Light"
+  },
+  {
+    "uplay_id": "611",
+    "uplay_name": "Child of Light (Steam)",
+    "steam_appid": 256290,
+    "steam_name": "Child of Light"
+  },
+  {
+    "uplay_id": "659",
+    "uplay_name": "Valiant Hearts (Uplay)",
+    "steam_appid": 260230,
+    "steam_name": "Valiant Hearts: The Great War™"
+  },
+  {
+    "uplay_id": "661",
+    "uplay_name": "Valiant Hearts (Steam)",
+    "steam_appid": 260230,
+    "steam_name": "Valiant Hearts: The Great War™"
+  },
+  {
+    "uplay_id": "688",
+    "uplay_name": "Lock On",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "693",
+    "uplay_name": "Petz Horsez 2",
+    "steam_appid": 15160,
+    "steam_name": "Petz® Horsez® 2"
+  },
+  {
+    "uplay_id": "698",
+    "uplay_name": "Silent Hunter 4 Wolves of the Pacific (Uplay)",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "699",
+    "uplay_name": "Silent Hunter 4 Wolves of the Pacific: U-Boat Missions (Uplay)",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "801",
+    "uplay_name": "Child of Light Demo",
+    "steam_appid": 294510,
+    "steam_name": "Child Of Light Demo"
+  },
+  {
+    "uplay_id": "825",
+    "uplay_name": "Champions of Anteria",
+    "steam_appid": 374520,
+    "steam_name": "Champions of Anteria™"
+  },
+  {
+    "uplay_id": "1653",
+    "uplay_name": "ZOMBI (Uplay)",
+    "steam_appid": 339230,
+    "steam_name": "ZOMBI"
+  },
+  {
+    "uplay_id": "1713",
+    "uplay_name": "Skull and Bones",
+    "steam_appid": 2853730,
+    "steam_name": "Skull and Bones"
+  },
+  {
+    "uplay_id": "1832",
+    "uplay_name": "Zombi (Uplay+Steam)",
+    "steam_appid": 339230,
+    "steam_name": "ZOMBI"
+  },
+  {
+    "uplay_id": "2070",
+    "uplay_name": "Trackmania Turbo",
+    "steam_appid": 375900,
+    "steam_name": "Trackmania® Turbo"
+  },
+  {
+    "uplay_id": "2170",
+    "uplay_name": "Champions of Anteria (Steam)",
+    "steam_appid": 374520,
+    "steam_name": "Champions of Anteria™"
+  },
+  {
+    "uplay_id": "2988",
+    "uplay_name": "Silent Hunter 2",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "2992",
+    "uplay_name": "Panzer General 3D Assault",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "2993",
+    "uplay_name": "Panzer General 2",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3044",
+    "uplay_name": "POD Gold",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3050",
+    "uplay_name": "Imperialism",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3051",
+    "uplay_name": "Imperialism 2",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3052",
+    "uplay_name": "Speed Busters: American Highways",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3053",
+    "uplay_name": "Warlords Battlecry",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3054",
+    "uplay_name": "Warlords Battlecry 2",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "3088",
+    "uplay_name": "South Park™: The Fractured But Whole™",
+    "steam_appid": 488790,
+    "steam_name": "South Park™: The Fractured But Whole™"
+  },
+  {
+    "uplay_id": "3097",
+    "uplay_name": "Champions of Anteria Demo",
+    "steam_appid": 455420,
+    "steam_name": "Champions of Anteria Demo"
+  },
+  {
+    "uplay_id": "3098",
+    "uplay_name": "Champions of Anteria Demo (Steam)",
+    "steam_appid": 455420,
+    "steam_name": "Champions of Anteria Demo"
+  },
+  {
+    "uplay_id": "3130",
+    "uplay_name": "Just Dance 2017",
+    "steam_appid": 446560,
+    "steam_name": "Just Dance 2017"
+  },
+  {
+    "uplay_id": "3131",
+    "uplay_name": "Just Dance 2017 (Steam)",
+    "steam_appid": 446560,
+    "steam_name": "Just Dance 2017"
+  },
+  {
+    "uplay_id": "3279",
+    "uplay_name": "Steep",
+    "steam_appid": 460920,
+    "steam_name": "Steep™"
+  },
+  {
+    "uplay_id": "3280",
+    "uplay_name": "Steep (Steam)",
+    "steam_appid": 460920,
+    "steam_name": "Steep™"
+  },
+  {
+    "uplay_id": "3445",
+    "uplay_name": "Steep Open Beta",
+    "steam_appid": 550040,
+    "steam_name": "Steep Open Beta"
+  },
+  {
+    "uplay_id": "3458",
+    "uplay_name": "For Honor",
+    "steam_appid": 304390,
+    "steam_name": "FOR HONOR™"
+  },
+  {
+    "uplay_id": "3584",
+    "uplay_name": "South Park™ - The Stick of Truth™",
+    "steam_appid": 213670,
+    "steam_name": "South Park™: The Stick of Truth™"
+  },
+  {
+    "uplay_id": "3774",
+    "uplay_name": "Monopoly Plus",
+    "steam_appid": 562810,
+    "steam_name": "Monopoly Plus"
+  },
+  {
+    "uplay_id": "3775",
+    "uplay_name": "Monopoly Plus (Steam)",
+    "steam_appid": 562810,
+    "steam_name": "Monopoly Plus"
+  },
+  {
+    "uplay_id": "4472",
+    "uplay_name": "Steep Open Beta (Steam)",
+    "steam_appid": 550040,
+    "steam_name": "Steep Open Beta"
+  },
+  {
+    "uplay_id": "4740",
+    "uplay_name": "Avatar: Frontiers of Pandora (Uplay)",
+    "steam_appid": 2840770,
+    "steam_name": "Avatar: Frontiers of Pandora™"
+  },
+  {
+    "uplay_id": "4502",
+    "uplay_name": "South Park: The Fractured But Whole (Steam)",
+    "steam_appid": 488790,
+    "steam_name": "South Park™: The Fractured But Whole™"
+  },
+  {
+    "uplay_id": "5093",
+    "uplay_name": "Avatar: Frontiers of Pandora (Steam)",
+    "steam_appid": 2840770,
+    "steam_name": "Avatar: Frontiers of Pandora™"
+  },
+  {
+    "uplay_id": "5277",
+    "uplay_name": "Starlink: Battle For Atlas",
+    "steam_appid": 950050,
+    "steam_name": "Starlink: Battle for Atlas"
+  },
+  {
+    "uplay_id": "5405",
+    "uplay_name": "Immortals Fenyx Rising",
+    "steam_appid": 2221920,
+    "steam_name": "Immortals Fenyx Rising"
+  },
+  {
+    "uplay_id": "5408",
+    "uplay_name": "Rabbits Coding!",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "5480",
+    "uplay_name": "Riders Republic (Steam)",
+    "steam_appid": 2290180,
+    "steam_name": "Riders Republic"
+  },
+  {
+    "uplay_id": "5487",
+    "uplay_name": "Riders Republic",
+    "steam_appid": 2290180,
+    "steam_name": "Riders Republic"
+  },
+  {
+    "uplay_id": "5595",
+    "uplay_name": "Trackmania",
+    "steam_appid": 2225070,
+    "steam_name": "Trackmania"
+  },
+  {
+    "uplay_id": "5705",
+    "uplay_name": "Scott Pilgrim vs the World: The Game",
+    "steam_appid": 2215260,
+    "steam_name": "Scott Pilgrim vs. The World™: The Game – Complete Edition"
+  },
+  {
+    "uplay_id": "5726",
+    "uplay_name": "Immortal Fenyx Rising™ Demo",
+    "steam_appid": 2221920,
+    "steam_name": "Immortals Fenyx Rising"
+  },
+  {
+    "uplay_id": "5870",
+    "uplay_name": "Hungry Shark World",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "6116",
+    "uplay_name": "The Last Friend",
+    "steam_appid": 944430,
+    "steam_name": "The Last Friend"
+  },
+  {
+    "uplay_id": "6150",
+    "uplay_name": "Skull and Bones Open Beta Closed Beta",
+    "steam_appid": 2853730,
+    "steam_name": "Skull and Bones"
+  },
+  {
+    "uplay_id": "9662",
+    "uplay_name": "Valiant Hearts: Coming Home",
+    "steam_appid": 2741360,
+    "steam_name": "Valiant Hearts: Coming Home"
+  },
+  {
+    "uplay_id": "9797",
+    "uplay_name": "Ode",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "10871",
+    "uplay_name": "Transference",
+    "steam_appid": 647570,
+    "steam_name": "Transference™"
+  },
+  {
+    "uplay_id": "10885",
+    "uplay_name": "Steep Road To The Olympics Beta",
+    "steam_appid": 747500,
+    "steam_name": "Steep Road To The Olympics Beta"
+  },
+  {
+    "uplay_id": "10886",
+    "uplay_name": "Steep Road To The Olympics Beta (Steam)",
+    "steam_appid": 747500,
+    "steam_name": "Steep Road To The Olympics Beta"
+  },
+  {
+    "uplay_id": "11899",
+    "uplay_name": "Roller Champions",
+    "steam_appid": 2211280,
+    "steam_name": "Roller Champions™"
+  },
+  {
+    "uplay_id": "11957",
+    "uplay_name": "Hyper Scape",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "15657",
+    "uplay_name": "XDefiant Closed Beta",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "17903",
+    "uplay_name": "Star Wars: Outlaws",
+    "steam_appid": 2842040,
+    "steam_name": "Star Wars Outlaws"
+  },
+  {
+    "uplay_id": "17905",
+    "uplay_name": "Monopoly Madness",
+    "steam_appid": 2383760,
+    "steam_name": "Monopoly Madness"
+  },
+  {
+    "uplay_id": "60951",
+    "uplay_name": "Project U",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "61432",
+    "uplay_name": "Fell Seal: Arbiter's Mark",
+    "steam_appid": 699170,
+    "steam_name": "Fell Seal: Arbiter's Mark"
+  },
+  {
+    "uplay_id": "61499",
+    "uplay_name": "Evan's Remains",
+    "steam_appid": 1110050,
+    "steam_name": "Evan's Remains"
+  },
+  {
+    "uplay_id": "61503",
+    "uplay_name": "Astrologaster",
+    "steam_appid": 742520,
+    "steam_name": "Astrologaster"
+  },
+  {
+    "uplay_id": "61515",
+    "uplay_name": "Lake",
+    "steam_appid": 1118240,
+    "steam_name": "Lake"
+  },
+  {
+    "uplay_id": "61517",
+    "uplay_name": "A Normal Lost Phone",
+    "steam_appid": 523210,
+    "steam_name": "A Normal Lost Phone"
+  },
+  {
+    "uplay_id": "62326",
+    "uplay_name": "Immortals Fenyx Rising (Steam)",
+    "steam_appid": 2221920,
+    "steam_name": "Immortals Fenyx Rising"
+  },
+  {
+    "uplay_id": "64181",
+    "uplay_name": "Star Wars: Outlaws (Steam)",
+    "steam_appid": 2842040,
+    "steam_name": "Star Wars Outlaws"
+  },
+  {
+    "uplay_id": "65601",
+    "uplay_name": "Star Wars Outlaws (Demo)",
+    "steam_appid": 3515950,
+    "steam_name": "Star Wars Outlaws Demo"
+  },
+  {
+    "uplay_id": "276",
+    "uplay_name": "Prince of Persia",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "2052",
+    "uplay_name": "Anno 2205 (unknown Version)",
+    "steam_appid": 375910,
+    "steam_name": "Anno 2205™"
+  },
+  {
+    "uplay_id": "5481",
+    "uplay_name": "Assassin's Creed 2 (Uplay Connect)",
+    "steam_appid": 33230,
+    "steam_name": "Assassin's Creed 2"
+  },
+  {
+    "uplay_id": "65043",
+    "uplay_name": "Assassin's Creed Black Flag Resynced",
+    "steam_appid": 3751950,
+    "steam_name": "Assassin's Creed Black Flag Resynced"
+  },
+  {
+    "uplay_id": "66088",
+    "uplay_name": "Assassin's Creed Black Flag Resynced",
+    "steam_appid": 3751950,
+    "steam_name": "Assassin's Creed Black Flag Resynced"
+  },
+  {
+    "uplay_id": "314",
+    "uplay_name": "Tom Clancy's Splinter Cell Pandora Tomorrow (Uplay Connect)",
+    "steam_appid": 3929740,
+    "steam_name": "Tom Clancy's Splinter Cell: Pandora Tomorrow"
+  },
+  {
+    "uplay_id": "444",
+    "uplay_name": "Tom Clancy's Splinter Cell Blacklist (Uplay Connect)",
+    "steam_appid": 235600,
+    "steam_name": "Tom Clancy’s Splinter Cell Blacklist"
+  },
+  {
+    "uplay_id": "674",
+    "uplay_name": "Tom Clancy's Ghost Recon Future Soldier (Uplay Connect)",
+    "steam_appid": 212630,
+    "steam_name": "Tom Clancy's Ghost Recon: Future Soldier™"
+  },
+  {
+    "uplay_id": "8000",
+    "uplay_name": "Tom Clancy's The Division Resurgence (Uplay Connect)",
+    "steam_appid": null,
+    "steam_name": null
+  },
+  {
+    "uplay_id": "6220",
+    "uplay_name": "Rayman 30th Anniversary Edition (Uplay Connect)",
+    "steam_appid": 4094670,
+    "steam_name": "Rayman: 30th Anniversary Edition"
+  },
+  {
+    "uplay_id": "426",
+    "uplay_name": "Might & Magic X Legacy (Uplay Connect)",
+    "steam_appid": 238750,
+    "steam_name": "Might & Magic X - Legacy"
+  },
+  {
+    "uplay_id": "2741",
+    "uplay_name": "Trials of the Blood Dragon (Uplay Connect)",
+    "steam_appid": 435480,
+    "steam_name": "Trials of the Blood Dragon"
+  },
+  {
+    "uplay_id": "926",
+    "uplay_name": "Monopoly (Uplay Connect)",
+    "steam_appid": 2929170,
+    "steam_name": "New Monopoly"
+  },
+  {
+    "uplay_id": "5776",
+    "uplay_name": "BattleCore Arena (Uplay Connect)",
+    "steam_appid": 2613870,
+    "steam_name": "BattleCore Arena"
+  },
+  {
+    "uplay_id": "16382",
+    "uplay_name": "Brawlhalla (Uplay Connect)",
+    "steam_appid": 291550,
+    "steam_name": "Brawlhalla"
+  },
+  {
+    "uplay_id": "17965",
+    "uplay_name": "OddBallers (Uplay Connect)",
+    "steam_appid": 1064070,
+    "steam_name": "OddBallers"
+  }
+]
