@@ -155,6 +155,9 @@ namespace PlayniteAchievements.Models.YearReview
         /// <summary>Games finished in the year, earliest first.</summary>
         public IReadOnlyList<YearReviewGame> Completed { get; set; } = Array.Empty<YearReviewGame>();
 
+        /// <summary>The year's rarest unlocks with an icon, rarest first, for decoration.</summary>
+        public IReadOnlyList<YearReviewUnlock> Highlights { get; set; } = Array.Empty<YearReviewUnlock>();
+
         public YearReviewUnlock Rarest { get; set; }
         public YearReviewUnlock First { get; set; }
         public YearReviewUnlock Latest { get; set; }
