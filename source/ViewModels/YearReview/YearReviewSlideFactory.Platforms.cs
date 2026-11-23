@@ -223,49 +223,66 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 });
             }
 
+            // One row per platform filling the left half; the number and the cover strip scale
+            // with the row, so two platforms get big rows and five get compact ones.
+            const double top = 140;
+            const double bottom = 740;
+            var rowHeight = Math.Min(170, (bottom - top) / shown.Count);
             var max = Math.Max(1, shown.Max(platform => platform.Unlocks.Count));
-            var heights = shown.Select(platform => 44 + 120 * Math.Sqrt((double)platform.Unlocks.Count / max)).ToList();
-            const double gap = 46;
-            var available = 770 - 140 - 40;
-            var needed = heights.Sum() + gap * heights.Count;
-            var fit = needed > available ? available / needed : 1;
+            var total = Math.Max(1, shown.Sum(platform => platform.Unlocks.Count));
+            var coverHeight = Math.Min(130, rowHeight - 18);
 
             var entries = new List<YearReviewPlatformEntry>();
             var segments = new List<YearReviewDonutSegment>();
-            var total = Math.Max(1, shown.Sum(platform => platform.Unlocks.Count));
-            var y = 140.0;
             var start = -90.0;
             for (var i = 0; i < shown.Count; i++)
             {
                 var platform = shown[i];
-                var group = GroupOf(platform.Name, platform.Unlocks);
-                var height = heights[i] * fit;
-                entries.Add(new YearReviewPlatformEntry
+                var share = (double)platform.Unlocks.Count / total;
+                var entry = new YearReviewPlatformEntry
                 {
-                    Group = group,
+                    Group = GroupOf(platform.Name, platform.Unlocks),
                     Name = platform.Name,
                     Unlocks = platform.Unlocks.Count,
+                    ShareText = PercentFormatter.Format(share * 100, 0),
                     Fill = platform.Fill,
-                    NumberHeight = height,
-                    X = PlatformIndents[i % PlatformIndents.Length],
-                    Y = y,
-                    Delay = 300 + i * 180
-                });
-                y += height + gap * fit;
+                    RowHeight = rowHeight,
+                    NumberHeight = Math.Max(28, (rowHeight - 24) * (0.55 + 0.45 * Math.Sqrt((double)platform.Unlocks.Count / max))),
+                    CoverHeight = coverHeight,
+                    CoverWidth = coverHeight * 2 / 3,
+                    Covers = platform.Unlocks
+                        .GroupBy(unlock => unlock.GameId)
+                        .OrderByDescending(group => group.Count())
+                        .Select(group => GameOf(data, group.Key).CoverPath)
+                        .Where(path => !string.IsNullOrWhiteSpace(path))
+                        .Take(3)
+                        .ToList(),
+                    X = 72,
+                    Y = top + i * rowHeight,
+                    Delay = 300 + i * 160
+                };
+                entries.Add(entry);
 
                 var sweep = 360.0 * platform.Unlocks.Count / total;
                 segments.Add(new YearReviewDonutSegment
                 {
+                    Entry = entry,
                     StartAngle = start,
                     Sweep = sweep,
                     Fill = platform.Fill,
-                    ToolTip = Format("LOCPlayAch_Format_Pair", platform.Name, Number(platform.Unlocks.Count)),
-                    Group = group
+                    ToolTip = Format("LOCPlayAch_Format_Pair", platform.Name, entry.ShareText),
+                    Group = entry.Group
                 });
                 start += sweep;
             }
 
-            return new YearReviewPlatformsSlide { Entries = entries, Segments = segments };
+            return new YearReviewPlatformsSlide
+            {
+                Entries = entries,
+                Segments = segments,
+                Total = data.Unlocks.Count,
+                AllGroup = GroupOf(Text("LOCPlayAch_YearReview_UnlocksByPlatform"), data.Unlocks)
+            };
         }
 
         /// <summary>The unlocks of <paramref name="unlocks"/>, headed by a name and their count.</summary>
