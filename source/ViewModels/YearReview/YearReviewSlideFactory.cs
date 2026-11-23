@@ -22,13 +22,15 @@ namespace PlayniteAchievements.ViewModels.YearReview
     }
 
     /// <summary>
-    /// Turns a year's review into its slides: localized text and the placement of every element
-    /// on the 1280 x 770 slide canvas. Placements are fixed per slide and scale with the data.
+    /// Turns a year's review into its slides: localized text, the views a slide can switch
+    /// between, and the placement of every element on the 1280 x 770 slide canvas.
     /// </summary>
-    public static class YearReviewSlideFactory
+    public static partial class YearReviewSlideFactory
     {
         private const double MonthBarMax = 430;
         private const int MaxPlatforms = 4;
+        private const int MaxFriendViews = 30;
+        private const int MinRatedUnlocksForAverage = 3;
 
         // The runners-up in a loose row, rank 5, 4, 3, 2, each tilted a little. They sit apart,
         // so every caption stays readable; the leader is larger, to their left.
@@ -49,26 +51,22 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public static IReadOnlyList<YearReviewSlide> Create(YearReviewData data, YearReviewArt art)
         {
             art = art ?? new YearReviewArt();
-            var gamesById = data.TopGames.Select(entry => entry.Game)
-                .Concat(data.Completed)
-                .GroupBy(game => game.GameId)
-                .ToDictionary(group => group.Key, group => group.First());
-
+            var platforms = MergedPlatforms(data);
             var slides = new List<YearReviewSlide>();
             foreach (var kind in data.Slides)
             {
-                var before = slides.Count;
+                YearReviewSlide slide = null;
                 switch (kind)
                 {
                     case YearReviewSlideKind.Intro:
-                        slides.Add(new YearReviewIntroSlide
+                        slide = new YearReviewIntroSlide
                         {
                             YearText = data.Year.ToString(FormattingCulture.Current),
                             RangeText = Format("LOCPlayAch_YearReview_DateRange", MonthDay(data.FirstDay), MonthDay(data.LastDay))
-                        });
+                        };
                         break;
                     case YearReviewSlideKind.Numbers:
-                        slides.Add(new YearReviewNumbersSlide
+                        slide = new YearReviewNumbersSlide
                         {
                             Unlocked = data.Unlocked,
                             CollectionGained = data.CollectionGained,
@@ -76,137 +74,76 @@ namespace PlayniteAchievements.ViewModels.YearReview
                             LevelText = Number(data.LevelAtStart) + " → " + Number(data.LevelAtEnd),
                             PrestigeLevelText = Number(data.PrestigeLevelAtStart) + " → " + Number(data.PrestigeLevelAtEnd),
                             Games = data.GamesWithUnlocks,
-                            Icons = Scatter(data.Highlights)
-                        });
+                            AllGroup = GroupOf(Text("LOCPlayAch_YearReview_AchievementsUnlocked"), data.Unlocks),
+                            Icons = Scatter(data)
+                        };
                         break;
                     case YearReviewSlideKind.Months:
-                        slides.Add(Months(data));
+                        slide = Months(data);
                         break;
                     case YearReviewSlideKind.TopGames:
-                        slides.Add(TopGames(data));
+                        slide = TopGames(data);
                         break;
                     case YearReviewSlideKind.Completions:
-                        slides.Add(Completions(data));
+                        slide = Completions(data);
                         break;
                     case YearReviewSlideKind.Rarest:
-                        slides.Add(Rarest(data));
+                        slide = Rarest(data, platforms);
                         break;
                     case YearReviewSlideKind.Rarity:
-                        slides.Add(Rarity(data));
+                        slide = Rarity(data, platforms);
                         break;
                     case YearReviewSlideKind.Platforms:
-                        if (Platforms(data) is YearReviewPlatformsSlide platforms)
-                        {
-                            slides.Add(platforms);
-                        }
-
+                        slide = Platforms(data, platforms);
                         break;
                     case YearReviewSlideKind.FirstAndLatest:
-                        slides.Add(FirstAndLatest(data));
+                        slide = FirstAndLatest(data);
                         break;
                     case YearReviewSlideKind.Friends:
-                        slides.Add(Friends(data, art, gamesById));
+                        slide = Friends(data, art);
                         break;
                     case YearReviewSlideKind.Summary:
-                        slides.Add(Summary(data));
+                        slide = Summary(data);
                         break;
                     case YearReviewSlideKind.Empty:
-                        slides.Add(new YearReviewEmptySlide
+                        slide = new YearReviewEmptySlide
                         {
                             Text = Format("LOCPlayAch_YearReview_NoUnlocks", data.Year.ToString(FormattingCulture.Current))
-                        });
+                        };
                         break;
                 }
 
-                if (slides.Count > before)
+                if (slide == null)
                 {
-                    var slide = slides[slides.Count - 1];
-                    AttachGameGroups(slide, data);
-                    slide.Title = TitleOf(kind, data);
-                    if (BackdropGame(data, kind) is Guid backdrop && art.Backdrops.TryGetValue(backdrop, out var path))
-                    {
-                        slide.BackdropPath = path;
-                    }
+                    continue;
                 }
+
+                slide.Title = TitleOf(kind);
+                slide.CurrentView = slide.Views.FirstOrDefault();
+                if (BackdropGame(data, kind) is Guid backdrop && art.Backdrops.TryGetValue(backdrop, out var path))
+                {
+                    slide.BackdropPath = path;
+                }
+
+                slides.Add(slide);
             }
 
             return slides;
         }
 
-        /// <summary>The unlocks of <paramref name="unlocks"/>, headed by a name and their count.</summary>
-        private static YearReviewUnlockGroup GroupOf(string name, IReadOnlyList<YearReviewUnlock> unlocks) =>
-            unlocks.Count == 0
-                ? null
-                : new YearReviewUnlockGroup(
-                    Format("LOCPlayAch_YearReview_GameAndDate", name, Number(unlocks.Count)),
-                    unlocks.Count,
-                    () => Rows(unlocks, true));
-
-        private static YearReviewUnlockGroup GameGroup(YearReviewData data, Guid gameId, string name) =>
-            GroupOf(name, data.Unlocks.Where(unlock => unlock.GameId == gameId).ToList());
-
-        private static void AttachGameGroups(YearReviewSlide slide, YearReviewData data)
-        {
-            IEnumerable<YearReviewCoverCard> cards =
-                (slide as YearReviewTopGamesSlide)?.Cards
-                ?? (slide as YearReviewCompletionsSlide)?.Cards
-                ?? (slide as YearReviewFriendsSlide)?.SharedCards
-                ?? (IEnumerable<YearReviewCoverCard>)Array.Empty<YearReviewCoverCard>();
-            foreach (var card in cards)
-            {
-                card.Group = GameGroup(data, card.GameId, card.Name);
-            }
-
-            if (slide is YearReviewNumbersSlide numbers)
-            {
-                numbers.AllGroup = GroupOf(ResourceProvider.GetString("LOCPlayAch_YearReview_AchievementsUnlocked"), data.Unlocks);
-                foreach (var icon in numbers.Icons ?? Array.Empty<YearReviewIcon>())
-                {
-                    icon.Group = GameGroup(data, icon.GameId, data.Unlocks.FirstOrDefault(unlock => unlock.GameId == icon.GameId)?.GameName);
-                }
-            }
-            else if (slide is YearReviewCompletionsSlide completions)
-            {
-                var finished = new HashSet<Guid>(data.Completed.Select(game => game.GameId));
-                completions.AllGroup = GroupOf(ResourceProvider.GetString("LOCPlayAch_YearReview_GamesCompleted"),
-                    data.Unlocks.Where(unlock => finished.Contains(unlock.GameId)).ToList());
-            }
-            else if (slide is YearReviewRarestSlide rarest && data.Rarest != null)
-            {
-                rarest.Group = GameGroup(data, data.Rarest.GameId, data.Rarest.GameName);
-            }
-            else if (slide is YearReviewFirstAndLatestSlide firstAndLatest)
-            {
-                firstAndLatest.FirstGroup = GameGroup(data, data.First.GameId, data.First.GameName);
-                firstAndLatest.LatestGroup = GameGroup(data, data.Latest.GameId, data.Latest.GameName);
-            }
-            else if (slide is YearReviewMonthsSlide months && data.LongestStreak.Days > 0)
-            {
-                var zone = TimeZoneInfo.Local;
-                var streak = data.LongestStreak;
-                months.StreakGroup = GroupOf(
-                    Format("LOCPlayAch_YearReview_DateRange", MonthDay(streak.Start), MonthDay(streak.End)),
-                    data.Unlocks.Where(unlock =>
-                    {
-                        var day = DateTimeUtilities.ToLocalDay(unlock.UnlockUtc, zone);
-                        return day >= streak.Start && day <= streak.End;
-                    }).ToList());
-            }
-        }
-
-        private static string TitleOf(YearReviewSlideKind kind, YearReviewData data)
+        private static string TitleOf(YearReviewSlideKind kind)
         {
             switch (kind)
             {
-                case YearReviewSlideKind.Numbers: return ResourceProvider.GetString("LOCPlayAch_YearReview_AchievementsUnlocked");
-                case YearReviewSlideKind.Months: return ResourceProvider.GetString("LOCPlayAch_YearReview_UnlocksByMonth");
-                case YearReviewSlideKind.TopGames: return ResourceProvider.GetString("LOCPlayAch_YearReview_TopGames");
-                case YearReviewSlideKind.Completions: return ResourceProvider.GetString("LOCPlayAch_YearReview_GamesCompleted");
-                case YearReviewSlideKind.Rarest: return ResourceProvider.GetString("LOCPlayAch_YearReview_RarestUnlock");
-                case YearReviewSlideKind.Rarity: return ResourceProvider.GetString("LOCPlayAch_YearReview_UnlocksByRarity");
-                case YearReviewSlideKind.Platforms: return ResourceProvider.GetString("LOCPlayAch_YearReview_UnlocksByPlatform");
-                case YearReviewSlideKind.FirstAndLatest: return ResourceProvider.GetString("LOCPlayAch_YearReview_FirstAndLatest");
-                case YearReviewSlideKind.Friends: return ResourceProvider.GetString("LOCPlayAch_Settings_Friends");
+                case YearReviewSlideKind.Numbers: return Text("LOCPlayAch_YearReview_AchievementsUnlocked");
+                case YearReviewSlideKind.Months: return Text("LOCPlayAch_YearReview_ByMonth");
+                case YearReviewSlideKind.TopGames: return Text("LOCPlayAch_YearReview_TopGames");
+                case YearReviewSlideKind.Completions: return Text("LOCPlayAch_YearReview_GamesCompleted");
+                case YearReviewSlideKind.Rarest: return Text("LOCPlayAch_YearReview_RarestUnlock");
+                case YearReviewSlideKind.Rarity: return Text("LOCPlayAch_YearReview_UnlocksByRarity");
+                case YearReviewSlideKind.Platforms: return Text("LOCPlayAch_YearReview_UnlocksByPlatform");
+                case YearReviewSlideKind.FirstAndLatest: return Text("LOCPlayAch_YearReview_FirstAndLatest");
+                case YearReviewSlideKind.Friends: return Text("LOCPlayAch_Settings_Friends");
                 default: return null;
             }
         }
@@ -250,26 +187,49 @@ namespace PlayniteAchievements.ViewModels.YearReview
         private static YearReviewMonthsSlide Months(YearReviewData data)
         {
             var culture = FormattingCulture.Current;
-            var max = Math.Max(1, data.Months.Max());
             var zone = TimeZoneInfo.Local;
             var byDay = data.Unlocks
                 .GroupBy(unlock => DateTimeUtilities.ToLocalDay(unlock.UnlockUtc, zone))
                 .ToDictionary(group => group.Key, group => group.ToList());
-            var bars = data.Months
-                .Select((count, index) => new YearReviewMonthBar
-                {
-                    Label = culture.DateTimeFormat.GetAbbreviatedMonthName(index + 1),
-                    Unlocks = count,
-                    Height = Math.Max(4, count * MonthBarMax / max),
-                    IsPeak = index == data.BusiestMonth,
-                    Delay = 200 + index * 60,
-                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", culture.DateTimeFormat.GetMonthName(index + 1), Number(count)),
-                    Group = new YearReviewUnlockGroup(
-                        Format("LOCPlayAch_YearReview_GameAndDate", culture.DateTimeFormat.GetMonthName(index + 1), Number(count)),
-                        count,
-                        () => Rows(data.Unlocks.Where(unlock => DateTimeUtilities.ToLocalDay(unlock.UnlockUtc, zone).Month == index + 1), true))
-                })
+            var groups = Enumerable.Range(0, 12)
+                .Select(index => new YearReviewUnlockGroup(
+                    Format("LOCPlayAch_Format_Pair", culture.DateTimeFormat.GetMonthName(index + 1), Number(data.Months[index])),
+                    data.Months[index],
+                    () => Rows(data.Unlocks.Where(unlock => DateTimeUtilities.ToLocalDay(unlock.UnlockUtc, zone).Month == index + 1), true)))
                 .ToList();
+
+            YearReviewMonthsView View(string label, IReadOnlyDictionary<DateTime, int> perDay)
+            {
+                var months = new int[12];
+                foreach (var pair in perDay)
+                {
+                    months[pair.Key.Month - 1] += pair.Value;
+                }
+
+                var max = Math.Max(1, months.Max());
+                var peak = months.Max() > 0 ? Array.IndexOf(months, months.Max()) : -1;
+                var best = perDay.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key).FirstOrDefault();
+                return new YearReviewMonthsView
+                {
+                    Label = label,
+                    Months = months
+                        .Select((value, index) => new YearReviewMonthBar
+                        {
+                            Label = culture.DateTimeFormat.GetAbbreviatedMonthName(index + 1),
+                            Unlocks = value,
+                            Height = Math.Max(4, value * MonthBarMax / max),
+                            IsPeak = index == peak,
+                            Delay = 200 + index * 60,
+                            ToolTip = Format("LOCPlayAch_Format_Pair", culture.DateTimeFormat.GetMonthName(index + 1), Number(value)),
+                            Group = groups[index].Count > 0 ? groups[index] : null
+                        })
+                        .ToList(),
+                    BusiestDayText = best.Value <= 0
+                        ? string.Empty
+                        : Format("LOCPlayAch_YearReview_BusiestDay",
+                            Format("LOCPlayAch_Format_Pair", best.Key.ToString("D", culture), Number(best.Value)))
+                };
+            }
 
             var heat = new List<YearReviewHeatCell>();
             var busiest = Math.Max(1, data.BusiestDayUnlocks);
@@ -284,13 +244,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     X = column * 10,
                     Y = (int)day.DayOfWeek * 10,
                     Level = count == 0 ? 0 : share <= 0.25 ? 1 : share <= 0.5 ? 2 : share <= 0.75 ? 3 : 4,
-                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", day.ToString("D", culture), Number(count)),
-                    Group = byDay.TryGetValue(day, out var dayUnlocks)
-                        ? new YearReviewUnlockGroup(
-                            Format("LOCPlayAch_YearReview_GameAndDate", day.ToString("D", culture), Number(count)),
-                            count,
-                            () => Rows(dayUnlocks, false))
-                        : null,
+                    ToolTip = Format("LOCPlayAch_Format_Pair", day.ToString("D", culture), Number(count)),
+                    Group = byDay.TryGetValue(day, out var dayUnlocks) ? GroupOf(day.ToString("D", culture), dayUnlocks, false) : null,
                     Delay = 1250 + column * 14
                 });
             }
@@ -298,11 +253,22 @@ namespace PlayniteAchievements.ViewModels.YearReview
             var streak = data.LongestStreak;
             return new YearReviewMonthsSlide
             {
-                Months = bars,
-                BusiestDayText = data.BusiestDay.HasValue
-                    ? Format("LOCPlayAch_YearReview_BusiestDay", data.BusiestDay.Value.ToString("D", culture), Number(data.BusiestDayUnlocks))
-                    : string.Empty,
+                Views = new YearReviewSlideView[]
+                {
+                    View(Text("LOCPlayAch_Column_Unlocks"), data.Days),
+                    View(Text("LOCPlayAch_Score_Collection"), data.DayCollection),
+                    View(Text("LOCPlayAch_Score_Prestige"), data.DayPrestige)
+                },
                 StreakDays = streak.Days,
+                StreakGroup = streak.Days > 0
+                    ? GroupOf(
+                        Format("LOCPlayAch_YearReview_DateRange", MonthDay(streak.Start), MonthDay(streak.End)),
+                        data.Unlocks.Where(unlock =>
+                        {
+                            var day = DateTimeUtilities.ToLocalDay(unlock.UnlockUtc, zone);
+                            return day >= streak.Start && day <= streak.End;
+                        }).ToList())
+                    : null,
                 StreakRangeText = streak.Days > 1
                     ? Format("LOCPlayAch_YearReview_DateRange", MonthDay(streak.Start), MonthDay(streak.End))
                     : MonthDay(streak.Start),
@@ -312,35 +278,89 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         private static YearReviewTopGamesSlide TopGames(YearReviewData data)
         {
-            var cards = new List<YearReviewCoverCard>();
-            var runnersUp = data.TopGames.Skip(1).ToList();
-            for (var rank = runnersUp.Count; rank >= 1; rank--)
+            YearReviewTopGamesView View(string label, IReadOnlyList<(YearReviewGame Game, double Value, string Text)> ranked, Func<YearReviewGame, string> caption, bool percent)
             {
-                var entry = runnersUp[rank - 1];
-                var slot = RowSlots[RowSlots.Length - rank];
-                cards.Add(Card(entry.Game, rank + 1, entry.Unlocks, slot.X, slot.Y, slot.Angle, 145, 218,
-                    300 + (RowSlots.Length - rank) * 160));
+                if (ranked.Count == 0)
+                {
+                    return null;
+                }
+
+                var cards = new List<YearReviewCoverCard>();
+                var runnersUp = ranked.Skip(1).Take(RowSlots.Length).ToList();
+                for (var rank = runnersUp.Count; rank >= 1; rank--)
+                {
+                    var entry = runnersUp[rank - 1];
+                    var slot = RowSlots[RowSlots.Length - rank];
+                    cards.Add(Card(data, entry.Game, rank + 1, entry.Text, slot.X, slot.Y, slot.Angle, 145, 218,
+                        300 + (RowSlots.Length - rank) * 160));
+                }
+
+                var lead = ranked[0];
+                cards.Add(Card(data, lead.Game, 1, lead.Text, 370, 170, -4, 210, 315, 1000));
+                return new YearReviewTopGamesView
+                {
+                    Label = label,
+                    LeadValue = lead.Value,
+                    LeadIsPercent = percent,
+                    LeadCaption = caption(lead.Game),
+                    Cards = cards
+                };
             }
 
-            var lead = data.TopGames.FirstOrDefault();
-            if (lead != null)
-            {
-                cards.Add(Card(lead.Game, 1, lead.Unlocks, 370, 170, -4, 210, 315, 1000));
-            }
+            IReadOnlyList<(YearReviewGame, double, string)> ByScore(IReadOnlyDictionary<Guid, int> scores) =>
+                scores
+                    .Where(pair => pair.Value > 0)
+                    .OrderByDescending(pair => pair.Value)
+                    .Take(YearReviewBuilderTopCount)
+                    .Select(pair => (GameOf(data, pair.Key), (double)pair.Value, Number(pair.Value)))
+                    .ToList();
+
+            var byUnlocks = data.TopGames
+                .Select(entry => (entry.Game, (double)entry.Unlocks, Number(entry.Unlocks)))
+                .ToList();
+            var byRarity = data.Unlocks
+                .Where(unlock => unlock.GlobalPercent.HasValue)
+                .GroupBy(unlock => unlock.GameId)
+                .Where(group => group.Count() >= MinRatedUnlocksForAverage)
+                .Select(group => (Game: GameOf(data, group.Key), Average: group.Average(unlock => unlock.GlobalPercent.Value)))
+                .OrderBy(entry => entry.Average)
+                .Take(YearReviewBuilderTopCount)
+                .Select(entry => (entry.Game, entry.Average, PercentFormatter.Format(entry.Average, PercentDecimals(entry.Average))))
+                .ToList();
+
+            string ScoreCaption(string metric, YearReviewGame game) => Format("LOCPlayAch_YearReview_MetricInGame", metric, game.Name);
 
             return new YearReviewTopGamesSlide
             {
-                LeadUnlocks = lead?.Unlocks ?? 0,
-                LeadCaption = lead == null ? string.Empty : Format("LOCPlayAch_YearReview_UnlocksInGame", lead.Game.Name),
-                Cards = cards
+                Views = new[]
+                {
+                    View(Text("LOCPlayAch_Column_Unlocks"), byUnlocks, game => ScoreCaption(Text("LOCPlayAch_Column_Unlocks"), game), false),
+                    View(Text("LOCPlayAch_Score_Collection"), ByScore(data.GameCollection), game => ScoreCaption(Text("LOCPlayAch_Score_Collection"), game), false),
+                    View(Text("LOCPlayAch_Score_Prestige"), ByScore(data.GamePrestige), game => ScoreCaption(Text("LOCPlayAch_Score_Prestige"), game), false),
+                    View(Text("LOCPlayAch_YearReview_Rarest"), byRarity, game => Format("LOCPlayAch_YearReview_AverageRateInGame", game.Name), true)
+                }
+                .Where(view => view != null)
+                .Cast<YearReviewSlideView>()
+                .ToList()
             };
         }
+
+        private const int YearReviewBuilderTopCount = 5;
+
+        private static YearReviewGame GameOf(YearReviewData data, Guid gameId) =>
+            data.Games.TryGetValue(gameId, out var game) && game != null
+                ? game
+                : new YearReviewGame
+                {
+                    GameId = gameId,
+                    Name = data.Unlocks.FirstOrDefault(unlock => unlock.GameId == gameId)?.GameName
+                };
 
         /// <summary>
         /// The year's rarest icons strewn under the big figure in two loose rows, each at its own
         /// size and tilt.
         /// </summary>
-        private static IReadOnlyList<YearReviewIcon> Scatter(IReadOnlyList<YearReviewUnlock> highlights)
+        private static IReadOnlyList<YearReviewIcon> Scatter(YearReviewData data)
         {
             var spots = new (double X, double Y, double Size, double Angle)[]
             {
@@ -348,13 +368,14 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 (110, 628, 74, 5), (204, 640, 86, -10), (318, 620, 70, 4), (412, 636, 82, -4), (520, 616, 76, 8)
             };
 
-            return (highlights ?? Array.Empty<YearReviewUnlock>())
+            return (data.Highlights ?? Array.Empty<YearReviewUnlock>())
                 .Take(spots.Length)
                 .Select((unlock, index) => new YearReviewIcon
                 {
                     IconPath = unlock.IconPath,
                     GameId = unlock.GameId,
-                    ToolTip = Format("LOCPlayAch_YearReview_GameAndDate", unlock.AchievementName, unlock.GameName),
+                    Group = GameGroup(data, unlock.GameId, unlock.GameName),
+                    ToolTip = Format("LOCPlayAch_Format_Pair", unlock.AchievementName, unlock.GameName),
                     X = spots[index].X,
                     Y = spots[index].Y,
                     Size = spots[index].Size,
@@ -371,7 +392,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 .Select((game, index) =>
                 {
                     var slot = PileSlots[index];
-                    var card = Card(game, 0, 0, slot.X, slot.Y, slot.Angle, 140, 210, 250 + index * 120);
+                    var card = Card(data, game, 0, null, slot.X, slot.Y, slot.Angle, 140, 210, 250 + index * 120);
                     card.Badge = game.Badge;
                     card.ShowBadge = true;
                     card.BadgeDelay = 650 + index * 120;
@@ -387,174 +408,16 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 }
                 .Select(kind => (Count: data.Completed.Count(game => game.Badge == kind.Item1), Key: kind.Item2))
                 .Where(line => line.Count > 0)
-                .Select(line => Number(line.Count) + " " + ResourceProvider.GetString(line.Key));
+                .Select(line => Number(line.Count) + " " + Text(line.Key));
 
+            var finished = new HashSet<Guid>(data.Completed.Select(game => game.GameId));
             return new YearReviewCompletionsSlide
             {
                 Count = data.Completed.Count,
                 BreakdownText = string.Join(Environment.NewLine, lines),
+                AllGroup = GroupOf(Text("LOCPlayAch_YearReview_GamesCompleted"), data.Unlocks.Where(unlock => finished.Contains(unlock.GameId)).ToList()),
                 Cards = cards
             };
-        }
-
-        private static YearReviewRarestSlide Rarest(YearReviewData data)
-        {
-            var rarest = data.Rarest;
-            var percent = rarest.GlobalPercent ?? 0;
-            var percentText = PercentFormatter.Format(percent, PercentDecimals(percent));
-            return new YearReviewRarestSlide
-            {
-                Name = rarest.AchievementName,
-                IconPath = rarest.IconPath,
-                Percent = percent,
-                DetailText = Format("LOCPlayAch_YearReview_RarestDetail",
-                    rarest.GameName,
-                    MonthDay(DateTimeUtilities.AsLocalFromUtc(rarest.UnlockUtc)),
-                    percentText),
-                Tier = rarest.Rarity,
-                TierText = rarest.Rarity.ToDisplayText().ToUpper(FormattingCulture.Current),
-                TierBrush = rarest.Rarity.ToBrush()
-            };
-        }
-
-        public static int PercentDecimals(double percent) => percent < 10 ? 1 : 0;
-
-        private static YearReviewRaritySlide Rarity(YearReviewData data)
-        {
-            var tiers = new[] { RarityTier.Common, RarityTier.Uncommon, RarityTier.Rare, RarityTier.UltraRare };
-            var shown = tiers
-                .Select(tier => (Tier: tier, Count: data.Rarities.TryGetValue(tier, out var count) ? count : 0))
-                .Where(entry => entry.Count > 0)
-                .ToList();
-            var max = Math.Max(1, shown.Select(entry => entry.Count).DefaultIfEmpty(1).Max());
-
-            // Area follows the count. The row is then scaled so the circles sit side by side
-            // across the canvas without touching, and no circle outgrows the space under the title.
-            const double gap = 28;
-            const double left = 72;
-            const double right = 1208;
-            const double tallest = 470;
-            var diameters = shown.Select(entry => 90 + 380 * Math.Sqrt((double)entry.Count / max)).ToList();
-            var fit = Math.Min(1, Math.Min(
-                (right - left - gap * (diameters.Count - 1)) / Math.Max(1, diameters.Sum()),
-                tallest / Math.Max(1, diameters.DefaultIfEmpty(1).Max())));
-
-            var bubbles = new List<YearReviewBubble>();
-            var x = left;
-            const double centreY = 430;
-            for (var i = 0; i < shown.Count; i++)
-            {
-                var diameter = diameters[i] * fit;
-                var offset = i % 2 == 0 ? -30 : 40;
-                var tier = shown[i].Tier;
-                bubbles.Add(new YearReviewBubble
-                {
-                    Group = GroupOf(tier.ToDisplayText(), data.Unlocks.Where(unlock => unlock.Rarity == tier).ToList()),
-                    Label = shown[i].Tier.ToDisplayText(),
-                    Unlocks = shown[i].Count,
-                    Diameter = diameter,
-                    NumberHeight = diameter * 0.3,
-                    Fill = shown[i].Tier.ToBrush(),
-                    X = x,
-                    Y = Clamp(centreY + offset - diameter / 2, 130, 720 - diameter),
-                    Delay = 250 + i * 220
-                });
-                x += diameter + gap;
-            }
-
-            return new YearReviewRaritySlide
-            {
-                Bubbles = bubbles,
-                TotalText = Format("LOCPlayAch_YearReview_UnlocksInTotal", Number(data.Unlocked))
-            };
-        }
-
-        private static IReadOnlyList<YearReviewUnlockRow> Rows(IEnumerable<YearReviewUnlock> unlocks, bool withDate) =>
-            unlocks
-                .OrderBy(unlock => unlock.UnlockUtc)
-                .Select(unlock =>
-                {
-                    var local = DateTimeUtilities.AsLocalFromUtc(unlock.UnlockUtc);
-                    var time = local.ToString("t", FormattingCulture.Current);
-                    return new YearReviewUnlockRow
-                    {
-                        IconPath = unlock.IconPath,
-                        Name = unlock.AchievementName,
-                        GameName = unlock.GameName,
-                        TimeText = withDate ? MonthDay(local) + " " + time : time
-                    };
-                })
-                .ToList();
-
-        private static YearReviewPlatformsSlide Platforms(YearReviewData data)
-        {
-            // Keys that show the same name, such as the Custom provider and a custom provider
-            // whose id no longer resolves, are one platform to the reader.
-            var merged = data.Platforms
-                .GroupBy(platform => ProviderRegistry.GetLocalizedName(platform.ProviderKey), StringComparer.CurrentCultureIgnoreCase)
-                .Select(group => (
-                    Name: group.Key,
-                    Count: group.Sum(platform => platform.Unlocks),
-                    Fill: HexBrush(ProviderRegistry.ResolveProviderVisualsOrFallback(group.First().ProviderKey).colorHex),
-                    Keys: (ISet<string>)new HashSet<string>(group.Select(platform => platform.ProviderKey ?? string.Empty), StringComparer.OrdinalIgnoreCase)))
-                .OrderByDescending(platform => platform.Count)
-                .ToList();
-            if (merged.Count < 2)
-            {
-                return null;
-            }
-
-            var shown = merged.Take(MaxPlatforms).ToList();
-            var rest = merged.Skip(MaxPlatforms).Sum(platform => platform.Count);
-            if (rest > 0)
-            {
-                shown.Add((ResourceProvider.GetString("LOCPlayAch_Common_Other"), rest,
-                    Application.Current?.TryFindResource("PlayAch.Brush.Text.Secondary") as Brush ?? Brushes.Gray,
-                    (ISet<string>)new HashSet<string>(merged.Skip(MaxPlatforms).SelectMany(platform => platform.Keys), StringComparer.OrdinalIgnoreCase)));
-            }
-
-            var max = Math.Max(1, shown.Max(platform => platform.Count));
-            var heights = shown.Select(platform => 44 + 120 * Math.Sqrt((double)platform.Count / max)).ToList();
-            const double gap = 46;
-            var available = 770 - 140 - 40;
-            var needed = heights.Sum() + gap * heights.Count;
-            var fit = needed > available ? available / needed : 1;
-
-            var entries = new List<YearReviewPlatformEntry>();
-            var y = 140.0;
-            for (var i = 0; i < shown.Count; i++)
-            {
-                var height = heights[i] * fit;
-                var keys = shown[i].Keys;
-                entries.Add(new YearReviewPlatformEntry
-                {
-                    Group = GroupOf(shown[i].Name, data.Unlocks.Where(unlock => keys.Contains(unlock.ProviderKey ?? string.Empty)).ToList()),
-                    Name = shown[i].Name,
-                    Unlocks = shown[i].Count,
-                    Fill = shown[i].Fill,
-                    NumberHeight = height,
-                    X = PlatformIndents[i % PlatformIndents.Length],
-                    Y = y,
-                    Delay = 300 + i * 180
-                });
-                y += height + gap * fit;
-            }
-
-            var total = Math.Max(1, shown.Sum(platform => platform.Count));
-            var segments = new List<YearReviewDonutSegment>();
-            var start = -90.0;
-            foreach (var platform in shown)
-            {
-                var sweep = 360.0 * platform.Count / total;
-                segments.Add(new YearReviewDonutSegment
-                {
-                    Geometry = RingSegment(new Point(350, 350), 350, 168, start, sweep),
-                    Fill = platform.Fill
-                });
-                start += sweep;
-            }
-
-            return new YearReviewPlatformsSlide { Entries = entries, Segments = segments };
         }
 
         private static YearReviewFirstAndLatestSlide FirstAndLatest(YearReviewData data)
@@ -562,7 +425,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
             string Detail(YearReviewUnlock unlock)
             {
                 var local = DateTimeUtilities.AsLocalFromUtc(unlock.UnlockUtc);
-                return Format("LOCPlayAch_YearReview_GameAndDate",
+                return Format("LOCPlayAch_Format_Pair",
                     unlock.GameName,
                     MonthDay(local) + " " + local.ToString("t", FormattingCulture.Current));
             }
@@ -572,45 +435,75 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 FirstLabel = Format("LOCPlayAch_YearReview_FirstUnlockOfYear", data.Year.ToString(FormattingCulture.Current)),
                 FirstName = data.First.AchievementName,
                 FirstIconPath = data.First.IconPath,
+                FirstGroup = GameGroup(data, data.First.GameId, data.First.GameName),
                 FirstDetail = Detail(data.First),
                 LatestName = data.Latest.AchievementName,
                 LatestIconPath = data.Latest.IconPath,
+                LatestGroup = GameGroup(data, data.Latest.GameId, data.Latest.GameName),
                 LatestDetail = Detail(data.Latest),
                 DaysApart = (DateTimeUtilities.AsLocalFromUtc(data.Latest.UnlockUtc).Date
                              - DateTimeUtilities.AsLocalFromUtc(data.First.UnlockUtc).Date).Days
             };
         }
 
-        private static YearReviewFriendsSlide Friends(
-            YearReviewData data,
-            YearReviewArt art,
-            IReadOnlyDictionary<Guid, YearReviewGame> gamesById)
+        private static YearReviewFriendsSlide Friends(YearReviewData data, YearReviewArt art)
         {
-            var friends = data.Friends;
-            var name = friends.TopFriendName ?? string.Empty;
-            var shared = friends.SharedGameIds
-                .Select(id => gamesById.TryGetValue(id, out var game) ? game : null)
-                .Where(game => game != null)
-                .Take(3)
-                .Select((game, index) => Card(game, 0, 0, 760 + index * 110, 240 + index % 2 * 30,
-                    new[] { -10.0, 4, 14 }[index], 130, 195, 800 + index * 120))
-                .Select(card =>
-                {
-                    card.ShowCaption = false;
-                    return card;
-                })
-                .ToList();
+            IReadOnlyList<YearReviewCoverCard> Shared(IReadOnlyList<Guid> gameIds) =>
+                gameIds
+                    .Take(3)
+                    .Select((id, index) =>
+                    {
+                        var card = Card(data, GameOf(data, id), 0, null, 760 + index * 110, 240 + index % 2 * 30,
+                            new[] { -10.0, 4, 14 }[index], 130, 195, 800 + index * 120);
+                        card.ShowCaption = false;
+                        return card;
+                    })
+                    .ToList();
 
-            return new YearReviewFriendsSlide
+            string Initial(string name) =>
+                string.IsNullOrEmpty(name) ? string.Empty : name.Substring(0, 1).ToUpper(FormattingCulture.Current);
+
+            var friends = data.Friends;
+            var topName = friends.TopFriendName ?? string.Empty;
+            var views = new List<YearReviewSlideView>
             {
-                UnlockedFirst = friends.UnlockedFirst,
-                HasTopFriend = friends.SharedGameIds.Count > 0,
-                FriendName = name,
-                FriendInitial = name.Length > 0 ? name.Substring(0, 1).ToUpper(FormattingCulture.Current) : string.Empty,
-                AvatarPath = art.TopFriendAvatarPath,
-                InCommonText = Format("LOCPlayAch_YearReview_GamesInCommon", Number(friends.SharedGameIds.Count)),
-                SharedCards = shared
+                new YearReviewFriendsView
+                {
+                    Label = Text("LOCPlayAch_Common_All"),
+                    BigNumber = friends.UnlockedFirst,
+                    BigLabel = Text("LOCPlayAch_YearReview_UnlockedFirst"),
+                    HasFriend = friends.SharedGameIds.Count > 0,
+                    FriendKey = friends.TopFriendKey,
+                    FriendName = topName,
+                    FriendInitial = Initial(topName),
+                    AvatarPath = art.TopFriendAvatarPath,
+                    AvatarRequested = true,
+                    InCommonText = Format("LOCPlayAch_YearReview_GamesInCommon", Number(friends.SharedGameIds.Count)),
+                    SharedCards = Shared(friends.SharedGameIds)
+                }
             };
+
+            foreach (var friend in friends.PerFriend.Take(MaxFriendViews))
+            {
+                var name = friend.Name ?? string.Empty;
+                views.Add(new YearReviewFriendsView
+                {
+                    Label = name,
+                    FriendKey = friend.Key,
+                    BigNumber = friend.UnlockedFirst,
+                    BigLabel = Format("LOCPlayAch_YearReview_UnlockedBeforeFriend", name),
+                    HasSecond = true,
+                    SecondNumber = friend.TheyFirst,
+                    SecondLabel = Format("LOCPlayAch_YearReview_FriendUnlockedFirst", name),
+                    HasFriend = true,
+                    FriendName = name,
+                    FriendInitial = Initial(name),
+                    InCommonText = Format("LOCPlayAch_YearReview_GamesInCommon", Number(friend.SharedGameIds.Count)),
+                    SharedCards = Shared(friend.SharedGameIds)
+                });
+            }
+
+            return new YearReviewFriendsSlide { Views = views };
         }
 
         private static YearReviewSummarySlide Summary(YearReviewData data)
@@ -643,85 +536,5 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 Figures = figures
             };
         }
-
-        private static YearReviewCoverCard Card(
-            YearReviewGame game, int rank, int unlocks, double x, double y, double angle, double width, double height, double delay) =>
-            new YearReviewCoverCard
-            {
-                GameId = game.GameId,
-                Rank = rank,
-                Name = game.Name,
-                CoverPath = game.CoverPath,
-                Unlocks = unlocks,
-                X = x,
-                Y = y,
-                Angle = angle,
-                Width = width,
-                Height = height,
-                Delay = delay
-            };
-
-        /// <summary>A ring sector from <paramref name="start"/> degrees, clockwise by <paramref name="sweep"/>.</summary>
-        public static Geometry RingSegment(Point center, double outer, double inner, double start, double sweep)
-        {
-            if (sweep >= 359.99)
-            {
-                var ring = new CombinedGeometry(
-                    GeometryCombineMode.Exclude,
-                    new EllipseGeometry(center, outer, outer),
-                    new EllipseGeometry(center, inner, inner));
-                ring.Freeze();
-                return ring;
-            }
-
-            Point At(double radius, double degrees)
-            {
-                var radians = degrees * Math.PI / 180;
-                return new Point(center.X + radius * Math.Cos(radians), center.Y + radius * Math.Sin(radians));
-            }
-
-            var large = sweep > 180;
-            var geometry = new StreamGeometry();
-            using (var ctx = geometry.Open())
-            {
-                ctx.BeginFigure(At(outer, start), true, true);
-                ctx.ArcTo(At(outer, start + sweep), new Size(outer, outer), 0, large, SweepDirection.Clockwise, true, false);
-                ctx.LineTo(At(inner, start + sweep), true, false);
-                ctx.ArcTo(At(inner, start), new Size(inner, inner), 0, large, SweepDirection.Counterclockwise, true, false);
-            }
-
-            geometry.Freeze();
-            return geometry;
-        }
-
-        private static KeyValuePair<string, string> Figure(string value, string labelKey) =>
-            new KeyValuePair<string, string>(value, ResourceProvider.GetString(labelKey));
-
-        private static Brush HexBrush(string hex)
-        {
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(hex) && ColorConverter.ConvertFromString(hex) is Color color)
-                {
-                    var brush = new SolidColorBrush(color);
-                    brush.Freeze();
-                    return brush;
-                }
-            }
-            catch (FormatException)
-            {
-            }
-
-            return Brushes.Gray;
-        }
-
-        private static double Clamp(double value, double min, double max) => Math.Max(min, Math.Min(max, value));
-
-        private static string Number(int value) => value.ToString("N0", FormattingCulture.Current);
-
-        private static string MonthDay(DateTime day) => day.ToString("M", FormattingCulture.Current);
-
-        private static string Format(string key, params object[] args) =>
-            string.Format(FormattingCulture.Current, ResourceProvider.GetString(key) ?? string.Empty, args);
     }
 }
