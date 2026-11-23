@@ -127,6 +127,87 @@ namespace PlayniteAchievements.Services.Achievements
         }
 
         /// <summary>
+        /// Restores the mark on every auto capstone that lost it (see
+        /// <see cref="AutoCapstoneMarkerRepair"/>) and quietly brings those games up to date: an
+        /// unlock found now was earned while the capstone went unmaintained, not just now.
+        /// </summary>
+        /// <returns>How many games were repaired.</returns>
+        public int RepairLostMarkers(CancellationToken cancel = default(CancellationToken))
+        {
+            var gameIds = _store?.QueryAll(records => records
+                    .Where(record => record?.CustomAchievements?.Any(definition =>
+                        definition != null &&
+                        !definition.IsAutoCapstone &&
+                        (CustomAchievementProjectionService.NormalizeId(definition.Id) ?? string.Empty)
+                            .StartsWith(AutoCapstoneMarkerRepair.BaseId, StringComparison.OrdinalIgnoreCase)) == true)
+                    .Select(record => record.PlayniteGameId)
+                    .Where(id => id != Guid.Empty)
+                    .ToList())
+                ?? new List<Guid>();
+
+            var repaired = 0;
+            foreach (var gameId in gameIds)
+            {
+                cancel.ThrowIfCancellationRequested();
+                try
+                {
+                    if (RepairLostMarkers(gameId))
+                    {
+                        repaired++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Auto capstone mark repair failed for gameId={gameId}.");
+                }
+            }
+
+            if (repaired > 0)
+            {
+                _logger?.Info($"Auto capstone mark repair restored {repaired} game(s).");
+            }
+
+            return repaired;
+        }
+
+        private bool RepairLostMarkers(Guid gameId)
+        {
+            var customData = _store.LoadOrDefault(gameId);
+            var definitions = customData?.CustomAchievements;
+            if (definitions == null || definitions.Count == 0)
+            {
+                return false;
+            }
+
+            var gameData = _resolveGameData?.Invoke(gameId);
+            var providerAchievements = AchievementOrderHelper.ApplyOrder(
+                    gameData?.Achievements ?? new List<AchievementDetail>(),
+                    achievement => achievement?.ApiName,
+                    gameData?.AchievementOrder)
+                .Where(achievement => achievement != null && !achievement.IsCustom)
+                .ToList();
+            var mainCategory = AutoCapstoneCalculator.Derive(
+                providerAchievements,
+                categoryOrder: gameData?.AchievementCategoryOrder)?.Category;
+
+            var overrides = customData.AchievementOverrides;
+            var restored = AutoCapstoneMarkerRepair.Restore(
+                definitions,
+                customData.Capstones?.Select(capstone => capstone?.ApiName),
+                apiName => overrides != null && overrides.TryGetValue(apiName, out var entry) ? entry?.Category : null,
+                mainCategory);
+            if (restored == null)
+            {
+                return false;
+            }
+
+            _overridesService.SetCustomAchievements(gameId, restored);
+            _logger?.Info($"Restored the auto capstone mark for gameId={gameId}.");
+            Maintain(gameId, announceUnlocks: false);
+            return true;
+        }
+
+        /// <summary>
         /// The capstone unlocks held for a game whose announcements are deferred, emptying the
         /// hold. Empty when there are none.
         /// </summary>
