@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.YearReview"
+             xmlns:local="clr-namespace:PlayniteAchievements.Views.YearReview"
              Focusable="True"
              FocusVisualStyle="{x:Null}"
              UseLayoutRounding="True">
@@ -128,6 +129,12 @@
                     VerticalAlignment="Center"
                     HorizontalAlignment="Right"
                     Margin="0,8,20,12">
+            <Button Content="&#xEDEA;"
+                    Command="{x:Static local:YearReviewControl.CopyImageCommand}"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Copy}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Copy}"
+                    Margin="0,0,8,0"/>
             <Button Content="&#xEF08;"
                     Click="SaveImage_Click"
                     Style="{StaticResource YearReview.NavButton}"
