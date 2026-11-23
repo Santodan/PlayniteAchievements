@@ -39,6 +39,7 @@ namespace PlayniteAchievements.Views.YearReview
         private int _shownIndex = -1;
         private YearReviewSlide _watchedSlide;
         private bool _pressedOnDeck;
+        private bool _releaseCounts;
         private DateTime _wheelReadyAt = DateTime.MinValue;
 
         internal YearReviewControl(YearReviewViewModel viewModel, ILogger logger)
@@ -228,14 +229,25 @@ namespace PlayniteAchievements.Views.YearReview
         /// </summary>
         private void Deck_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            _pressedOnDeck = !IsFromPicker(e.OriginalSource as DependencyObject);
+            var source = e.OriginalSource as DependencyObject;
+            _pressedOnDeck = source is Visual visual && Deck.IsAncestorOf(visual) && !IsFromPicker(source);
+        }
+
+        /// <summary>
+        /// Every release ends the press, including the ones a button handles, so a press that
+        /// began on a button never carries over to the next release.
+        /// </summary>
+        private void Deck_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _releaseCounts = _pressedOnDeck;
+            _pressedOnDeck = false;
         }
 
         private void Deck_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            var pressed = _pressedOnDeck;
-            _pressedOnDeck = false;
-            if (!pressed)
+            var counts = _releaseCounts;
+            _releaseCounts = false;
+            if (!counts)
             {
                 return;
             }
