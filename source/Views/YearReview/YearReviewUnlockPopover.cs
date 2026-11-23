@@ -7,7 +7,7 @@ using PlayniteAchievements.ViewModels.YearReview;
 namespace PlayniteAchievements.Views.YearReview
 {
     /// <summary>
-    /// A list of unlocks opened under a clicked month bar or day of the year. The window's click
+    /// A list of unlocks opened at the pointer over a clicked element. The window's click
     /// handler finds the element carrying <see cref="GroupProperty"/> and calls <see cref="Open"/>,
     /// so one decision covers opening a list, leaving a hovered element alone and moving on.
     /// One popup serves the whole window.
@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Views.YearReview
                 ? System.Windows.Media.VisualTreeHelper.GetParent(current)
                 : LogicalTreeHelper.GetParent(current);
 
-        /// <summary>Opens <paramref name="element"/>'s list under it.</summary>
+        /// <summary>Opens <paramref name="element"/>'s list at the pointer.</summary>
         public static void Open(FrameworkElement element)
         {
             if (!(GetGroup(element) is YearReviewUnlockGroup group))
@@ -66,8 +66,10 @@ namespace PlayniteAchievements.Views.YearReview
             Close();
             _popup = new Popup
             {
+                // At the pointer: the clicked element can be as large as a donut slice or a
+                // month bar, so its own bounds say little about where the click was.
                 PlacementTarget = element,
-                Placement = PlacementMode.Bottom,
+                Placement = PlacementMode.MousePoint,
                 StaysOpen = false,
                 AllowsTransparency = true,
                 PopupAnimation = PopupAnimation.Fade,
