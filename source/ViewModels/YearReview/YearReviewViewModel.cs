@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.YearReview;
 using PlayniteAchievements.Services.YearReview;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
-using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels.YearReview
 {
@@ -42,19 +40,12 @@ namespace PlayniteAchievements.ViewModels.YearReview
         private IReadOnlyList<YearReviewProgressSegment> _segments = Array.Empty<YearReviewProgressSegment>();
         private int _index;
         private bool _isLoading = true;
-        private string _summaryFileName;
 
         public YearReviewViewModel(YearReviewReader reader, ILogger logger)
         {
             _reader = reader;
             _logger = logger;
-            NextCommand = new RelayCommand(_ => Go(_index + 1), _ => _index < _slides.Count - 1);
-            PreviousCommand = new RelayCommand(_ => Go(_index - 1), _ => _index > 0);
         }
-
-        public ICommand NextCommand { get; }
-
-        public ICommand PreviousCommand { get; }
 
         public IReadOnlyList<int> Years
         {
@@ -101,13 +92,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
             private set => SetValue(ref _isLoading, value);
         }
 
-        /// <summary>The suggested file name for the saved summary image.</summary>
-        public string SummaryFileName
-        {
-            get => _summaryFileName;
-            private set => SetValue(ref _summaryFileName, value);
-        }
-
         public async Task LoadAsync()
         {
             var cancel = Restart();
@@ -150,7 +134,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
             OnPropertyChanged(nameof(CurrentSlide));
             OnPropertyChanged(nameof(Counter));
-            CommandManager.InvalidateRequerySuggested();
         }
 
         private async Task LoadYearAsync(int year)
@@ -169,10 +152,27 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 var (data, art) = await Task.Run(() =>
                 {
                     var built = YearReviewBuilder.Build(year, reader.ReadYear(library, year, DateTime.Today));
-                    var top = built.TopGames.FirstOrDefault()?.Game;
+                    var covers = library.Games
+                        .GroupBy(game => game.GameId)
+                        .ToDictionary(group => group.Key, group => group.First().CoverPath);
+                    var backdrops = new Dictionary<Guid, string>();
+                    foreach (var kind in built.Slides)
+                    {
+                        if (YearReviewSlideFactory.BackdropGame(built, kind) is Guid id && !backdrops.ContainsKey(id))
+                        {
+                            var path = reader.BackgroundPath(id);
+                            if (string.IsNullOrWhiteSpace(path))
+                            {
+                                covers.TryGetValue(id, out path);
+                            }
+
+                            backdrops[id] = path;
+                        }
+                    }
+
                     return (built, new YearReviewArt
                     {
-                        TopGameBackgroundPath = top != null ? reader.BackgroundPath(top.GameId) : null,
+                        Backdrops = backdrops,
                         TopFriendAvatarPath = built.Friends.TopFriendKey != null ? reader.FriendAvatar(built.Friends.TopFriendKey) : null
                     });
                 }, cancel.Token).ConfigureAwait(true);
@@ -185,7 +185,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 _index = -1;
                 Segments = slides.Select(_ => new YearReviewProgressSegment()).ToList();
                 Slides = slides;
-                SummaryFileName = ResourceProvider.GetString("LOCPlayAch_YearReview_Title") + " " + year.ToString(FormattingCulture.Current) + ".png";
                 IsLoading = false;
                 Go(0);
             }
