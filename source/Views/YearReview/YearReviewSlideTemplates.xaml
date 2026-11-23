@@ -73,51 +73,51 @@
         <Canvas/>
     </ItemsPanelTemplate>
 
-    <!-- A game cover card: the art, a scrim with the name, the rank or completion badge. -->
+    <!-- A game cover card: the art, its name and unlock count on a strip below it, and the rank
+         or completion badge pinned to a corner. -->
     <DataTemplate x:Key="YearReview.CoverCard" DataType="{x:Type vm:YearReviewCoverCard}">
-        <Grid Width="{Binding Width}" Height="{Binding Height}">
+        <Grid Width="{Binding Width}">
             <Border CornerRadius="6"
-                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                    BorderThickness="1"
                     Effect="{StaticResource YearReview.CardShadow}">
-                <Grid>
-                    <Image Stretch="UniformToFill"
-                           helpers:RoundedClip.Radius="6"
+                <StackPanel>
+                    <Image Height="{Binding Height}"
+                           Stretch="UniformToFill"
+                           helpers:RoundedClip.Radius="5"
                            helpers:AsyncImage.Uri="{Binding CoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
                            helpers:AsyncImage.DecodePixel="300"/>
-                    <Border VerticalAlignment="Bottom"
-                            CornerRadius="0,0,6,6"
-                            Background="{StaticResource PlayAch.Brush.Overlay.Shade.80}"
-                            Padding="10,8"
-                            Visibility="{Binding ShowCaption, Converter={StaticResource BoolToVis}}">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Name}"
-                                       FontWeight="SemiBold"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
-                                       Foreground="White"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Text="{Binding Unlocks, StringFormat={}{0:N0}}"
-                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
-                                       Foreground="White"
-                                       Opacity="{StaticResource PlayAch.Opacity.Hint}"
-                                       Visibility="{Binding HasRank, Converter={StaticResource BoolToVis}}"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                    <StackPanel Margin="10,8,10,10"
+                                Visibility="{Binding ShowCaption, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Name}"
+                                   FontWeight="SemiBold"
+                                   FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   TextWrapping="Wrap"
+                                   MaxHeight="40"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <Viewbox Height="30"
+                                 HorizontalAlignment="Left"
+                                 Margin="0,4,0,0"
+                                 Visibility="{Binding HasRank, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding Unlocks, StringFormat={}{0:N0}}" Style="{StaticResource YearReview.Display}"/>
+                        </Viewbox>
+                    </StackPanel>
+                </StackPanel>
             </Border>
 
             <Border HorizontalAlignment="Left"
                     VerticalAlignment="Top"
                     Margin="-14,-18,0,0"
-                    MinWidth="44"
-                    Height="52"
+                    MinWidth="48"
+                    Height="56"
                     Padding="10,0"
                     CornerRadius="6"
-                    Background="{DynamicResource PlayAch.Brush.PopupSurface}"
-                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
-                    BorderThickness="1"
+                    Background="{DynamicResource PlayAch.Brush.Accent}"
                     Visibility="{Binding HasRank, Converter={StaticResource BoolToVis}}">
-                <Viewbox Height="40">
-                    <TextBlock Text="{Binding Rank}" Style="{StaticResource YearReview.Display}"/>
+                <Viewbox Height="44">
+                    <TextBlock Text="{Binding Rank}" Style="{StaticResource YearReview.Display}" Foreground="{DynamicResource PlayAch.Brush.PopupSurface}"/>
                 </Viewbox>
             </Border>
 
@@ -187,6 +187,23 @@
                 <local:CountUpText Value="{Binding Unlocked}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="230"/>
             </Viewbox>
 
+            <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Icons}"
+                          ItemsPanel="{StaticResource YearReview.CanvasPanel}">
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter" BasedOn="{StaticResource YearReview.PlacedItem}">
+                        <Setter Property="local:YearReviewMotion.Reveal" Value="Pop"/>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewIcon}">
+                        <Image Width="{Binding Size}" Height="{Binding Size}" Stretch="Uniform"
+                               helpers:RoundedClip.Radius="{DynamicResource PlayAch.Radius.AchievementIcon}"
+                               helpers:AsyncImage.Uri="{Binding IconPath}"
+                               helpers:AsyncImage.DecodePixel="96"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
             <Border Canvas.Right="96" Canvas.Top="96" Style="{StaticResource YearReview.Chip}"
                     local:YearReviewMotion.Reveal="Drop" local:YearReviewMotion.Delay="850" local:YearReviewMotion.Angle="4">
                 <StackPanel>
@@ -223,7 +240,7 @@
     <!-- 3. Unlocks by month: bars along the bottom edge, the year as a tilted strip, the streak as a stamp. -->
     <DataTemplate DataType="{x:Type vm:YearReviewMonthsSlide}">
         <Canvas Width="1280" Height="770">
-            <ItemsControl Canvas.Left="0" Canvas.Bottom="0" Width="1280" Height="530" ItemsSource="{Binding Months}">
+            <ItemsControl Canvas.Left="0" Canvas.Bottom="0" Width="1280" Height="560" ItemsSource="{Binding Months}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Rows="1"/>
@@ -250,12 +267,11 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
-                                <TextBlock Text="{Binding Label}"
-                                           Style="{StaticResource YearReview.Label}"
-                                           VerticalAlignment="Bottom"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,8"/>
                             </Border>
+                            <TextBlock Text="{Binding Label}"
+                                       Style="{StaticResource YearReview.Label}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,6,0,4"/>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -324,17 +340,6 @@
     <!-- 4. Top games: the leader's background art behind a fanned hand of covers. -->
     <DataTemplate DataType="{x:Type vm:YearReviewTopGamesSlide}">
         <Canvas Width="1280" Height="770">
-            <Image Width="1280" Height="770" Stretch="UniformToFill" Opacity="0.55"
-                   helpers:AsyncImage.Uri="{Binding BackgroundPath}"
-                   helpers:AsyncImage.DecodePixel="1280">
-                <Image.OpacityMask>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Offset="0.25" Color="#00000000"/>
-                        <GradientStop Offset="1" Color="#FF000000"/>
-                    </LinearGradientBrush>
-                </Image.OpacityMask>
-            </Image>
-
             <ItemsControl Width="1280" Height="770" ItemsSource="{Binding Cards}"
                           ItemsPanel="{StaticResource YearReview.CanvasPanel}"
                           ItemContainerStyle="{StaticResource YearReview.DroppedCard}"
@@ -652,19 +657,6 @@
                 </Border>
             </Border>
 
-            <StackPanel Canvas.Left="960" Canvas.Top="560" Orientation="Horizontal"
-                        local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="700">
-                <Button Content="&#xEF08;"
-                        Width="40" Height="40" Padding="0"
-                        Style="{StaticResource PlayAch.Button.ToolbarIconStyle}"
-                        ContentTemplate="{StaticResource PlayAch.ButtonContent.Glyph}"
-                        Command="{x:Static local:YearReviewControl.SaveImageCommand}"
-                        CommandParameter="{Binding ElementName=SummaryCard}"
-                        ToolTip="{DynamicResource LOCPlayAch_YearReview_SaveImage}"
-                        AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_SaveImage}"/>
-                <TextBlock Text="{DynamicResource LOCPlayAch_YearReview_SaveImage}" Style="{StaticResource YearReview.Label}"
-                           VerticalAlignment="Center" Margin="12,0,0,0"/>
-            </StackPanel>
         </Canvas>
     </DataTemplate>
 
