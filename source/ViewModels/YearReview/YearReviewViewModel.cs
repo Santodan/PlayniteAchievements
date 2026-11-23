@@ -182,6 +182,11 @@ namespace PlayniteAchievements.ViewModels.YearReview
                 }
 
                 var slides = YearReviewSlideFactory.Create(data, art);
+                foreach (var friends in slides.OfType<YearReviewFriendsSlide>())
+                {
+                    friends.PropertyChanged += OnFriendsViewChanged;
+                }
+
                 _index = -1;
                 Segments = slides.Select(_ => new YearReviewProgressSegment()).ToList();
                 Slides = slides;
@@ -195,6 +200,31 @@ namespace PlayniteAchievements.ViewModels.YearReview
             {
                 _logger?.Error(ex, $"Year in Review: {year} could not be built.");
                 IsLoading = false;
+            }
+        }
+
+        /// <summary>Reads a friend's avatar the first time their view is picked.</summary>
+        private async void OnFriendsViewChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(YearReviewSlide.CurrentView)
+                || !(sender is YearReviewSlide slide)
+                || !(slide.CurrentView is YearReviewFriendsView view)
+                || view.AvatarRequested
+                || string.IsNullOrEmpty(view.FriendKey))
+            {
+                return;
+            }
+
+            view.AvatarRequested = true;
+            try
+            {
+                var key = view.FriendKey;
+                var reader = _reader;
+                view.AvatarPath = await Task.Run(() => reader.FriendAvatar(key)).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Year in Review: friend avatar could not be read.");
             }
         }
 
