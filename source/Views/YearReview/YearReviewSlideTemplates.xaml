@@ -910,6 +910,7 @@
                           ItemTemplate="{StaticResource YearReview.CoverCard}"/>
 
             <Grid Canvas.Left="640" Canvas.Top="360" Width="200" Height="200"
+                  local:YearReviewUnlockPopover.Group="{Binding CurrentView.SharedGroup}"
                   Visibility="{Binding CurrentView.HasFriend, Converter={StaticResource BoolToVis}}"
                   local:YearReviewMotion.Reveal="Pop" local:YearReviewMotion.Delay="1200">
                 <Border CornerRadius="100" Background="{DynamicResource PlayAch.Brush.Panel}"
@@ -950,6 +951,7 @@
                         </Style>
                     </StackPanel.Style>
                     <Viewbox Height="220" HorizontalAlignment="Left"
+                             local:YearReviewUnlockPopover.Group="{Binding CurrentView.BigGroup}"
                              local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="100" local:YearReviewMotion.Angle="-3">
                         <local:CountUpText Value="{Binding CurrentView.BigNumber}" Style="{StaticResource YearReview.Display}" local:YearReviewMotion.Delay="250"/>
                     </Viewbox>
@@ -960,7 +962,8 @@
                 <StackPanel Margin="0,30,0,0"
                             Visibility="{Binding CurrentView.HasSecond, Converter={StaticResource BoolToVis}}"
                             local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="800" local:YearReviewMotion.Angle="2">
-                    <Viewbox Height="120" HorizontalAlignment="Left">
+                    <Viewbox Height="120" HorizontalAlignment="Left"
+                             local:YearReviewUnlockPopover.Group="{Binding CurrentView.SecondGroup}">
                         <local:CountUpText Value="{Binding CurrentView.SecondNumber}" Style="{StaticResource YearReview.Display}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}" local:YearReviewMotion.Delay="900"/>
                     </Viewbox>
@@ -968,7 +971,8 @@
                                MaxWidth="320" HorizontalAlignment="Left" Margin="8,6,0,0"/>
                 </StackPanel>
             </StackPanel>
-            <StackPanel Canvas.Left="860" Canvas.Top="500" Width="360"
+            <StackPanel Canvas.Left="860" Canvas.Top="500" Width="360" Background="Transparent"
+                        local:YearReviewUnlockPopover.Group="{Binding CurrentView.SharedGroup}"
                         Visibility="{Binding CurrentView.HasFriend, Converter={StaticResource BoolToVis}}"
                         local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="1400">
                 <TextBlock Text="{Binding CurrentView.FriendName}" Style="{StaticResource YearReview.Title}">
