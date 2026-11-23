@@ -19,6 +19,10 @@ namespace PlayniteAchievements.Services.YearReview
         public IReadOnlyList<UnlockFact> Facts { get; set; } = Array.Empty<UnlockFact>();
         public IReadOnlyList<YearReviewGame> Games { get; set; } = Array.Empty<YearReviewGame>();
         public IReadOnlyList<int> Years { get; set; } = Array.Empty<int>();
+
+        /// <summary>The name and picture the card starts from: the profile widget's, else the platform identity's.</summary>
+        public string ProfileName { get; set; }
+        public string ProfileAvatarPath { get; set; }
     }
 
     /// <summary>
@@ -80,8 +84,19 @@ namespace PlayniteAchievements.Services.YearReview
                 .ToList();
             var facts = (snapshot.Unlocks ?? Array.Empty<UnlockFact>()).ToList();
 
+            var identities = snapshot.CurrentUserIdentities ?? new List<Models.Friends.FriendIdentity>();
+            var manual = _settings?.Invoke()?.Showcase?.WidgetInstances?
+                .FirstOrDefault(widget => widget?.Kind == ShowcaseWidgetKind.Profile)?.Profile;
+            var profile = Showcase.ShowcaseProfileResolver.Resolve(manual, identities);
+            var identity = identities
+                .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.DisplayName ?? candidate.ProviderNickname))
+                .OrderByDescending(candidate => string.Equals(candidate.ProviderKey, "Steam", StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+
             return new YearReviewLibrary
             {
+                ProfileName = profile.DisplayName ?? identity?.DisplayName ?? identity?.ProviderNickname,
+                ProfileAvatarPath = profile.AvatarPath,
                 Facts = facts,
                 Games = games,
                 Years = YearReviewBuilder.AvailableYears(facts.Where(fact => fact.Day.HasValue).Select(fact => fact.Day.Value))
