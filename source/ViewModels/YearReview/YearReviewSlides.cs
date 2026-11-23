@@ -17,6 +17,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
         }
 
         public YearReviewSlideKind Kind { get; }
+
+        /// <summary>The art behind the slide, shown blurred and faded; null for none.</summary>
+        public string BackdropPath { get; set; }
     }
 
     /// <summary>An element placed on the slide canvas, entering after <see cref="Delay"/> milliseconds.</summary>
@@ -36,9 +39,18 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public string RangeText { get; set; }
     }
 
+    public sealed class YearReviewIcon : YearReviewPlaced
+    {
+        public string IconPath { get; set; }
+        public double Size { get; set; }
+    }
+
     public sealed class YearReviewNumbersSlide : YearReviewSlide
     {
         public YearReviewNumbersSlide() : base(YearReviewSlideKind.Numbers) { }
+
+        /// <summary>The year's rarest icons, scattered under the figure.</summary>
+        public IReadOnlyList<YearReviewIcon> Icons { get; set; }
 
         public int Unlocked { get; set; }
         public int ScoreGained { get; set; }
@@ -99,7 +111,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
     {
         public YearReviewTopGamesSlide() : base(YearReviewSlideKind.TopGames) { }
 
-        public string BackgroundPath { get; set; }
         public int LeadUnlocks { get; set; }
         public string LeadCaption { get; set; }
 
