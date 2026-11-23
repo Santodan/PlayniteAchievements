@@ -1264,8 +1264,10 @@ namespace PlayniteAchievements
                         _windowTracker,
                         // Fails open while the provider registry is still being built: refusing to
                         // refresh a game we cannot classify is free, but refusing to capture one
-                        // costs a clip that cannot be recovered afterwards.
-                        game => Providers == null || AnyProviderCapable(game),
+                        // costs a clip that cannot be recovered afterwards. A linked file serves
+                        // the game whether or not a provider does, matching the in-game monitor.
+                        game => Providers == null || AnyProviderCapable(game) ||
+                            _inGameMonitor?.LinkedFileSource?.TryRegister(game, null) != null,
                         // The sound host's pid, so the recorder excludes its process from clip
                         // captures, and its measured onsets, so composited chimes land where the
                         // live ones were heard.
