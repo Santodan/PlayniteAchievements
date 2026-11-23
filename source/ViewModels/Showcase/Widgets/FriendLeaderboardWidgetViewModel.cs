@@ -40,7 +40,8 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         {
             var bar = Bar();
             var lists = _lists.Current;
-            if (lists == null)
+            // Loading, or friends features off: no ranking to place the user in.
+            if (lists == null || ReferenceEquals(lists, Services.Friends.FriendsOverviewLists.Empty))
             {
                 return Array.Empty<FriendSummaryItem>();
             }
