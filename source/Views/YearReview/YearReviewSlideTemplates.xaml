@@ -1035,7 +1035,8 @@
     <Style x:Key="YearReview.CardSurface" TargetType="Border">
         <Setter Property="Tag" Value="ShareCard"/>
         <Setter Property="CornerRadius" Value="12"/>
-        <Setter Property="ClipToBounds" Value="True"/>
+        <!-- Clips art to the rounded corners; ClipToBounds alone would cut them square. -->
+        <Setter Property="helpers:RoundedClip.Radius" Value="12"/>
         <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.PopupSurface}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource PlayAch.Brush.Border}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -1282,9 +1283,12 @@
     <!-- 11. Summary: the shareable card, in the picked style, with its own save and copy. -->
     <DataTemplate DataType="{x:Type vm:YearReviewSummarySlide}">
         <Canvas Width="1280" Height="770">
-            <ContentPresenter Canvas.Left="40" Canvas.Top="70" Width="900" Height="680"
-                              Content="{Binding CurrentView}"
-                              local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="100"/>
+            <!-- The card keeps its own size, centred in the space left of the buttons. -->
+            <Grid Canvas.Left="40" Canvas.Top="70" Width="900" Height="680">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Content="{Binding CurrentView}"
+                                  local:YearReviewMotion.Reveal="Rise" local:YearReviewMotion.Delay="100"/>
+            </Grid>
 
             <StackPanel Canvas.Left="72" Canvas.Top="20" Orientation="Horizontal" local:YearReviewMotion.Reveal="Rise">
                 <Button Style="{StaticResource YearReview.ViewPickerButton}" Margin="0"/>
