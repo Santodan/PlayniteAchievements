@@ -18,34 +18,21 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// otherwise, each with whether the user has it too.
     /// </summary>
     public sealed class FriendUnlocksWidgetViewModel
-        : ShowcaseGridWidgetViewModelBase<AchievementDisplayItem>, IDisposable
+        : FriendGridWidgetViewModelBase<AchievementDisplayItem, FriendUnlocksControlBarAdapter>
     {
-        // The widget instance's shared adapter, so the filters survive view model swaps.
-        private readonly ShowcaseControlBarSlot<FriendUnlocksControlBarAdapter> _controlBarSlot;
-        private readonly FriendWidgetLists _lists;
         private ShowcaseRows _rows;
 
         // Read off the UI thread with each row read; replaced, never changed.
         private volatile RowDecoration _decoration = RowDecoration.None;
 
-        public FriendUnlocksWidgetViewModel()
-        {
-            _controlBarSlot = new ShowcaseControlBarSlot<FriendUnlocksControlBarAdapter>(RefreshItems);
-            _lists = new FriendWidgetLists(RefreshItems);
-        }
-
         protected override string BaseSurfaceKey => ShowcaseGridSurfaces.FriendAchievements;
 
-        // Each read of the friend data builds new rows.
-        protected override bool ReplacesRowsInPlace => true;
-
-        protected override IEnumerable<AchievementDisplayItem> SelectItems(ShowcaseWidgetProjection projection)
+        internal override IEnumerable<AchievementDisplayItem> SelectFriendItems(
+            ShowcaseWidgetProjection projection,
+            FriendsOverviewLists lists,
+            FriendUnlocksControlBarAdapter bar)
         {
-            var bar = Bar();
-            var lists = _lists.Current;
-            var reads = _lists.Source?.Reads;
-            // Loading, or friends features off.
-            if (lists == null || reads == null || ReferenceEquals(lists, FriendsOverviewLists.Empty))
+            if (Lists.Source?.Reads == null)
             {
                 return Array.Empty<AchievementDisplayItem>();
             }
@@ -75,14 +62,14 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var cap = PersistedSettings.NormalizeGridMaxRows((GridOptions as GridCommonOptions)?.MaxRows);
 
             _decoration = new RowDecoration(lists, projection?.Snapshot?.CurrentUserIdentities);
-            _rows ??= new ShowcaseRows(RefreshItems, () => _lists.Source?.Reads?.Feed, LoadRows);
+            _rows ??= new ShowcaseRows(RefreshItems, () => Lists.Source?.Reads?.Feed, LoadRows);
             return _rows.For(cap.HasValue ? query.Page(cap.Value) : query);
         }
 
         // Runs off the UI thread.
         private IReadOnlyList<AchievementDisplayItem> LoadRows(AchievementQuery query)
         {
-            var reads = _lists.Source?.Reads;
+            var reads = Lists.Source?.Reads;
             if (reads == null)
             {
                 return Array.Empty<AchievementDisplayItem>();
@@ -91,15 +78,6 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
             var rows = reads.Rows(query);
             _decoration.Apply(rows);
             return rows;
-        }
-
-        private FriendUnlocksControlBarAdapter Bar()
-        {
-            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
-            _controlBarSlot.Adapter.EnableSort();
-            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
-            ControlBar = _controlBarSlot.ShownBar;
-            return _controlBarSlot.Adapter;
         }
 
         private AchievementSortSpec SortSpec()
@@ -119,10 +97,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 propertyName == nameof(AchievementGridOptions.SortDescending);
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             _rows?.Dispose();
-            _lists.Dispose();
+            base.Dispose();
         }
 
         /// <summary>
