@@ -93,12 +93,13 @@ namespace PlayniteAchievements.Services.YearReview
         {
             var first = new DateTime(year, 1, 1);
             var last = new DateTime(year, 12, 31);
+            var unlocks = ReadUnlocks(first, last, library);
             return new YearReviewInputs
             {
-                Unlocks = ReadUnlocks(first, last, library),
+                Unlocks = unlocks,
                 Facts = library?.Facts ?? Array.Empty<UnlockFact>(),
                 Games = library?.Games ?? Array.Empty<YearReviewGame>(),
-                FriendUnlocks = ReadFriendUnlocks(first),
+                FriendUnlocks = ReadFriendUnlocks(unlocks.Select(unlock => unlock.GameId).Distinct().ToList()),
                 Today = today
             };
         }
@@ -158,13 +159,13 @@ namespace PlayniteAchievements.Services.YearReview
         }
 
         /// <summary>
-        /// Friend unlocks since the start of the year: an achievement the user unlocked in the
-        /// year before a friend did has the friend's unlock after that, so nothing earlier counts.
+        /// Friend unlocks in the games the user unlocked something in during the year, at any
+        /// date: a friend's earlier unlock is what makes an achievement theirs first.
         /// </summary>
-        private IReadOnlyList<YearReviewFriendUnlock> ReadFriendUnlocks(DateTime first)
+        private IReadOnlyList<YearReviewFriendUnlock> ReadFriendUnlocks(IReadOnlyList<Guid> gameIds)
         {
             var reads = _data?.CacheReads?.Reads;
-            if (reads == null || _settings?.Invoke()?.EnableFriendsFeatures != true)
+            if (reads == null || gameIds.Count == 0 || _settings?.Invoke()?.EnableFriendsFeatures != true)
             {
                 return Array.Empty<YearReviewFriendUnlock>();
             }
@@ -174,7 +175,7 @@ namespace PlayniteAchievements.Services.YearReview
                 var query = AchievementQuery.AllFriends
                     .WhereUnlocked(true)
                     .WhereUnlockTimeKnown()
-                    .WhereUnlockedBetween(first, null);
+                    .ForGames(gameIds);
                 var result = new List<YearReviewFriendUnlock>();
                 foreach (var row in reads.Rows(query))
                 {
