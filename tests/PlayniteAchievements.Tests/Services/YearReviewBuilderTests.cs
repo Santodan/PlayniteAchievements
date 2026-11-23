@@ -169,6 +169,8 @@ namespace PlayniteAchievements.Tests.Services
             var review = YearReviewBuilder.Build(2026, inputs);
 
             Assert.AreEqual(50, review.CollectionGained);
+            Assert.AreEqual(50, review.DayCollection[new DateTime(2026, 6, 1)]);
+            Assert.AreEqual(70, review.GamePrestige[GameA]);
             Assert.AreEqual(70, review.PrestigeGained);
             Assert.IsTrue(review.LevelAtEnd >= review.LevelAtStart);
             Assert.IsTrue(review.PrestigeLevelAtEnd >= review.PrestigeLevelAtStart);
@@ -197,6 +199,11 @@ namespace PlayniteAchievements.Tests.Services
 
             Assert.AreEqual(1, review.Friends.UnlockedFirst);
             Assert.AreEqual("Mara", review.Friends.TopFriendName);
+
+            var ode = review.Friends.PerFriend.Single(friend => friend.Name == "Ode");
+            Assert.AreEqual(1, ode.UnlockedFirst);
+            Assert.AreEqual(1, ode.TheyFirst);
+            Assert.AreEqual("Mara", review.Friends.PerFriend[0].Name);
             Assert.AreEqual(2, review.Friends.SharedGameIds.Count);
             Assert.IsTrue(review.Slides.Contains(YearReviewSlideKind.Friends));
         }
