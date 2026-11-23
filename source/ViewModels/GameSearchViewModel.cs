@@ -225,6 +225,11 @@ namespace PlayniteAchievements.ViewModels
                 {
                     failure = ManualSourceAuthentication.ResolveLocalizedMessage(ex);
                 }
+                catch (GameSearchUnavailableException ex)
+                {
+                    _logger?.Warn($"[GameSearch] {source.DisplayName} did not answer the search for '{text}': {ex.Message}");
+                    failure = string.Format(ResourceProvider.GetString("LOCPlayAch_GameSearch_Unavailable"), source.DisplayName);
+                }
                 catch (Exception ex)
                 {
                     _logger?.Warn(ex, $"[GameSearch] {source.DisplayName} search for '{text}' failed");
