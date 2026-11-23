@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Services.YearReview
     public static class YearReviewBuilder
     {
         public const int TopGameCount = 5;
+        public const int HighlightCount = 10;
 
         /// <summary>Every year with at least one dated unlock, newest first.</summary>
         public static IReadOnlyList<int> AvailableYears(IEnumerable<DateTime> unlockDays) =>
@@ -68,6 +69,12 @@ namespace PlayniteAchievements.Services.YearReview
                 .OrderBy(unlock => unlock.GlobalPercent.Value)
                 .ThenBy(unlock => unlock.UnlockUtc)
                 .FirstOrDefault();
+            data.Highlights = unlocks
+                .Where(unlock => !string.IsNullOrWhiteSpace(unlock.IconPath))
+                .OrderBy(unlock => unlock.GlobalPercent ?? 100)
+                .ThenBy(unlock => unlock.UnlockUtc)
+                .Take(HighlightCount)
+                .ToList();
             data.First = unlocks.FirstOrDefault();
             data.Latest = unlocks.LastOrDefault();
 
