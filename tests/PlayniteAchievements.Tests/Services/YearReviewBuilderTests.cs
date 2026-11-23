@@ -123,6 +123,20 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void Highlights_AreTheRarestUnlocksWithAnIcon()
+        {
+            var withIcon = Unlock(GameA, new DateTime(2026, 3, 1), 2.0, name: "Rare");
+            withIcon.IconPath = "rare.png";
+            var noIcon = Unlock(GameA, new DateTime(2026, 3, 2), 0.1, name: "No icon");
+            var common = Unlock(GameA, new DateTime(2026, 3, 3), 50, name: "Common");
+            common.IconPath = "common.png";
+
+            var review = YearReviewBuilder.Build(2026, Inputs(common, noIcon, withIcon));
+
+            CollectionAssert.AreEqual(new[] { "Rare", "Common" }, review.Highlights.Select(unlock => unlock.AchievementName).ToArray());
+        }
+
+        [TestMethod]
         public void Completions_CountOnlyGamesFinishedInTheYear()
         {
             var inputs = Inputs(Unlock(GameA, new DateTime(2026, 6, 1)));
