@@ -75,6 +75,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     public sealed class YearReviewIcon : YearReviewPlaced
     {
         public string IconPath { get; set; }
+        public Guid GameId { get; set; }
+        public YearReviewUnlockGroup Group { get; set; }
 
         /// <summary>The achievement and its game, shown on hover.</summary>
         public string ToolTip { get; set; }
@@ -85,6 +87,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
     {
         public YearReviewNumbersSlide() : base(YearReviewSlideKind.Numbers) { }
 
+        /// <summary>Every unlock of the year, opened from the big figure.</summary>
+        public YearReviewUnlockGroup AllGroup { get; set; }
+
         /// <summary>The year's rarest icons, scattered under the figure.</summary>
         public IReadOnlyList<YearReviewIcon> Icons { get; set; }
 
@@ -92,6 +97,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public int CollectionGained { get; set; }
         public int PrestigeGained { get; set; }
         public string LevelText { get; set; }
+        public string PrestigeLevelText { get; set; }
         public int Games { get; set; }
     }
 
@@ -130,12 +136,15 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public IReadOnlyList<YearReviewMonthBar> Months { get; set; }
         public string BusiestDayText { get; set; }
         public int StreakDays { get; set; }
+        public YearReviewUnlockGroup StreakGroup { get; set; }
         public string StreakRangeText { get; set; }
         public IReadOnlyList<YearReviewHeatCell> Heat { get; set; }
     }
 
     public sealed class YearReviewCoverCard : YearReviewPlaced
     {
+        public Guid GameId { get; set; }
+        public YearReviewUnlockGroup Group { get; set; }
         public int Rank { get; set; }
         public string Name { get; set; }
         public string CoverPath { get; set; }
@@ -171,6 +180,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public int Count { get; set; }
         public string BreakdownText { get; set; }
+        public YearReviewUnlockGroup AllGroup { get; set; }
         public IReadOnlyList<YearReviewCoverCard> Cards { get; set; }
     }
 
@@ -180,6 +190,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         public string Name { get; set; }
         public string IconPath { get; set; }
+        public YearReviewUnlockGroup Group { get; set; }
         public double Percent { get; set; }
         public string DetailText { get; set; }
         public RarityTier Tier { get; set; }
@@ -189,6 +200,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
     public sealed class YearReviewBubble : YearReviewPlaced
     {
+        public YearReviewUnlockGroup Group { get; set; }
         public string Label { get; set; }
         public int Unlocks { get; set; }
         public double Diameter { get; set; }
@@ -206,6 +218,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
     public sealed class YearReviewPlatformEntry : YearReviewPlaced
     {
+        public YearReviewUnlockGroup Group { get; set; }
         public string Name { get; set; }
         public int Unlocks { get; set; }
         public double NumberHeight { get; set; }
@@ -233,9 +246,11 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public string FirstLabel { get; set; }
         public string FirstName { get; set; }
         public string FirstIconPath { get; set; }
+        public YearReviewUnlockGroup FirstGroup { get; set; }
         public string FirstDetail { get; set; }
         public string LatestName { get; set; }
         public string LatestIconPath { get; set; }
+        public YearReviewUnlockGroup LatestGroup { get; set; }
         public string LatestDetail { get; set; }
         public int DaysApart { get; set; }
     }
