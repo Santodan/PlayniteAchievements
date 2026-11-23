@@ -54,6 +54,7 @@ namespace PlayniteAchievements.Services.YearReview
                 .ToDictionary(group => group.Key, group => group.First());
 
             data.Unlocks = unlocks;
+            data.Games = gamesById;
             data.Unlocked = unlocks.Count;
             data.GamesWithUnlocks = unlocks.Select(unlock => unlock.GameId).Distinct().Count();
 
@@ -131,6 +132,16 @@ namespace PlayniteAchievements.Services.YearReview
             var during = 0;
             var prestigeBefore = 0;
             var prestige = 0;
+            var dayCollection = new Dictionary<DateTime, int>();
+            var dayPrestige = new Dictionary<DateTime, int>();
+            var gameCollection = new Dictionary<Guid, int>();
+            var gamePrestige = new Dictionary<Guid, int>();
+            void Add<T>(Dictionary<T, int> sums, T key, int value)
+            {
+                sums.TryGetValue(key, out var sum);
+                sums[key] = sum + value;
+            }
+
             foreach (var fact in inputs.Facts ?? Array.Empty<UnlockFact>())
             {
                 if (fact == null)
@@ -147,9 +158,17 @@ namespace PlayniteAchievements.Services.YearReview
                 {
                     during += fact.CollectionScore;
                     prestige += fact.PrestigeScore;
+                    Add(dayCollection, fact.Day.Value, fact.CollectionScore);
+                    Add(dayPrestige, fact.Day.Value, fact.PrestigeScore);
+                    Add(gameCollection, fact.GameId, fact.CollectionScore);
+                    Add(gamePrestige, fact.GameId, fact.PrestigeScore);
                 }
             }
 
+            data.DayCollection = dayCollection;
+            data.DayPrestige = dayPrestige;
+            data.GameCollection = gameCollection;
+            data.GamePrestige = gamePrestige;
             data.CollectionGained = during;
             data.PrestigeGained = prestige;
             data.LevelAtStart = DisplayLevel(before);
@@ -207,6 +226,35 @@ namespace PlayniteAchievements.Services.YearReview
                 .Count();
 
             var myGames = new HashSet<Guid>(unlocks.Select(unlock => unlock.GameId));
+            var perFriend = rows
+                .Where(row => !string.IsNullOrEmpty(row.FriendKey))
+                .GroupBy(row => row.FriendKey, StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                {
+                    var mine = group
+                        .Where(row => row.SelfUnlockUtc.HasValue && inYear(dayOf(row.SelfUnlockUtc.Value)) && !string.IsNullOrEmpty(row.AchievementKey))
+                        .ToList();
+                    return new YearReviewFriendStats
+                    {
+                        Key = group.Key,
+                        Name = group.Select(row => row.FriendName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
+                        UnlockedFirst = mine.Where(row => row.SelfUnlockUtc.Value < row.FriendUnlockUtc)
+                            .Select(row => row.AchievementKey).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                        TheyFirst = mine.Where(row => row.FriendUnlockUtc < row.SelfUnlockUtc.Value)
+                            .Select(row => row.AchievementKey).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                        SharedGameIds = group
+                            .Where(row => row.GameId.HasValue && myGames.Contains(row.GameId.Value) && inYear(dayOf(row.FriendUnlockUtc)))
+                            .Select(row => row.GameId.Value)
+                            .Distinct()
+                            .ToList()
+                    };
+                })
+                .Where(friend => friend.UnlockedFirst > 0 || friend.TheyFirst > 0 || friend.SharedGameIds.Count > 0)
+                .OrderByDescending(friend => friend.SharedGameIds.Count)
+                .ThenByDescending(friend => friend.UnlockedFirst + friend.TheyFirst)
+                .ThenBy(friend => friend.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
             var top = rows
                 .Where(row => row.GameId.HasValue
                               && myGames.Contains(row.GameId.Value)
@@ -226,6 +274,7 @@ namespace PlayniteAchievements.Services.YearReview
             return new YearReviewFriendSummary
             {
                 UnlockedFirst = unlockedFirst,
+                PerFriend = perFriend,
                 TopFriendKey = top?.Key,
                 TopFriendName = top?.Name,
                 SharedGameIds = top?.Games ?? (IReadOnlyList<Guid>)Array.Empty<Guid>()
