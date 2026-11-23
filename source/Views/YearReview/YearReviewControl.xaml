@@ -32,15 +32,20 @@
                 <!-- The stage is what Save image captures: backdrop and slide together. -->
                 <Grid x:Name="SlideStage" Width="1280" Height="770" ClipToBounds="True"
                       Background="{DynamicResource PlayAch.Brush.PopupSurface}">
-                    <!-- The slide's game art, decoded tiny and stretched, which blurs it without an
-                         effect, then faded toward the surface on the left where the text sits. -->
-                    <Viewbox x:Name="Backdrop" Stretch="UniformToFill" Opacity="0.4"
-                             RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
-                        <Image Width="64" Height="40" Stretch="UniformToFill"
-                               RenderOptions.BitmapScalingMode="HighQuality"
+                    <!-- The slide's game art, blurred. The blur is rasterized once into the
+                         element's bitmap cache, so only the fade animates. -->
+                    <Border x:Name="Backdrop" Opacity="0.4" IsHitTestVisible="False" Margin="-60">
+                        <Border.CacheMode>
+                            <BitmapCache RenderAtScale="1"/>
+                        </Border.CacheMode>
+                        <Image Stretch="UniformToFill"
                                helpers:AsyncImage.Uri="{Binding CurrentSlide.BackdropPath}"
-                               helpers:AsyncImage.DecodePixel="64"/>
-                    </Viewbox>
+                               helpers:AsyncImage.DecodePixel="640">
+                            <Image.Effect>
+                                <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
+                            </Image.Effect>
+                        </Image>
+                    </Border>
                     <Rectangle Fill="{DynamicResource PlayAch.Brush.PopupSurface}" IsHitTestVisible="False">
                         <Rectangle.OpacityMask>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.4">
