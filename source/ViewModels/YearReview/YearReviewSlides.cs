@@ -281,6 +281,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public double Diameter { get; set; }
         public double NumberHeight { get; set; }
         public Brush Fill { get; set; }
+
+        /// <summary>Dark or light, whichever reads on <see cref="Fill"/>, the user's rarity color.</summary>
+        public Brush TextBrush { get; set; }
     }
 
     /// <summary>The rarity split of every platform or of one.</summary>
