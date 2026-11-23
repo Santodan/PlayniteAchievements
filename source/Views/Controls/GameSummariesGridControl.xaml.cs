@@ -1535,6 +1535,16 @@ namespace PlayniteAchievements.Views.Controls
                 return GridSurface.ShowcaseCategory;
             }
 
+            // The friends' games widget lists every picked friend's games at once, as the
+            // Friends Overview's games list does, and takes its column rules.
+            if (string.Equals(
+                    ShowcaseGridSurfaces.GetBaseKey(ColumnSettingsKey),
+                    ShowcaseGridSurfaces.FriendGames,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return GridSurface.FriendsOverview;
+            }
+
             if (string.Equals(ColumnSettingsKey, "StartPageGameSummaries", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(ColumnSettingsKey, "StartPageOverview", StringComparison.OrdinalIgnoreCase))
             {
