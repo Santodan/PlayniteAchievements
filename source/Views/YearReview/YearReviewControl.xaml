@@ -36,6 +36,17 @@
              anywhere on it moves to the next slide. -->
         <Grid x:Name="Deck" Grid.Row="1" Background="Transparent" PreviewMouseLeftButtonDown="Deck_PreviewMouseLeftButtonDown" PreviewMouseLeftButtonUp="Deck_PreviewMouseLeftButtonUp" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
             <Viewbox Stretch="Uniform" Margin="0,4">
+                <Viewbox.Style>
+                    <Style TargetType="Viewbox">
+                        <Style.Triggers>
+                            <!-- The slide fades back while another year loads. -->
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Opacity" Value="0.25"/>
+                                <Setter Property="IsHitTestVisible" Value="False"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Viewbox.Style>
                 <!-- The stage is what Save image captures: backdrop and slide together. -->
                 <!-- Text here is laid out at 1280 x 770 and scaled with the window, so it uses
                      the scale-friendly Ideal formatting with fixed hinting. Display formatting
@@ -76,6 +87,14 @@
                     <ContentPresenter x:Name="CurrentHost"/>
                 </Grid>
             </Viewbox>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="260"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Status_LoadingAchievements}"
+                           HorizontalAlignment="Center"
+                           FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                <ProgressBar Height="4" IsIndeterminate="True" Margin="0,10,0,0"/>
+            </StackPanel>
         </Grid>
 
         <!-- Progress through the slides, and the year. -->
@@ -125,6 +144,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
             <ComboBox Grid.Column="1"
+                      IsEnabled="{Binding IsLoading, Converter={StaticResource InvertBoolConverter}}"
                       MinWidth="90"
                       Margin="16,0,0,0"
                       ItemsSource="{Binding Years}"
