@@ -188,6 +188,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
                     Diameter = diameter,
                     NumberHeight = diameter * 0.3,
                     Fill = tier.ToBrush(),
+                    TextBrush = TextOn(tier.ToBrush()),
                     X = x,
                     Y = Clamp(centreY + (i % 2 == 0 ? -30 : 40) - diameter / 2, 130, 720 - diameter),
                     Delay = 250 + i * 220
@@ -334,6 +335,29 @@ namespace PlayniteAchievements.ViewModels.YearReview
             }
 
             return Brushes.Gray;
+        }
+
+        private static readonly Brush DarkText = Frozen(Color.FromArgb(0xCC, 0, 0, 0));
+        private static readonly Brush LightText = Frozen(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF));
+
+        /// <summary>Dark text on a light fill, light text on a dark one, by the fill's luminance.</summary>
+        private static Brush TextOn(Brush fill)
+        {
+            if (!(fill is SolidColorBrush solid))
+            {
+                return DarkText;
+            }
+
+            var c = solid.Color;
+            var luminance = (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255;
+            return luminance > 0.5 ? DarkText : LightText;
+        }
+
+        private static Brush Frozen(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
         }
 
         private static double Clamp(double value, double min, double max) => Math.Max(min, Math.Min(max, value));
