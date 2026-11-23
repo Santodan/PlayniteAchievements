@@ -1,0 +1,100 @@
+<UserControl x:Class="PlayniteAchievements.Views.YearReview.YearReviewControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels.YearReview"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
+             UseLayoutRounding="True">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <helpers:SharedResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Views/YearReview/YearReviewSlideTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="YearReview.NavButton" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.ToolbarIconStyle}">
+                <Setter Property="Width" Value="36"/>
+                <Setter Property="Height" Value="36"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="8,0,0,0"/>
+                <Setter Property="ContentTemplate" Value="{StaticResource PlayAch.ButtonContent.Glyph}"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- An opaque backdrop: some themes leave the window surface transparent. -->
+    <Grid Background="{DynamicResource PlayAch.Brush.PopupSurface}">
+        <!-- The slide area. Slides are laid out at 1280 x 770 and scaled to the window. A click
+             anywhere on it moves to the next slide. -->
+        <Grid x:Name="Deck" Background="Transparent" MouseLeftButtonUp="Deck_MouseLeftButtonUp" Cursor="Hand">
+            <Viewbox Stretch="Uniform" Margin="0,30,0,56">
+                <Grid Width="1280" Height="770" ClipToBounds="True">
+                    <ContentPresenter x:Name="OutgoingHost" IsHitTestVisible="False"/>
+                    <ContentPresenter x:Name="CurrentHost"/>
+                </Grid>
+            </Viewbox>
+        </Grid>
+
+        <!-- Progress through the slides, and the year. -->
+        <Grid VerticalAlignment="Top" Margin="20,14,20,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ItemsControl ItemsSource="{Binding Segments}" VerticalAlignment="Center" IsHitTestVisible="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:YearReviewProgressSegment}">
+                        <Border Height="3" CornerRadius="2" Margin="2,0">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Border}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsReached}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Accent}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ComboBox Grid.Column="1"
+                      MinWidth="90"
+                      Margin="16,0,0,0"
+                      ItemsSource="{Binding Years}"
+                      SelectedItem="{Binding SelectedYear}"
+                      ToolTip="{DynamicResource LOCPlayAch_YearReview_Year}"
+                      AutomationProperties.Name="{DynamicResource LOCPlayAch_YearReview_Year}"/>
+        </Grid>
+
+        <TextBlock Text="{Binding Counter}"
+                   VerticalAlignment="Bottom"
+                   HorizontalAlignment="Left"
+                   Margin="24,0,0,24"
+                   FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Bottom"
+                    HorizontalAlignment="Right"
+                    Margin="0,0,20,14">
+            <Button Content="&#xEAB5;"
+                    Command="{Binding PreviousCommand}"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Previous}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Previous}"/>
+            <Button Content="&#xEAB8;"
+                    Command="{Binding NextCommand}"
+                    Style="{StaticResource YearReview.NavButton}"
+                    ToolTip="{DynamicResource LOCPlayAch_Common_Next}"
+                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_Next}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
