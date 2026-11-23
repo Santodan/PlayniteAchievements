@@ -19,39 +19,22 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
     /// their unlocks, most recent friend unlock first until the grid sorts otherwise.
     /// </summary>
     public sealed class FriendGamesWidgetViewModel
-        : ShowcaseGridWidgetViewModelBase<GameSummaryItem>, IDisposable
+        : FriendGridWidgetViewModelBase<GameSummaryItem, FriendGamesControlBarAdapter>
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
-
-        // The widget instance's shared adapter, so the filters survive view model swaps.
-        private readonly ShowcaseControlBarSlot<FriendGamesControlBarAdapter> _controlBarSlot;
-        private readonly FriendWidgetLists _lists;
 
         // Several friends' games count each achievement once, which the shared lists' per-friend
         // totals cannot; their unlocks are read here.
         private LiveQuery<IReadOnlyList<AchievementTotalsRecord>> _totals;
         private string _totalsKey;
 
-        public FriendGamesWidgetViewModel()
-        {
-            _controlBarSlot = new ShowcaseControlBarSlot<FriendGamesControlBarAdapter>(RefreshItems);
-            _lists = new FriendWidgetLists(RefreshItems);
-        }
-
         protected override string BaseSurfaceKey => ShowcaseGridSurfaces.FriendGames;
 
-        // Each read of the friend data builds new rows.
-        protected override bool ReplacesRowsInPlace => true;
-
-        protected override IEnumerable<GameSummaryItem> SelectItems(ShowcaseWidgetProjection projection)
+        internal override IEnumerable<GameSummaryItem> SelectFriendItems(
+            ShowcaseWidgetProjection projection,
+            FriendsOverviewLists lists,
+            FriendGamesControlBarAdapter bar)
         {
-            var bar = Bar();
-            var lists = _lists.Current;
-            if (lists == null)
-            {
-                return Array.Empty<GameSummaryItem>();
-            }
-
             IEnumerable<GameSummaryItem> games = GamesOf(lists, projection?.Instance, bar.FavoritesOnly);
             var search = bar.SearchText?.Trim();
             if (!string.IsNullOrEmpty(search))
@@ -90,7 +73,7 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
         // The friends' unlocked achievements per game, each counted once; null until read.
         private IReadOnlyList<AchievementTotalsRecord> ReadTotals(IReadOnlyList<FriendAccountRef> accounts)
         {
-            var source = _lists.Source;
+            var source = Lists.Source;
             var reads = source?.Reads;
             var dispatcher = Application.Current?.Dispatcher;
             if (reads == null || dispatcher == null)
@@ -154,19 +137,10 @@ namespace PlayniteAchievements.ViewModels.Showcase.Widgets
                 propertyName == nameof(GameSummaryGridOptions.SortDescending);
         }
 
-        private FriendGamesControlBarAdapter Bar()
-        {
-            _controlBarSlot.Bind(Projection?.Instance?.InstanceId);
-            _controlBarSlot.Adapter.EnableSort();
-            _controlBarSlot.UpdateShownBar(Projection?.Instance, LegacyShowControlBar);
-            ControlBar = _controlBarSlot.ShownBar;
-            return _controlBarSlot.Adapter;
-        }
-
-        public void Dispose()
+        public override void Dispose()
         {
             ReleaseTotals();
-            _lists.Dispose();
+            base.Dispose();
         }
     }
 }
