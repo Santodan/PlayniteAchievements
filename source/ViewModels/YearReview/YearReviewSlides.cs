@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows.Media;
 using PlayniteAchievements.Models.Achievements;
@@ -9,6 +10,35 @@ namespace PlayniteAchievements.ViewModels.YearReview
     // Every slide is laid out on a 1280 x 770 canvas that the window scales to fit, so the
     // positions below are canvas units. Each slide type has its own DataTemplate.
 
+    /// <summary>One row of an unlock list.</summary>
+    public sealed class YearReviewUnlockRow
+    {
+        public string IconPath { get; set; }
+        public string Name { get; set; }
+        public string GameName { get; set; }
+        public string TimeText { get; set; }
+    }
+
+    /// <summary>The unlocks of a month or a day, listed when it is clicked. Rows are made on first open.</summary>
+    public sealed class YearReviewUnlockGroup
+    {
+        private readonly Func<IReadOnlyList<YearReviewUnlockRow>> _rows;
+        private IReadOnlyList<YearReviewUnlockRow> _built;
+
+        public YearReviewUnlockGroup(string header, int count, Func<IReadOnlyList<YearReviewUnlockRow>> rows)
+        {
+            Header = header;
+            Count = count;
+            _rows = rows;
+        }
+
+        public string Header { get; }
+
+        public int Count { get; }
+
+        public IReadOnlyList<YearReviewUnlockRow> Rows => _built ?? (_built = _rows());
+    }
+
     public abstract class YearReviewSlide
     {
         protected YearReviewSlide(YearReviewSlideKind kind)
@@ -17,6 +47,9 @@ namespace PlayniteAchievements.ViewModels.YearReview
         }
 
         public YearReviewSlideKind Kind { get; }
+
+        /// <summary>What the slide shows, for the name of a saved image.</summary>
+        public string Title { get; set; }
 
         /// <summary>The art behind the slide, shown blurred and faded; null for none.</summary>
         public string BackdropPath { get; set; }
@@ -56,7 +89,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public IReadOnlyList<YearReviewIcon> Icons { get; set; }
 
         public int Unlocked { get; set; }
-        public int ScoreGained { get; set; }
+        public int CollectionGained { get; set; }
+        public int PrestigeGained { get; set; }
         public string LevelText { get; set; }
         public int Games { get; set; }
     }
@@ -74,6 +108,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         /// <summary>The month and its count, shown on hover.</summary>
         public string ToolTip { get; set; }
+
+        public YearReviewUnlockGroup Group { get; set; }
     }
 
     public sealed class YearReviewHeatCell : YearReviewPlaced
@@ -83,6 +119,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         /// <summary>The day and its count, shown on hover.</summary>
         public string ToolTip { get; set; }
+
+        public YearReviewUnlockGroup Group { get; set; }
     }
 
     public sealed class YearReviewMonthsSlide : YearReviewSlide
