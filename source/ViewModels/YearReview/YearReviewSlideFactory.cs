@@ -46,8 +46,6 @@ namespace PlayniteAchievements.ViewModels.YearReview
             (790, 440, -10), (960, 420, 3), (450, 450, -14), (1110, 380, -6)
         };
 
-        private static readonly double[] PlatformIndents = { 72, 118, 84, 62, 100 };
-
         public static IReadOnlyList<YearReviewSlide> Create(YearReviewData data, YearReviewArt art)
         {
             art = art ?? new YearReviewArt();
