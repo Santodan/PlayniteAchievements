@@ -4,6 +4,7 @@ using System.Windows.Media;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.YearReview;
+using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.ViewModels.YearReview
 {
@@ -19,7 +20,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public string TimeText { get; set; }
     }
 
-    /// <summary>The unlocks of a month or a day, listed when it is clicked. Rows are made on first open.</summary>
+    /// <summary>A set of unlocks, listed when the element showing it is clicked. Rows are made on first open.</summary>
     public sealed class YearReviewUnlockGroup
     {
         private readonly Func<IReadOnlyList<YearReviewUnlockRow>> _rows;
@@ -39,8 +40,16 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public IReadOnlyList<YearReviewUnlockRow> Rows => _built ?? (_built = _rows());
     }
 
-    public abstract class YearReviewSlide
+    /// <summary>One of a slide's views, picked from the slide's dropdown.</summary>
+    public abstract class YearReviewSlideView : ObservableObject
     {
+        public string Label { get; set; }
+    }
+
+    public abstract class YearReviewSlide : ObservableObject
+    {
+        private YearReviewSlideView _currentView;
+
         protected YearReviewSlide(YearReviewSlideKind kind)
         {
             Kind = kind;
@@ -53,6 +62,20 @@ namespace PlayniteAchievements.ViewModels.YearReview
 
         /// <summary>The art behind the slide, shown blurred and faded; null for none.</summary>
         public string BackdropPath { get; set; }
+
+        /// <summary>The slide's views; the first is the default. Empty for a slide with one view.</summary>
+        public IReadOnlyList<YearReviewSlideView> Views { get; set; } = Array.Empty<YearReviewSlideView>();
+
+        public bool HasViews => Views.Count > 1;
+
+        public YearReviewSlideView CurrentView
+        {
+            get => _currentView;
+            set => SetValue(ref _currentView, value);
+        }
+
+        /// <summary>The picked view's label when it is not the default, for the saved image's name.</summary>
+        public string ViewSuffix => HasViews && !ReferenceEquals(CurrentView, Views[0]) ? CurrentView?.Label : null;
     }
 
     /// <summary>An element placed on the slide canvas, entering after <see cref="Delay"/> milliseconds.</summary>
@@ -104,6 +127,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     public sealed class YearReviewMonthBar
     {
         public string Label { get; set; }
+
+        /// <summary>The month's value in the view's measure: unlocks or score.</summary>
         public int Unlocks { get; set; }
 
         /// <summary>The bar's height in canvas units.</summary>
@@ -112,7 +137,7 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public bool IsPeak { get; set; }
         public double Delay { get; set; }
 
-        /// <summary>The month and its count, shown on hover.</summary>
+        /// <summary>The month and its value, shown on hover.</summary>
         public string ToolTip { get; set; }
 
         public YearReviewUnlockGroup Group { get; set; }
@@ -129,12 +154,17 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public YearReviewUnlockGroup Group { get; set; }
     }
 
+    /// <summary>The months in one measure: unlocks, collection score or prestige score.</summary>
+    public sealed class YearReviewMonthsView : YearReviewSlideView
+    {
+        public IReadOnlyList<YearReviewMonthBar> Months { get; set; }
+        public string BusiestDayText { get; set; }
+    }
+
     public sealed class YearReviewMonthsSlide : YearReviewSlide
     {
         public YearReviewMonthsSlide() : base(YearReviewSlideKind.Months) { }
 
-        public IReadOnlyList<YearReviewMonthBar> Months { get; set; }
-        public string BusiestDayText { get; set; }
         public int StreakDays { get; set; }
         public YearReviewUnlockGroup StreakGroup { get; set; }
         public string StreakRangeText { get; set; }
@@ -148,7 +178,10 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public int Rank { get; set; }
         public string Name { get; set; }
         public string CoverPath { get; set; }
-        public int Unlocks { get; set; }
+
+        /// <summary>The figure under the name: unlocks, score or average rarity.</summary>
+        public string ValueText { get; set; }
+
         public double Width { get; set; }
         public double Height { get; set; }
         public CompletionBadgeKind Badge { get; set; }
@@ -157,21 +190,29 @@ namespace PlayniteAchievements.ViewModels.YearReview
         /// <summary>True for a completed game, which wears its completion badge.</summary>
         public bool ShowBadge { get; set; }
 
-        /// <summary>True when the card names its game over the art.</summary>
+        /// <summary>True when the card names its game under the art.</summary>
         public bool ShowCaption { get; set; } = true;
 
         public bool HasRank => Rank > 0;
     }
 
+    /// <summary>The top games by one measure.</summary>
+    public sealed class YearReviewTopGamesView : YearReviewSlideView
+    {
+        public double LeadValue { get; set; }
+
+        /// <summary>True when the lead figure is an average unlock percent.</summary>
+        public bool LeadIsPercent { get; set; }
+
+        public string LeadCaption { get; set; }
+
+        /// <summary>The cards from the back of the row to the front; the leader is last.</summary>
+        public IReadOnlyList<YearReviewCoverCard> Cards { get; set; }
+    }
+
     public sealed class YearReviewTopGamesSlide : YearReviewSlide
     {
         public YearReviewTopGamesSlide() : base(YearReviewSlideKind.TopGames) { }
-
-        public int LeadUnlocks { get; set; }
-        public string LeadCaption { get; set; }
-
-        /// <summary>The cards from the back of the fan to the front; the leader is last.</summary>
-        public IReadOnlyList<YearReviewCoverCard> Cards { get; set; }
     }
 
     public sealed class YearReviewCompletionsSlide : YearReviewSlide
@@ -184,18 +225,34 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public IReadOnlyList<YearReviewCoverCard> Cards { get; set; }
     }
 
-    public sealed class YearReviewRarestSlide : YearReviewSlide
+    /// <summary>A rare unlock in a row of them: an icon with its percent.</summary>
+    public sealed class YearReviewRareEntry : YearReviewPlaced
     {
-        public YearReviewRarestSlide() : base(YearReviewSlideKind.Rarest) { }
+        public string IconPath { get; set; }
+        public string Name { get; set; }
+        public string Caption { get; set; }
+        public string PercentText { get; set; }
+        public Brush TierBrush { get; set; }
+        public YearReviewUnlockGroup Group { get; set; }
+    }
 
+    /// <summary>The rarest unlock alone, the five rarest, or the rarest of each platform.</summary>
+    public sealed class YearReviewRarestView : YearReviewSlideView
+    {
+        public bool IsSingle { get; set; }
         public string Name { get; set; }
         public string IconPath { get; set; }
         public YearReviewUnlockGroup Group { get; set; }
         public double Percent { get; set; }
         public string DetailText { get; set; }
-        public RarityTier Tier { get; set; }
         public string TierText { get; set; }
         public Brush TierBrush { get; set; }
+        public IReadOnlyList<YearReviewRareEntry> Entries { get; set; } = Array.Empty<YearReviewRareEntry>();
+    }
+
+    public sealed class YearReviewRarestSlide : YearReviewSlide
+    {
+        public YearReviewRarestSlide() : base(YearReviewSlideKind.Rarest) { }
     }
 
     public sealed class YearReviewBubble : YearReviewPlaced
@@ -208,12 +265,16 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public Brush Fill { get; set; }
     }
 
+    /// <summary>The rarity split of every platform or of one.</summary>
+    public sealed class YearReviewRarityView : YearReviewSlideView
+    {
+        public IReadOnlyList<YearReviewBubble> Bubbles { get; set; }
+        public string TotalText { get; set; }
+    }
+
     public sealed class YearReviewRaritySlide : YearReviewSlide
     {
         public YearReviewRaritySlide() : base(YearReviewSlideKind.Rarity) { }
-
-        public IReadOnlyList<YearReviewBubble> Bubbles { get; set; }
-        public string TotalText { get; set; }
     }
 
     public sealed class YearReviewPlatformEntry : YearReviewPlaced
@@ -229,6 +290,8 @@ namespace PlayniteAchievements.ViewModels.YearReview
     {
         public Geometry Geometry { get; set; }
         public Brush Fill { get; set; }
+        public string ToolTip { get; set; }
+        public YearReviewUnlockGroup Group { get; set; }
     }
 
     public sealed class YearReviewPlatformsSlide : YearReviewSlide
@@ -255,17 +318,39 @@ namespace PlayniteAchievements.ViewModels.YearReview
         public int DaysApart { get; set; }
     }
 
+    /// <summary>Every friend together, or one friend against the user.</summary>
+    public sealed class YearReviewFriendsView : YearReviewSlideView
+    {
+        private string _avatarPath;
+
+        /// <summary>The friend account; null for the every-friend view.</summary>
+        public string FriendKey { get; set; }
+
+        public int BigNumber { get; set; }
+        public string BigLabel { get; set; }
+        public bool HasSecond { get; set; }
+        public int SecondNumber { get; set; }
+        public string SecondLabel { get; set; }
+
+        public bool HasFriend { get; set; }
+        public string FriendName { get; set; }
+        public string FriendInitial { get; set; }
+
+        /// <summary>Read once the view is first shown.</summary>
+        public string AvatarPath
+        {
+            get => _avatarPath;
+            set => SetValue(ref _avatarPath, value);
+        }
+
+        public bool AvatarRequested { get; set; }
+        public string InCommonText { get; set; }
+        public IReadOnlyList<YearReviewCoverCard> SharedCards { get; set; }
+    }
+
     public sealed class YearReviewFriendsSlide : YearReviewSlide
     {
         public YearReviewFriendsSlide() : base(YearReviewSlideKind.Friends) { }
-
-        public int UnlockedFirst { get; set; }
-        public bool HasTopFriend { get; set; }
-        public string FriendName { get; set; }
-        public string FriendInitial { get; set; }
-        public string AvatarPath { get; set; }
-        public string InCommonText { get; set; }
-        public IReadOnlyList<YearReviewCoverCard> SharedCards { get; set; }
     }
 
     public sealed class YearReviewSummarySlide : YearReviewSlide
